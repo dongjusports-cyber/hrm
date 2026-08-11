@@ -1,0 +1,112 @@
+"""
+AI provider tách rời nghiệp vụ (quyết định #11 / 05§5.2).
+Đổi model/API Gemini không sửa module dispute/payroll.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+
+import httpx
+
+from app.core.config import get_settings
+
+
+@dataclass
+class ProviderResult:
+    text: str
+    tokens_in: int = 0
+    tokens_out: int = 0
+    model_name: str = ""
+    stub: bool = False
+
+
+SYSTEM_PROMPT_BASE = (
+    "Bạn là Trợ Lý AI — trợ lý HRM nhà máy DONGJU. Trả lời tiếng Việt. "
+    "CHỈ ĐỌC: không được tự sửa lương, không đổi policy, không xác nhận/từ chối khiếu nại, "
+    "không xóa dữ liệu. Chỉ phân tích và đề xuất; nếu cần sửa số liệu thì bảo user liên hệ HR/Admin. "
+    "Không bịa số — thiếu dữ liệu thì nói rõ thiếu."
+)
+
+
+def generate_text(
+    *,
+    api_key: str,
+    model_name: str,
+    system: str,
+    user_message: str,
+    max_output_tokens: int = 1024,
+) -> ProviderResult:
+    """Gọi Gemini generateContent; stub khi key trống hoặc DJHRM_AI_STUB=1."""
+    use_stub = os.environ.get("DJHRM_AI_STUB", "").strip() in ("1", "true", "yes")
+    if use_stub or not api_key.strip():
+        return _stub_result(model_name, user_message)
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model_name}:generateContent"
+    )
+    payload = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user_message}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_output_tokens,
+            "temperature": 0.3,
+        },
+    }
+    with httpx.Client(timeout=60.0) as client:
+        res = client.post(url, params={"key": api_key}, json=payload)
+        if res.status_code >= 400:
+            detail = res.text[:500]
+            raise RuntimeError(f"Gemini API lỗi {res.status_code}: {detail}")
+        data = res.json()
+
+    text = _extract_text(data)
+    usage = data.get("usageMetadata") or {}
+    return ProviderResult(
+        text=text or "Trợ Lý AI: mô hình không trả nội dung.",
+        tokens_in=int(usage.get("promptTokenCount") or 0),
+        tokens_out=int(usage.get("candidatesTokenCount") or 0),
+        model_name=model_name,
+        stub=False,
+    )
+
+
+def resolve_api_key(db_encrypted: str | None) -> str:
+    """Ưu tiên key Admin lưu DB; fallback biến môi trường GEMINI_API_KEY."""
+    if db_encrypted:
+        from app.modules.ai.crypto_key import decrypt_secret
+
+        plain = decrypt_secret(db_encrypted)
+        if plain:
+            return plain
+    return (get_settings().gemini_api_key or "").strip()
+
+
+def _extract_text(data: dict) -> str:
+    try:
+        parts = data["candidates"][0]["content"]["parts"]
+        return "".join(p.get("text", "") for p in parts).strip()
+    except (KeyError, IndexError, TypeError):
+        return ""
+
+
+def _stub_result(model_name: str, user_message: str) -> ProviderResult:
+    snippet = user_message.strip().replace("\n", " ")[:180]
+    text = (
+        "Trợ Lý AI (chế độ stub — chưa gọi Gemini thật):\n"
+        f"- Đã nhận câu hỏi: {snippet or '(trống)'}\n"
+        "- Đây là phân tích giả lập read-only: đối chiếu công/OT/phụ cấp trên snapshot phiếu; "
+        "không tự sửa số liệu.\n"
+        "- Đề xuất: HR kiểm tra punch Mitapro / bảng công tay, rồi quyết định đóng hoặc "
+        "phát hành lại phiếu sau khi chỉnh.\n"
+        "- Để bật Gemini thật: Admin dán API key tại Cấu Hình → AI, hoặc set GEMINI_API_KEY."
+    )
+    return ProviderResult(
+        text=text,
+        tokens_in=0,
+        tokens_out=0,
+        model_name=model_name or "stub",
+        stub=True,
+    )

@@ -1,0 +1,226 @@
+"""Rebuild attendance_days từ punches + lịch công ty."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+
+from fastapi import HTTPException, status
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
+from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
+from app.modules.attendance.engine import VN_TZ, Schedule, calculate_day, to_vn
+from app.modules.attendance.models import AttendanceDay
+from app.modules.attendance.schemas import AttendanceDayOut, RecalculateResult
+from app.modules.calendar.models import Holiday
+from app.modules.calendar.service import get_work_week
+from app.modules.integration.models import AttendancePunch
+from app.modules.mdm.models import Employee
+from app.modules.policy.models import PolicyPackage
+from app.modules.policy.seed_payload import default_payload
+
+
+def _punch_dedupe_window_seconds(db: Session) -> int:
+    """Đọc work_time.punch_dedupe.window_seconds từ gói policy đang active."""
+    fallback = int(default_payload()["work_time"]["punch_dedupe"]["window_seconds"])
+    pkg = (
+        db.query(PolicyPackage)
+        .filter(PolicyPackage.is_active.is_(True))
+        .order_by(PolicyPackage.effective_from.desc())
+        .first()
+    )
+    if not pkg or not isinstance(pkg.payload, dict):
+        return fallback
+    work_time = pkg.payload.get("work_time")
+    if not isinstance(work_time, dict):
+        return fallback
+    dedupe = work_time.get("punch_dedupe")
+    if not isinstance(dedupe, dict):
+        return fallback
+    try:
+        return int(dedupe.get("window_seconds", fallback))
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _work_time_grace_seconds(db: Session) -> tuple[int, int]:
+    """late_grace_seconds, early_grace_seconds từ policy (22§22.1 = 0)."""
+    wt = default_payload()["work_time"]
+    late = int(wt.get("late_grace_seconds", 0))
+    early = int(wt.get("early_grace_seconds", 0))
+    pkg = (
+        db.query(PolicyPackage)
+        .filter(PolicyPackage.is_active.is_(True))
+        .order_by(PolicyPackage.effective_from.desc())
+        .first()
+    )
+    if pkg and isinstance(pkg.payload, dict):
+        policy_wt = pkg.payload.get("work_time")
+        if isinstance(policy_wt, dict):
+            try:
+                late = int(policy_wt.get("late_grace_seconds", late))
+                early = int(policy_wt.get("early_grace_seconds", early))
+            except (TypeError, ValueError):
+                pass
+    return late, early
+
+
+def _load_schedule(db: Session) -> Schedule:
+    rule = get_work_week(db)
+    holidays = {h.date for h in db.query(Holiday).all()}
+    late_grace, early_grace = _work_time_grace_seconds(db)
+    return Schedule(
+        work_weekdays=list(rule.work_weekdays),
+        morning_start=rule.morning_start,
+        morning_end=rule.morning_end,
+        afternoon_start=rule.afternoon_start,
+        afternoon_end=rule.afternoon_end,
+        grace_late_minutes=rule.grace_late_minutes,
+        holiday_dates=holidays,
+        grace_late_seconds=late_grace,
+        grace_early_seconds=early_grace,
+    )
+
+
+def recalculate_days(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    employee_code: str | None = None,
+) -> RecalculateResult:
+    if date_to < date_from:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: ngày kết thúc phải ≥ ngày bắt đầu.",
+        )
+    if (date_to - date_from).days > 92:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: khoảng tính công tối đa 92 ngày mỗi lần.",
+        )
+
+    schedule = _load_schedule(db)
+    dedupe_window = _punch_dedupe_window_seconds(db)
+    # Lấy punch theo khoảng ±1 ngày để tránh lệch timezone biên
+    start_dt = datetime(date_from.year, date_from.month, date_from.day, tzinfo=VN_TZ) - timedelta(days=1)
+    end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=VN_TZ) + timedelta(days=1)
+
+    q = db.query(AttendancePunch).filter(
+        AttendancePunch.punch_time >= start_dt,
+        AttendancePunch.punch_time <= end_dt,
+    )
+    if employee_code:
+        q = q.filter(AttendancePunch.employee_code == employee_code.strip())
+    punches = q.all()
+
+    emp_q = db.query(Employee).filter(Employee.deleted_at.is_(None))
+    if employee_code:
+        emp_q = emp_q.filter(Employee.employee_code == employee_code.strip())
+    employees = {e.employee_code: e for e in emp_q.all()}
+
+    grouped: dict[tuple[str, date], list[datetime]] = defaultdict(list)
+    unknown: set[str] = set()
+    for p in punches:
+        vn = to_vn(p.punch_time)
+        wd = vn.date()
+        if wd < date_from or wd > date_to:
+            continue
+        code = p.employee_code.strip()
+        if code not in employees:
+            unknown.add(code)
+            continue
+        grouped[(code, wd)].append(p.punch_time)
+
+    upserted = 0
+    touched_emps: set[str] = set()
+    for (code, wd), times in grouped.items():
+        emp = employees[code]
+        calc = calculate_day(times, wd, schedule, punch_dedupe_window_seconds=dedupe_window)
+        row = (
+            db.query(AttendanceDay)
+            .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == wd)
+            .one_or_none()
+        )
+        if row is not None and row.is_locked:
+            continue
+        if row is None:
+            row = AttendanceDay(employee_id=emp.id, work_date=wd)
+            db.add(row)
+        shift_id = resolve_work_shift_id(db, emp, wd)
+        apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
+        upserted += 1
+        touched_emps.add(code)
+
+    db.commit()
+    skipped = sorted(unknown)
+    msg = f"Đã tính lại {upserted} ngày công."
+    if skipped:
+        msg += f" Bỏ qua MSNV chưa có hồ sơ: {', '.join(skipped)}."
+    return RecalculateResult(
+        days_upserted=upserted,
+        employees_touched=len(touched_emps),
+        skipped_unknown_codes=skipped,
+        message=msg,
+    )
+
+
+def list_days(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    employee_code: str | None = None,
+) -> list[AttendanceDayOut]:
+    if date_to < date_from:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: ngày kết thúc phải ≥ ngày bắt đầu.",
+        )
+    q = (
+        db.query(AttendanceDay, Employee)
+        .join(Employee, Employee.id == AttendanceDay.employee_id)
+        .filter(
+            and_(
+                AttendanceDay.work_date >= date_from,
+                AttendanceDay.work_date <= date_to,
+                Employee.deleted_at.is_(None),
+            )
+        )
+        .order_by(AttendanceDay.work_date, Employee.employee_code)
+    )
+    if employee_code:
+        q = q.filter(Employee.employee_code == employee_code.strip())
+    rows = q.all()
+    out: list[AttendanceDayOut] = []
+    for day, emp in rows:
+        out.append(
+            AttendanceDayOut(
+                id=day.id,
+                employee_id=day.employee_id,
+                employee_code=emp.employee_code,
+                full_name=emp.full_name,
+                work_date=day.work_date,
+                first_in=day.first_in,
+                last_out=day.last_out,
+                worked_hours=day.worked_hours,
+                late_minutes=day.late_minutes,
+                early_minutes=day.early_minutes,
+                ot_minutes=day.ot_minutes,
+                ot_type=day.ot_type,
+                punch_count=day.punch_count,
+                is_workday=day.is_workday,
+                work_shift_id=day.work_shift_id,
+                leave_code=day.leave_code,
+                source=day.source,
+                night_hours=day.night_hours,
+                sunday_hours=day.sunday_hours,
+                holiday_hours=day.holiday_hours,
+                ot_night_hours=day.ot_night_hours,
+                segment=day.segment,
+                is_locked=day.is_locked,
+                note=day.note,
+                edited_by_user_id=day.edited_by_user_id,
+                edited_at=day.edited_at,
+            )
+        )
+    return out

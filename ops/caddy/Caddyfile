@@ -1,0 +1,14 @@
+# DJ HRM — edge HTTPS (Let's Encrypt tự động)
+# Biến: DOMAIN, CADDY_EMAIL (truyền từ docker-compose)
+
+{
+	email {$CADDY_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy web:80 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+	}
+}

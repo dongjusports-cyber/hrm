@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<title>Phụ lục tăng lương {{ employee_code }}</title>
+<style>
+  body { font-family: "Times New Roman", serif; font-size: 12pt; margin: 12mm 14mm; line-height: 1.35; color: #000; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .right { text-align: right; }
+  .blue { color: #00f; }
+  .small-en { font-size: 10pt; font-style: italic; }
+  .indent { margin-left: 24px; }
+  .sign-row { display: flex; justify-content: space-between; margin-top: 48px; }
+  .sign-col { width: 45%; text-align: center; }
+  table.amt { width: 100%; border-collapse: collapse; margin: 8px 0 8px 24px; }
+  table.amt td { padding: 3px 6px; vertical-align: top; }
+  @media print { .page { page-break-after: always; } }
+</style>
+</head>
+<body>
+
+{% for row in rows %}
+<div class="page">
+  <p class="center bold">Cộng Hòa Xã Hội Chủ Nghĩa Việt Nam</p>
+  <p class="center bold">Độc lập – Tự do – Hạnh phúc</p>
+  <p class="center">-----oooOooo-----</p>
+
+  <p>
+    <span class="bold">Công ty TNHH DONGJU SPORTS VN</span>
+    <span class="right">Ngày {{ row.sign_day }} tháng {{ row.sign_month }} năm {{ row.sign_year }}</span>
+  </p>
+
+  <p class="center bold" style="font-size:16pt">PHỤ LỤC HỢP ĐỒNG LAO ĐỘNG</p>
+  <p class="center bold small-en">SUB-LABOUR CONTRACT</p>
+
+  <p>Chúng tôi, một bên là Ông/bà: <span class="bold">{{ row.employer.name }}</span> Quốc tịch: Hàn Quốc</p>
+  <p class="indent">Số Hộ Chiếu: {{ row.employer.passport }}, Ngày cấp: {{ row.employer.passport_date }}</p>
+  <p class="indent">Chức vụ: Tổng Giám Đốc</p>
+  <p class="indent">Đại diện cho: {{ row.company.name_vi }}</p>
+  <p class="indent">Điện thoại: {{ row.company.phone }}</p>
+  <p class="indent">Địa chỉ: {{ row.company.address_vi }}</p>
+
+  <p>Và một bên là Ông/bà: <span class="bold">{{ row.full_name }}</span> (MSNV {{ row.employee_code }}) · Quốc tịch: Việt Nam</p>
+  <p class="indent">Sinh ngày: <span class="bold">{{ row.birth_date }}</span> · Tại: <span class="bold">{{ row.birth_place }}</span></p>
+  <p class="indent">Chức vụ: <span class="bold">{{ row.position_vn }}</span> / <span class="small-en">{{ row.position_en }}</span></p>
+  <p class="indent">Công việc: <span class="bold">{{ row.job_vn }}</span> / <span class="small-en">{{ row.job_en }}</span></p>
+  <p class="indent">Địa chỉ: <span class="bold">{{ row.address }}</span></p>
+  <p class="indent">Số CMND/CCCD: <span class="bold">{{ row.id_number }}</span></p>
+
+  <p>Thoả thuận ký Phụ Lục Hợp Đồng Lao Động và cam kết làm đúng những điều khoản sau đây:</p>
+  <p>Căn cứ Hợp Đồng Lao Động số <span class="bold blue">{{ row.contract_no }}</span>, hai bên cùng nhau thỏa thuận thay đổi một số nội dung như sau:</p>
+  <p class="small-en">Based on Labour Contract number {{ row.contract_no }}, both sides reach agreement to change some contents as follows:</p>
+
+  <table class="amt">
+    <tr>
+      <td>− Mức tăng (giảm) căn bản:</td>
+      <td>Trước: <span class="blue">{{ row.basic_old }}</span></td>
+      <td>Sau: <span class="blue">{{ row.basic_new }}</span></td>
+      <td>Tăng: <span class="blue">{{ row.basic_delta }}</span> VND</td>
+    </tr>
+    <tr>
+      <td class="small-en">Basic salary increment</td>
+      <td colspan="3"></td>
+    </tr>
+    <tr>
+      <td>− Mức tăng (giảm) chức vụ:</td>
+      <td>PC trước: <span class="blue">{{ row.pos_old }}</span></td>
+      <td>PC sau: <span class="blue">{{ row.pos_new }}</span></td>
+      <td>Tăng: <span class="blue">{{ row.pos_delta }}</span> VND</td>
+    </tr>
+    <tr>
+      <td class="small-en">Allowance (position)</td>
+      <td colspan="3"></td>
+    </tr>
+  </table>
+
+  <p><span class="bold">Thời gian thực hiện:</span> Phụ lục Hợp đồng có hiệu lực từ ngày <span class="bold blue">{{ row.effective_date }}</span>.</p>
+  <p>Phụ lục này là bộ phận của Hợp Đồng Lao Động số <span class="bold">{{ row.contract_no }}</span>, lập thành hai bản có giá trị như nhau, mỗi bên giữ một bản.</p>
+
+  <div class="sign-row">
+    <div class="sign-col">
+      <p class="bold">Người lao động</p>
+      <p class="small-en">(Ký tên)</p>
+      <p style="margin-top:64px" class="bold">{{ row.full_name }}</p>
+    </div>
+    <div class="sign-col">
+      <p class="bold">Người sử dụng lao động</p>
+      <p class="small-en">(Ký tên, đóng dấu)</p>
+      <p style="margin-top:64px" class="bold">{{ row.employer.name }}</p>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+</body>
+</html>

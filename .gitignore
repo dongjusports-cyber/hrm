@@ -1,0 +1,52 @@
+# Secrets
+.env
+.env.local
+.env.prod
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+apps/api/.venv/
+apps/agent/.venv/
+apps/agent/.env
+apps/agent/agent_state.json
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs & dumps
+*.log
+logs/
+*.sql
+backups/
+*.bak
+
+# Docker volumes (local)
+pgdata/
+redisdata/
+
+# Uploads (ảnh hồ sơ NV…)
+apps/api/data/uploads/
+
+# Dữ liệu lương gốc GenusSuite dùng để nạp dữ liệu test (PII thật)
+apps/api/data/genussuite_2026/
+
+# Tài liệu & DDL/dữ liệu gốc GenusSuite dùng để tham chiếu nghiệp vụ (PII thật)
+HIEN_PHAP/

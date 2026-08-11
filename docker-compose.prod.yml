@@ -1,0 +1,81 @@
+# DJ HRM — Compose production / chuẩn bị Cloud VPS (P5.4)
+# Dùng: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Local dev vẫn dùng docker-compose.yml (reload + Vite).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: djhrm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-djhrm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Đặt POSTGRES_PASSWORD trong .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-djhrm}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-djhrm} -d ${POSTGRES_DB:-djhrm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Không publish port ra ngoài host (chỉ mạng Docker nội bộ)
+
+  redis:
+    image: redis:7-alpine
+    container_name: djhrm-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: djhrm-api
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.prod}
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-djhrm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-djhrm}
+      REDIS_URL: redis://redis:6379/0
+      LOG_DIR: /var/log/djhrm
+    volumes:
+      - api_logs:/var/log/djhrm
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Không --reload; không bind-mount mã nguồn
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --proxy-headers
+      --forwarded-allow-ips="*"
+      --workers 2
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: djhrm-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PUBLISH_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:
+  api_logs:

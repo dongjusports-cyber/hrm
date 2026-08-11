@@ -1,0 +1,31 @@
+# P6.1 — HTTPS edge (Caddy + Let's Encrypt)
+# Dùng kèm prod:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ssl.yml --env-file .env.prod up -d --build
+#
+# Yêu cầu .env.prod: DOMAIN=hrm.example.com  CADDY_EMAIL=ops@example.com
+# DNS A/AAAA của DOMAIN phải trỏ về IP VPS trước khi up.
+
+services:
+  # web vẫn có thể publish :8080 từ prod.yml — trên VPS chặn 8080 bằng firewall,
+  # chỉ mở 80/443 qua Caddy.
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: djhrm-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Đặt DOMAIN trong .env.prod (vd hrm.dongju.vn)}
+      CADDY_EMAIL: ${CADDY_EMAIL:?Đặt CADDY_EMAIL để xin chứng chỉ Let's Encrypt}
+    volumes:
+      - ./ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:

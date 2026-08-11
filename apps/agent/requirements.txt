@@ -1,0 +1,8 @@
+# DJ Sync Agent — chạy trên máy Windows có Mitapro + SQL Server
+httpx==0.28.1
+pydantic==2.11.3
+pydantic-settings==2.8.1
+python-dotenv==1.1.0
+# SQL Server (cài ODBC Driver 17/18 trên Windows nhà máy)
+pyodbc==5.2.0
+pytest==8.3.5

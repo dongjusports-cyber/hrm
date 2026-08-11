@@ -1,0 +1,53 @@
+code,name,name_local,sort_order,is_active,is_management
+HRM,HR Manager Asst,HR Manager Asst,0,1,0
+SEM,Senior Manager,Senior Manager,0,1,0
+PRL,Project Leader,Project Leader,0,1,0
+CCT,Concurrent,Concurrent,0,1,0
+ASS,Assistant Supervisor,Assistant Supervisor,0,1,0
+CHE,Chief Engineer,Chief Engineer,0,1,0
+ASM,Assistant Manager,Assistant Manager,0,1,0
+GDA,GD Assistant,GD Assistant,0,1,0
+QAM,QA Manager,QA Manager,0,1,0
+QAMA,QA Manager Asst,QA Manager Asst,0,1,0
+SS,Senior Supervisor,Senior Supervisor,0,1,0
+PMA,Pro.Manager Asst,Pro.Manager Asst,0,1,0
+AM,ACC Manager,ACC Manager,0,1,0
+P,Worker,Công nhân,10,1,0
+O,Technical,Kỷ thuật viên,20,1,0
+SU,Supervisor,Giám sát,30,1,0
+M,Staff,Nhân viên,40,1,0
+L,Secretary,Thư ký,50,1,0
+RIV,Rivet,Đóng nút,60,1,0
+REC,Reception,Tiếp tân,70,1,0
+X,Receiver,Giao nhận,80,1,0
+S,QC,QC,90,1,0
+QA,QA,QA,100,1,0
+PL,Production Plan,nhân viên sản xuất,110,1,0
+PM,Production Manager,Quản lý xưởng,120,1,0
+PAC,Packing,Đóng gói,130,1,0
+I,Nurse,Y tá,140,1,0
+MB,Manager,Quản lý,150,1,0
+N,Leader,Tổ trưởng,160,1,0
+IT,IT Staff,Nhân viên IT,170,1,0
+F,Interpreter,Thông dịch,180,1,0
+HA,HR Manager,Quản lý nhân sự,190,1,0
+D,Group Leader,Tổ trưởng chuyền,200,1,0
+GM,Genaral Manager,Quản lý,210,1,0
+FAC,Factory Manager,Giám đốc sản xuất,220,1,0
+EI,Ex-Im,Xuất nhập khẩu,230,1,0
+ELE,Electrician,Thợ điện,240,1,0
+E,Driver,Lái xe,250,1,0
+Q,Doctor,Bác sỹ,260,1,0
+CO,Counter,Thống kê,270,1,0
+COK,Cooker,Nấu ăn,280,1,0
+B,Cleaner,Tạp vụ,290,1,0
+CHI,Chief Accountant,Kế toán trưởng,300,1,0
+MA,Chief Accountance,Kế toán trưởng,310,1,0
+G,Chief,Trưởng phòng,320,1,0
+A,Assistant,Trợ lý,330,1,0
+ACC,Accountant,Kế toán,340,1,0
+SUBL,Sub Leader,Tổ Phó,350,1,0
+SUBW,Sub-worker,Thợ phụ,360,1,0
+PACK,Packing,Đóng gói,370,1,0
+RIVE,Rivet,Đóng nút,380,1,0
+BOND,Bonding,Ép keo,390,1,0

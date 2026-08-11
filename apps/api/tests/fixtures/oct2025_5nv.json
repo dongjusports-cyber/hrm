@@ -1,0 +1,116 @@
+{
+  "period": "2025-10",
+  "salary_divisor": "26",
+  "official_work_days": "27",
+  "source": "HIEN_PHAP neo + logic DJ HRM (GenuiSuite chỉ tham chiếu khi có số)",
+  "employees": [
+    {
+      "employee_code": "5290",
+      "scenario": "Chính thức đủ tháng + OT 27h — neo 03§3.3/3.5",
+      "timesheet": {
+        "worked_days": "27",
+        "al_days": "0",
+        "rem_days": "0",
+        "late_count": 0,
+        "early_count": 0,
+        "ot_hours_weekday": "27",
+        "ot_hours_weekend": "0",
+        "ot_hours_holiday": "0"
+      },
+      "allowance_overrides": {
+        "TOXIC": "100000",
+        "SENIORITY": "550000"
+      },
+      "genuisuite_ref": {
+        "wd_salary": "5893269",
+        "ot_pay": "1276334",
+        "si_contribution_base": "6325000",
+        "bhxh": "506000",
+        "bhyt": "94875",
+        "bhtn": "63250",
+        "union_fee": "44100"
+      },
+      "exception_c_fields": []
+    },
+    {
+      "employee_code": "1514",
+      "scenario": "Đủ tháng, trễ 3 lần → chuyên cần 50%, không OT",
+      "timesheet": {
+        "worked_days": "27",
+        "al_days": "0",
+        "rem_days": "0",
+        "late_count": 3,
+        "early_count": 0,
+        "ot_hours_weekday": "0",
+        "ot_hours_weekend": "0",
+        "ot_hours_holiday": "0"
+      },
+      "allowance_overrides": {
+        "TOXIC": "100000",
+        "SENIORITY": "275000"
+      },
+      "genuisuite_ref": null,
+      "exception_c_fields": []
+    },
+    {
+      "employee_code": "1643",
+      "scenario": "26 công + 1 AL, OT cuối tuần 10h",
+      "timesheet": {
+        "worked_days": "26",
+        "al_days": "1",
+        "rem_days": "0",
+        "late_count": 0,
+        "early_count": 0,
+        "ot_hours_weekday": "0",
+        "ot_hours_weekend": "10",
+        "ot_hours_holiday": "0"
+      },
+      "allowance_overrides": {
+        "TOXIC": "100000",
+        "SENIORITY": "275000"
+      },
+      "genuisuite_ref": null,
+      "exception_c_fields": []
+    },
+    {
+      "employee_code": "5321",
+      "scenario": "QC (không độc hại), OT 8h ngày thường",
+      "timesheet": {
+        "worked_days": "27",
+        "al_days": "0",
+        "rem_days": "0",
+        "late_count": 0,
+        "early_count": 0,
+        "ot_hours_weekday": "8",
+        "ot_hours_weekend": "0",
+        "ot_hours_holiday": "0"
+      },
+      "allowance_overrides": {
+        "SENIORITY": "275000"
+      },
+      "no_toxic": true,
+      "genuisuite_ref": null,
+      "exception_c_fields": []
+    },
+    {
+      "employee_code": "1732",
+      "scenario": "Văn phòng lương HĐ 6.5tr, không OT",
+      "timesheet": {
+        "worked_days": "27",
+        "al_days": "0",
+        "rem_days": "0",
+        "late_count": 0,
+        "early_count": 0,
+        "ot_hours_weekday": "0",
+        "ot_hours_weekend": "0",
+        "ot_hours_holiday": "0"
+      },
+      "allowance_overrides": {
+        "SENIORITY": "275000"
+      },
+      "no_toxic": true,
+      "genuisuite_ref": null,
+      "exception_c_fields": []
+    }
+  ]
+}

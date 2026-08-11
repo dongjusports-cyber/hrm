@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<title>Thử việc {{ employee_code }}</title>
+<style>
+  body { font-family: "Times New Roman", serif; font-size: 12pt; margin: 10mm 14mm; line-height: 1.4; }
+  .red { color: #c00; font-weight: bold; font-size: 14pt; }
+  .blue { color: #00f; }
+  .right { text-align: right; }
+  .small { font-size: 10pt; font-style: italic; }
+  .sign { margin-top: 40px; }
+  @media print { body { margin: 8mm; } }
+</style>
+</head>
+<body>
+
+<p class="red">CTY TNHH DONGJU SPORTS VIỆT NAM</p>
+<p class="blue">{{ company.address_vi }}</p>
+
+<p class="right">
+  {{ company.sign_place }}, Ngày/date <b>{{ join_date }}</b><br/>
+  <b>PRIVATE &amp; CONFIDENTIAL</b>
+</p>
+
+<p>Kính gửi / To: <b>{{ full_name }}</b> &nbsp;&nbsp; Số thẻ / ID No: <b>{{ employee_code }}</b></p>
+
+<p style="font-size:14pt"><b><u>Re: THỎA THUẬN THỬ VIỆC — PROBATION AGREEMENT</u></b></p>
+
+<p>Chúng tôi, một bên là Ông/Bà: <b>{{ employer.name }}</b><br/>
+<span class="small">We are, from one side</span><br/>
+Số Hộ Chiếu: {{ employer.passport }} · Ngày cấp: {{ employer.passport_date }}<br/>
+<span class="small">Passport No. · Date of issue</span><br/>
+Địa chỉ: {{ employer.address }}<br/>
+Chức vụ: {{ employer.title_vi }}<br/>
+<span class="small">{{ employer.title_en }}</span><br/>
+Địa chỉ: {{ company.address_vi }} · ĐT: {{ company.phone }}</p>
+
+<p>Và một bên là Ông/Bà: <b>{{ full_name }}</b>. Giới tính: <b>{{ gender_vn }}</b><br/>
+<span class="small">And from other side, Mr/Ms · Gender</span><br/>
+Ngày sinh: <b>{{ birth_date }}</b> · CMND/CCCD: <b>{{ id_number }}</b><br/>
+Địa chỉ: <b>{{ address }}</b></p>
+
+<p>Chúng tôi hân hạnh thông báo tuyển dụng Anh/Chị tại vị trí: <b>{{ position_vn }}</b><br/>
+<span class="small">We are pleased to offer you employment for the position of <b>{{ position_en }}</b></span><br/>
+Công việc phải làm: <b>{{ job_vn }}</b> / <span class="small">{{ job_en }}</span></p>
+
+<p><b>Chế độ làm việc</b> — 48h/tuần, 8–12 / 13–17, CN nghỉ. Được cấp phát dụng cụ cần thiết.</p>
+
+<p>
+Anh/Chị bắt đầu thử việc từ <b>{{ join_date }}</b> tại <b>{{ company.work_site_vi }}</b>.
+Thời gian thử việc: từ <b>{{ join_date }}</b> đến <b>{{ probation_end }}</b>.
+</p>
+<p>
+Mức lương thử việc: <b>{{ probation_salary }} VND</b> (ít nhất 85% mức lương sau thử việc).
+Mức lương sau thử việc: <b>{{ total_official_salary }} VND</b> gồm:
+lương cơ bản <b>{{ basic_salary }}</b>,
+chuyên cần <b>{{ attend_allow }}</b>,
+phụ cấp trách nhiệm <b>{{ position_allow }}</b>,
+tay nghề <b>{{ treat_allow }}</b>,
+huấn luyện <b>{{ training_allow }}</b>,
+đi lại <b>{{ transport_allow }}</b> VND.
+</p>
+<p class="small">
+You will commence on {{ join_date }}. Probation salary {{ probation_salary }} VND;
+after probation total {{ total_official_salary }} VND including basic {{ basic_salary }} VND and allowances.
+</p>
+
+<p>Quy định khác theo Nội quy Công ty.<br/>
+<span class="small">Other terms in Company Terms &amp; Conditions of Employment.</span></p>
+
+<p>Trân trọng. / <span class="small">Yours sincerely</span></p>
+
+<p class="sign"><b>{{ employer.name }}</b><br/>Tổng Giám đốc / <span class="small">General Director</span></p>
+
+<p><b>Tôi chấp thuận công việc và các điều kiện nêu trên.</b><br/>
+<span class="small">I hereby accept the offer and all terms stated herein.</span></p>
+
+<p><b>Người lao động ký và ghi rõ họ tên</b> &nbsp;&nbsp;&nbsp; Ngày <b>{{ join_date }}</b><br/>
+<span class="small">Signature and name of Employee · Date</span></p>
+<p style="margin-top:48px"><b>{{ full_name }}</b></p>
+
+</body>
+</html>

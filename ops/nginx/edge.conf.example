@@ -1,0 +1,20 @@
+# Ví dụ reverse proxy HTTPS trên VPS (Caddy hoặc nginx host).
+# Copy ý tưởng vào cấu hình thật khi làm P6.1 — thay domain + đường dẫn cert.
+
+# --- Caddy (khuyến nghị, tự xin Let's Encrypt) ---
+# djhrm.dongju.vn {
+#   reverse_proxy web:80
+# }
+
+# --- nginx host (TLS tự quản) ---
+# server {
+#   listen 443 ssl http2;
+#   server_name djhrm.dongju.vn;
+#   ssl_certificate     /etc/letsencrypt/live/djhrm.dongju.vn/fullchain.pem;
+#   ssl_certificate_key /etc/letsencrypt/live/djhrm.dongju.vn/privkey.pem;
+#   location / {
+#     proxy_pass http://127.0.0.1:8080;
+#     proxy_set_header Host $host;
+#     proxy_set_header X-Forwarded-Proto https;
+#   }
+# }

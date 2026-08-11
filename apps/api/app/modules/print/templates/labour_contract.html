@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<title>HĐ {{ employee_code }}</title>
+<style>
+  body { font-family: Arial, "Times New Roman", serif; font-size: 11pt; margin: 12mm 14mm; color: #000; line-height: 1.35; }
+  h1.brand { text-align: center; color: #99CC00; font-size: 17pt; font-style: italic; margin: 0; }
+  h1.brand-en { text-align: center; color: #99CC00; font-size: 23pt; margin: 0; }
+  .addr { text-align: center; font-size: 9pt; font-style: italic; }
+  .hr-line { border-bottom: 1px solid #000; margin: 4px 0 12px; }
+  .center { text-align: center; }
+  .bold { font-weight: bold; }
+  .blue { color: #0000FF; }
+  .indent { margin-left: 24px; }
+  .section { margin: 8px 0; }
+  .sign-row { display: flex; justify-content: space-between; margin-top: 48px; }
+  .sign-col { width: 45%; text-align: center; }
+  .small-en { font-size: 9pt; font-style: italic; }
+  @media print { body { margin: 10mm; } }
+</style>
+</head>
+<body>
+
+<h1 class="brand-en">{{ company.name_en }}</h1>
+<h1 class="brand">{{ company.name_vi }}</h1>
+<p class="addr">{{ company.address_en }}</p>
+<div class="hr-line"></div>
+
+<p class="center bold">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+<p class="center small-en">SOCIALIST REPUBLIC OF VIETNAM</p>
+<p class="center bold">Độc Lập – Tự Do – Hạnh Phúc</p>
+<p class="center small-en">Independence – Freedom - Happiness</p>
+<p class="center bold">**********</p>
+
+<p><span class="bold">Số : {{ contract_no }}</span>
+<span style="float:right">{{ company.sign_place }}, ngày {{ sign_day }} tháng {{ sign_month }} năm {{ sign_year }}</span></p>
+
+<p class="center bold" style="font-size:19pt">HỢP ĐỒNG LAO ĐỘNG</p>
+<p class="center bold small-en">LABOR CONTRACT</p>
+
+<p class="section">Chúng tôi, một bên là Ông/Bà: <span class="blue bold">{{ employer.name }}</span></p>
+<p class="small-en indent">We are, from one side, Mr/Ms</p>
+<p class="small-en indent">Số Hộ Chiếu: {{ employer.passport }} · Ngày cấp: {{ employer.passport_date }}</p>
+<p class="small-en indent">Passport No. · Date of issue</p>
+<p class="indent">Địa chỉ: {{ employer.address }}</p>
+<p class="small-en indent">Address</p>
+<p class="indent">Chức vụ: {{ employer.title_vi }}</p>
+<p class="small-en indent">{{ employer.title_en }}</p>
+<p class="indent">Địa chỉ: {{ company.address_vi }} · Điện thoại: <span class="blue">{{ company.phone }}</span></p>
+
+<p class="section">Và một bên là Ông/Bà: <span class="bold">{{ full_name }}</span></p>
+<p class="small-en indent">And from other side, Mr/Ms</p>
+<p class="indent">Ngày sinh: <span class="bold">{{ birth_date }}</span> · CMND/CCCD: <span class="bold">{{ id_number }}</span></p>
+<p class="small-en indent">Date of birth · ID Card No.</p>
+<p class="indent">Địa chỉ: <span class="bold">{{ address }}</span></p>
+<p class="small-en indent">Address</p>
+<p class="indent">Thỏa thuận ký kết Hợp đồng lao động và cam kết làm đúng theo những điều khoản sau đây.</p>
+<p class="small-en indent">Agree to sign this Labor Contract and engage to satisfy the following provisions.</p>
+
+<p class="bold section">1. Thời hạn và công việc</p>
+<p class="small-en indent">With period and works</p>
+<p class="indent">− Loại hợp đồng lao động: <span class="blue bold">{{ contract_kind_vn }}</span></p>
+<p class="small-en indent">Term of Labor Contract: <span class="blue">{{ contract_kind_en }}</span></p>
+<p class="indent">− Từ ngày <span class="blue bold">{{ start_date }}</span> đến ngày <span class="blue bold">{{ end_date }}</span></p>
+<p class="small-en indent">From {{ start_date }} to {{ end_date }}</p>
+<p class="indent">− Địa điểm làm việc: <span class="bold">{{ company.work_site_vi }}</span></p>
+<p class="small-en indent">At work site: {{ company.work_site_en }}</p>
+<p class="indent">− Chức danh, chức vụ: <span class="bold">{{ position_vn }}</span></p>
+<p class="small-en indent">Job position: {{ position_en }}</p>
+<p class="indent">− Công việc phải làm: <span class="bold">{{ job_vn }}</span></p>
+<p class="small-en indent">To be carried out: {{ job_en }}</p>
+
+<p class="bold section">2. Chế độ làm việc</p>
+<p class="small-en indent">Working conditions</p>
+<p class="indent">− Thời gian làm việc: 48 giờ/tuần, 8 giờ/ngày. Sáng 8–12, chiều 13–17. Nghỉ trưa 12–13, giải lao 15:00–15:15. Chủ nhật nghỉ.</p>
+<p class="small-en indent">Working time: 48 hours/week, 8 hours/day. Sunday is weekly rest day.</p>
+<p class="indent">− Được cấp phát vật dụng cần thiết cho công việc.</p>
+
+<p class="bold section">3. Nghĩa vụ và quyền lợi của người lao động</p>
+<p class="small-en indent">Obligations and benefits of the employee</p>
+<p class="indent">− Phương tiện đi lại: <span class="blue">Tự túc</span> / Self managed.</p>
+<p class="indent">− Mức lương chính: <span class="blue">{{ basic_salary }} VND</span></p>
+<p class="small-en indent">Basic salary</p>
+<p class="indent">− Các khoản phụ cấp:</p>
+<p class="indent">+ Phụ cấp chức vụ: <span class="blue">{{ position_allow }} VND</span></p>
+<p class="indent">+ Phụ cấp tay nghề may: <span class="blue">{{ tech_allow }} VND</span></p>
+<p class="indent">+ Phụ cấp thâm niên: <span class="blue">{{ seniority_allow }} VND</span></p>
+<p class="small-en indent">(Bậc thâm niên theo Nội quy Công ty — 25.000đ/6 tháng đến 10 năm; 550k–700k/tháng từ 10 năm trở lên)</p>
+<p class="indent">+ Phụ cấp chuyên cần: <span class="blue">{{ attend_allow }} VND</span></p>
+<p class="indent">+ Phụ cấp đi lại: <span class="blue">{{ transport_allow }} VND</span></p>
+<p class="indent">+ Phụ cấp huấn luyện: <span class="blue">{{ training_allow }} VND</span></p>
+<p class="indent">− Hình thức trả lương: <span class="blue">{{ pay_channel_vn }}</span> / {{ pay_channel_en }}, trả 01 lần vào ngày 08 tháng liền kề.</p>
+<p class="indent">− BHXH, BHYT, BHTN: 32% trên mức lương (DN 21,5% / NLĐ 10,5%).</p>
+<p class="indent">− Chế độ nghỉ ngơi, thưởng, đào tạo theo Nội quy Công ty và pháp luật.</p>
+
+<p class="bold section">4. Nghĩa vụ và quyền hạn của người sử dụng lao động</p>
+<p class="indent">− Bảo đảm việc làm và thực hiện đầy đủ cam kết trong HĐLĐ.</p>
+<p class="indent">− Thanh toán đầy đủ, đúng hạn các chế độ cho người lao động.</p>
+
+<p class="bold section">5. Sự thi hành</p>
+<p class="indent">− Hợp đồng có hiệu lực từ {{ start_date }} đến {{ end_date }}, lập thành 02 bản có giá trị ngang nhau.</p>
+<p class="small-en indent">This Labor Contract shall be valid from {{ start_date }} to {{ end_date }}, made in two copies.</p>
+
+<div class="sign-row">
+  <div class="sign-col">
+    <p class="bold">Người lao động</p>
+    <p class="small-en">Employee</p>
+    <p style="margin-top:64px" class="bold">{{ full_name }}</p>
+  </div>
+  <div class="sign-col">
+    <p class="bold">Người sử dụng lao động</p>
+    <p class="small-en">Employer</p>
+    <p style="margin-top:64px" class="bold">{{ employer.name }}</p>
+  </div>
+</div>
+
+</body>
+</html>

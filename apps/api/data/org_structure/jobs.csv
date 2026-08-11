@@ -1,0 +1,83 @@
+code,name,name_local,sort_order,is_active,is_hazardous
+0401,General Director,Tổng Giám đốc,10,1,0
+0402,General Manager,Phó Tổng Giám đốc,20,1,0
+0403,Production Management,Quản lý Sản xuất,30,1,0
+0405,Research & Development,Nghiên cứu phát triển,40,1,0
+0406,Planing,Kế hoạch,50,1,0
+0407,Orders Control,Quản lý đơn hàng,60,1,0
+0408,Marketing,Kinh doanh tiếp thị,70,1,0
+0409,Human Resource,Quản lý nhân sự,80,1,0
+0410,Administration,Quản trị Hành chánh,90,1,0
+0411,Education & Training,Huấn luyện Đào tạo,100,1,0
+0412,Health Care,Chăm sóc sức khỏe,110,1,0
+0413,Cooking,Phục vụ nhà ăn,120,1,0
+0414,Security,An ninh nhà máy,130,1,0
+0415,Driving,Lái xe,140,1,0
+0416,Secretary,Thư ký,150,1,0
+0417,Reception,Tiếp tân,160,1,0
+0418,Accounting,Kế toán,170,1,0
+0419,Costing,Chi phí sản xuất,180,1,0
+0420,Sales,Kinh doanh,190,1,0
+0421,Local Sourcing,Vật tư nội địa,200,1,0
+0422,Oversea Sourcing,Vật tư nước ngoài,210,1,0
+0423,Developing,Phát tiển,220,1,0
+0424,Export,Xuất khẩu,230,1,0
+0425,Import,Nhập khẩu,240,1,0
+0426,Materials Control,Theo dõi vật tư,250,1,0
+0427,Quota Control,Theo dõi đơn hàng,260,1,0
+0428,Quality Assurance,Đảm bảo chất lượng,270,1,0
+0429,Quality Control,Quản lý chất lượng,280,1,0
+0430,IQC,Kiểm tra chất lượng đầu vào,290,1,0
+0431,OQC,Kiểm tra chất lượng trên chuyền,300,1,0
+0432,Reliability,Thử nghiệm,310,1,0
+0433,Production Supervising,Giám sát sản xuất,320,1,0
+0434,Production,Sản xuất,330,1,0
+0435,Factory Automation,Kỹ thuật sản xuất xưởng,340,1,0
+0436,Process Control,Theo dõi công đoạn,350,1,0
+0437,Maintenance,Bảo dưỡng máy móc,360,1,0
+0438,Tools Control,Bảo dưỡng công cụ,370,1,0
+0439,IT,Quản trị mạng,380,1,0
+0442,Cleaning,Vệ sinh,390,1,0
+0443,Gardening,Chăm sóc nhà xưởng,400,1,0
+0444,Interpreter,Phiên dịch,410,1,0
+0445,Sewing,May,420,1,0
+0446,Cutting,Cắt,430,1,0
+0447,Counter,Thống kê,440,1,0
+0448,Design,Thiết kế,450,1,0
+0449,Diagram,Sơ đồ,460,1,0
+0450,Sample,May mẫu,470,1,0
+0451,Repair Elec,Bảo trì điện,480,1,0
+0452,Repair Machine,Bảo trì máy may,490,1,0
+0453,Holding,Đóng gói,500,1,0
+0454,Packing,Đóng thùng,510,1,0
+0455,Iron,Ủi,520,1,0
+0456,Im/Export,Xuất nhập khẩu,530,1,0
+0458,Leader,Tổ phó,540,1,0
+0459,Line Leader,Tổ trưởng,550,1,0
+0460,Group Leader,Chuyền trưởng,560,1,0
+0461,Nurse,Y tá,570,1,0
+0462,Cashier,Thủ quỷ,580,1,0
+0463,Sourcing Management,Quản lý vật tư,590,1,0
+0464,Purchasing,Purchasing,600,1,0
+0466,Merchandise,Merchandise,610,1,0
+0467,LAB,LAB,620,1,0
+0468,Lean,Lean,630,1,0
+0469,PPS,PPS,640,1,0
+0470,CAD,CAD,650,1,0
+0471,ASIS,ASIS,660,1,0
+0472,General worker,Lao động phổ thông,670,1,0
+0473,Helper,Phụ việc,680,1,0
+0474,Apprentice,Học việc,690,1,0
+0475,Electrician,Thợ điện,700,1,0
+0476,Scan,Scan,710,1,0
+0477,Warehouse staff,nv kho,720,1,0
+0483,Ex-Im,Xuất nhập khẩu,780,1,0
+0486,Controlling products,Kiểm hàng,810,1,0
+0500,Following Worker,Giám sát công nhân,860,1,0
+0501,purchase,Thu mua,870,1,0
+0502,Sub Leader,Tổ Phó,880,1,0
+0503,QA,QA,890,1,0
+0504,Packing,Đóng gói,900,1,0
+0505,Bonding,Ép keo,910,1,0
+0506,Rivet,Đóng nút,920,1,0
+0507,Sub-worker,Thợ phụ,930,1,0
