@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef, GridApi, GridReadyEvent, ICellRendererParams, RowClickedEvent } from "ag-grid-community";
+import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
@@ -31,7 +31,7 @@ import {
   saveAgGridColumnState,
 } from "../../shared/agGridColumnPrefs";
 import { TransferTeamModal } from "./TransferTeamModal";
-import { hrListBackPath, type HrNavState } from "../../shared/hrNavState";
+import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -126,6 +126,7 @@ export function EmployeesPage() {
   const statusFilter = parseFilter(filterKey);
   const meta = FILTER_META[statusFilter];
   const navigate = useNavigate();
+  const location = useLocation();
   const [rows, setRows] = useState<Employee[]>([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +135,7 @@ export function EmployeesPage() {
   const [exporting, setExporting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Employee[]>([]);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [profileEmpId, setProfileEmpId] = useState<string | null>(null);
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -158,6 +160,14 @@ export function EmployeesPage() {
     },
     [viewMode],
   );
+
+  useEffect(() => {
+    const st = location.state as { openProfileId?: string } | null;
+    if (st?.openProfileId) {
+      setProfileEmpId(st.openProfileId);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   useEffect(() => {
     saveViewPrefs({ department_id: departmentId, team_id: teamId, viewMode });
@@ -257,6 +267,7 @@ export function EmployeesPage() {
         minWidth: 140,
         filter: false,
         pinned: "left",
+        cellClass: "hr-cell-name-link",
       },
       {
         colId: "dept_team",
@@ -350,10 +361,9 @@ export function EmployeesPage() {
     if (api) applySavedColumns(api);
   }, [viewMode, columnDefs, applySavedColumns]);
 
-  function onRowClicked(e: RowClickedEvent<Employee>) {
-    if (e.data?.id) {
-      const back = hrListBackPath(statusFilter);
-      navigate(`/m/hr/employees/${e.data.id}`, { state: { hrListBack: back } satisfies HrNavState });
+  function onCellClicked(e: CellClickedEvent<Employee>) {
+    if (e.column.getColId() === "full_name" && e.data?.id) {
+      setProfileEmpId(e.data.id);
     }
   }
 
@@ -510,13 +520,6 @@ export function EmployeesPage() {
         >
           Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
         </button>
-        <button
-          type="button"
-          className="btn-ghost-dark"
-          onClick={() => navigate("/m/hr/employees/new")}
-        >
-          + Nhân viên mới
-        </button>
         <label className="btn-ghost-dark file-btn">
           Nhập Excel nhân viên
           <input
@@ -548,7 +551,7 @@ export function EmployeesPage() {
           rowSelection="multiple"
           suppressRowClickSelection
           overlayNoRowsTemplate="<span>Không có nhân viên trong mục này</span>"
-          onRowClicked={onRowClicked}
+          onCellClicked={onCellClicked}
           onSelectionChanged={(e) => setSelectedRows(e.api.getSelectedRows())}
           onGridReady={(e: GridReadyEvent<Employee>) => {
             gridApiRef.current = e.api;
@@ -582,6 +585,13 @@ export function EmployeesPage() {
           }}
         />
       )}
+
+      <EmployeeProfileSheet
+        employeeId={profileEmpId ?? ""}
+        open={profileEmpId !== null}
+        onClose={() => setProfileEmpId(null)}
+        onUpdated={() => void reload()}
+      />
     </div>
   );
 }

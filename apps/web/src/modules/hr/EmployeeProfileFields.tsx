@@ -15,6 +15,8 @@ type Props = {
   isNew: boolean;
   departments: Department[];
   teams: Team[];
+  /** column = 1 cột trong panel hồ sơ overlay */
+  fieldLayout?: "grid" | "column";
 };
 
 function teamSelect(
@@ -172,41 +174,163 @@ export function EmployeeCreateFields({ form, setForm, departments, teams }: Prop
   );
 }
 
-const PROFILE_SECTIONS: { id: ProfileTab; title: string }[] = [
-  { id: "work", title: "Công việc" },
-  { id: "personal", title: "Cá nhân" },
-  { id: "address", title: "Cư trú & giấy tờ" },
-  { id: "insurance", title: "Bảo hiểm" },
-  { id: "salary", title: "Lương" },
-];
-
-/** Một trang cuộn — sửa hồ sơ không cần chuyển tab. */
-export function EmployeeProfileAllFields({ form, setForm, departments, teams }: Omit<Props, "tab" | "isNew">) {
+/** Hồ sơ gọn — 5 cột desktop; trạng thái + ảnh ở thanh cố định phía trên. */
+export function EmployeeProfileCompactFields({
+  form,
+  setForm,
+  departments,
+  teams,
+}: Omit<Props, "tab" | "isNew" | "fieldLayout">) {
+  const col = "column" as const;
   return (
-    <div className="emp-profile-all">
-      {PROFILE_SECTIONS.map((sec) => (
-        <section key={sec.id} className="emp-form-section" aria-labelledby={`emp-sec-${sec.id}`}>
-          <h3 id={`emp-sec-${sec.id}`} className="emp-form-section-title">
-            {sec.title}
+    <div className="emp-profile-compact">
+      <div className="emp-profile-cols emp-profile-cols-weighted">
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-work">
+          <h3 id="emp-sec-work" className="emp-form-section-title">
+            Công việc
+          </h3>
+          <div className="emp-fields-col">
+            {teamSelect(form, setForm, departments, teams)}
+            <label className="field">
+              <span>Chức vụ</span>
+              <input
+                value={form.position_title}
+                onChange={(e) => setForm({ ...form, position_title: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Ngày vào</span>
+              <input
+                type="date"
+                value={form.join_date}
+                onChange={(e) => setForm({ ...form, join_date: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Ngày nghỉ</span>
+              <input
+                type="date"
+                value={form.resign_date}
+                onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-salary">
+          <h3 id="emp-sec-salary" className="emp-form-section-title">
+            Lương
+          </h3>
+          <div className="emp-fields-col">
+            <label className="field">
+              <span>Ngày ký HĐ</span>
+              <input
+                type="date"
+                value={form.contract_signed_at}
+                onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
+              />
+            </label>
+            <label className="field emp-field-money">
+              <span>Lương HĐ</span>
+              <input
+                value={form.contract_salary}
+                onChange={(e) => setForm({ ...form, contract_salary: e.target.value })}
+                required
+              />
+            </label>
+            <label className="field emp-field-money">
+              <span>Lương thử việc</span>
+              <input
+                value={form.probation_salary}
+                onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Kênh lương</span>
+              <select
+                value={form.pay_channel}
+                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
+              >
+                <option value="ATM">ATM</option>
+                <option value="CASH">Tiền mặt</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-personal">
+          <h3 id="emp-sec-personal" className="emp-form-section-title">
+            Cá nhân
           </h3>
           <EmployeeProfileTabFields
             form={form}
             setForm={setForm}
-            tab={sec.id}
+            tab="personal"
             isNew={false}
             departments={departments}
             teams={teams}
+            fieldLayout={col}
           />
         </section>
-      ))}
+
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-address">
+          <h3 id="emp-sec-address" className="emp-form-section-title">
+            Cư trú & giấy tờ
+          </h3>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="address"
+            isNew={false}
+            departments={departments}
+            teams={teams}
+            fieldLayout={col}
+          />
+        </section>
+
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-insurance">
+          <h3 id="emp-sec-insurance" className="emp-form-section-title">
+            Bảo hiểm & NH
+          </h3>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="insurance"
+            isNew={false}
+            departments={departments}
+            teams={teams}
+            fieldLayout={col}
+          />
+        </section>
+      </div>
     </div>
   );
 }
 
-export function EmployeeProfileTabFields({ form, setForm, tab, departments, teams }: Props) {
+/** @deprecated Dùng EmployeeProfileCompactFields trong overlay hồ sơ. */
+export function EmployeeProfileAllFields({ form, setForm, departments, teams }: Omit<Props, "tab" | "isNew">) {
+  return (
+    <EmployeeProfileCompactFields
+      form={form}
+      setForm={setForm}
+      departments={departments}
+      teams={teams}
+    />
+  );
+}
+
+export function EmployeeProfileTabFields({
+  form,
+  setForm,
+  tab,
+  departments,
+  teams,
+  fieldLayout = "grid",
+}: Props) {
+  const fieldsClass = fieldLayout === "column" ? "emp-fields-col" : "emp-fields-grid";
   if (tab === "personal") {
     return (
-      <div className="emp-fields-grid">
+      <div className={fieldsClass}>
         <label className="field">
           <span>Giới tính</span>
           <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
@@ -273,15 +397,15 @@ export function EmployeeProfileTabFields({ form, setForm, tab, departments, team
 
   if (tab === "address") {
     return (
-      <div className="emp-fields-grid">
-        <label className="field emp-field-full">
+      <div className={fieldsClass}>
+        <label className="field">
           <span>Địa chỉ thường trú</span>
           <input
             value={form.permanent_address}
             onChange={(e) => setForm({ ...form, permanent_address: e.target.value })}
           />
         </label>
-        <label className="field emp-field-full">
+        <label className="field">
           <span>Địa chỉ tạm trú</span>
           <input
             value={form.temporary_address}
@@ -315,7 +439,7 @@ export function EmployeeProfileTabFields({ form, setForm, tab, departments, team
           value={form.birth_place_code}
           onChange={(code) => setForm({ ...form, birth_place_code: code })}
         />
-        <label className="field emp-field-full">
+        <label className="field">
           <span>Liên hệ khẩn</span>
           <input
             value={form.urgent_contact}
@@ -328,7 +452,7 @@ export function EmployeeProfileTabFields({ form, setForm, tab, departments, team
 
   if (tab === "insurance") {
     return (
-      <div className="emp-fields-grid">
+      <div className={`${fieldsClass} emp-fields-insurance`}>
         <label className="field">
           <span>Số sổ BHXH</span>
           <input
