@@ -1,0 +1,16 @@
+{
+  "name": "DJ HRM",
+  "install": "bash ops/cloud/install.sh",
+  "start": "bash ops/cloud/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "source ops/cloud/env.sh && cd apps/api && exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    },
+    {
+      "name": "web",
+      "command": "source ops/cloud/env.sh && cd apps/web && exec npm run dev -- --host 0.0.0.0 --port 5173"
+    }
+  ],
+  "ports": [8000, 5173]
+}
