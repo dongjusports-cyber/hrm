@@ -49,8 +49,15 @@ export function CommandPalette() {
         setOpen((v) => !v);
       }
     }
+    function onOpenCmdk() {
+      setOpen(true);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("djhrm:open-cmdk", onOpenCmdk);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("djhrm:open-cmdk", onOpenCmdk);
+    };
   }, []);
 
   useEffect(() => {

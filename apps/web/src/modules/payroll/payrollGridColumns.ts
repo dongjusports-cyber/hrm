@@ -24,7 +24,7 @@ export function formatVnd(v: string | number | null | undefined): string {
 
 function deltaCellClass(p: CellClassParams<Payslip>): string | undefined {
   const d = Number(p.value);
-  if (Number.isNaN(d) || d === 0) return undefined;
+  if (Number.isNaN(d) || d === 0) return "payroll-delta-zero";
   return Math.abs(d) >= NET_DELTA_WARN_THRESHOLD ? "payroll-delta-warn" : "payroll-delta-ok";
 }
 
@@ -43,6 +43,7 @@ const NET_DELTA: ColDef<Payslip> = {
   field: "net_delta",
   headerName: "Δ Thực lãnh",
   width: 118,
+  headerTooltip: `Chênh Thực lãnh so kỳ trước — đỏ nếu |Δ| ≥ ${NET_DELTA_WARN_THRESHOLD.toLocaleString("vi-VN")}đ`,
   valueFormatter: (p) => {
     if (p.value === null || p.value === undefined || p.value === "") return "—";
     const n = Number(p.value);
@@ -84,6 +85,7 @@ const NET_DELTA_FLEX: ColDef<Payslip> = {
   headerName: "Δ Thực lãnh",
   flex: 1,
   minWidth: 100,
+  headerTooltip: `Chênh Thực lãnh so kỳ trước — đỏ nếu |Δ| ≥ ${NET_DELTA_WARN_THRESHOLD.toLocaleString("vi-VN")}đ`,
   valueFormatter: (p) => {
     if (p.value === null || p.value === undefined || p.value === "") return "—";
     const n = Number(p.value);

@@ -218,13 +218,22 @@ Lập trình viên **tự chọn** thêm Tailwind hay mở rộng CSS hiện có
 
 | ID | Mức | Việc | §23 |
 |----|-----|------|-----|
-| U1 | P0 | FAB Trợ Lý AI không che lưới | — |
-| U2 | P0 | Dropdown phụ cấp hồ sơ — không lẫn khoản lương | 23.3 |
-| U3 | P0 | Mở hồ sơ: double-click dòng hoặc nút Xem | — |
-| U4 | P1 | Toolbar HR/Lương/Chấm công ≤46px, không wrap (1366) | 23.1 |
-| U5 | P1 | Cột tiền canh phải; Loại HĐ/Tài khoản không cắt chữ | 23.2 |
-| U6 | P2 | Chấm công: giảm split-panel / gom tab phụ | — |
-| U7 | P2 | Tooltip nút disabled; status bar đếm NV | 23.1 |
+| U1 | P0 | FAB Trợ Lý AI không che lưới | — | **Done** |
+| U2 | P0 | Dropdown phụ cấp hồ sơ — không lẫn khoản lương | 23.3 | **Done** |
+| U3 | P0 | Mở hồ sơ: double-click dòng hoặc nút Xem | — | **Done** |
+| U4 | P1 | Toolbar HR/Lương/Chấm công ≤46px, không wrap (1366) | 23.1 | **Done** |
+| U5 | P1 | Cột tiền canh phải; Loại HĐ/Tài khoản không cắt chữ | 23.2 | **Done** |
+| U6 | P2 | Chấm công: giảm split-panel / gom tab phụ | — | **Done** — tab chính full-width |
+| U7 | P2 | Tooltip nút disabled; status bar đếm NV | 23.1 | **Done** |
+
+### P3 — polish (phiên 12/08)
+
+| ID | Việc | Trạng thái |
+|----|------|------------|
+| P3a | Portal khay «Chi tiết nhân sự» — gợi ý + nút HR/Ctrl+K | **Done** |
+| P3b | Hint phím tắt `/`, Ctrl+K, Esc, F2 | **Done** |
+| P3c | `marital_status` → lookup `marital_status` | **Done** |
+| P3d | Nút Toàn màn hình (thử nghiệm) | Giữ — có tooltip |
 
 **Đã đạt (giữ):** FullScreenSheet hồ sơ · Lưu không nhảy trang · grid cuộn trong vùng dữ liệu · kỳ mặc định tháng hiện tại.
 

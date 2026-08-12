@@ -36,22 +36,29 @@ import { LeaveApprovalPanel } from "./LeaveApprovalPanel";
 import { DailyGridPanel } from "./DailyGridPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
+import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
+import { disabledTitle } from "../../shared/disabledHint";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-type MainView = "timesheet" | "sync";
+type MainView = "timesheet" | "daily" | "review" | "leave" | "late" | "adjust" | "sync";
 
-type SideTab = "grid" | "adjust" | "review" | "late" | "leave";
-
-const WORKSPACE_TABS = new Set<SideTab>(["grid", "review", "leave", "late"]);
-
-const SIDE_TAB_HINT: Record<SideTab, string> = {
-  grid: "Bảng cả xưởng theo một ngày — dán Excel, gán nghỉ hàng loạt.",
-  adjust: "Ghi nghỉ phép hoặc OT cả tháng cho một MSNV.",
+const MAIN_VIEW_HINT: Record<MainView, string> = {
+  timesheet: "Bảng tổng hợp công tháng — một dòng một NV.",
+  daily: "Bảng cả xưởng theo một ngày — dán Excel, gán nghỉ hàng loạt.",
   review: "Danh sách cảnh báo thiếu chấm — bấm dòng để sửa.",
   leave: "Duyệt đơn nghỉ công nhân gửi qua Worker.",
   late: "Danh sách đi trễ / về sớm trong kỳ.",
+  adjust: "Ghi nghỉ phép hoặc OT cả tháng cho một MSNV.",
+  sync: "Đồng bộ Mitapro / punch.",
 };
+
+const TK_HEADER_TIPS = {
+  al: "Nghỉ phép năm (Annual Leave)",
+  rem: "Nghỉ REM / nghỉ còn lại theo mã",
+  otBooks: "OT trên sổ lương — T3/T5, 17:00–20:00 (bấm ra sau 17:15)",
+  otExt: "OT trả ATM riêng — sau 20:00 hoặc ngày khác T3/T5",
+} as const;
 
 type CalendarRow = {
   work_date: string;
@@ -194,7 +201,6 @@ export function TimekeepingPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [empDays, setEmpDays] = useState<AttendanceDay[]>([]);
   const [daysLoading, setDaysLoading] = useState(false);
-  const [sideTab, setSideTab] = useState<SideTab>("grid");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -417,6 +423,7 @@ export function TimekeepingPage() {
         headerName: "AL",
         width: 52,
         filter: false,
+        headerTooltip: TK_HEADER_TIPS.al,
         valueFormatter: (p) => fmtNum(p.value, 1),
       },
       {
@@ -424,6 +431,7 @@ export function TimekeepingPage() {
         headerName: "REM",
         width: 56,
         filter: false,
+        headerTooltip: TK_HEADER_TIPS.rem,
         valueFormatter: (p) => fmtNum(p.value, 1),
       },
       { field: "late_count", headerName: "Trễ", width: 48, filter: false },
@@ -433,6 +441,7 @@ export function TimekeepingPage() {
         headerName: "OT sổ",
         width: 64,
         filter: false,
+        headerTooltip: TK_HEADER_TIPS.otBooks,
         valueFormatter: (p) => fmtNum(p.value, 1),
       },
       {
@@ -440,6 +449,7 @@ export function TimekeepingPage() {
         headerName: "OT ngoài",
         width: 72,
         filter: false,
+        headerTooltip: TK_HEADER_TIPS.otExt,
         valueFormatter: (p) => {
           const n = Number(p.value);
           return n > 0 ? n.toFixed(1) : "";
@@ -582,8 +592,6 @@ export function TimekeepingPage() {
 
   const last = status?.last_job;
   const agentOk = last?.status === "success" || (!last && (status?.punch_count ?? 0) >= 0);
-  const isWorkspaceTab = WORKSPACE_TABS.has(sideTab);
-  const showSidePanel = isWorkspaceTab || sideTab === "adjust";
 
   function renderEmployeeDaysDetail() {
     if (!selected) return null;
@@ -713,53 +721,10 @@ export function TimekeepingPage() {
     );
   }
 
-  function renderSidePanel() {
+  function renderWorkspaceView() {
     return (
       <>
-        <div className="tk-side-tabs" role="tablist" title={SIDE_TAB_HINT[sideTab]}>
-          <button
-            type="button"
-            role="tab"
-            className={sideTab === "grid" ? "is-on" : ""}
-            onClick={() => setSideTab("grid")}
-          >
-            Bảng ngày
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={sideTab === "adjust" ? "is-on" : ""}
-            onClick={() => setSideTab("adjust")}
-          >
-            Điều chỉnh
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={sideTab === "review" ? "is-on" : ""}
-            onClick={() => setSideTab("review")}
-          >
-            Rà soát{review ? ` (${review.issue_count})` : ""}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={sideTab === "leave" ? "is-on" : ""}
-            onClick={() => setSideTab("leave")}
-          >
-            Duyệt phép
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={sideTab === "late" ? "is-on" : ""}
-            onClick={() => setSideTab("late")}
-          >
-            Trễ/sớm
-          </button>
-        </div>
-
-        {sideTab === "grid" && pay && (
+        {mainView === "daily" && pay && (
           <div className="users-form-card tk-panel tk-panel-wide">
             <label className="field">
               <span>Ngày công</span>
@@ -780,7 +745,7 @@ export function TimekeepingPage() {
           </div>
         )}
 
-        {sideTab === "adjust" && (
+        {mainView === "adjust" && (
           <div className="users-form-card tk-panel">
             {selected ? (
               <div className="tk-selected tk-selected-prominent">
@@ -900,7 +865,7 @@ export function TimekeepingPage() {
           </div>
         )}
 
-        {sideTab === "review" && (
+        {mainView === "review" && (
           <div className="users-form-card tk-panel tk-panel-wide">
             <p className="field-hint">
               Thiếu / lẻ lần chấm. Tổng: <strong>{review?.issue_count ?? 0}</strong>
@@ -967,13 +932,13 @@ export function TimekeepingPage() {
           </div>
         )}
 
-        {sideTab === "leave" && (
+        {mainView === "leave" && (
           <div className="users-form-card tk-panel tk-panel-wide">
             <LeaveApprovalPanel />
           </div>
         )}
 
-        {sideTab === "late" && (
+        {mainView === "late" && (
           <div className="users-form-card tk-panel tk-panel-wide">
             <div className="tk-issue-scroll">
               {anomalies.length === 0 ? (
@@ -1032,25 +997,27 @@ export function TimekeepingPage() {
         {ok && !detailOpen && <p className="banner-ok">{ok}</p>}
 
         <form className="tk-toolbar" onSubmit={onSearchSubmit}>
-          <label className="period-picker">
+          <label className="period-picker period-picker-compact">
             Kỳ
             <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
-          <label className="tk-search">
+          <label className="tk-search tk-search-compact">
             <span className="sr-only">Tìm MSNV / họ tên</span>
             <input
-              placeholder="MSNV hoặc họ tên… (Enter = xem công)"
+              placeholder="MSNV hoặc họ tên…"
+              data-hotkey-search
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </label>
-          <button type="submit" className="btn-ghost-dark">
+          <button type="submit" className="btn-ghost-dark btn-compact">
             Lọc
           </button>
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary btn-compact"
             disabled={busy || !q.trim()}
+            title={disabledTitle(!q.trim(), "Nhập MSNV hoặc họ tên trước")}
             onClick={() => applySearchSelect()}
           >
             Xem công
@@ -1058,7 +1025,7 @@ export function TimekeepingPage() {
           {q.trim() ? (
             <button
               type="button"
-              className="btn-ghost-dark"
+              className="btn-ghost-dark btn-compact"
               onClick={() => {
                 setQ("");
                 clearSelection();
@@ -1067,6 +1034,33 @@ export function TimekeepingPage() {
               Xóa lọc
             </button>
           ) : null}
+          <button
+            type="button"
+            className="btn-ghost-dark btn-compact"
+            disabled={busy}
+            onClick={() => void reload()}
+          >
+            Làm mới
+          </button>
+          <ToolbarMoreMenu disabled={busy}>
+            <button type="button" className="toolbar-more-item" onClick={() => void onSyncNow()}>
+              Đồng bộ công
+            </button>
+            <button type="button" className="toolbar-more-item" onClick={() => void onRebuild()}>
+              Tổng hợp công
+            </button>
+            <button
+              type="button"
+              className="toolbar-more-item"
+              title="Xem bảng OT trả ATM riêng trước khi xuất Excel"
+              onClick={() => void onOpenOtExternal()}
+            >
+              OT ngoài
+            </button>
+          </ToolbarMoreMenu>
+        </form>
+
+        <div className="tk-status-bar" aria-live="polite">
           <span className="tk-meta">
             {pay ? (
               <>
@@ -1077,43 +1071,41 @@ export function TimekeepingPage() {
               "Đang tải…"
             )}
           </span>
-          <button type="button" className="btn-ghost-dark" disabled={busy} onClick={() => void reload()}>
-            Làm mới
-          </button>
-          <button type="button" className="btn-ghost-dark" disabled={busy} onClick={() => void onSyncNow()}>
-            Đồng bộ công
-          </button>
-          <button type="button" className="btn-ghost-dark tk-btn-rebuild" disabled={busy} onClick={() => void onRebuild()}>
-            Tổng hợp công
-          </button>
-          <button
-            type="button"
-            className="btn-ghost-dark"
-            disabled={busy}
-            title="Xem bảng OT trả ATM riêng trước khi xuất Excel"
-            onClick={() => void onOpenOtExternal()}
-          >
-            OT ngoài
-          </button>
-        </form>
+          {mainView === "timesheet" && (
+            <span className="tk-status-sync" title={status?.detail ?? "Cấu hình Agent: Cấu Hình (Admin)"}>
+              Đồng bộ:{" "}
+              <strong className={agentOk ? "tk-ok" : "tk-warn"}>
+                {last ? labelJobStatus(last.status) : "chưa có"}
+              </strong>
+              {last ? ` · +${last.records_inserted}/trùng ${last.records_skipped}` : ""}
+              {status ? ` · ${status.punch_count} lần chấm` : ""}
+            </span>
+          )}
+        </div>
 
         <div className="tk-view-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            className={mainView === "timesheet" ? "is-on" : ""}
-            onClick={() => setMainView("timesheet")}
-          >
-            Tổng hợp tháng
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={mainView === "sync" ? "is-on" : ""}
-            onClick={() => setMainView("sync")}
-          >
-            Đồng bộ Mitapro
-          </button>
+          {(
+            [
+              ["timesheet", "Tổng hợp"],
+              ["daily", "Bảng ngày"],
+              ["review", `Rà soát${review?.issue_count ? ` (${review.issue_count})` : ""}`],
+              ["leave", "Duyệt phép"],
+              ["late", "Trễ/sớm"],
+              ["adjust", "Điều chỉnh"],
+              ["sync", "Đồng bộ"],
+            ] as const
+          ).map(([view, label]) => (
+            <button
+              key={view}
+              type="button"
+              role="tab"
+              title={MAIN_VIEW_HINT[view]}
+              className={mainView === view ? "is-on" : ""}
+              onClick={() => setMainView(view)}
+            >
+              {label}
+            </button>
+          ))}
           {selected && mainView === "timesheet" && !detailOpen && (
             <div className="tk-active-emp tk-active-emp--inline">
               <strong>
@@ -1134,49 +1126,35 @@ export function TimekeepingPage() {
 
         {mainView === "sync" ? (
           <MitaproSyncPanel period={period} onChanged={() => void reload()} />
+        ) : mainView === "timesheet" ? (
+          <div className="tk-stack">
+            <section className="tk-grid-section tk-grid-primary">
+              <div className="tk-grid-wrap ag-theme-quartz">
+                <AgGridReact<TimesheetMonth>
+                  rowData={filtered}
+                  columnDefs={columnDefs}
+                  getRowId={(p) => p.data.id}
+                  animateRows
+                  suppressHorizontalScroll
+                  onRowClicked={onRowClicked}
+                  onGridReady={(e) => setGridApi(e.api)}
+                  onGridSizeChanged={(e) => e.api.sizeColumnsToFit()}
+                  onFirstDataRendered={(e) => e.api.sizeColumnsToFit()}
+                  getRowClass={(p) =>
+                    p.data?.id === selected?.id ? "hr-row-selected" : undefined
+                  }
+                  defaultColDef={{
+                    sortable: true,
+                    resizable: true,
+                    filter: false,
+                    suppressHeaderMenuButton: true,
+                  }}
+                />
+              </div>
+            </section>
+          </div>
         ) : (
-          <>
-        <p className="tk-agent-line" title={status?.detail ?? "Cấu hình Agent: Cấu Hình (Admin)"}>
-          Đồng bộ:{" "}
-          <strong className={agentOk ? "tk-ok" : "tk-warn"}>
-            {last ? labelJobStatus(last.status) : "chưa có"}
-          </strong>
-          {last ? ` · +${last.records_inserted}/trùng ${last.records_skipped}` : ""}
-          {status ? ` · ${status.punch_count} lần chấm` : ""}
-          <span className="field-hint"> · bấm dòng NV để sửa ngày công</span>
-        </p>
-
-        <div className={`tk-stack${showSidePanel ? " tk-stack-panel" : ""}`}>
-          <section className="tk-grid-section tk-grid-primary">
-            <div className="tk-grid-wrap ag-theme-quartz">
-              <AgGridReact<TimesheetMonth>
-                rowData={filtered}
-                columnDefs={columnDefs}
-                getRowId={(p) => p.data.id}
-                animateRows
-                suppressHorizontalScroll
-                onRowClicked={onRowClicked}
-                onGridReady={(e) => setGridApi(e.api)}
-                onGridSizeChanged={(e) => e.api.sizeColumnsToFit()}
-                onFirstDataRendered={(e) => e.api.sizeColumnsToFit()}
-                getRowClass={(p) =>
-                  p.data?.id === selected?.id ? "hr-row-selected" : undefined
-                }
-                defaultColDef={{
-                  sortable: true,
-                  resizable: true,
-                  filter: false,
-                  suppressHeaderMenuButton: true,
-                }}
-              />
-            </div>
-          </section>
-
-          {showSidePanel && (
-            <aside className="tk-side tk-side-full">{renderSidePanel()}</aside>
-          )}
-        </div>
-          </>
+          <div className="tk-workspace-full">{renderWorkspaceView()}</div>
         )}
       </main>
 

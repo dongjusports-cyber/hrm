@@ -68,6 +68,9 @@ export function LookupSelect({
         title={selectedName || undefined}
       >
         {allowEmpty && <option value="">{loading ? "Đang tải…" : emptyLabel}</option>}
+        {value && !options.some((o) => o.code === value) && (
+          <option value={value}>{value} (giá trị cũ)</option>
+        )}
         {options.map((o) => (
           <option key={o.code} value={o.code}>
             {o.name}

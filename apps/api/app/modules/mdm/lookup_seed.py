@@ -48,6 +48,14 @@ EDUCATION_LEVEL = [
     "Sau đại học",
 ]
 
+# Mã code lưu vào employees.marital_status (§23.3 — không gõ tự do).
+MARITAL_STATUS: list[tuple[str, str]] = [
+    ("single", "Độc thân"),
+    ("married", "Đã kết hôn"),
+    ("divorced", "Ly hôn / ly thân"),
+    ("widowed", "Góa"),
+]
+
 # 6 thành phố trực thuộc Trung ương + 28 tỉnh — Chủ chốt 2026-08-11.
 # Ghi chú: Đồng Nai dự kiến lên TP trực thuộc TW từ 30/4/2026; danh sách giữ trong 28 tỉnh
 # theo bản Chủ gửi (tổng 34 đơn vị).
@@ -99,6 +107,10 @@ def _rows(group_code: str, names: list[str]) -> list[tuple[str, str, str, int]]:
     return [(group_code, f"{group_code.upper()}{i + 1:03d}", name, i) for i, name in enumerate(names)]
 
 
+def _rows_explicit(group_code: str, pairs: list[tuple[str, str]]) -> list[tuple[str, str, str, int]]:
+    return [(group_code, code, name, i) for i, (code, name) in enumerate(pairs)]
+
+
 LOOKUP_VALUES_SEED: list[tuple[str, str, str, int]] = (
     _rows("ethnicity", ETHNICITY)
     + _rows("religion", RELIGION)
@@ -106,6 +118,7 @@ LOOKUP_VALUES_SEED: list[tuple[str, str, str, int]] = (
     + _rows("education_level", EDUCATION_LEVEL)
     + _rows("birth_place", ADMIN_UNITS_34)
     + _rows("id_issue_place", ID_ISSUE_PLACE)
+    + _rows_explicit("marital_status", MARITAL_STATUS)
 )
 
 ADMIN_UNITS_BIRTH_COUNT = len(ADMIN_UNITS_34)

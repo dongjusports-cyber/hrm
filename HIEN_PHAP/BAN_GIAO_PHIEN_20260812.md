@@ -1,7 +1,7 @@
 # Bàn giao phiên 2026-08-12 → phiên chat tiếp theo
 
 > **Mục đích:** AI/Developer mở phiên mới đọc file này **trước**, rồi đọc chi tiết theo link.  
-> **Working tree:** nhiều thay đổi backend + web · **chưa commit** (chờ Chủ duyệt)  
+> **Working tree:** UI P0–P3 + lookup marital_status · **đã commit + push** (cloud agent test)  
 > **Repo:** `D:\dj-hrm\dj-hrm`
 
 ---
@@ -23,11 +23,11 @@
 | Hạng mục | Trạng thái |
 |----------|------------|
 | API pytest | **346/346 pass** |
-| Web vitest | **19/19 pass** |
+| Web vitest | **25/25 pass** |
 | Docker | `api`, `web`, `postgres`, `redis` — Up |
 | Bug P0 lương (1604/1718/TOXIC) | **Code đã sửa** · DB công ty **chưa Tính lương lại** |
-| UI/UX §23 toolbar | **Chưa sửa** — xem báo cáo UI |
-| Git commit | **Chưa** — chờ Chủ |
+| UI/UX §23 (U1–U7, P3) | **Đã code** — xem `BAO_CAO_TONG_HOP_20260812.md` |
+| Git | **Đã push** `main` — cloud agent test |
 
 ---
 

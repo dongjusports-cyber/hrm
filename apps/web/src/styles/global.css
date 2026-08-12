@@ -489,6 +489,71 @@ a {
   line-height: 1.5;
 }
 
+.hud-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hud-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hud-panel-tips {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--ink-muted, #64748b);
+  line-height: 1.5;
+}
+
+.portal-shortcuts-hint {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.portal-shortcuts-hint kbd,
+.kbd-hints-bar kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 0.75rem;
+  font-family: inherit;
+}
+
+.kbd-hints-bar {
+  position: fixed;
+  left: 12px;
+  bottom: 10px;
+  z-index: 70;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  font-size: 0.72rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.kbd-hints-muted {
+  opacity: 0.75;
+}
+
+@media (max-width: 720px) {
+  .kbd-hints-bar {
+    display: none;
+  }
+}
+
 /* ——— Module Lv2 ——— */
 
 .module-page {
@@ -2136,11 +2201,194 @@ a {
 
 .hr-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   margin-bottom: 0;
   align-items: center;
   flex-shrink: 0;
+  max-height: 46px;
+  min-height: 46px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 2px;
+  scrollbar-width: thin;
+}
+
+.hr-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.hr-status-count {
+  white-space: nowrap;
+}
+
+.hr-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.toolbar-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.toolbar-more-trigger {
+  white-space: nowrap;
+}
+
+.toolbar-more-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 200px;
+  max-width: min(320px, 90vw);
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toolbar-more-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.toolbar-more-item:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.toolbar-more-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.toolbar-more-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.toolbar-more-field > span {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.toolbar-more-field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.82rem;
+  width: 100%;
+  background: #fff;
+}
+
+.toolbar-more-panel .file-btn {
+  display: block;
+  cursor: pointer;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.emp-code-picker {
+  position: relative;
+  width: 100%;
+}
+
+.emp-code-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.emp-code-picker-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.emp-code-picker-clear {
+  appearance: none;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.emp-code-picker-clear:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.emp-code-picker-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.emp-code-picker-option {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.emp-code-picker-option:hover {
+  background: #f1f5f9;
+}
+
+.emp-code-picker-empty,
+.emp-code-picker-hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
 }
 
 .hr-raise-page {
@@ -2248,21 +2496,29 @@ a {
   }
 }
 
-.hr-toolbar input {
+.hr-toolbar input,
+.hr-toolbar-search {
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 8px;
+  padding: 6px 10px;
   font: inherit;
-  min-width: 220px;
+  font-size: 0.88rem;
+  min-width: 160px;
+  max-width: 220px;
+  flex: 0 1 180px;
 }
 
-.hr-toolbar select {
+.hr-toolbar select,
+.hr-toolbar-select {
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: 8px;
+  padding: 6px 10px;
   font: inherit;
-  min-width: 150px;
+  font-size: 0.88rem;
+  min-width: 120px;
+  max-width: 160px;
   background: #fff;
+  flex-shrink: 0;
 }
 
 /* Chế độ xem Gọn / Đầy đủ (hạng mục 1.4) — nhớ theo localStorage, có nút Đặt lại riêng. */
@@ -2276,10 +2532,15 @@ a {
 .view-toggle button {
   border: none;
   background: #fff;
-  padding: 10px 14px;
+  padding: 6px 12px;
   font: inherit;
+  font-size: 0.88rem;
   cursor: pointer;
   color: #475569;
+}
+
+.view-toggle-compact {
+  flex-shrink: 0;
 }
 
 .view-toggle button + button {
@@ -2604,14 +2865,53 @@ a {
 
 .tk-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   position: sticky;
   top: 0;
   z-index: 5;
   background: var(--bg, #f1f5f9);
-  padding: 8px 0;
+  padding: 0 2px;
+  max-height: 46px;
+  min-height: 46px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.tk-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: var(--ink-muted, #64748b);
+  overflow: hidden;
+}
+
+.tk-status-sync {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+  text-align: right;
+}
+
+.period-picker-compact {
+  flex-shrink: 0;
+  font-size: 0.88rem;
+  gap: 6px;
+}
+
+.period-picker-compact input {
+  padding: 6px 8px;
+  font-size: 0.88rem;
 }
 
 .tk-active-emp {
@@ -2898,8 +3198,15 @@ a {
 }
 
 .tk-search {
-  flex: 1;
-  min-width: 200px;
+  flex: 1 1 160px;
+  min-width: 140px;
+  max-width: 280px;
+}
+
+.tk-search-compact input {
+  padding: 6px 10px;
+  font-size: 0.88rem;
+  border-radius: 8px;
 }
 
 .tk-search input {
@@ -2911,9 +3218,10 @@ a {
 }
 
 .tk-meta {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: var(--ink-muted, #64748b);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tk-agent-line {
@@ -3370,7 +3678,11 @@ a {
   gap: 0.35rem;
   margin-bottom: 0.4rem;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-height: 38px;
+  min-height: 38px;
+  scrollbar-width: thin;
 }
 
 .tk-view-tabs > button[role="tab"] {
@@ -4160,8 +4472,14 @@ a {
 
 .payroll-toolbar-compact .payroll-toolbar-row {
   gap: 6px 8px;
-  align-items: flex-end;
-  flex-wrap: wrap;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-height: 46px;
+  min-height: 46px;
+  margin-bottom: 0;
+  scrollbar-width: thin;
 }
 
 .payroll-toolbar-compact .field {
@@ -4188,6 +4506,28 @@ a {
   font-size: 0.82rem;
 }
 
+.payroll-field-period input {
+  padding: 5px 8px;
+}
+
+.payroll-period-badge {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+
+.payroll-period-badge-sub {
+  font-weight: 500;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
 .payroll-period-meta {
   margin: 0 4px 2px 0 !important;
   white-space: nowrap;
@@ -4204,6 +4544,40 @@ a {
 
 .payroll-tabs {
   flex-shrink: 0;
+}
+
+.payroll-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 4px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.payroll-status-scope {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.tk-workspace-full {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tk-workspace-full .tk-panel-wide {
+  flex: 1;
+  min-height: min(75vh, 720px);
+  display: flex;
+  flex-direction: column;
 }
 
 .payroll-tab-hint {
@@ -4272,6 +4646,13 @@ a {
   font-size: 0.85rem;
 }
 
+.btn-compact {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .payroll-sticky-totals {
   position: sticky;
   bottom: 0;
@@ -4313,6 +4694,10 @@ a {
 
 .payroll-delta-ok {
   color: var(--ink-muted);
+}
+
+.payroll-delta-zero {
+  color: #94a3b8;
 }
 
 .payroll-row-selected {

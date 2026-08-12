@@ -32,6 +32,9 @@ import { PayrollPayslipSection } from "./PayrollPayslipSection";
 import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
+import { EmployeeCodePicker } from "../../shared/EmployeeCodePicker";
+import { disabledTitle } from "../../shared/disabledHint";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Mở",
@@ -338,7 +341,7 @@ export function PayrollPage() {
 
         <section className="users-form-card payroll-toolbar-card payroll-toolbar-compact">
           <div className="calendar-row payroll-toolbar-row">
-            <label className="field">
+            <label className="field payroll-field-period">
               <span>Kỳ</span>
               <input
                 type="month"
@@ -348,116 +351,129 @@ export function PayrollPage() {
               />
             </label>
             {periodMeta && (
-              <span className="field-hint payroll-period-meta">
-                <strong>{STATUS_LABEL[periodStatus] ?? periodStatus}</strong>
-                {" · "}÷{periodMeta.salary_divisor}
-                {" · "}chuẩn {periodMeta.official_work_days}n
+              <span className="payroll-period-badge">
+                {STATUS_LABEL[periodStatus] ?? periodStatus}
+                <span className="payroll-period-badge-sub">
+                  ÷{periodMeta.salary_divisor} · {periodMeta.official_work_days}n
+                </span>
               </span>
             )}
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary btn-compact"
               disabled={busy || !canCalculate}
+              title={disabledTitle(!canCalculate, "Kỳ đã khóa hoặc không ở trạng thái mở")}
               onClick={() => void onCalculate()}
             >
               {busy ? "…" : "Tính lương"}
             </button>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary btn-compact"
               disabled={busy || !canPublish || rows.length === 0}
+              title={disabledTitle(
+                !canPublish || rows.length === 0,
+                rows.length === 0 ? "Chưa có phiếu lương" : "Kỳ đã khóa",
+              )}
               onClick={() => void onPublish()}
             >
               Phát hành
             </button>
             <button
               type="button"
-              className="btn-ghost-dark"
+              className="btn-ghost-dark btn-compact"
               disabled={busy || !canLock}
+              title={disabledTitle(!canLock, "Chỉ khóa sau khi đã phát hành")}
               onClick={() => void onLock()}
             >
               Khóa
             </button>
-            {isAdmin && (
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy || !canUnlock}
-                onClick={() => void onUnlock()}
-              >
-                Mở khóa
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy || !canReopen}
-                onClick={() => void onReopen()}
-              >
-                Mở lại
-              </button>
-            )}
-            <button type="button" className="btn-ghost-dark" disabled={busy} onClick={() => void reload()}>
+            <button type="button" className="btn-ghost-dark btn-compact" disabled={busy} onClick={() => void reload()}>
               Làm mới
             </button>
-            <span className="payroll-toolbar-sep" aria-hidden />
-            <label className="field payroll-export-field">
-              <span>Xuất bộ phận</span>
-              <select
-                value={exportDeptId}
-                onChange={(e) => setExportDeptId(e.target.value)}
-                disabled={busy || exporting || !!exportEmpCode}
+            <ToolbarMoreMenu disabled={busy}>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="toolbar-more-item"
+                  disabled={!canUnlock}
+                  onClick={() => void onUnlock()}
+                >
+                  Mở khóa kỳ
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  type="button"
+                  className="toolbar-more-item"
+                  disabled={!canReopen}
+                  onClick={() => void onReopen()}
+                >
+                  Mở lại kỳ
+                </button>
+              )}
+              <div className="toolbar-more-field">
+                <span>Xuất bộ phận</span>
+                <select
+                  value={exportDeptId}
+                  onChange={(e) => setExportDeptId(e.target.value)}
+                  disabled={exporting || !!exportEmpCode}
+                >
+                  <option value="">Cả công ty</option>
+                  {exportDepartmentOptions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {formatDepartmentLabel(d)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="toolbar-more-field">
+                <span>Xuất 1 người</span>
+                <EmployeeCodePicker
+                  options={exportEmployeeOptions}
+                  value={exportEmpCode}
+                  onChange={setExportEmpCode}
+                  disabled={exporting}
+                  placeholder="Tìm MSNV / họ tên…"
+                />
+              </div>
+              <button
+                type="button"
+                className="toolbar-more-item"
+                disabled={exporting || !canExport}
+                onClick={() => void onExport("ATM")}
               >
-                <option value="">Cả công ty</option>
-                {exportDepartmentOptions.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {formatDepartmentLabel(d)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field payroll-export-field">
-              <span>Xuất 1 người</span>
-              <select
-                value={exportEmpCode}
-                onChange={(e) => setExportEmpCode(e.target.value)}
-                disabled={busy || exporting}
+                Xuất ATM
+              </button>
+              <button
+                type="button"
+                className="toolbar-more-item"
+                disabled={exporting || !canExport}
+                onClick={() => void onExport("CASH")}
               >
-                <option value="">Tất cả trong phạm vi</option>
-                {exportEmployeeOptions.map((r) => (
-                  <option key={r.id} value={r.employee_code}>
-                    {r.employee_code} — {r.full_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy || exporting || !canExport}
-              onClick={() => void onExport("ATM")}
-            >
-              Xuất ATM
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy || exporting || !canExport}
-              onClick={() => void onExport("CASH")}
-            >
-              Tiền mặt
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy || exporting || !canExport}
-              onClick={() => void onExport("ALL")}
-            >
-              {exporting ? "…" : "ATM+TM"}
-            </button>
+                Xuất tiền mặt
+              </button>
+              <button
+                type="button"
+                className="toolbar-more-item"
+                disabled={exporting || !canExport}
+                onClick={() => void onExport("ALL")}
+              >
+                {exporting ? "Đang xuất…" : "Xuất ATM+TM"}
+              </button>
+            </ToolbarMoreMenu>
           </div>
         </section>
+
+        <div className="payroll-status-bar" aria-live="polite">
+          <span>
+            {rows.length} phiếu · {STATUS_LABEL[periodStatus] ?? periodStatus}
+            {periodMeta ? ` · ÷${periodMeta.salary_divisor}` : ""}
+          </span>
+          {exportEmpCode || exportDeptId ? (
+            <span className="payroll-status-scope">Xuất: {exportScopeLabel}</span>
+          ) : null}
+        </div>
 
         <nav className="payroll-tabs" aria-label="Màn tính lương">
           <button

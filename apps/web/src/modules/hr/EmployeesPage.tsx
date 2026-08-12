@@ -33,6 +33,7 @@ import {
 import { TransferTeamModal } from "./TransferTeamModal";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
+import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -325,7 +326,7 @@ export function EmployeesPage() {
         },
         { field: "join_date", headerName: "Ngày vào", width: 105, filter: false, valueFormatter: (p) => formatDateDDMMYYYY(p.value) },
         { field: "seniority_label", headerName: "Thâm niên", width: 120, filter: false },
-        { field: "contract_type_label", headerName: "Loại HĐ", width: 100, filter: false },
+        { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 130, width: 130, filter: false },
         {
           field: "total_salary",
           headerName: "Lương Tổng",
@@ -374,7 +375,8 @@ export function EmployeesPage() {
       {
         colId: "account_status",
         headerName: "Tài khoản",
-        width: 120,
+        minWidth: 130,
+        width: 130,
         filter: false,
         cellRenderer: (p: ICellRendererParams<Employee>) => {
           const label = p.data?.account_status_label || "Hoạt động";
@@ -385,7 +387,8 @@ export function EmployeesPage() {
       {
         colId: "unlock",
         headerName: "Bảo mật",
-        width: 150,
+        minWidth: 160,
+        width: 160,
         sortable: false,
         filter: false,
         cellRenderer: (p: ICellRendererParams<Employee>) => {
@@ -495,11 +498,21 @@ export function EmployeesPage() {
 
       <div className="hr-toolbar">
         <input
+          className="hr-toolbar-search"
+          data-hotkey-search
           placeholder="Tìm MSNV / họ tên…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void reload();
+          }}
         />
-        <select value={departmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
+        <select
+          className="hr-toolbar-select"
+          value={departmentId}
+          onChange={(e) => onDepartmentChange(e.target.value)}
+          aria-label="Bộ phận"
+        >
           <option value="">Tất cả bộ phận</option>
           {departmentOptions.map((d) => (
             <option key={d.id} value={d.id}>
@@ -507,7 +520,12 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+        <select
+          className="hr-toolbar-select"
+          value={teamId}
+          onChange={(e) => setTeamId(e.target.value)}
+          aria-label="Tổ"
+        >
           <option value="">Tất cả tổ</option>
           {teamOptions.map((t) => (
             <option key={t.id} value={t.id}>
@@ -517,28 +535,10 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <button type="button" className="btn-primary" onClick={() => void reload()}>
+        <button type="button" className="btn-primary btn-compact" onClick={() => void reload()}>
           Tìm
         </button>
-        <button type="button" className="btn-ghost-dark" onClick={onResetFilters}>
-          Đặt lại lọc
-        </button>
-        <button
-          type="button"
-          className="btn-ghost-dark"
-          title="Khôi phục thứ tự và độ rộng cột mặc định"
-          onClick={() => {
-            localStorage.removeItem(columnStateKey(viewMode));
-            const api = gridApiRef.current;
-            if (api) {
-              api.resetColumnState();
-              api.sizeColumnsToFit();
-            }
-          }}
-        >
-          Đặt lại cột
-        </button>
-        <div className="view-toggle">
+        <div className="view-toggle view-toggle-compact">
           <button
             type="button"
             className={viewMode === "compact" ? "active" : ""}
@@ -554,52 +554,82 @@ export function EmployeesPage() {
             Đầy đủ
           </button>
         </div>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={exporting}
-          onClick={() => void onExport()}
-        >
-          {exporting ? "Đang xuất…" : "Xuất Excel"}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={selectedRows.length === 0}
-          onClick={() => setShowTransferModal(true)}
-        >
-          Chuyển tổ{selectedRows.length ? ` (${selectedRows.length})` : ""}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={selectedRows.length === 0}
-          onClick={() =>
-            navigate("/m/hr/salary-raise", {
-              state: { employeeIds: selectedRows.map((r) => r.id) },
-            })
-          }
-        >
-          Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
-        </button>
-        <label className="btn-ghost-dark file-btn">
-          Nhập Excel nhân viên
-          <input
-            type="file"
-            accept=".xlsx,.xlsm"
-            hidden
-            onChange={(e) => void onImport(e.target.files?.[0] ?? null)}
-          />
-        </label>
-        <label className="btn-ghost-dark file-btn">
-          Nhập phụ cấp
-          <input
-            type="file"
-            accept=".xlsx,.xlsm"
-            hidden
-            onChange={(e) => void onImportAllowances(e.target.files?.[0] ?? null)}
-          />
-        </label>
+        <ToolbarMoreMenu>
+          <button type="button" className="toolbar-more-item" onClick={onResetFilters}>
+            Đặt lại lọc
+          </button>
+          <button
+            type="button"
+            className="toolbar-more-item"
+            onClick={() => {
+              localStorage.removeItem(columnStateKey(viewMode));
+              const api = gridApiRef.current;
+              if (api) {
+                api.resetColumnState();
+                api.sizeColumnsToFit();
+              }
+            }}
+          >
+            Đặt lại cột
+          </button>
+          <button
+            type="button"
+            className="toolbar-more-item"
+            disabled={exporting}
+            onClick={() => void onExport()}
+          >
+            {exporting ? "Đang xuất…" : "Xuất Excel"}
+          </button>
+          <label className="toolbar-more-item file-btn">
+            Nhập Excel nhân viên
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              hidden
+              onChange={(e) => void onImport(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label className="toolbar-more-item file-btn">
+            Nhập phụ cấp
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              hidden
+              onChange={(e) => void onImportAllowances(e.target.files?.[0] ?? null)}
+            />
+          </label>
+        </ToolbarMoreMenu>
+      </div>
+
+      <div className="hr-status-bar" aria-live="polite">
+        <span className="hr-status-count">
+          {rows.length} nhân viên
+          {selectedRows.length > 0 ? ` · đã chọn ${selectedRows.length}` : ""}
+        </span>
+        <div className="hr-status-actions">
+          <button
+            type="button"
+            className="btn-secondary btn-compact"
+            disabled={selectedRows.length === 0}
+            title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
+            onClick={() => setShowTransferModal(true)}
+          >
+            Chuyển tổ{selectedRows.length ? ` (${selectedRows.length})` : ""}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary btn-compact"
+            disabled={selectedRows.length === 0}
+            title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
+            onClick={() =>
+              navigate("/m/hr/salary-raise", {
+                state: { employeeIds: selectedRows.map((r) => r.id) },
+              })
+            }
+          >
+            Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
+          </button>
+        </div>
       </div>
 
       <div className="ag-theme-quartz hr-grid hr-grid-list">
@@ -609,7 +639,6 @@ export function EmployeesPage() {
           getRowId={(p) => p.data.id}
           rowHeight={viewMode === "compact" ? 32 : 38}
           animateRows={false}
-          suppressHorizontalScroll
           rowSelection="multiple"
           suppressRowClickSelection
           overlayNoRowsTemplate="<span>Không có nhân viên trong mục này</span>"

@@ -25,6 +25,34 @@ Không cộng dồn thành công lớn hơn 1.
 Công nhân hay chấm vân tay nhiều lần liên tiếp. Hệ thống gom các lần chấm trong cửa sổ **60 giây** thành
 một, giữ lần **sớm nhất** làm giờ vào và lần **muộn nhất** làm giờ ra trong ngày.
 
+### Tách OT trên sổ / OT ngoài (ATM) — Chủ chốt 2026-08-12
+
+Code: `apps/api/app/modules/attendance/ot_split.py` · policy `payload.ot_split`.
+
+| Quy tắc | Giá trị |
+|---------|---------|
+| Ngày áp dụng tách | **Thứ 3 và Thứ 5** (`isoweekday` 2, 4) |
+| OT trên sổ (tính lương tháng) | **17:00 – 20:00** |
+| OT ngoài / OT_EXT (trả ATM riêng) | **Sau 20:00** cùng ngày Th3/Th5 |
+| Ngưỡng bấm ra được OT | **17:15** — bấm ra ≤ 17:15 → **0 phút OT** (grace toilet) |
+| Số phút OT khi đủ điều kiện | Tính từ **17:00** (hết ca), không trừ 15 phút grace |
+| Ngày khác Th3/Th5 | Toàn bộ OT sau 17:00 → **OT ngoài** (không lên sổ) |
+
+**Ví dụ Thứ 3:** ra 17:10 → 0 OT · ra 17:16 → 16 phút OT sổ · ra 20:30 → 180p sổ + 30p ngoài.
+
+Cấu hình trong `policy_packages.payload`:
+
+```jsonc
+"ot_split": {
+  "on_books_weekdays": [2, 4],
+  "on_books_after": "17:15",
+  "on_books_until": "20:00",
+  "ot_grace_minutes": 15
+}
+```
+
+Xuất OT ngoài: module Chấm công → **OT ngoài** / API payroll `ot_external` — **không** gộp vào bảng lương tháng.
+
 ### Nếu Mitapro không có cột vào/ra
 Suy: lần chấm đầu tiên trong ngày = vào, lần cuối = ra. Vì công ty **không có ca đêm**, cách suy
 này an toàn. Vẫn nên xác minh (xem file 20 mục 20.8).
@@ -336,6 +364,12 @@ Toàn bộ số ở file này phải nằm trong payload hoặc bảng danh mụ
 
   "ot_rates": { "weekday": 1.5, "sunday": 2.0, "holiday": 2.0,
                 "holiday_over_8": 3.0, "night_addon": 0.3 },
+  "ot_split": {
+    "on_books_weekdays": [2, 4],
+    "on_books_after": "17:15",
+    "on_books_until": "20:00",
+    "ot_grace_minutes": 15
+  },
   "ot_base_components": ["BASIC","POS","TECH","TREAT","SENIORITY","TRAIN","INDUS"],
 
   "si_rates": { "bhxh": 0.08, "bhyt": 0.015, "bhtn": 0.01 },

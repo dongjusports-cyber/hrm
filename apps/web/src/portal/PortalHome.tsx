@@ -161,6 +161,9 @@ export function PortalHome() {
       )}
 
       <footer className="portal-creator" aria-label="Tác giả">
+        <p className="portal-shortcuts-hint">
+          Phím tắt: <kbd>Ctrl+K</kbd> bảng lệnh · <kbd>/</kbd> tìm nhanh trên màn HR/Chấm công
+        </p>
         <p className="portal-creator-label">Designed &amp; Built by</p>
         <p className="portal-creator-name">NGUYỄN THANH THIỆN</p>
         <div className="portal-creator-meta">
@@ -194,10 +197,39 @@ export function PortalHome() {
         title="Chi tiết nhân sự"
         onClose={() => setHudOpen(false)}
       >
-        <p className="slide-over-placeholder">
-          Khay trượt sẵn sàng. Sẽ hiển thị hồ sơ / tìm kiếm NV tại đây — không reload
-          trang.
-        </p>
+        <div className="hud-panel">
+          <p className="field-hint">
+            Khay trượt tra cứu NV — mở hồ sơ nhanh mà không rời Portal. Hiện dùng bảng lệnh và
+            danh sách HR.
+          </p>
+          <div className="hud-panel-actions">
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              onClick={() => {
+                setHudOpen(false);
+                navigate("/m/hr/lists/all");
+              }}
+            >
+              Danh sách nhân viên
+            </button>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={() => {
+                setHudOpen(false);
+                window.dispatchEvent(new Event("djhrm:open-cmdk"));
+              }}
+            >
+              Bảng lệnh (Ctrl+K)
+            </button>
+          </div>
+          <ul className="hud-panel-tips">
+            <li>Gõ MSNV hoặc họ tên trong bảng lệnh để mở hồ sơ.</li>
+            <li>Trên danh sách HR: double-click dòng hoặc bấm <strong>Xem</strong>.</li>
+            <li>Tra cứu đầy đủ trong khay này sẽ bổ sung ở phiên sau.</li>
+          </ul>
+        </div>
       </SlideOverPanel>
     </div>
   );

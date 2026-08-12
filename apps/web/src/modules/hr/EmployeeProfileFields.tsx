@@ -707,13 +707,13 @@ export function EmployeeProfileTabFields({
           <span>Điện thoại</span>
           <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </label>
-        <label className="field">
-          <span>Tình trạng hôn nhân</span>
-          <input
-            value={form.marital_status}
-            onChange={(e) => setForm({ ...form, marital_status: e.target.value })}
-          />
-        </label>
+        <LookupSelect
+          groupCode="marital_status"
+          label="Tình trạng hôn nhân"
+          value={form.marital_status}
+          onChange={(code) => setForm({ ...form, marital_status: code })}
+          emptyLabel="— Chọn —"
+        />
         <label className="field">
           <span>Số con</span>
           <input

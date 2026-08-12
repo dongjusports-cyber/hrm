@@ -9,7 +9,7 @@ def _hr_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_lookup_groups_lists_all_six(client):
+def test_lookup_groups_lists_all_seven(client):
     headers = _hr_headers(client)
     res = client.get("/api/lookup-groups", headers=headers)
     assert res.status_code == 200, res.text
@@ -21,6 +21,7 @@ def test_lookup_groups_lists_all_six(client):
         "education_level",
         "birth_place",
         "id_issue_place",
+        "marital_status",
     }
 
 
@@ -73,6 +74,7 @@ def test_lookup_values_no_group_filter_returns_all_groups(client):
         "education_level",
         "birth_place",
         "id_issue_place",
+        "marital_status",
     }
 
 
@@ -81,6 +83,15 @@ def test_lookup_values_unknown_group_returns_empty(client):
     res = client.get("/api/lookup-values?group_code=khong_ton_tai", headers=headers)
     assert res.status_code == 200, res.text
     assert res.json() == []
+
+
+def test_lookup_values_marital_status_codes(client):
+    headers = _hr_headers(client)
+    res = client.get("/api/lookup-values?group_code=marital_status", headers=headers)
+    assert res.status_code == 200, res.text
+    rows = res.json()
+    codes = {r["code"] for r in rows}
+    assert codes >= {"single", "married", "divorced", "widowed"}
 
 
 def test_lookup_values_seed_is_idempotent(client, db):

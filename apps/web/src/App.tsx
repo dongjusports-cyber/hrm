@@ -41,6 +41,7 @@ import { CommandPalette } from "./shared/CommandPalette";
 import { DeniedModal } from "./shared/DeniedModal";
 import { FullscreenToggle } from "./shared/FullscreenToggle";
 import { GlobalEscBack } from "./shared/GlobalEscBack";
+import { KeyboardHintsBar } from "./shared/KeyboardHintsBar";
 import { RequireAuth } from "./shared/RequireAuth";
 import { useDeniedStore } from "./shared/deniedStore";
 import { RequireWorker } from "./worker/RequireWorker";
@@ -229,6 +230,7 @@ export default function App() {
       </Routes>
       <GlobalEscBack />
       <CommandPalette />
+      <KeyboardHintsBar />
       <FullscreenToggle />
       <DeniedModal open={open} message={message} onClose={close} />
       <AiFab />
