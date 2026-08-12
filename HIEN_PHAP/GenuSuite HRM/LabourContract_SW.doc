@@ -1,0 +1,1588 @@
+<% Response.ContentType = "application/msword"
+	Response.Buffer=false %>
+<!-- #include file="../../../system/lib/form.inc"  -->
+<!-- #include file="../db.inc"  -->
+<html xmlns:v="urn:schemas-microsoft-com:vml"
+xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns:st1="urn:schemas-microsoft-com:office:smarttags"
+xmlns="http://www.w3.org/TR/REC-html40">
+<%
+	Dim pklist 
+	Dim v_dept,v_empid,v_remark,v_fullnm,v_cardid,v_fromDOJ,v_toDOJ,v_kindLB,v_fromET_Probation,v_toET_Probation,v_fromET_Contract,v_toET_Contract,v_printBack
+	Dim DateLB
+	pklist 				= request.querystring("p_PKList")	
+	v_dept 				= request.querystring("dept") 		
+	v_emp_id 			= request.querystring("emp_id")
+	'v_remark 			= request.querystring("old_code")
+	'v_fullnm 			= request.querystring("full_nm")
+	'v_cardid 			= request.querystring("card_id")
+	'v_fromDOJ 			= request.querystring("fromDOJ")
+	'v_toDOJ 			= request.querystring("toDOJ")
+	v_kindLB 			= request.querystring("p_kindlb")
+	'v_fromET_Probation 	= request.querystring("fromET_Probation")
+	'v_toET_Probation 	= request.querystring("toET_Probation")
+	'v_fromET_Contract 	= request.querystring("fromET_Contract")
+	'v_toET_Contract 	= request.querystring("toET_Contract")
+	v_printBack			= request.querystring("printBack")
+	
+	'Response.Write v_kindLB
+		'Response.End
+	
+	DateLB=Day(Now()) & "/" & Month(Now()) & "/" & Year(Now())
+%>
+
+<%
+	Dim emp, empTotal,stSQL
+
+	ConnectDBApp
+stSQL = " SELECT E.EMP_ID AS EMP_ID_0"
+stSQL = stSQL &  " 	   , E.FULL_NM AS FULL_NM_1"
+stSQL = stSQL &  " 	   , POS.CODE_NM AS CODE_NM_2,NULL"
+stSQL = stSQL &  " 	   , POS.CODE_LNM AS CODE_LNM_4"
+stSQL = stSQL &  " 	   ,(CASE WHEN LENGTH(E.BIRTH_DATE)=8 THEN TO_CHAR(TO_DATE(E.BIRTH_DATE,'YYYYMMDD'),'DD/MM/YYYY')"
+stSQL = stSQL &  "            	  WHEN LENGTH(E.BIRTH_DATE)=4 THEN E.BIRTH_DATE"
+stSQL = stSQL &  "            	  ELSE NULL	END) AS BIRTH_DT_5"
+stSQL = stSQL &  "        ,E.PERSON_ID AS CARD_ID_6"
+stSQL = stSQL &  " 	   ,E.ADDR AS ADDR_7"
+stSQL = stSQL &  "        ,TO_CHAR (TO_DATE (E.JOIN_DATE, 'YYYYMMDD'), 'DD/MM/YYYY') AS JOIN_DATE_8"
+stSQL = stSQL &  "        ,NVL (L.BASIC_SALARY, 0) AS BASIC_SAL_9"
+stSQL = stSQL &  " 	   ,L.CONTRACT_NO AS CONTRACT_NO_10"
+stSQL = stSQL &  " 	   ,TO_CHAR (TO_DATE (L.ST_CONTRACT, 'YYYYMMDD'), 'DD/MM/YYYY') AS ST_CONTRACT_11"
+stSQL = stSQL &  " 	   ,TO_CHAR (TO_DATE (L.ET_CONTRACT, 'YYYYMMDD'), 'DD/MM/YYYY') AS ET_CONTRACT_12"
+stSQL = stSQL &  " 	   ,JOB.CODE_NM AS CODE_NM_13"
+stSQL = stSQL &  " 	   ,JOB.CODE_LNM AS CODE_LNM_14,EM.TECH_AMT,EM.TRANS_ALLOW,EM.POS_AMT,EM.INDUS_ALLOW,EM.TREAT_ALLOW,EM.TRAIN_ALLOW,EM.SER_AMT"
+stSQL = stSQL &  "   FROM THR_ABEMP E,"
+stSQL = stSQL &  "        THR_ABEMPMAS EM,"
+stSQL = stSQL &  "        THR_LABOUR_CONTRACT L,"
+stSQL = stSQL &  "        (SELECT   CODE, CODE_LNM, CODE_NM"
+stSQL = stSQL &  "            FROM COMM.TCO_ABCODE"
+stSQL = stSQL &  "            WHERE TCO_ABCODEGRP_PK = (SELECT PK "
+stSQL = stSQL &  "                                        FROM COMM.TCO_ABCODEGRP"
+stSQL = stSQL &  "                                       WHERE ID = 'HRAB0060') AND DEL_IF = 0"
+stSQL = stSQL &  "         ORDER BY CODE_NM) POS"
+stSQL = stSQL &  " 		,(SELECT   CODE, CODE_LNM, CODE_NM"
+stSQL = stSQL &  "            FROM COMM.TCO_ABCODE"
+stSQL = stSQL &  "            WHERE TCO_ABCODEGRP_PK = (SELECT PK "
+stSQL = stSQL &  "                                        FROM COMM.TCO_ABCODEGRP"
+stSQL = stSQL &  "                                       WHERE ID = 'HRAB0100') AND DEL_IF = 0"
+stSQL = stSQL &  "         ORDER BY CODE_NM) JOB"
+stSQL = stSQL &  "  WHERE E.DEL_IF = 0"
+stSQL = stSQL &  "    AND EM.DEL_IF = 0"
+stSQL = stSQL &  "    AND L.DEL_IF = 0"
+stSQL = stSQL &  "    AND E.PK = EM.THR_ABEMP_PK"
+stSQL = stSQL &  "    AND EM.POS_CODE = POS.CODE"
+stSQL = stSQL &  "    AND EM.JOB_CODE = JOB.CODE"
+stSQL = stSQL &  "    AND E.PK = L.THR_ABEMP_PK"
+stSQL = stSQL &  "    AND L.KIND_CONTRACT = "& v_kindLB &" "
+stSQL = stSQL &  "    AND E.PK IN (" & Left(pklist, Len(pklist) - 1) & ")"
+		
+		'Response.Write stSQL
+		'Response.End
+				
+		TableReadOpen rs, stSQL
+		if not rs.eof then
+			emp = rs.getrows()
+			empTotal = ubound(emp,2) + 1
+		else
+			empTotal = 0
+			Response.write "There is no data"
+			Response.end
+		end if
+	CloseDB
+%>
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=utf-8">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 11">
+<meta name=Originator content="Microsoft Word 11">
+<link rel=File-List href="LabourContract_SW_files/filelist.xml">
+<title>DONGJU SPORTS VIET NAM CO</title>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="City"/>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="place" downloadurl="http://www.5iantlavalamp.com/"/>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="country-region" downloadurl="http://www.5iantlavalamp.com/"/>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="PlaceName"/>
+<o:SmartTagType namespaceuri="urn:schemas-microsoft-com:office:smarttags"
+ name="PlaceType"/>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+  <o:Author>server</o:Author>
+  <o:LastAuthor>server</o:LastAuthor>
+  <o:Revision>3</o:Revision>
+  <o:TotalTime>13</o:TotalTime>
+  <o:LastPrinted>2007-08-02T06:10:00Z</o:LastPrinted>
+  <o:Created>2007-08-02T06:25:00Z</o:Created>
+  <o:LastSaved>2007-08-02T06:26:00Z</o:LastSaved>
+  <o:Pages>1</o:Pages>
+  <o:Words>857</o:Words>
+  <o:Characters>4887</o:Characters>
+  <o:Lines>40</o:Lines>
+  <o:Paragraphs>11</o:Paragraphs>
+  <o:CharactersWithSpaces>5733</o:CharactersWithSpaces>
+  <o:Version>11.5606</o:Version>
+ </o:DocumentProperties>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:PunctuationKerning/>
+  <w:ValidateAgainstSchemas/>
+  <w:SaveIfXMLInvalid>false</w:SaveIfXMLInvalid>
+  <w:IgnoreMixedContent>false</w:IgnoreMixedContent>
+  <w:AlwaysShowPlaceholderText>false</w:AlwaysShowPlaceholderText>
+  <w:Compatibility>
+   <w:BreakWrappedTables/>
+   <w:SnapToGridInCell/>
+   <w:WrapTextWithPunct/>
+   <w:UseAsianBreakRules/>
+   <w:DontGrowAutofit/>
+  </w:Compatibility>
+  <w:BrowserLevel>MicrosoftInternetExplorer4</w:BrowserLevel>
+ </w:WordDocument>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <w:LatentStyles DefLockedState="false" LatentStyleCount="156">
+ </w:LatentStyles>
+</xml><![endif]--><!--[if !mso]><object
+ classid="clsid:38481807-CA0E-42D2-BF39-B33AF135CC4D" id=ieooui></object>
+<style>
+st1\:*{behavior:url(#ieooui) }
+</style>
+<![endif]-->
+<style>
+<!--
+ /* Font Definitions */
+ @font-face
+	{font-family:Wingdings;
+	panose-1:5 0 0 0 0 0 0 0 0 0;
+	mso-font-charset:2;
+	mso-generic-font-family:auto;
+	mso-font-pitch:variable;
+	mso-font-signature:0 268435456 0 0 -2147483648 0;}
+ /* Style Definitions */
+ p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{mso-style-parent:"";
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+h1
+	{mso-style-next:Normal;
+	margin:0in;
+	margin-bottom:.0001pt;
+	text-align:center;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:1;
+	font-size:11.0pt;
+	font-family:"Times New Roman";
+	mso-font-kerning:0pt;
+	font-style:italic;}
+h2
+	{mso-style-next:Normal;
+	margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:2;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	color:black;
+	font-weight:normal;
+	font-style:italic;}
+h3
+	{mso-style-next:Normal;
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:1.0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:3;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	color:black;
+	font-weight:normal;
+	font-style:italic;}
+h4
+	{mso-style-next:Normal;
+	margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:.75in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	page-break-after:avoid;
+	mso-outline-level:4;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	color:green;
+	font-weight:normal;
+	font-style:italic;}
+p.MsoHeader, li.MsoHeader, div.MsoHeader
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	tab-stops:center 3.0in right 6.0in;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+p.MsoFooter, li.MsoFooter, div.MsoFooter
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	tab-stops:center 3.0in right 6.0in;
+	font-size:12.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";}
+p.MsoBodyText, li.MsoBodyText, div.MsoBodyText
+	{margin:0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";
+	color:black;}
+p.MsoBodyTextIndent, li.MsoBodyTextIndent, div.MsoBodyTextIndent
+	{margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:.5in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";
+	color:black;}
+p.MsoBodyTextIndent2, li.MsoBodyTextIndent2, div.MsoBodyTextIndent2
+	{margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:.5in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";
+	color:black;
+	font-style:italic;}
+p.MsoBodyTextIndent3, li.MsoBodyTextIndent3, div.MsoBodyTextIndent3
+	{margin-top:0in;
+	margin-right:0in;
+	margin-bottom:0in;
+	margin-left:1.0in;
+	margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";
+	color:black;
+	font-style:italic;}
+ /* Page Definitions */
+ @page
+	{mso-footnote-separator:url("LabourContract_SW_files/header.htm") fs;
+	mso-footnote-continuation-separator:url("LabourContract_SW_files/header.htm") fcs;
+	mso-endnote-separator:url("LabourContract_SW_files/header.htm") es;
+	mso-endnote-continuation-separator:url("LabourContract_SW_files/header.htm") ecs;}
+@page Section1
+	{size:595.45pt 841.7pt;
+	margin:.25in .5in .25in .5in;
+	mso-header-margin:.4in;
+	mso-footer-margin:.4in;
+	mso-paper-source:0;}
+div.Section1
+	{page:Section1;}
+ /* List Definitions */
+ @list l0
+	{mso-list-id:245118150;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1043038676 67698689 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l0:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:;
+	mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;
+	font-family:Symbol;}
+@list l1
+	{mso-list-id:883175911;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-1589838290 1816923002 67698713 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l1:level1
+	{mso-level-start-at:2;
+	mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;}
+@list l1:level2
+	{mso-level-number-format:alpha-lower;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;}
+@list l1:level3
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:1.75in;
+	mso-level-number-position:right;
+	margin-left:1.75in;
+	text-indent:-9.0pt;}
+@list l1:level4
+	{mso-level-tab-stop:2.25in;
+	mso-level-number-position:left;
+	margin-left:2.25in;
+	text-indent:-.25in;}
+@list l1:level5
+	{mso-level-number-format:alpha-lower;
+	mso-level-tab-stop:2.75in;
+	mso-level-number-position:left;
+	margin-left:2.75in;
+	text-indent:-.25in;}
+@list l1:level6
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:3.25in;
+	mso-level-number-position:right;
+	margin-left:3.25in;
+	text-indent:-9.0pt;}
+@list l1:level7
+	{mso-level-tab-stop:3.75in;
+	mso-level-number-position:left;
+	margin-left:3.75in;
+	text-indent:-.25in;}
+@list l1:level8
+	{mso-level-number-format:alpha-lower;
+	mso-level-tab-stop:4.25in;
+	mso-level-number-position:left;
+	margin-left:4.25in;
+	text-indent:-.25in;}
+@list l1:level9
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:4.75in;
+	mso-level-number-position:right;
+	margin-left:4.75in;
+	text-indent:-9.0pt;}
+@list l2
+	{mso-list-id:1567447928;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-320322780 727194166 826807568 67698715 67698703 67698713 67698715 67698703 67698713 67698715;}
+@list l2:level1
+	{mso-level-tab-stop:.75in;
+	mso-level-number-position:left;
+	margin-left:.75in;
+	text-indent:-.25in;}
+@list l2:level2
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;
+	font-family:"Times New Roman";
+	mso-fareast-font-family:"Times New Roman";
+	mso-ansi-font-style:italic;
+	mso-bidi-font-style:italic;}
+@list l2:level3
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:1.75in;
+	mso-level-number-position:right;
+	margin-left:1.75in;
+	text-indent:-9.0pt;}
+@list l2:level4
+	{mso-level-tab-stop:2.25in;
+	mso-level-number-position:left;
+	margin-left:2.25in;
+	text-indent:-.25in;}
+@list l2:level5
+	{mso-level-number-format:alpha-lower;
+	mso-level-tab-stop:2.75in;
+	mso-level-number-position:left;
+	margin-left:2.75in;
+	text-indent:-.25in;}
+@list l2:level6
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:3.25in;
+	mso-level-number-position:right;
+	margin-left:3.25in;
+	text-indent:-9.0pt;}
+@list l2:level7
+	{mso-level-tab-stop:3.75in;
+	mso-level-number-position:left;
+	margin-left:3.75in;
+	text-indent:-.25in;}
+@list l2:level8
+	{mso-level-number-format:alpha-lower;
+	mso-level-tab-stop:4.25in;
+	mso-level-number-position:left;
+	margin-left:4.25in;
+	text-indent:-.25in;}
+@list l2:level9
+	{mso-level-number-format:roman-lower;
+	mso-level-tab-stop:4.75in;
+	mso-level-number-position:right;
+	margin-left:4.75in;
+	text-indent:-9.0pt;}
+@list l3
+	{mso-list-id:1568877931;
+	mso-list-type:hybrid;
+	mso-list-template-ids:-431041652 1878057640 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l3:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;
+	font-family:Arial;
+	mso-fareast-font-family:"Times New Roman";}
+@list l4
+	{mso-list-id:1733890575;
+	mso-list-type:hybrid;
+	mso-list-template-ids:1729499146 -1782402072 67698691 67698693 67698689 67698691 67698693 67698689 67698691 67698693;}
+@list l4:level1
+	{mso-level-number-format:bullet;
+	mso-level-text:-;
+	mso-level-tab-stop:1.25in;
+	mso-level-number-position:left;
+	margin-left:1.25in;
+	text-indent:-.25in;
+	font-family:Arial;
+	mso-fareast-font-family:"Times New Roman";}
+ol
+	{margin-bottom:0in;}
+ul
+	{margin-bottom:0in;}
+-->
+</style>
+<!--[if gte mso 10]>
+<style>
+ /* Style Definitions */
+ table.MsoNormalTable
+	{mso-style-name:"Table Normal";
+	mso-tstyle-rowband-size:0;
+	mso-tstyle-colband-size:0;
+	mso-style-noshow:yes;
+	mso-style-parent:"";
+	mso-padding-alt:0in 5.4pt 0in 5.4pt;
+	mso-para-margin:0in;
+	mso-para-margin-bottom:.0001pt;
+	mso-pagination:widow-orphan;
+	font-size:10.0pt;
+	font-family:"Times New Roman";
+	mso-ansi-language:#0400;
+	mso-fareast-language:#0400;
+	mso-bidi-language:#0400;}
+</style>
+<![endif]--><!--[if gte mso 9]><xml>
+ <o:shapedefaults v:ext="edit" spidmax="3074"/>
+</xml><![endif]--><!--[if gte mso 9]><xml>
+ <o:shapelayout v:ext="edit">
+  <o:idmap v:ext="edit" data="2"/>
+ </o:shapelayout></xml><![endif]-->
+</head>
+
+<body lang=EN-US style='tab-interval:.5in'>
+
+<div class=Section1>
+<%  if  v_printBack = 0 then
+	For i=0 to  empTotal-1  
+%>
+<h1 style='tab-stops:.25in 27.0pt'><a name="OLE_LINK1"><span style='font-size:
+23.0pt;mso-bidi-font-size:16.0pt;color:#99CC00'>DONGJU SPORTS VIET NAM CO., LTD<o:p></o:p></span></a></h1>
+
+<h1 style='tab-stops:.25in 27.0pt'><span style='mso-bookmark:OLE_LINK1'><span
+style='font-size:17.0pt;mso-bidi-font-size:11.0pt;color:#99CC00'>CÔNG TY TNHH
+DONGJU SPORTS VIỆT <st1:country-region w:st="on"><st1:place w:st="on">NAM</st1:place></st1:country-region></span></span><span
+style='mso-bookmark:OLE_LINK1'><span style='font-size:23.0pt;mso-bidi-font-size:
+16.0pt;color:#99CC00;font-style:normal'><o:p></o:p></span></span></h1>
+
+<p class=MsoHeader align=center style='margin-right:3.5pt;text-align:center;
+tab-stops:.25in 27.0pt'><span style='mso-bookmark:OLE_LINK1'><i><span
+style='font-size:9.0pt;font-family:Arial'>Address: Lot 33-7, 33-8, Road D11, Phuoc Dong industrial park, Phuoc Dong village, Go Dau Dist, <st1:place w:st="on"><st1:PlaceName w:st="on">Tay</st1:PlaceName>
+ <st1:PlaceName w:st="on">Ninh</st1:PlaceName> <st1:PlaceType w:st="on">Province</st1:PlaceType></st1:place></span></i></span><span
+style='mso-bookmark:OLE_LINK1'><i><span style='font-size:7.0pt;font-family:
+Arial'><o:p></o:p></span></i></span></p>
+
+<div style='mso-element:para-border-div;border:none;border-bottom:solid windowtext 1.0pt;
+mso-border-bottom-alt:solid windowtext .5pt;padding:0in 0in 1.0pt 0in;
+margin-left:0in;margin-right:3.5pt'>
+
+<p class=MsoHeader align=right style='text-align:right;tab-stops:.25in 27.0pt;
+border:none;mso-border-bottom-alt:solid windowtext .5pt;padding:0in;mso-padding-alt:
+0in 0in 1.0pt 0in'><span style='mso-bookmark:OLE_LINK1'><i><span
+style='font-size:6.0pt;mso-bidi-font-size:7.0pt;font-family:Arial'><span
+style='mso-spacerun:yes'>  </span></span></i></span><span style='mso-bookmark:
+OLE_LINK1'><i><span style='font-size:7.0pt;font-family:Arial'>HĐLD </span></i></span><span
+style='mso-bookmark:OLE_LINK1'><i><span style='font-size:6.0pt;mso-bidi-font-size:
+7.0pt;font-family:Arial'><o:p></o:p></span></i></span></p>
+
+</div>
+
+<p class=MsoNormal style='tab-stops:.25in 27.0pt'><span style='mso-bookmark:
+OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><span
+style='mso-bookmark:OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT <st1:country-region
+w:st="on"><st1:place w:st="on">NAM</st1:place></st1:country-region><o:p></o:p></span></b></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><span
+style='mso-bookmark:OLE_LINK1'><st1:PlaceName w:st="on"><i><span
+ style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;
+ color:black'>SOCIALIST</span></i></st1:PlaceName><i><span style='font-size:
+11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'> <st1:PlaceType
+w:st="on">REPUBLIC</st1:PlaceType> OF <st1:country-region w:st="on"><st1:place
+ w:st="on">VIETNAM</st1:place></st1:country-region><o:p></o:p></span></i></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><span
+style='mso-bookmark:OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>Độc Lập – Tự Do – Hạnh Phúc<o:p></o:p></span></b></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><span
+style='mso-bookmark:OLE_LINK1'><st1:City w:st="on"><st1:place w:st="on"><i><span
+  style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;
+  color:black'>Independence</span></i></st1:place></st1:City><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+– Freedom - Happiness<o:p></o:p></span></i></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><span
+style='mso-bookmark:OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>**********<o:p></o:p></span></b></span></p>
+
+<p class=MsoNormal style='tab-stops:.25in 27.0pt'><span style='mso-bookmark:
+OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'><span style='mso-tab-count:6'>                                                </span><o:p></o:p></span></b></span></p>
+
+<p class=MsoNormal style='tab-stops:.25in 27.0pt'><span style='mso-bookmark:
+OLE_LINK1'><b><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'>Số :<span style='mso-spacerun:yes'>  </span><%= emp(10,i)%><span
+style='mso-tab-count:5'>                                                           </span><span
+style='mso-spacerun:yes'>             </span></span></b></span><span
+style='mso-bookmark:OLE_LINK1'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>Tây Ninh, ngày <b style='mso-bidi-font-weight:
+normal'><%= LEFT(emp(11,i),2)%></b> tháng<b style='mso-bidi-font-weight:normal'> <%= MID(emp(11,i),4,2)%> </b>năm <b
+style='mso-bidi-font-weight:normal'><%= RIGHT(emp(11,i),4)%><span style='mso-bidi-font-weight:bold'><o:p></o:p></span></b></span></span></p>
+
+<p class=MsoNormal style='page-break-after:avoid;mso-outline-level:2;
+tab-stops:.25in 27.0pt'><span style='mso-bookmark:OLE_LINK1'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>No
+:</span></i></span><span style='mso-bookmark:OLE_LINK1'></span><span
+style='mso-bidi-font-size:11.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><b><span
+style='font-size:19.0pt;mso-bidi-font-size:18.0pt;font-family:Arial;color:black'>HỢP
+ĐỒNG LAO ĐỘNG<o:p></o:p></span></b></p>
+
+<p class=MsoNormal align=center style='text-align:center;tab-stops:.25in 27.0pt'><b><i><span
+style='mso-bidi-font-size:11.0pt;font-family:Arial;color:black'>LABOR CONTRACT</span></i></b><b><span
+style='font-size:19.0pt;mso-bidi-font-size:18.0pt;font-family:Arial;color:black'><o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='tab-stops:.25in 27.0pt'><b><span style='mso-bidi-font-size:
+11.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><span
+style='mso-bidi-font-size:11.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></b><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Chúng tôi,một bên là
+Ông Bà : </span><b style='mso-bidi-font-weight:normal'><span style='font-size:
+11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>KIM JEONGTAG</span></b><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt .5in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>We are, from one side,
+Mr/Ms <o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt .5in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Số Hộ Chiếu: M080H0341, Ngày cấp: 17/02/2022 <o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt .5in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Pasport No: Date of issue <o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt .5in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Địa chỉ: #214, 3-2-3 Chome, Sumiregaoka, Takasazuka-shi, Hyogo, Japan <o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt .5in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Address <o:p></o:p></span></i></p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><span style='font-size:4.0pt;
+mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Chức vụ : Tổng quản lý, đại diện cho Công
+ty<b style='mso-bidi-font-weight:normal'> </b></span><b style='mso-bidi-font-weight:
+normal'><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:blue'>TNHH DONGJU SPORTS VIỆT <st1:place w:st="on"><st1:country-region
+ w:st="on">NAM</st1:country-region></st1:place><o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Position : General
+Manager, on behalf of Dongju Sports Viet Nam<span style='mso-spacerun:yes'> 
+</span>Co., Ltd.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Địa chỉ : 33-7,33-8, Đường D11, KCN Phước Đông, </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'>
+Gia Lộc,TN<span style='color:black'><span style='mso-spacerun:yes'>
+</span><span style='mso-tab-count:1'></span> Điện thoại: </span><span style='color:blue'>0276 3535976</span><span style='color:black'><o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Address<span
+style='mso-tab-count:7'>                                                                                                         </span>
+<span style='mso-spacerun:yes'>      </span><span
+style='mso-spacerun:yes'>                 </span><span
+style='mso-spacerun:yes'>    </span>Telephone</span></i><span style='font-size:
+11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Và một bên là Ông Bà : </span><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'><%= emp(1,i)%></span></i></b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>And from other side,
+Mr/Ms</span></i><i><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'><span style='mso-tab-count:1'>      </span><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Ngày sinh :<i> <b style='mso-bidi-font-weight:
+normal'><%= emp(5,i)%></b></i><span style='mso-tab-count:1'>       </span>Mang số CMND : <b
+style='mso-bidi-font-weight:normal'><%= emp(6,i)%><span style='mso-tab-count:1'>    </span></b><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Date of birth :<span
+style='mso-tab-count:3'>                                                </span><span
+style='mso-spacerun:yes'>  </span><i>ID Card No.<span style='mso-tab-count:
+1'>        </span></i></span><i><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><span style='mso-tab-count:3'>                                    </span><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Địa chỉ :<span style='mso-spacerun:yes'> 
+</span></span><b style='mso-bidi-font-weight:normal'><span style='font-size:
+11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'><%= emp(7,i)%></span></b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Address <span
+style='mso-tab-count:1'>        </span><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span><span style='mso-tab-count:1'>   </span><o:p></o:p></span></p>
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Thỏa thuận ký kết Hợp đồng lao động và cam
+kết làm đúng theo những điều khoản sau đây :<span style='mso-tab-count:1'> </span></span><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Agree
+to sign this Labor Contract and engage to satisfy the following provisions :</span></i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>            </span><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span><b>1.<span style='mso-spacerun:yes'>  
+</span>Thời hạn và công việc :<o:p></o:p></b></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>With period and works :</span></i></b><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Loại hợp đồng lao động : </span><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:blue'><%if v_kindLB <> 3 then %>Xác định thời hạn – 01 năm <%else%>Hợp đồng không thời hạn <%end if%></span></b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Term of Labor
+Contract</span></i><i><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'> </span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>: </span></i><b
+style='mso-bidi-font-weight:normal'><i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:blue'><%if v_kindLB <> 3 then %>Definite – 01 year<%else%>Indefinite Labour Contract<%end if%></span></i></b><b
+style='mso-bidi-font-weight:normal'><i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>.</span></i></b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>− Từ ngày<b
+style='mso-bidi-font-weight:normal'> </b></span><b style='mso-bidi-font-weight:
+normal'><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:blue'><%= LEFT(emp(11,i),2)%></span></b><b style='mso-bidi-font-weight:normal'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+</span></b><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:black'>tháng </span><b style='mso-bidi-font-weight:normal'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-spacerun:yes'> </span><%= MID(emp(11,i),4,2)%> </span></b><b style='mso-bidi-font-weight:
+normal'><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:black'> </span></b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>năm </span><b style='mso-bidi-font-weight:
+normal'><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:blue'><%= RIGHT(emp(11,i),4)%></span></b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'> đến ngày<b style='mso-bidi-font-weight:
+normal'> </b></span><b style='mso-bidi-font-weight:normal'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><%= LEFT(emp(12,i),2)%></span></b><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'> </span></b><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>tháng </span><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:blue'><span style='mso-spacerun:yes'> </span><%= MID(emp(12,i),4,2)%></span></b><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'> </span></b><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>năm </span><b
+style='mso-bidi-font-weight:normal'><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:blue'><%= RIGHT(emp(12,i),4)%><o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>From <%= emp(11,i)%><span
+style='mso-spacerun:yes'>  </span>to </span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'> <%= emp(12,i)%></span></i><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:red'><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='margin-left:.25in;text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>−
+Địa điểm làm việc : <span style='mso-tab-count:1'></span><b
+style='mso-bidi-font-weight:normal'>Lô 33-7,33-8, Đường D11, KCN Phước Đông, Gia Lộc, TN</b></span><i><span style='font-size:4.0pt;mso-bidi-font-size:
+3.0pt;font-family:Arial;color:black'><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>At work site :<span
+style='mso-tab-count:2'></span>Lot 33-7, 33-8, Road D11, Phuoc Dong industrial park, Gia Loc village, <st1:place w:st="on">T</st1:place> N<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='margin-left:1.0in;text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Chức danh, chức vụ :<span
+style='mso-tab-count:1'>   </span><b style='mso-bidi-font-weight:normal'> <%= emp(4,i)%></b><o:p></o:p></span></p>
+
+<p class=MsoNormal style='margin-left:.25in;text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>   </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Job position :<span
+style='mso-tab-count:2'>                            </span></span></i><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'> <%= emp(3,i)%><span
+style='color:red'><o:p></o:p></span></span></i></p>
+
+<p class=MsoNormal style='margin-left:.75in;text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:red'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt 6.25in'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Công việc phải làm : <span
+style='mso-spacerun:yes'>     </span></span><b style='mso-bidi-font-weight:
+normal'><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial'> <%= emp(14,i)%></span></b><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial'><span style='mso-tab-count:1'>                                                                                                  </span><span
+style='color:black'><o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>To be carried
+out : <span style='mso-spacerun:yes'>    </span><span style='mso-tab-count:
+1'>              </span> <%= emp(13,i)%></span></i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>2.<span style='mso-spacerun:yes'>  
+</span>Chế độ làm việc :<o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Working conditions</span></i></b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+:</span></i><span style='font-size:6.0pt;mso-bidi-font-size:5.0pt;font-family:
+Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Thời gian làm việc : 48 giờ/ tuần, 8 giờ/ ngày, 
+Sáng từ 8 giờ đến 12 giờ, chiều từ 13 giờ đến 17 giờ. 
+Trong đó, nghỉ trưa từ 12 giờ đến 13 giờ, nghỉ giải lao từ 15 giờ 00 phút đến 15 giờ 15 phút. 
+Chủ nhật là ngày nghỉ hàng tuần.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Working time : 48 hours/ week, 8 hours/day.
+From 8 AM to 12 PM in the morning and from 1 PM to 5 PM in the afternoon, 
+in which the midday break is from 12 PM to 13 PM, 
+the afternoon break is from 3:00 PM to 3:15 PM. 
+Sunday is weekly rest day.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Được cấp phát những vật dụng cần thiết
+cho công việc.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>All necessary<span
+style='mso-spacerun:yes'>  </span>equipments for the daily job to be provided.</span></i><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:7.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>3.<span style='mso-spacerun:yes'>   
+</span>Nghĩa vụ và quyền lợi của người lao động :<o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Obligations and benefits of the employee :</span></i></b><span
+style='font-size:6.0pt;mso-bidi-font-size:5.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- Hoàn thành những công việc đã cam kết
+trong hợp đồng lao động.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>To fulfill the
+job undertaken this in labor contract.</span></i><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Chấp hành nghiêm túc nội quy Công ty.
+Bồi thường vi phạm và vật chất.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Comply with Term
+and Conditions of Employment.</span></i><span style='font-size:4.0pt;
+mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Phương tiện đi lại làm việc : </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>Tự
+túc.</span><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Means of transport :<span
+style='mso-spacerun:yes'>                       </span><span
+style='mso-spacerun:yes'> </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>Self managed.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>− Mức lương chính : </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-spacerun:yes'> </span> <%= emp(9,i)%> VND </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:Blue'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:Blue'><span
+style='mso-tab-count:1'>    </span>Basic salary :<span
+style='mso-spacerun:yes'>                       </span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span> Các khoản phụ cấp lương : </span>
+<span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:
+Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Allowance :<span
+style='mso-spacerun:yes'>                       </span></p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>           </span>   + Phụ cấp chức vụ : </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-spacerun:yes'> </span> <%= emp(17,i)%> VND </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Position ance:<span
+style='mso-spacerun:yes'>                       </span></p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>           </span>   + Phụ cấp tay nghề may : </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-spacerun:yes'> </span> <%= emp(19,i)%> VND </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Technique:<span
+style='mso-spacerun:yes'>                       </span></p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'> </span> + Phụ cấp thâm niên : </span>
+<span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+<span
+style='mso-spacerun:yes'> </span>   <%= emp(21,i)%>  (Seniority allowance) </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span>- Từ đủ 6 tháng 10 năm: 25.000 vnđ/6 tháng (cứ đủ 6 tháng được cộng thêm 25.000 đồng cho đến 10 năm)<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span> From 6 month to 10 year: 25.000VND/6 month (extra 25.000VND after every 6 month and last to 10 year) <span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span>- Từ trên 10 năm đến 15 năm: 550.000 vnđ/tháng<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span> From over 10 years to 15 years: 550.000VND/month<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span>- Từ 15 năm đến 20 năm: 600.000 vnđ/tháng<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span> From over 15 years to 20 years: 600.000VND/month<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span>- Từ 20 năm đến 30 năm: 650.000 vnđ/tháng<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span> From over 20 years to 30 years: 650.000VND/month<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span>- Từ trên 30 năm: 700.000 vnđ/tháng<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+
+<span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'><span
+style='mso-tab-count:1'> </span> From over 30 years: 700.000VND/month<span
+style='mso-spacerun:yes'> </p>
+
+
+
+
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'> </span>   - Các khoản bổ sung khác : </span>
+<span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+<span
+style='mso-spacerun:yes'> <span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+
+<span
+style='mso-tab-count:1'> </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Other allowance:<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'> </span>  + Phụ cấp chuyên cần : </span>
+<span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+<span
+style='mso-spacerun:yes'> </span> <%= emp(18,i)%> VND </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+
+<span
+style='mso-tab-count:1'> </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Attendance allowance:<span
+style='mso-spacerun:yes'> </p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'>  </span>- Các khoản phúc lợi khác : </span>
+<span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+<span
+style='mso-spacerun:yes'> <span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+
+<span
+style='mso-tab-count:1'> </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span>Other amount:<span
+style='mso-spacerun:yes'> </p>
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'> </span>+ Đi lại : </span>
+<span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+<span
+style='mso-spacerun:yes'> </span> <%= emp(16,i)%> VND </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='color:black'>&nbsp; <o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+
+<span
+style='mso-tab-count:1'>  </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'> </span>Transportation:<span
+style='mso-spacerun:yes'> </p>
+
+
+
+
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+<span
+style='mso-tab-count:1'> </span>- Hình thức trả lương : </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>chuyển khoản /
+tiền mặt</span><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'> và được </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>trả 01 lần vào ngày 08
+của tháng</span><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'> </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>liền kề</span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Type of payment : paid by transfer / cash and to be paid </span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>monthly 01 installments
+on the eighth of</span></i><i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'> </span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>next month</span></i><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:2.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span> - Bảo hiểm Xã hội<span
+style='mso-spacerun:yes'>  </span>BHYT, và BHTN: Theo quy định hiện hành, hàng tháng
+trích nộp về Cơ quan Bảo hiểm Xã hội là 32% trên mức lương. Trong đó : Người sử
+dụng lao động đóng góp 21.5%, người lao động đóng góp 10.5%.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Social Insurance,
+ Health Insurance and Unemployment Insurance: In according with the prevailing regulation, Social
+Insurance monthly amount is 32% </span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>(Employer : 21.5%;
+Employee : 10.5%)</span></i><i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'>.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span> - Chế độ nghỉ ngơi : Phép năm, những ngày
+nghỉ lễ chính thức, nghỉ việc riêng có lương theo như </span><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>Nội
+quy Công ty.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Annual leave, public
+holidays, Paid<span style='mso-spacerun:yes'>  </span>personal leaves as in </span></i><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>Company
+Term and Conditions of employment</span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>.</span></i><span
+style='font-size:2.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span> </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>- Tiền thưởng và chế
+độ nâng lương</span><span style='font-size:11.0pt;mso-bidi-font-size:10.0pt;
+font-family:Arial;color:black'> : Tùy theo hiệu quả công việc, sự đóng góp,
+thời gian làm việc, ý thức chấp hành kỷ luật<span style='mso-spacerun:yes'> 
+</span>của bản thân và kết quả kinh doanh của Công ty sau khi hoàn thành nghĩa
+vụ với nhà nước.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span></span></i><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>The </span></i><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:blue'>
+bonus and salary review</span></i><i><span style='font-size:9.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'> will be decided according on the
+individual's performance, contribution, length of service, sense of discipline
+or working behavior of the employee during the year and will also be based the
+company's performance, financial situation<span style='mso-spacerun:yes'> 
+</span>(profit after tax)</span></i><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><span style='mso-tab-count:2'>                </span></span><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- Chế độ đào tạo, Chế độ ăn uống: Theo chính sách của công
+ty.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Training
+programs,provide meals are in company policy.</span></i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>        </span></span><span style='font-size:2.0pt;
+mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- <span
+style='mso-spacerun:yes'> </span>Bảo hộ lao động : Được cấp phát những vật dụng
+và công cụ theo yêu cầu của công việc.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span><span style='mso-tab-count:1'>   </span></span><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>Labor
+protection equipments to be provided as required by the work.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='margin-left:.5in;text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>4.<span style='mso-spacerun:yes'>   
+</span>Nghĩa vụ và quyền hạn của người sử dụng lao động :<o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>Obligations and rights of the employer</span></i></b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>
+:</span></i><span style='font-size:6.0pt;mso-bidi-font-size:5.0pt;font-family:
+Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- Bảo đảm việc làm và thực hiện đầy đủ
+những điều đã cam kết trong hợp đồng lao động.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>To assure job
+for the employee and fully ensure the employee with necessary term and
+conditions committed in the labor contract.</span></i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- Thanh toán đầy đủ, đúng thời hạn các chế
+độ và quyền lợi cho người lao động .<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>To fully and duly pay the employee all
+remuneration and other benefits.<o:p></o:p></span></i></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span> - Có quyền điều chuyển, ngừng việc, thay
+đổi, tạm hoãn, chấm dứt Hợp đồng lao động, kỷ luật người lao động theo quy định
+của pháp luật và nội quy của Công ty.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;page-break-after:avoid;mso-outline-level:
+3;tab-stops:.25in 27.0pt'><i><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><span style='mso-tab-count:2'>         </span></span></i><i><span
+style='font-size:9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>To<span
+style='mso-spacerun:yes'>  </span>transfer the employee;<span
+style='mso-spacerun:yes'>  </span>plant shutdown, amendments and suspend
+employee job; terminate the labor contract and apply discipline measure
+according to Labor law, regulation and Company term &amp; conditions of
+employment.<o:p></o:p></span></i></p>
+
+
+
+ </div>
+
+<div style='mso-element:para-border-div;border:none;border-bottom:solid windowtext 1.0pt;
+mso-border-bottom-alt:solid windowtext .5pt;padding:0in 0in 1.0pt 0in'>
+
+
+
+
+
+<p class=MsoNormal style='margin-left:.5in;text-align:justify;page-break-after:
+avoid;mso-outline-level:3;tab-stops:.25in 27.0pt'><b><span style='font-size:
+11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;page-break-after:avoid;mso-outline-level:
+3;tab-stops:.25in 27.0pt'><b><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial;color:black'><span style='mso-tab-count:1'>      </span>5.<span
+style='mso-spacerun:yes'>    </span>Sự thi hành :<o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='text-align:justify;page-break-after:avoid;mso-outline-level:
+4;tab-stops:.25in 27.0pt'><b><i><span style='font-size:11.0pt;mso-bidi-font-size:
+10.0pt;font-family:Arial'><span style='mso-tab-count:1'>      </span>Implementation
+:</span></i></b><span style='font-size:6.0pt;mso-bidi-font-size:5.0pt;
+font-family:Arial;color:green'><o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'>Những vấn đề lao động không ghi trong Hợp đồng lao động này 
+thì áp dụng quy định của thỏa ước lao động tập thể, thang bảng lương,
+ nội quy công ty đã được duyệt. Trường hợp chưa có thỏa ước lao động tập thể, 
+ thang bảng lương, nội quy Công ty thì áp dụng theo quy định của pháp luật lao động.<o:p></o:p></span></p>
+ 
+ 
+ 
+ 
+
+
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:green'><span
+style='mso-tab-count:2'>         </span></span><i><span style='font-size:9.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'>Any matter, which has not been mentioned in 
+this labor contract will be treated according to collective bargain agreement, salary scale, 
+company regulation ( all were confirmed by government).
+Incase these documents not yet issued, company will follow the labor law..</span></i><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'><o:p></o:p></span></i></p>
+
+
+
+
+
+
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'>Khi hai bên ký kết phụ lục hợp
+đồng lao động thì nội dung của phụ lục hợp đồng lao động cũng có giá trị như
+các nội dung của bản hợp đồng lao động này.<o:p></o:p></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial'>When appendix of Labor
+contract issue, the content is valid as this Labor contract.</span></i><span
+style='font-size:4.0pt;mso-bidi-font-size:3.0pt;font-family:Arial'><o:p></o:p></span></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span>- </span><span style='font-size:11.0pt;
+mso-bidi-font-size:10.0pt;font-family:Arial'>Hợp đồng có hiệu lực từ  <%= emp(11,i)%> đến  <%= emp(12,i)%>
+và được làm thành 02 bản có giá trị ngang nhau. Mỗi bên giữ 01 bản<span
+style='color:black'>.<o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='text-align:justify;tab-stops:.25in 27.0pt'><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:2'>         </span></span></i><i><span style='font-size:
+9.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'>This Labor
+contract shall be valid from  <%= emp(11,i)%> to  <%= emp(12,i)%> and made in two copies with same value.
+Every side shall keep one copy.<span
+style='color:black'>.<o:p></o:p></span></span></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+
+
+
+
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-spacerun:yes'>       </span>Người lao động<span style='mso-tab-count:6'>  </span>Người sử dụng lao động<o:p></o:p></span></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'></span><i>Employee<span style='mso-tab-count:7'> </span><span
+style='mso-spacerun:yes'>    </span><span style='mso-spacerun:yes'>  </span>Employer<o:p></o:p></i></span></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+
+
+<p class=MsoNormal style='tab-stops:.25in 45.0pt 5.0in'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>      </span><span style='mso-tab-count:1'>         </span> <span style='mso-tab-count:1'>  </span><img src="./chuky.jpg" width="150" height="100"><o:p></o:p></span></i></b></p>
+
+
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='tab-stops:.25in 45.0pt 5.0in'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><span
+style='mso-tab-count:1'>    </span><span style='mso-tab-count:1'> </span> <%= emp(1,i)%><span style='mso-tab-count:1'>  </span>KIM JEONGTAG<o:p></o:p></span></i></b></p>
+
+
+
+<p class=MsoNormal style='tab-stops:.25in 27.0pt;border:none;mso-border-bottom-alt:
+solid windowtext .5pt;padding:0in;mso-padding-alt:0in 0in 1.0pt 0in'><span
+style='font-size:13.0pt;mso-bidi-font-size:12.0pt;font-family:Arial'><o:p>&nbsp;</o:p></span></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+<p class=MsoNormal style='margin-left:.5in;tab-stops:.25in 27.0pt'><b><i><span
+style='font-size:11.0pt;mso-bidi-font-size:10.0pt;font-family:Arial;color:black'><o:p>&nbsp;</o:p></span></i></b></p>
+
+
+
+</div>
+
+</div>
+
+
+
+
+<% 
+	Next
+	End if
+	'CLOSEBD
+%>
+</body>
+
+
+</html>

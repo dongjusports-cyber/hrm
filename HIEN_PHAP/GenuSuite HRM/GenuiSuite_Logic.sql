@@ -1,0 +1,18767 @@
+CREATE OR REPLACE PACKAGE CONST
+IS
+  yes_val CONSTANT CHAR(1) := 'Y';
+  delete_val CONSTANT VARCHAR2(6) := 'DELETE';
+  update_val CONSTANT VARCHAR2(6) := 'UPDATE';
+  insert_val CONSTANT VARCHAR2(6) := 'INSERT';
+END CONST;
+/
+CREATE OR REPLACE FUNCTION COUNT_CHAR (
+  P_STRING IN VARCHAR2) RETURN VARCHAR2 IS
+V_LEN NUMBER :=0;
+V_NUM NUMBER :=0;
+V_RESULT VARCHAR2(200);  
+V_COUNT NUMBER :=1;
+V_POS  NUMBER :=0;
+V_CHAR_OLD VARCHAR2(1);
+V_CHAR_NEW VARCHAR2(1);
+V_SUB  VARCHAR2(1);
+V_INS  NUMBER :=0;
+V_LOOP NUMBER :=2;
+BEGIN
+	 V_LEN   :=LENGTH(P_STRING);
+     FOR V_INS IN 1..V_LEN LOOP
+ 		 V_CHAR_NEW	:= substr(P_STRING,V_INS,1);
+		 IF V_INS >= 2 THEN 
+		  	 V_CHAR_OLD := substr(P_STRING,V_INS-1,1);	
+			 IF V_CHAR_NEW = V_CHAR_OLD THEN
+		 	 	V_LOOP := V_LOOP + 1;
+			 END IF;	  
+			 FOR V_NUM IN V_LOOP..V_LEN LOOP 	 
+			 	 V_SUB := SUBSTR(P_STRING,V_NUM,1);		 
+				 IF V_SUB = V_CHAR_NEW THEN		 	
+				  	V_COUNT := V_COUNT + 1;			
+				 END IF;
+			 END LOOP;
+		 END IF;	 
+	 END LOOP;		 	 
+	 V_RESULT := V_COUNT; 	 
+	 RETURN V_RESULT;
+END;   
+/
+CREATE OR REPLACE FUNCTION COUNT_CHAR1(
+  P_STRING IN VARCHAR2,
+  P_CHAR   IN VARCHAR2) RETURN VARCHAR2 IS
+V_LEN NUMBER :=0;
+V_RESULT VARCHAR2(200);
+V_COUNT NUMBER :=0;
+V_SUB  VARCHAR2(1);
+BEGIN
+	 V_LEN   := LENGTH(P_STRING);
+     FOR V_NUM IN 1..V_LEN LOOP
+	 	 V_SUB := SUBSTR(P_STRING,V_NUM,1);
+		 IF V_SUB = P_CHAR THEN
+		  	V_COUNT := V_COUNT + 1;
+		 END IF;
+	 END LOOP;
+	 V_RESULT := 'NUMBER OF CHARACTER '|| P_CHAR || ' IS '||V_COUNT;
+	 RETURN V_RESULT;
+END;
+/
+CREATE OR REPLACE FUNCTION F_CAL_CURENT_AL(EMP_PK NUMBER) RETURN NUMBER IS
+CURAL NUMBER;
+MON NUMBER;
+/******************************************************************************
+   NAME:       F_CAL_CURENT_AL
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        1/4/2008          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_CAL_CURENT_AL
+      Sysdate:         1/4/2008
+      Date and Time:   1/4/2008, 1:22:09 PM, and 1/4/2008 1:22:09 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+   CURAL := 0;
+   SELECT NVL(MONTHS_BETWEEN(SYSDATE + 1,TO_DATE(CASE 
+  		 	  						  WHEN TO_CHAR(TO_DATE(A.JOIN_DATE,'YYYYMMDD'),'YYYY') < TO_CHAR(SYSDATE,'YYYY') THEN TO_CHAR(SYSDATE,'YYYY') || '0101'
+			  						  ELSE A.JOIN_DATE
+		 						 END   
+   		  						 ,'YYYYMMDD')),0)INTO MON
+   FROM THR_ABEMP A
+   WHERE A.PK = EMP_PK;
+   
+   CURAL := ROUND(MON * 14 / 12,2);
+   
+   RETURN CURAL;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RETURN CURAL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RETURN CURAL;
+END F_CAL_CURENT_AL;
+/
+CREATE OR REPLACE FUNCTION F_CAL_INDUS_AMT(
+  AS_EMP_PK   IN  NUMBER,
+  AS_FROM_DT IN  VARCHAR2, -- YYYYMMDD
+  AS_TO_DT   IN  VARCHAR2  -- YYYYMMDD
+) RETURN NUMBER IS -- TRA VE % TIEN CHUYEN CAN DUOC NHA ( 0 <= % <= 1) --
+V_RATE 	NUMBER; -- % TIEN CHUYEN CAN --
+V_LATE NUMBER; --  SO LAN TRE --
+V_EARLY NUMBER; -- SO LAN SOM --
+V_ABS NUMBER; -- SO LAN VANG --
+V_LATE_AL NUMBER; -- SO LAN VANG PHEP NAM NUA BUOI : < 8H --- (VAO TRE) 
+V_EARLY_AL NUMBER;	 -- SO LAN VANG PHEP NAM < 8H --- (VE SOM) 
+V_WORK_MON VARCHAR2(6); --- YYYYMM --
+V_CNT1 NUMBER; --  B--
+/************************************ ******************************************
+   NAME:       F_CAL_INDUS_AMT --
+   PURPOSE:    TINH  % TIEN CHUYEN CAN --
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   
+   MODIFY : MR MY :0918120487 -- CHECK BY MR KY : 0913699938
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        8/14/2007          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_CAL_INDUS_AMT
+      Sysdate:         8/14/2007
+      Date and Time:   8/14/2007, 10:42:48 AM, and 8/14/2007 10:42:48 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+	 
+	 V_RATE := 1.0;
+	 V_LATE := 0;
+	 V_EARLY := 0;
+	 V_ABS := 0;
+	 V_WORK_MON := SUBSTR(AS_TO_DT,1,6);
+	 
+	 SELECT COUNT(*) INTO V_CNT1
+	 FROM THR_EARLY_LATELY A
+	 WHERE A.WORK_MON = V_WORK_MON
+	 	   AND A.DEL_IF = 0
+		   AND A.INDUS_FLAG = 'Y'
+		   AND A.EMP_PK = AS_EMP_PK;
+		   
+	 IF (V_CNT1>0) THEN
+	 	SELECT NVL(A.LATE_TIMES,0),NVL(A.EARLY_TIMES,0) INTO V_LATE,V_EARLY
+	 	FROM THR_EARLY_LATELY A
+	 	WHERE A.WORK_MON = V_WORK_MON
+	 	   	  AND A.DEL_IF = 0
+		   	  AND A.INDUS_FLAG = 'Y'
+		   	  AND A.EMP_PK = AS_EMP_PK;
+	 END IF;
+		-- VAO TRE SU DUNG PHEP NAM    
+	 SELECT COUNT(*) INTO V_LATE_AL
+	 FROM THR_EMP_ABSENT AB, THR_TIME_MACHINE T
+	 WHERE AB.DEL_IF = 0 AND T.DEL_IF=0
+	  AND AB.EMP_PK = T.EMP_PK
+	  AND T.WORK_DT = AB.ABS_DT
+	  AND AB.ABSENT_TIME < 8
+	  AND AB.ABS_CODE IN ('ALE','FLE','WED')
+	  AND F_Check_In_Out((SELECT W.START_TIME  FROM THR_WORK_SHIFT W WHERE del_if=0 AND W.pk=T.W_SHIFT),T.P_IN,1) = 1
+	  AND SUBSTR(T.WORK_DT,1,6) = V_WORK_MON
+	  AND T.P_IN <= T.P_OUT
+	  AND AB.EMP_PK = AS_EMP_PK;   
+	  
+		 -- VE SOM SU DUNG PHEP NAM 
+	SELECT COUNT(*) INTO V_EARLY_AL
+	 FROM THR_EMP_ABSENT AB, THR_TIME_MACHINE T
+	 WHERE AB.DEL_IF = 0 AND T.DEL_IF=0
+	  AND AB.EMP_PK = T.EMP_PK
+	  AND T.WORK_DT = AB.ABS_DT
+	  AND AB.ABSENT_TIME < 8
+	  AND AB.ABS_CODE IN ('ALE','FLE','WED')
+	  AND F_Check_In_Out(T.P_OUT,(SELECT W.END_TIME  FROM THR_WORK_SHIFT W WHERE del_if=0 AND W.pk=T.W_SHIFT),1) = 1
+	  AND SUBSTR(T.WORK_DT,1,6) = V_WORK_MON
+	  AND T.P_IN <= T.P_OUT
+	  AND AB.EMP_PK = AS_EMP_PK;
+	 
+	  	   
+	 SELECT COUNT(B.EMP_PK) INTO V_ABS
+	 FROM THR_ABEMP A, THR_EMP_ABSENT B
+	 WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 
+	  	   AND B.EMP_PK = A.PK
+	  	   AND B.ABS_DT BETWEEN AS_FROM_DT AND AS_TO_DT
+	  	   AND B.ABS_DT > A.ET_PROBATION
+	  	   AND B.ABS_CODE NOT IN ('ALE','FLE','WED','TMP','OFF')
+	  	   AND B.EMP_PK = AS_EMP_PK;
+
+	 V_LATE  := V_LATE - V_LATE_AL;
+	 V_EARLY := V_EARLY - V_EARLY_AL;
+	 
+	 IF(V_LATE >= 3 OR V_EARLY >= 2) THEN
+	 		   V_RATE := 0.50;
+	 END IF;
+	 IF (V_LATE >= 5  OR V_EARLY >= 4  OR V_ABS > 0) THEN
+	 	   V_RATE := 0.00;
+	 END IF;	 
+
+   RETURN V_RATE;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RETURN 1;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+	   RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (F_CAL_INDUS_AMT) pk : '|| AS_EMP_PK ||'ERRCODE : '|| SQLERRM );
+		
+END F_CAL_INDUS_AMT;
+/
+CREATE OR REPLACE FUNCTION F_Cal_Nt(
+  AS_START_NT        IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2,
+  AS_START			 IN VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    	   	 	 VARCHAR2(8);
+  AV_TOM_DT	                 VARCHAR2(8);
+  AV_START	                 VARCHAR2(14) := NULL;
+  AV_END		             VARCHAR2(14) := NULL;
+  SHIFT_START                VARCHAR2(14) := NULL;
+  SHIFT_END                  VARCHAR2(14) := NULL;
+  AV_DINNER                   VARCHAR2(5)  := NULL;
+  AV_EDINNER                  VARCHAR2(5)  := NULL;
+  AV_START1					 VARCHAR2(5)  := NULL;
+  AV_END1		             VARCHAR2(5)  := NULL;  
+  AV_DINNER_INTERVAL			 NUMBER;  	 
+  AV_IN_INTERVAL			 NUMBER;  
+  AV_OUT_INTERVAL			 NUMBER;
+  AV_START_LUNCH			 VARCHAR2(14) := NULL; 
+  AV_END_LUNCH				 VARCHAR2(14) := NULL; 
+  AV_START_OT				 VARCHAR2(14) := NULL;
+  AV_SHIFT_END				 VARCHAR2(14) := NULL;
+  AV_TEMP				 VARCHAR2(1) := NULL;
+  IN_TMP1				 NUMBER;
+  IN_TMP2				 VARCHAR2(2);
+  AV_OT					 NUMBER:=0;
+  
+  BEGIN
+  
+IF  (AS_END IS NULL) OR(AS_START IS NULL) THEN
+	N_WT_TIME:=0;
+	RETURN N_WT_TIME;
+END IF;
+  
+    SELECT A.START_TIME, A.END_TIME,OT INTO SHIFT_START, SHIFT_END,AV_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+	SELECT A.START_DINNER, A.END_DINNER, A.DINNER_INTERVAL, A.START_OT 
+	  INTO AV_DINNER, AV_EDINNER, AV_DINNER_INTERVAL, AV_START_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+	   
+/*	   	-- ************** LAM TRON GIO OUT
+		IF (TO_NUMBER(SUBSTR(AS_END,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=7) THEN
+	       AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 8) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 15) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '07';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 15) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=22) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 23) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 30) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '22';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 30) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 37) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 38) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 45) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '37';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 45) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 53) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 54) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <60) THEN
+		  	AV_END1 := SUBSTR(AS_END,1,3) || '52';
+	ELSE 	
+	    IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;			
+*/
+	
+	
+	-- ************** LAM TRON GIO OUT 
+
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 9) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 10) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 19) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 39) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 49) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 50) THEN
+		IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >=24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;	    
+	
+	IF AS_START_NT = AV_END1 THEN
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+	
+
+IF AS_START_NT>SHIFT_START THEN
+   		  IF AV_END1>AS_START_NT THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_NT;
+		        AV_END   := AV_CUR_DT || ' ' || AV_END1;
+		ELSIF AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_NT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+		END IF;
+ELSIF AV_END1>AS_START_NT AND AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_TOM_DT || ' ' || AS_START_NT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;	
+		
+	
+	N_WT_TIME := N_HOUR + N_MINUTE;
+	IF N_WT_TIME>8 THEN
+	   			   N_WT_TIME := 8;
+	END IF;
+
+	RETURN N_WT_TIME; 
+
+	EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, AS_END ||'ERROR..'||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_CAL_SERVERANCE(AS_MON   IN  NUMBER) RETURN NUMBER IS
+V_RES NUMBER;
+/******************************************************************************
+   NAME:       F_CAL_SERVERANCE
+   PURPOSE:    TINH TIEN TRO CAP THAM NIEN
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        11/5/2007   MR MY       1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_CAL_SERVERANCE
+      Sysdate:         11/5/2007
+      Date and Time:   11/5/2007, 11:44:37 AM, and 11/5/2007 11:44:37 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+   V_RES := 0;
+   IF(AS_MON < 6) THEN
+   			 V_RES := 0;
+	END IF;
+	IF(AS_MON >= 6 AND AS_MON < 120) THEN -- TU 6 THANG DEN 11 NAM --
+			  V_RES :=  FLOOR(FLOOR(AS_MON/6)*25000);
+	END IF;	
+	IF(AS_MON >= 120 AND AS_MON < 192) THEN -- TU  11 NAM DEN 15 NAM --
+			  V_RES :=  550000;
+	END IF;
+	IF(AS_MON >= 192 AND AS_MON < 252) THEN -- TU 16 DEN 20 NAM --
+			  V_RES :=  600000;
+	END IF;
+	IF(AS_MON >= 252 AND AS_MON < 372) THEN -- TU 21 DEN 30 NAM --
+			  V_RES :=  650000;
+	END IF;	 
+	IF(AS_MON >= 372) THEN -- TU 31 TRO LEN --
+			  V_RES :=  700000;
+	END IF;	 
+   RETURN V_RES;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RETURN 0;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RETURN 0;
+END F_CAL_SERVERANCE;
+/
+CREATE OR REPLACE FUNCTION F_Change_Money_NEW(
+AS_MOUNT NUMBER
+,AS_MAX NUMBER -- LOAI TIEN LON NHAT DUOC CHON
+) 
+RETURN MONEY_CHANGE_NEW IS
+MONEY      MONEY_CHANGE_NEW := MONEY_CHANGE_NEW(0,0,0,0,0,0,0,0,0,0,0);
+AV_X	   NUMBER:=0;
+
+
+/******************************************************************************
+   NAME:       F_GET_STOC_OBJECT
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        6/20/2005     truonghuynh     1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_STOC_OBJECT
+      Sysdate:         6/20/2005
+      Date and Time:   6/20/2005, 2:11:54 PM, and 6/20/2005 2:11:54 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+	AV_X:=AS_MOUNT;
+	IF AS_MAX>200000 THEN
+	   	MONEY.T500:=TRUNC(AV_X/500000);
+		AV_X:=AV_X-MONEY.T500*500000;
+	END IF;
+	IF AS_MAX>100000 THEN
+	   	MONEY.T200:=TRUNC(AV_X/200000);
+		AV_X:=AV_X-MONEY.T200*200000;
+	END IF;	
+	
+	IF AS_MAX>50000 THEN
+	   	MONEY.T100:=TRUNC(AV_X/100000);
+		AV_X:=AV_X-MONEY.T100*100000;
+	END IF;	
+	IF AS_MAX>20000 THEN
+	   	MONEY.T50:=TRUNC(AV_X/50000);
+		AV_X:=AV_X-MONEY.T50*50000;
+	END IF;	
+	IF AS_MAX>10000 THEN
+	   	MONEY.T20:=TRUNC(AV_X/20000);
+		AV_X:=AV_X-MONEY.T20*20000;
+	END IF;	
+	IF AS_MAX>5000 THEN
+	   	MONEY.T10:=TRUNC(AV_X/10000);
+		AV_X:=AV_X-MONEY.T10*10000;
+	END IF;	
+	IF AS_MAX>2000 THEN
+	   	MONEY.T5:=TRUNC(AV_X/5000);
+		AV_X:=AV_X-MONEY.T5*5000;
+	END IF;	
+	IF AS_MAX>1000 THEN
+	   	MONEY.T2:=TRUNC(AV_X/2000);
+		AV_X:=AV_X-MONEY.T2*2000;
+	END IF;	
+	IF AS_MAX>500 THEN
+	   	MONEY.T1:=TRUNC(AV_X/1000);
+		AV_X:=AV_X-MONEY.T1*1000;
+	END IF;	
+	IF AS_MAX>200 THEN
+	   	MONEY.T05:=TRUNC(AV_X/500);
+		AV_X:=AV_X-MONEY.T05*500;
+	END IF;	
+   	MONEY.T02:=TRUNC(AV_X/200);
+  
+RETURN MONEY;
+   
+END F_Change_Money_NEW;
+/
+CREATE OR REPLACE FUNCTION F_Check_Dt(
+AS_N1 IN VARCHAR2,
+AS_N2 IN VARCHAR2
+)RETURN NUMBER IS
+AV_NUM1  NUMBER;
+
+
+BEGIN
+   IF TO_NUMBER(AS_N1)>=TO_NUMBER(AS_N2) THEN
+   	 AV_NUM1:=1;
+	ELSE
+   	 AV_NUM1:=0;
+  END IF;  
+   RETURN AV_NUM1;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '||SQLERRM );
+     WHEN OTHERS THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '||SQLERRM );
+END F_Check_Dt;
+/
+CREATE OR REPLACE FUNCTION F_Check_Dt2(
+in_DATE1  IN VARCHAR2
+,in_DATE2  IN VARCHAR2
+)
+ RETURN NUMBER IS
+ FLAG		   NUMBER;
+/******************************************************************************
+   NAME:       F_CHECK_DT
+   PURPOSE:     
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/5/2005    TruongHuynh	   2005-05-05      
+
+******************************************************************************/
+
+BEGIN
+	 
+	  FLAG:=0;
+IF(in_DATE1=0) THEN
+			   FLAG:=2;
+			   RETURN FLAG;
+END IF;	  
+IF(TO_NUMBER(in_DATE1)>=TO_NUMBER(in_DATE2)) THEN 
+				FLAG:=0;
+ELSE
+				FLAG:=1;							
+END IF;
+RETURN FLAG;
+   
+   
+EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+     	RETURN -100;
+     
+END  F_Check_Dt2;
+/
+CREATE OR REPLACE FUNCTION F_Check_Dt_ESTEC(
+AS_N1 IN VARCHAR2,
+AS_N2 IN VARCHAR2
+)RETURN NUMBER IS
+AV_NUM1  NUMBER;
+
+
+BEGIN
+   IF TO_NUMBER(AS_N1)>=TO_NUMBER(AS_N2) THEN
+   	 AV_NUM1:=1;
+	ELSE
+   	 AV_NUM1:=0;
+  END IF;  
+   RETURN AV_NUM1;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '||SQLERRM );
+     WHEN OTHERS THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '||SQLERRM );
+END F_Check_Dt_ESTEC;
+/
+CREATE OR REPLACE FUNCTION F_Check_In_Out(
+AS_IN IN VARCHAR2,
+AS_OUT IN VARCHAR2,
+AS_EPLON IN NUMBER
+)RETURN NUMBER IS
+AV_NUM1  NUMBER;
+AV_NUM2 NUMBER;
+H1 NUMBER;
+H2 NUMBER;
+M1 NUMBER;
+M2 NUMBER;
+SH NUMBER;
+SM NUMBER;
+
+BEGIN
+   H1:=TO_NUMBER(SUBSTR(AS_IN,1,2));
+   H2:=TO_NUMBER(SUBSTR(AS_OUT,1,2));
+   M1:=TO_NUMBER(SUBSTR(AS_IN,4,2));
+   M2:=TO_NUMBER(SUBSTR(AS_OUT,4,2));
+   SH:=H2-H1;
+   SH:=SH*60;
+   SM:=M2-M1;
+   IF SH+SM>=AS_EPLON THEN
+   	  RETURN 1;
+	ELSE
+	RETURN 0;
+  END IF;  
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Check_In_Out;
+/
+CREATE OR REPLACE FUNCTION F_Check_In_Out2(
+AS_IN IN VARCHAR2,
+AS_OUT IN VARCHAR2,
+AS_EPLON1 IN NUMBER,
+AS_EPLON2 IN NUMBER
+)RETURN NUMBER IS
+AV_NUM1  NUMBER;
+AV_NUM2 NUMBER;
+H1 NUMBER;
+H2 NUMBER;
+M1 NUMBER;
+M2 NUMBER;
+SH NUMBER;
+SM NUMBER;
+
+BEGIN
+   H1:=TO_NUMBER(SUBSTR(AS_IN,1,2));
+   H2:=TO_NUMBER(SUBSTR(AS_OUT,1,2));
+   M1:=TO_NUMBER(SUBSTR(AS_IN,4,2));
+   M2:=TO_NUMBER(SUBSTR(AS_OUT,4,2));
+  
+   SH:=H2*60+M2-H1*60-M1; --DOI RA PHUT
+   
+   IF SH>=AS_EPLON1 AND SH<=AS_EPLON2 THEN
+   	  RETURN 1;
+	ELSE
+	RETURN 0;
+  END IF;  
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Check_In_Out2;
+/
+CREATE OR REPLACE FUNCTION F_Check_In_Out3(
+AS_START_TIME IN VARCHAR2,
+AS_IN IN VARCHAR2,
+AS_EPLON IN NUMBER
+)RETURN NUMBER IS
+H1 VARCHAR2(20);
+H2 VARCHAR2(20);
+KC NUMBER;
+AV_H NUMBER;
+AV_M NUMBER;
+AV_CUR_DT VARCHAR2(8);
+AV_TOM_DT VARCHAR2(8);
+BEGIN
+   SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+   H1  := AV_CUR_DT || ' ' || AS_START_TIME;	
+   H2  := AV_TOM_DT || ' ' || AS_IN;		
+   
+   SELECT TRUNC((TO_DATE(H2,'YYYYMMDD HH24:MI')     - TO_DATE(H1,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(H2,'YYYYMMDD HH24:MI') - TO_DATE(H1,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO AV_H,AV_M
+	FROM DUAL;	
+	
+	KC:=	AV_H+AV_M;
+	IF KC<=AS_EPLON THEN
+	   RETURN 1;
+	END IF;
+	RETURN 0;
+			
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Check_In_Out3;
+/
+CREATE OR REPLACE FUNCTION F_Check_MLE(
+in_DATE  IN VARCHAR2
+,in_MIN  IN VARCHAR2
+,in_MAX  IN VARCHAR2
+)
+ RETURN NUMBER IS
+ FLAG		   NUMBER;
+/******************************************************************************
+   NAME:       F_CHECK_DT
+   PURPOSE:     
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/5/2005    TruongHuynh	   2005-05-05      
+
+******************************************************************************/
+
+BEGIN
+	 
+	  FLAG:=0;
+IF(in_DATE=0) THEN
+			   FLAG:=2;
+			   RETURN FLAG;
+END IF;	  
+IF(TO_NUMBER(in_DATE)>=TO_NUMBER(in_MIN))  AND (TO_NUMBER(in_DATE)<=TO_NUMBER(in_MAX))  THEN 
+				FLAG:=0;
+ELSE
+				FLAG:=1;				
+				
+END IF;
+RETURN FLAG;			
+   
+   
+EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+     	RETURN -100;
+     
+END  F_Check_MLE;
+/
+CREATE OR REPLACE FUNCTION F_Check_Num(
+AS_N1 IN VARCHAR2,
+AS_N2 IN VARCHAR2,
+AS_EPLON IN NUMBER
+)RETURN NUMBER IS
+AV_NUM1  NUMBER;
+AV_NUM2 NUMBER;
+
+BEGIN
+   AV_NUM1:=TO_NUMBER(AS_N1);
+   AV_NUM2:=TO_NUMBER(AS_N2);
+   IF AV_NUM1-AV_NUM2>=AS_EPLON THEN
+   	  RETURN 1;
+	ELSE
+	RETURN 0;
+  END IF;  
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '|| AV_NUM2 ||SQLERRM );
+     WHEN OTHERS THEN
+       RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '|| AV_NUM2 ||SQLERRM );
+       --RAISE;
+END F_Check_Num;
+/
+CREATE OR REPLACE FUNCTION F_CHECK_OT_YUPOONG(
+  AS_EMP_PK           IN  NUMBER,
+  AS_DATE             IN  VARCHAR2
+   ) RETURN NUMBER IS
+  OT NUMBER;
+  NUM_OT NUMBER;
+  
+  BEGIN
+  
+   SELECT COUNT(D.PK) INTO NUM_OT
+       		  FROM THR_EXTRA_TIME D WHERE D.DEL_IF=0 AND D.OT_TYPE='OT' 
+									      AND D.WORK_DT =AS_DATE AND D.EMP_PK = AS_EMP_PK;
+   IF NUM_OT >0 THEN									  
+  	   SELECT NVL(D.OT_TIME,0) INTO OT
+       		  FROM THR_EXTRA_TIME D WHERE D.DEL_IF=0 AND D.OT_TYPE='OT' 
+									      AND D.WORK_DT =AS_DATE AND D.EMP_PK = AS_EMP_PK;
+      RETURN OT;
+  ELSE
+  	  RETURN 0;
+  END IF; 
+  
+ EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, 'ERROR..'||'. OTHER (ERROR) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_CONCAT(P_EMP IN NUMBER) RETURN VARCHAR2 IS
+l_RESULT  VARCHAR2(20);
+
+
+BEGIN
+	l_RESULT:=P_EMP;
+   IF (P_EMP >= 1 AND P_EMP <=9 ) THEN
+   	  l_RESULT:='000'|| P_EMP;
+   END IF;
+   IF (P_EMP >= 10 AND P_EMP <=99 ) THEN
+   	  l_RESULT:='00'||(P_EMP);
+   END IF;
+   IF (P_EMP >= 100 AND P_EMP <=999 ) THEN
+   	  l_RESULT:='0'||(P_EMP);
+   END IF;
+   RETURN l_RESULT;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_CONCAT;
+/
+CREATE OR REPLACE FUNCTION F_EMP_CODE_HIST(
+ 	AS_EMP_PK   IN  NUMBER,  -- EMPLOYEE PK
+	 AS_USER     IN  VARCHAR2 -- USER_ID
+ ) RETURN NUMBER IS
+
+AV_YYYYMMDD	VARCHAR2(8);
+
+AV_POS		VHR_EMP.POS_CODE%TYPE;
+AN_DEPT		VHR_EMP.DEPT_PK%TYPE;
+AV_JOB		VHR_EMP.JOB_CODE%TYPE;
+AV_POS_OLD	VHR_EMP.POS_CODE%TYPE;
+AN_DEPT_OLD	VHR_EMP.DEPT_PK%TYPE;
+AV_JOB_OLD	VHR_EMP.JOB_CODE%TYPE;
+
+AN_CHECK	NUMBER(1) := 0;
+
+BEGIN
+
+	INSERT INTO THR_EMP_HIST
+	(PK, EMP_ID, CARD_ID, FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, DEPT_PK,
+	 GRP_CODE, JOB_CODE, POS_CODE, BASIC_SAL, ALLOW_AMT, CERT_ALLOW_AMT,
+	 BIRTH_DT, PLACE_BIRTH_DT, SEX, ADDR, PER_ADDR, TEL, PER_CONTACT,
+	 NATION_CODE, JOIN_DT, EDU_CODE, LEFT_DT, CITY_CODE, PERSON_ID, ISSUE_DT,
+	 PLACE_PER_ID, MARRIED, CHILDREN_CNT, SOCIAL_NO, SOCIAL_DT, SOCIAL_FLAG,
+	 HEALTH_NO, HEALTH_DT, HEALTH_PLACE, HEALTH_FLAG, LAST_SAL, FORMAL_FLAG,
+	 CANTACT_DT, COM_CODE, PHOTO_PK, REMARK, DEL_IF, CRT_DT, CRT_BY,
+	 STATUS, GRADE, ETHNIC_CD, RELIG_CD, FACT_CD, SOCIAL_PLACE
+	)
+	SELECT THR_EMP_HIST_SEQ.NEXTVAL,
+	EMP_ID, CARD_ID, FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, DEPT_PK,
+	GRP_CODE, JOB_CODE, POS_CODE, BASIC_SAL, ALLOW_AMT, CERT_ALLOW_AMT,
+	BIRTH_DT, PLACE_BIRTH_DT, SEX, ADDR, PER_ADDR, TEL, PER_CONTACT,
+	NATION_CODE, JOIN_DT, EDU_CODE, LEFT_DT, CITY_CODE, PERSON_ID, ISSUE_DT,
+	PLACE_PER_ID, MARRIED, CHILDREN_CNT, SOCIAL_NO, SOCIAL_DT, SOCIAL_FLAG,
+	HEALTH_NO, HEALTH_DT, HEALTH_PLACE, HEALTH_FLAG, LAST_SAL, FORMAL_FLAG,
+	CANTACT_DT, COM_CODE, PHOTO_PK, REMARK, DEL_IF,  CRT_DT, CRT_BY,
+	STATUS, GRADE, ETHNIC_CD, RELIG_CD, FACT_CD, SOCIAL_PLACE
+	FROM VHR_EMP
+	WHERE PK = AS_EMP_PK;
+
+
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD') INTO AV_YYYYMMDD
+	FROM DUAL;
+
+	SELECT DEPT_PK, JOB_CODE, POS_CODE INTO AN_DEPT, AV_JOB, AV_POS
+	FROM VHR_EMP
+	WHERE PK = AS_EMP_PK;
+
+
+	BEGIN
+		SELECT DEPT_PK INTO AN_DEPT_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'DEP' );
+
+
+		IF AN_DEPT <> AN_DEPT_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, AN_DEPT, AV_YYYYMMDD, 'DEP',
+			 'ZZZ', 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, AN_DEPT, AV_YYYYMMDD, 'DEP',
+			 'ZZZ', 0, SYSDATE, AS_USER);
+	END;
+
+	BEGIN
+		SELECT CODE INTO AV_JOB_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'JOB' );
+
+
+		IF AV_JOB <> AV_JOB_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'JOB',
+			AV_JOB, 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'JOB',
+			AV_JOB, 0, SYSDATE, AS_USER);
+	END;
+
+	BEGIN
+		SELECT CODE INTO AV_POS_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'POS' );
+
+
+		IF AV_POS <> AV_POS_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'POS',
+			 AV_POS, 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'POS',
+			 AV_POS, 0, SYSDATE, AS_USER);
+	END;
+
+
+	EXCEPTION
+	WHEN  NO_DATA_FOUND  THEN
+		RETURN 0;
+	WHEN  OTHERS         THEN
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (F_GET_BONUS) '||SQLERRM );
+		RETURN 0;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_ABS_REASON 
+ (
+   	   in_EMP_PK  IN NUMBER,
+	   in_ST_DATE IN VARCHAR2,
+	   in_E_DATE  IN VARCHAR2
+ )
+ RETURN VARCHAR2 IS
+ out_String_REASON 	VARCHAR2(100);
+ cnt number;
+/******************************************************************************
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        15/09/2004  THANH        1. Created this function.
+
+******************************************************************************/
+
+
+   
+   CURSOR CUR_RS IS	 
+   SELECT C.CODE_NM  ,C.CODE_NM ||':'|| count(A.EMP_PK) as sRS
+   FROM THR_EMP_ABSENT A, TCO_ABCODE C,TCO_ABCODEGRP CG
+   WHERE A.DEL_IF=0 
+   		  		AND C.DEL_IF=0 AND CG.DEL_IF=0 
+   		  	    AND CG.ID='HRAB0110'
+   	  	  		AND C.TCO_ABCODEGRP_PK=CG.PK
+   	  AND A.ABS_CODE=C.CODE(+)			
+   	  AND A.EMP_PK=in_EMP_PK
+      AND (A.ABS_DT BETWEEN in_ST_DATE AND in_E_DATE)
+	  group by 	C.CODE_NM;		  
+
+BEGIN
+
+select count(a.pk) into cnt
+FROM THR_EMP_ABSENT A 
+where  A.EMP_PK=in_EMP_PK and a.del_if=0 	
+	     AND (A.ABS_DT BETWEEN in_ST_DATE AND in_E_DATE)
+		 and a.pk not in (
+                       SELECT a.pk
+                          FROM THR_EMP_ABSENT A, TCO_ABCODE C,TCO_ABCODEGRP CG
+                          WHERE A.DEL_IF=0 
+                          		  		AND C.DEL_IF=0 AND CG.DEL_IF=0 
+                          		  	    AND CG.ID='HRAB0110'
+                          	  	  		AND C.TCO_ABCODEGRP_PK=CG.PK
+                          	  AND A.ABS_CODE=C.CODE			
+                          	  AND A.EMP_PK=in_EMP_PK
+                             AND (A.ABS_DT BETWEEN in_ST_DATE AND in_E_DATE)
+                       	   );   
+   
+
+
+  out_String_REASON:=null;		 		 
+  FOR id_RS IN CUR_RS LOOP
+  	  if out_String_REASON is null then 
+	    	  out_String_REASON:=id_RS.sRS;
+	  else
+  	    	  out_String_REASON:=out_String_REASON || ',' || id_RS.sRS;
+	  end if;		  
+  end loop;				 
+  if cnt>0 then
+      if out_String_REASON is null then
+        out_String_REASON:= out_String_REASON ||'none:' || cnt;
+      else
+      	  out_String_REASON:= out_String_REASON ||',none:' || cnt;
+      end if;	
+  end if;	  	 
+  RETURN out_String_REASON;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RETURN out_String_REASON;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RETURN out_String_REASON;
+END ;
+/
+CREATE OR REPLACE FUNCTION F_GET_ABS_REASON_GRP 
+ (
+   	   in_GRP_PK  IN NUMBER,
+	   in_ST_DATE IN VARCHAR2
+	   
+ )
+ RETURN VARCHAR2 IS
+ out_String_REASON 	VARCHAR2(100);
+ strTmp varchar2(100);
+/******************************************************************************
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  
+------------------------------------
+   1.0        15/09/2004  THANH        1. Created this function.
+
+******************************************************************************/
+
+   CURSOR CUR_RS IS	 
+   SELECT C.CODE_NM cn, E.EMP_ID id
+      FROM THR_EMP_ABSENT A, TCO_ABCODE C,TCO_ABCODEGRP CG, THR_ABEMP E
+      WHERE A.DEL_IF=0 AND E.DEL_IF=0
+      		  		AND C.DEL_IF=0 AND CG.DEL_IF=0 
+      		  	    AND CG.ID='HRAB0110'
+      	  	  		AND C.TCO_ABCODEGRP_PK=CG.PK
+      	  AND A.ABS_CODE=C.CODE			
+   	  AND E.PK=A.EMP_PK
+     	  AND A.GRP_CODE=in_GRP_PK 
+         AND A.ABS_DT =in_ST_DATE 
+   	  group by 	C.CODE_NM, E.EMP_ID;
+	  /*
+   SELECT C.CODE_NM  ,C.CODE_NM ||':'|| count(A.EMP_PK) as sRS
+   FROM THR_EMP_ABSENT A, TCO_ABCODE C,TCO_ABCODEGRP CG
+   WHERE A.DEL_IF=0 
+   		  		AND C.DEL_IF=0 AND CG.DEL_IF=0 
+   		  	    AND CG.ID='HRAB0110'
+   	  	  		AND C.TCO_ABCODEGRP_PK=CG.PK
+   	  AND A.ABS_CODE=C.CODE			
+   	  AND A.EMP_PK=in_EMP_PK
+      AND (A.ABS_DT BETWEEN in_ST_DATE AND in_E_DATE)
+	  group by 	C.CODE_NM ;
+	  
+	  
+	  */
+	  		  
+
+BEGIN
+  out_String_REASON:=null;		 		 
+  FOR id_RS IN CUR_RS LOOP
+  	  
+  	  if out_String_REASON is null then 
+	  	 	  strTmp:=id_RS.cn;			   
+	    	  out_String_REASON:=id_RS.id ;
+	  else
+	  	  if strTmp=id_RS.cn then
+  	    	  out_String_REASON:=out_String_REASON || ',' || id_RS.id;
+		  else
+		  	  out_String_REASON:=out_String_REASON ||  ':' || strTmp || ';' || 
+id_RS.id;
+			  strTmp:=id_RS.cn;
+		  end if;	  
+	  end if;		  
+  end loop;				 
+  out_String_REASON:=out_String_REASON ||  ':' || strTmp;
+
+  RETURN out_String_REASON;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RETURN out_String_REASON;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RETURN out_String_REASON;
+END ;
+/
+CREATE OR REPLACE FUNCTION F_GET_ADJUST(
+  AS_EMP_PK   IN  NUMBER,
+  AS_FROM_MON IN  VARCHAR2, -- YYYYMMDD
+  AS_TO_MON   IN  VARCHAR2  -- YYYYMMDD
+  ) RETURN NUMBER IS
+ AN_AMT 	NUMBER;
+
+BEGIN
+	SELECT SUM(NVL(ADJ_AMT, 0)) INTO AN_AMT
+	FROM THR_SAL_ADJ
+	WHERE ADJ_DT >= AS_FROM_MON
+	  AND ADJ_DT <= AS_TO_MON
+	  AND EMP_PK  = AS_EMP_PK
+	  AND DEL_IF = 0
+	  AND APPLY_FLAG = 'N';
+
+	RETURN AN_AMT;
+
+	EXCEPTION
+	WHEN  NO_DATA_FOUND  THEN
+		AN_AMT := 0;
+		RETURN AN_AMT;
+	WHEN  OTHERS         THEN
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (F_GET_ADJUST) '||SQLERRM );
+		AN_AMT := 0;
+		RETURN AN_AMT;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_BILL(
+  AS_AMOUNT          IN  NUMBER
+  ) RETURN VARCHAR2 IS
+N_AMOUNT_BILL    	VARCHAR2(15);
+
+N_A100000     VARCHAR2(10);
+N_A50000      VARCHAR2(10);
+N_A20000      VARCHAR2(10);
+N_A10000      VARCHAR2(10);
+N_A5000       VARCHAR2(10);
+N_A1000       VARCHAR2(10);
+
+BEGIN
+    SELECT TO_CHAR(TRUNC(AS_AMOUNT/100000)) AS A100000
+	       ,TRUNC((AS_AMOUNT-(TRUNC(AS_AMOUNT,-5)))/50000) AS A50000
+	       ,TO_CHAR(TRUNC((AS_AMOUNT-TRUNC(AS_AMOUNT/50000)*50000)/20000)) AS A20000
+	       ,TRUNC((AS_AMOUNT-(TRUNC(AS_AMOUNT,-5)+TRUNC((AS_AMOUNT-(TRUNC(AS_AMOUNT,-5)))/50000)*50000+TRUNC((AS_AMOUNT-TRUNC(AS_AMOUNT/50000)*50000)/20000)*20000))/10000) AS A10000
+	       ,TRUNC((AS_AMOUNT-TRUNC(AS_AMOUNT,-4))/5000) AS A5000
+	       ,(AS_AMOUNT-(TRUNC(AS_AMOUNT,-4)+TRUNC((AS_AMOUNT-TRUNC(AS_AMOUNT,-4))/5000)*5000))/1000 AS A1000
+	  INTO N_A100000,N_A50000,N_A20000,N_A10000,N_A5000,N_A1000
+      FROM DUAL;
+	N_AMOUNT_BILL := N_A100000||','||N_A50000||','||N_A20000||','||N_A10000||','||N_A5000||','||N_A1000;
+	RETURN N_AMOUNT_BILL;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_BONUS(
+  AS_EMP_PK   IN  NUMBER,  -- EMPLOYEE PK
+  AS_FROM_MON IN  VARCHAR2, -- YYYYMMDD
+  AS_TO_MON   IN  VARCHAR2  -- YYYYMMDD
+  ) RETURN NUMBER IS
+ AN_AMT 	NUMBER;
+
+BEGIN
+	SELECT SUM(NVL(BNS_AMT, 0)) INTO AN_AMT
+	FROM THR_BONUS
+	WHERE BNS_DT >= AS_FROM_MON
+	  AND BNS_DT <= AS_TO_MON
+	  AND EMP_PK  = AS_EMP_PK
+	  AND DEL_IF = 0
+	  AND APPLY_FLAG = 'N';
+
+	RETURN AN_AMT;
+
+	EXCEPTION
+	WHEN  NO_DATA_FOUND  THEN
+		AN_AMT := 0;
+		RETURN AN_AMT;
+	WHEN  OTHERS         THEN
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (F_GET_BONUS) '||SQLERRM );
+		AN_AMT := 0;
+		RETURN AN_AMT;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_CONTRACT_SEQ
+(inDATE IN VARCHAR2) RETURN NUMBER IS
+	V_CONTRACT_SEQ NUMBER :=0;
+BEGIN
+	SELECT TO_NUMBER((MAX(NVL(B.SEQ_CONTRACT,0))+1)) INTO V_CONTRACT_SEQ
+      FROM THR_ABEMP B
+     WHERE B.DEL_IF = 0
+	   AND SUBSTR(B.ST_CONTRACT,1,6) = SUBSTR(inDATE,1,6);	
+	   
+	IF V_CONTRACT_SEQ IS NULL THEN 
+	   V_CONTRACT_SEQ := 1;
+	END IF;     
+
+	RETURN V_CONTRACT_SEQ;
+END F_GET_CONTRACT_SEQ;
+/
+CREATE OR REPLACE FUNCTION F_GET_DATE_APPROVED 
+RETURN VARCHAR2 
+IS
+l_count NUMBER(10);
+l_date_appr VARCHAR2(8);
+/******************************************************************************
+   NAME:       F_GET_DATE_APPROVED
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/12/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_DATE_APPROVED
+      Sysdate:         5/12/2006
+      Date and Time:   5/12/2006, 2:04:29 PM, and 5/12/2006 2:04:29 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+   l_count := 0;
+   SELECT COUNT(a.pk) INTO l_count
+   FROM THR_APPROVE a  
+   WHERE a.del_if=0 AND a.PROCESS_FLAG='N'  
+   AND a.DATE_APPROVE=(SELECT MAX(b.DATE_APPROVE) FROM THR_APPROVE b WHERE b.del_if=0 AND b.PROCESS_FLAG='N');  
+  IF l_count > 0 THEN
+	  SELECT a.DATE_APPROVE INTO l_date_appr
+	  FROM THR_APPROVE a  
+	  WHERE a.del_if=0 AND a.PROCESS_FLAG='N'  
+	  AND a.DATE_APPROVE=(SELECT MAX(b.DATE_APPROVE) FROM THR_APPROVE b WHERE b.del_if=0 AND b.PROCESS_FLAG='N')  
+	  GROUP BY a.DATE_APPROVE ;
+   ELSE
+   	  l_date_appr:='0';
+   END IF;  
+   RETURN l_date_appr;
+END F_GET_DATE_APPROVED;
+/
+CREATE OR REPLACE FUNCTION F_GET_EMP_ID(P_YEAR IN VARCHAR2) RETURN VARCHAR2 IS
+l_RESULT  VARCHAR2(20);
+MAX_ID NUMBER;
+
+BEGIN
+   l_RESULT := 0;
+   SELECT nvl(MAX(TO_NUMBER(SUBSTR(A.EMP_ID,LENGTH(A.EMP_ID)-3,4))),0) INTO MAX_ID 
+   FROM VHR_EMP A WHERE A.DEL_IF=0;
+   
+   MAX_ID:=(TO_NUMBER(MAX_ID)+1);
+   
+   IF (MAX_ID >= 1 AND MAX_ID <=9 ) THEN
+   	  l_RESULT:='000'||(MAX_ID);
+   else if (MAX_ID >= 10 AND MAX_ID <=99 ) THEN
+   	  l_RESULT:='00'||(MAX_ID);
+   else IF (MAX_ID >= 100 AND MAX_ID <=999 ) THEN
+   	  l_RESULT:='0'||(MAX_ID);
+   else
+   	  l_RESULT:=(MAX_ID);
+   	     END IF;
+   	  end if;
+   end if;
+   RETURN 'LE'||SUBSTR(P_YEAR,3,2)||l_RESULT;
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_EMP_ID;
+/
+CREATE OR REPLACE FUNCTION F_GET_EMP_ID_SHINWOO(EMP_ID_STYLE IN VARCHAR2) RETURN VARCHAR2 IS
+MAX_ID VARCHAR2(20);
+
+BEGIN
+   MAX_ID := 0;
+   -- VAN PHONG EMP_ID_STYLE = 01 MA SO BETWEEN 0000 AND 1999 
+   -- WORKER EMP_ID_STYLE = 00 MA SO > 1999 
+   --- mot so nguoi EMP_ID_STYLE = 02 : ma so 0001--> 0999 --
+   
+   -- TRUONG HOP CHUA CO CONG NHAN NAO 
+   IF (TO_NUMBER(EMP_ID_STYLE) = 0 ) THEN 
+    SELECT nvl(MAX(TO_NUMBER(A.EMP_ID)),2000) INTO MAX_ID 
+    FROM VHR_EMP A WHERE A.DEL_IF=0 AND TO_NUMBER(A.EMP_ID) >= 2000 ;   
+   ELSIF 
+       (TO_NUMBER(EMP_ID_STYLE) =1  ) THEN 
+    SELECT nvl(MAX(TO_NUMBER(A.EMP_ID)),1000) INTO MAX_ID 
+    FROM VHR_EMP A WHERE A.DEL_IF=0 AND TO_NUMBER(A.EMP_ID) < 2000;
+    ELSIF 
+       (TO_NUMBER(EMP_ID_STYLE) =2  ) THEN 
+    SELECT nvl(MAX(TO_NUMBER(A.EMP_ID)),1000) INTO MAX_ID 
+    FROM VHR_EMP A WHERE A.DEL_IF=0 AND TO_NUMBER(A.EMP_ID) < 1000;      
+   END IF ; 
+   
+   MAX_ID:=(TO_NUMBER(MAX_ID)+1);
+   MAX_ID:= TRIM(TO_CHAR(TO_NUMBER(MAX_ID),'0000'));
+   
+  
+   RETURN MAX_ID;
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_EMP_ID_SHINWOO;
+/
+CREATE OR REPLACE FUNCTION F_GET_HT(
+  AS_START         IN  VARCHAR2,
+  AS_END             IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_OT_TIME 	NUMBER;
+
+  AV_CUR_DT	VARCHAR2(8);
+  AV_TOM_DT	VARCHAR2(8);
+  AV_START	VARCHAR2(14) := NULL;
+  AV_END		VARCHAR2(14) := NULL;
+
+  BEGIN
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+  	IF AS_START < AS_END THEN
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_CUR_DT || ' ' || AS_END;
+	ELSE
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_TOM_DT || ' ' || AS_END;
+  	END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_OT_TIME := N_HOUR + N_MINUTE;
+	IF N_OT_TIME > 0.25 THEN 
+	    N_OT_TIME := N_OT_TIME - 0.25;--MOVING TIME 
+		SELECT TRUNC(N_OT_TIME+0.25)+(ROUND(N_OT_TIME+0.25)-TRUNC(N_OT_TIME+0.25))/2
+	      INTO N_OT_TIME
+          FROM DUAL;
+	ELSE
+	    N_OT_TIME := 0;
+	END IF;
+	
+	IF N_OT_TIME > 4 THEN
+	    N_OT_TIME := N_OT_TIME - 1;
+	ELSE
+	    N_OT_TIME := N_OT_TIME;
+	END IF;
+	
+	RETURN N_OT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_MONTH_AFTER(
+AV_DATE IN VARCHAR2
+)RETURN NUMBER IS
+AV_MONTH  NUMBER;
+AV_DAY  NUMBER;
+
+BEGIN
+	 AV_MONTH := TO_NUMBER(SUBSTR(AV_DATE,5,2));
+	 AV_DAY:=TO_NUMBER(SUBSTR(AV_DATE,7,2));
+   IF AV_MONTH=12 THEN
+   	  AV_MONTH:=TO_NUMBER(SUBSTR(AV_DATE,1,4))+1;
+	  AV_MONTH:=AV_MONTH||'01';
+   	  RETURN AV_MONTH;
+   ELSE
+   	   AV_MONTH:=AV_MONTH+1;
+	   IF AV_MONTH<10 THEN
+	   	  AV_MONTH:=SUBSTR(AV_DATE,1,4)||'0'||AV_MONTH;
+	   ELSE
+	   	   AV_MONTH:=SUBSTR(AV_DATE,1,4)||AV_MONTH;
+	   END IF;  
+	   
+	   --IF AV_DAY=31 THEN
+	   	  
+	   
+	   
+   RETURN AV_MONTH;
+  END IF;  
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_MONTH_AFTER;
+/
+CREATE OR REPLACE FUNCTION F_GET_MONTH_BEFOR(
+AV_DATE IN VARCHAR2
+)RETURN NUMBER IS
+AV_MONTH  NUMBER;
+
+BEGIN
+	 AV_MONTH := TO_NUMBER(SUBSTR(AV_DATE,5,2));
+   IF AV_MONTH=1 THEN
+   	  AV_MONTH:=TO_NUMBER(SUBSTR(AV_DATE,1,4))-1;
+	  AV_MONTH:=AV_MONTH||'12';
+   	  RETURN AV_MONTH;
+   ELSE
+   	   AV_MONTH:=AV_MONTH-1;
+	   IF AV_MONTH<10 THEN
+	   	  AV_MONTH:=SUBSTR(AV_DATE,1,4)||'0'||AV_MONTH;
+	   ELSE
+	   	   AV_MONTH:=SUBSTR(AV_DATE,1,4)||AV_MONTH;
+	   END IF;  
+   RETURN AV_MONTH;
+  END IF;  
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_MONTH_BEFOR;
+/
+CREATE OR REPLACE FUNCTION F_GET_MONTH_WEEK(in_DATE IN VARCHAR2) RETURN NUMBER IS
+WEEK_NO NUMBER;
+FROM_DATE VARCHAR2(10);
+
+/******************************************************************************
+   NAME:       F_GET_DAY
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        15/07/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_DAY
+      Sysdate:         15/07/2006
+      Date and Time:   15/07/2006, 1:43:40 PM, and 15/07/2006 1:43:40 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+
+   WEEK_NO := 0 ;
+   
+   SELECT MIN(CAR_DATE) INTO FROM_DATE FROM TCO_ABCALENDAR 
+   WHERE DAY_TYPE=2 AND SUBSTR(CAR_DATE,1,6) = SUBSTR(in_DATE,1,6)  ;
+   
+   WEEK_NO := F_GET_WEEK(in_DATE)-F_GET_WEEK(FROM_DATE) + 1 ;
+    
+   RETURN WEEK_NO;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_MONTH_WEEK;
+/
+CREATE OR REPLACE FUNCTION F_GET_NT
+(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  NUMBER,
+  AS_EATNIGHT		 IN  VARCHAR2
+) RETURN NUMBER IS
+  N_HOUR    	     NUMBER;
+  N_MINUTE  	     NUMBER;
+  N_NT_TIME 	     NUMBER;
+
+  AV_CUR_DT	         VARCHAR2(8);
+  AV_TOM_DT	         VARCHAR2(8);
+  AV_START	         VARCHAR2(14) := NULL;
+  AV_END			 VARCHAR2(14) := NULL;
+
+  AV_WS_START	 	 VARCHAR2(5);
+  AV_WS_END		 	 VARCHAR2(5);
+  AV_NT				 NUMBER(3,1);
+
+--******************************************
+  -- Create by     : Ho Phuong Thao  
+  -- Create date   : 28/03/2005  
+--******************************************
+
+BEGIN
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE + 1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+	SELECT W.START_TIME,W.END_TIME,W.NT INTO AV_WS_START,AV_WS_END,AV_NT
+	  FROM THR_WORK_SHIFT W
+	 WHERE W.DEL_IF=0
+	   AND W.PK = AS_SHIFT;
+	
+ IF (AV_NT = 0) THEN	
+  	IF AS_START < AS_END THEN
+		IF (AS_END >= '20:56') THEN
+			IF (AV_WS_END = '22:00') THEN
+			   AV_START := AV_CUR_DT || ' ' || '21:30';
+			ELSIF (AV_WS_END <= '21:00') THEN
+			   AV_START := AV_CUR_DT || ' ' || '20:30';
+			END IF;
+		END IF;		
+		
+		IF SUBSTR(AS_END,1,2) = '24' THEN --CANNOT CLACULATE 24:00 CASE SO NEED CHANGE THE 00:00 CASE 
+		    AV_END := AV_TOM_DT || ' ' || '00'||SUBSTR(AS_END,3,5);
+		ELSE
+			AV_END := AV_CUR_DT || ' ' || AS_END;   
+		END IF;
+	ELSE
+	  -- CHO TRUONG HOP LAM CA DEM NIGHT SHIFT, 19:00 - 07:00, RA VE BUOI SANG HOM SAU 
+		IF (AV_WS_END = '22:00') THEN
+		   AV_START := AV_CUR_DT || ' ' || '21:30';
+		ELSIF (AV_WS_END <= '21:00') THEN
+		   AV_START := AV_CUR_DT || ' ' || '20:30';
+		END IF;
+		AV_END      := AV_TOM_DT || ' ' || AS_END;
+  	END IF;
+ END IF;	
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_NT_TIME := N_HOUR + N_MINUTE + 0.07;
+
+	IF N_NT_TIME >= 8.5 THEN
+	   	  N_NT_TIME := 8;
+	ELSIF N_NT_TIME > 0.25 THEN
+	      N_NT_TIME := N_NT_TIME - 0.25;--MOVING TIME 
+		  SELECT TRUNC(N_NT_TIME+0.25)+(ROUND(N_NT_TIME+0.25)-TRUNC(N_NT_TIME+0.25))/2
+	        INTO N_NT_TIME
+            FROM DUAL;
+	ELSE
+	      N_NT_TIME := 0;
+	END IF;
+
+	-- MR TRUONG
+	IF ((AS_END <= AV_WS_START) AND (AV_WS_START < AV_WS_END))OR((AS_START>AV_WS_END)AND(AS_END>AV_WS_END)) THEN
+	   N_NT_TIME := 0;
+	   RETURN N_NT_TIME;
+	END IF;    	
+	
+	-- TRU GIO COM TOI  
+	IF N_NT_TIME >= 0.5 THEN
+		N_NT_TIME := N_NT_TIME - 0.5;
+	END IF;	
+	
+	IF (AS_EATNIGHT = 'Y') AND (N_NT_TIME >= 0.5) THEN
+	   N_NT_TIME := N_NT_TIME - 0.5;
+	END IF;
+		
+	RETURN N_NT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_NT_NEW
+(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  NUMBER,
+  AS_EATNIGHT		 IN  VARCHAR2
+) RETURN NUMBER IS
+  N_HOUR    	     NUMBER;
+  N_MINUTE  	     NUMBER;
+  N_NT_TIME 	     NUMBER;
+
+  AV_CUR_DT	         VARCHAR2(8);
+  AV_TOM_DT	         VARCHAR2(8);
+  AV_START	         VARCHAR2(14) := NULL;
+  AV_END			 VARCHAR2(14) := NULL;
+
+  AV_WS_START	 	 VARCHAR2(5);
+  AV_WS_END		 	 VARCHAR2(5);
+  AV_NT				 NUMBER(3,1);
+
+--******************************************
+  -- Create by     : Ho Phuong Thao  
+  -- Create date   : 28/03/2005  
+--******************************************
+
+BEGIN
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE + 1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+	SELECT W.START_TIME,W.END_TIME,W.NT INTO AV_WS_START,AV_WS_END,AV_NT
+	  FROM THR_WORK_SHIFT W
+	 WHERE W.DEL_IF=0
+	   AND W.PK = AS_SHIFT;
+-- NT YUPOONG CHI TI'NH CHO CA DEM
+ IF AV_WS_START > AV_WS_END THEN
+ 	N_NT_TIME:=0;
+ 	RETURN N_NT_TIME;
+ END IF;
+	
+ IF (AV_NT = 0) THEN	
+  	IF AS_START < AS_END THEN
+		IF (AS_END >= '20:56') THEN
+			IF (AV_WS_END = '22:00') THEN
+			   AV_START := AV_CUR_DT || ' ' || '21:30';
+			ELSIF (AV_WS_END <= '21:00') THEN
+			   AV_START := AV_CUR_DT || ' ' || '20:30';
+			END IF;
+		END IF;		
+		
+		IF SUBSTR(AS_END,1,2) = '24' THEN --CANNOT CLACULATE 24:00 CASE SO NEED CHANGE THE 00:00 CASE 
+		    AV_END := AV_TOM_DT || ' ' || '00'||SUBSTR(AS_END,3,5);
+		ELSE
+			AV_END := AV_CUR_DT || ' ' || AS_END;   
+		END IF;
+	ELSE
+	  -- CHO TRUONG HOP LAM CA DEM NIGHT SHIFT, 19:00 - 07:00, RA VE BUOI SANG HOM SAU 
+		IF (AV_WS_END = '22:00') THEN
+		   AV_START := AV_CUR_DT || ' ' || '21:30';
+		ELSIF (AV_WS_END <= '21:00') THEN
+		   AV_START := AV_CUR_DT || ' ' || '20:30';
+		END IF;
+		AV_END      := AV_TOM_DT || ' ' || AS_END;
+  	END IF;
+ END IF;	
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_NT_TIME := N_HOUR + N_MINUTE + 0.07;
+
+	IF N_NT_TIME >= 8.5 THEN
+	   	  N_NT_TIME := 8;
+	ELSIF N_NT_TIME > 0.25 THEN
+	      N_NT_TIME := N_NT_TIME - 0.25;--MOVING TIME 
+		  SELECT TRUNC(N_NT_TIME+0.25)+(ROUND(N_NT_TIME+0.25)-TRUNC(N_NT_TIME+0.25))/2
+	        INTO N_NT_TIME
+            FROM DUAL;
+	ELSE
+	      N_NT_TIME := 0;
+	END IF;
+
+	-- MR TRUONG
+	IF ((AS_END <= AV_WS_START) AND (AV_WS_START < AV_WS_END))OR((AS_START>AV_WS_END)AND(AS_END>AV_WS_END)) THEN
+	   N_NT_TIME := 0;
+	   RETURN N_NT_TIME;
+	END IF;    	
+	
+	-- TRU GIO COM TOI  
+	IF N_NT_TIME >= 0.5 THEN
+		N_NT_TIME := N_NT_TIME - 0.5;
+	END IF;	
+	
+	IF (AS_EATNIGHT = 'Y') AND (N_NT_TIME >= 0.5) THEN
+	   N_NT_TIME := N_NT_TIME - 0.5;
+	END IF;
+		
+	RETURN N_NT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_Get_Ot(
+  AS_START_OT        IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2,
+  AS_START			 IN VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    	   	 	 VARCHAR2(8);
+  AV_TOM_DT	                 VARCHAR2(8);
+  AV_START	                 VARCHAR2(14) := NULL;
+  AV_END		             VARCHAR2(14) := NULL;
+  SHIFT_START                VARCHAR2(14) := NULL;
+  SHIFT_END                  VARCHAR2(14) := NULL;
+  AV_DINNER                   VARCHAR2(5)  := NULL;
+  AV_EDINNER                  VARCHAR2(5)  := NULL;
+  AV_START1					 VARCHAR2(5)  := NULL;
+  AV_END1		             VARCHAR2(5)  := NULL;  
+  AV_DINNER_INTERVAL			 NUMBER;  	 
+  AV_IN_INTERVAL			 NUMBER;  
+  AV_OUT_INTERVAL			 NUMBER;
+  AV_START_LUNCH			 VARCHAR2(14) := NULL; 
+  AV_END_LUNCH				 VARCHAR2(14) := NULL; 
+  AV_START_OT				 VARCHAR2(14) := NULL;
+  AV_SHIFT_END				 VARCHAR2(14) := NULL;
+  AV_TEMP				 VARCHAR2(1) := NULL;
+  IN_TMP1				 NUMBER;
+  IN_TMP2				 VARCHAR2(2);
+  AV_OT					 NUMBER:=0;
+  
+  BEGIN
+  
+IF  (AS_END IS NULL) OR(AS_START IS NULL) THEN
+	N_WT_TIME:=0;
+	RETURN N_WT_TIME;
+END IF;
+  
+    SELECT A.START_TIME, A.END_TIME,OT INTO SHIFT_START, SHIFT_END,AV_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+	SELECT A.START_DINNER, A.END_DINNER, A.DINNER_INTERVAL, A.START_OT 
+	  INTO AV_DINNER, AV_EDINNER, AV_DINNER_INTERVAL, AV_START_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+	
+	IF AV_DINNER_INTERVAL >0 THEN --CO TRU GIO COM CHIEU
+	--  OUT TRONG KHOANG THOI GIAN COM CHIEU TINH TU KET THUC GIO AN COM CHIEU
+				IF (AS_END > AV_DINNER AND AS_END < AV_EDINNER) THEN
+				    AV_END1 := AV_DINNER;
+				END IF;
+	END IF;
+	
+	--Mr Ky modify lai ngay 10/10/2007 cho Shinwoo 
+	
+  --IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 9) THEN
+	--    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 19) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 39) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 49) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 50) THEN
+		IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >=24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;	    
+
+/*
+	-- ************** LAM TRON GIO OUT
+		IF (TO_NUMBER(SUBSTR(AS_END,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=7) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 8) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 15) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '07';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 15) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=22) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 23) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 30) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '22';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 30) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 37) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 38) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 45) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '37';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 45) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 53) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 54) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <60) THEN
+		  	AV_END1 := SUBSTR(AS_END,1,3) || '52';
+	ELSE 	
+	    IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;			
+*/
+/*	-- ************** LAM TRON GIO OUT 
+
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 15) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 16) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 45) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 46) THEN
+		IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >=24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;	    
+	
+	IF AS_START_OT = AV_END1 THEN
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+*/	
+
+IF AS_START_OT>SHIFT_START THEN
+   		  IF AV_END1>AS_START_OT THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_CUR_DT || ' ' || AV_END1;
+		ELSIF AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+		END IF;
+ELSIF AV_END1>AS_START_OT AND AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_TOM_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;	
+		
+	
+	N_WT_TIME := N_HOUR + N_MINUTE;
+	
+    IF AV_END IS NULL THEN
+	    N_WT_TIME := 0;
+	END IF;
+	
+	IF AV_END1>=AV_EDINNER AND AV_DINNER_INTERVAL >0 THEN
+   N_WT_TIME := N_WT_TIME-AV_DINNER_INTERVAL;
+END IF;
+	IF N_WT_TIME=0.49 THEN
+	   N_WT_TIME:=0.5;
+	END IF;
+	
+	RETURN N_WT_TIME; 
+
+	EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, AS_END ||'ERROR..'||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_Get_Ot_New(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  NUMBER,
+  AS_DINNER          IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	     NUMBER;
+  N_MINUTE  	     NUMBER;
+  N_OT_TIME 	     NUMBER;
+
+  AV_CUR_DT	         VARCHAR2(8);
+  AV_TOM_DT	         VARCHAR2(8);
+  AV_START	         VARCHAR2(14) := NULL;
+  AV_END			 VARCHAR2(14) := NULL;
+  AV_SDIN       	 VARCHAR2(5)  := NULL;
+  AV_EDIN			 VARCHAR2(5)  := NULL;
+  AV_DINNER_INTERVAL NUMBER;
+  AV_SDIN_DT		 VARCHAR2(14) := NULL;
+  AV_EDIN_DT		 VARCHAR2(14) := NULL;
+  AV_SHIFT_START 	 VARCHAR2(5);
+  AV_SHIFT_END 	 	 VARCHAR2(5);
+  AV_START_OT 	 	 VARCHAR2(5); --MR TRUONG ADD
+  AV_OT				 NUMBER:=0;
+
+--******************************************
+  -- Modify by    : Ho Phuong Thao											
+  -- Modify date  : 24/03/2005
+--******************************************  
+  
+  BEGIN
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE + 1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+	
+	SELECT A.START_DINNER, A.DINNER_INTERVAL, A.END_DINNER, A.START_TIME, A.END_TIME,A.OT INTO AV_SDIN, AV_DINNER_INTERVAL, AV_EDIN, AV_SHIFT_START, AV_SHIFT_END,AV_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+
+	AV_SDIN_DT := AV_CUR_DT || ' ' || AV_SDIN;
+	IF ((AS_END <= AV_SHIFT_START) AND (AV_SHIFT_START < AV_SHIFT_END))OR((AS_START>AV_SHIFT_END)AND(AS_END>AV_SHIFT_END)) THEN
+	   N_OT_TIME := 0;
+	   RETURN N_OT_TIME;
+	END IF;
+	    
+	IF F_Check_In_Out(AS_START,AS_END,30)=0 THEN
+	   	   N_OT_TIME:=0;
+		   RETURN N_OT_TIME;
+	END IF;
+		   
+  	IF AS_START < AS_END THEN
+		AV_START   := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_CUR_DT || ' ' || AS_END;		
+		IF SUBSTR(AS_END,1,2) = '24' THEN --CANNOT CLACULATE 24:00 CASE SO NEED CHANGE THE 00:00 CASE
+		    AV_END := AV_TOM_DT || ' ' || '00'||SUBSTR(AS_END,3,5);			
+		END IF;		
+		
+		AV_EDIN_DT := AV_CUR_DT || ' ' || AV_EDIN;
+	ELSIF (AS_START >= AS_END AND TO_NUMBER(SUBSTR(AS_END,1,2)) >= 8) THEN
+	  -- CHO TRUONG HOP LAM CO 1 BUOI SANG, NGHI BUOI CHIEU
+		AV_START   := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_CUR_DT || ' ' || AS_END;		
+		
+		AV_EDIN_DT := AV_CUR_DT || ' ' || AV_EDIN;
+	--ELSIF (AS_START > AS_END AND TO_NUMBER(SUBSTR(AS_END,1,2)) <= 8) THEN
+	ELSE
+	  -- CHO TRUONG HOP LAM CA DEM NIGHT SHIFT, 19:00 - 07:00, RA VE BUOI SANG HOM SAU
+		AV_START   := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_TOM_DT || ' ' || AS_END;	
+		
+		AV_EDIN_DT := AV_TOM_DT || ' ' || AV_EDIN;	
+  	END IF;
+	-- truong hop ca ngay lam co' buoi sang KO TI'NH OT -->MR.TRUONG
+	IF (AV_SHIFT_START < AV_SHIFT_END) AND (AS_START > AS_END) THEN
+	   N_OT_TIME := 0;
+	   RETURN N_OT_TIME;
+	END IF;
+		
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_OT_TIME := N_HOUR + N_MINUTE;
+	/* + 0.24;
+
+	
+	IF N_OT_TIME > 0.25 THEN
+	    N_OT_TIME := N_OT_TIME - 0.25;--MOVING TIME
+		SELECT TRUNC(N_OT_TIME+0.25)+(ROUND(N_OT_TIME+0.25)-TRUNC(N_OT_TIME+0.25))/2
+	      INTO N_OT_TIME
+          FROM DUAL;
+	ELSE
+	    N_OT_TIME := 0; -- NHAN VIEN OFFICE STAFF LAM OVER NIGHT KHONG TINH DUOC
+	    --N_OT_TIME := 100; -- TEST
+	END IF;	
+*/
+	IF AS_DINNER = 'N' THEN
+	    N_OT_TIME := N_OT_TIME;
+	/* ELSIF (N_OT_TIME > 0.5 AND AV_END < AV_SDIN_DT) THEN  -- CO O LAI LAM OT MOI TRU GIO COM CHIEU
+		N_OT_TIME := N_OT_TIME - AV_DINNER_INTERVAL; */
+    ELSE
+	    IF AS_SHIFT = 3 AND N_OT_TIME <= 1 THEN  --TANG CA DEN 17:55 KHONG BI TRU COM
+		    N_OT_TIME := N_OT_TIME;
+		ELSIF AV_EDIN_DT <= AV_START THEN  -- AN COM CHIEU TRUOC START_OT
+		    N_OT_TIME := N_OT_TIME;			
+		ELSIF AV_SDIN = '17:00' AND N_OT_TIME > 0.5 THEN
+	        N_OT_TIME := N_OT_TIME - AV_DINNER_INTERVAL;
+    	ELSIF AV_SDIN = '17:30' AND N_OT_TIME > 1 THEN
+	        N_OT_TIME := N_OT_TIME - AV_DINNER_INTERVAL;
+    	ELSIF AV_SDIN = '18:00' AND N_OT_TIME > 1.5 THEN
+	        N_OT_TIME := N_OT_TIME - AV_DINNER_INTERVAL;
+		ELSE
+	        N_OT_TIME := N_OT_TIME;
+	    END IF;
+	/* ELSE
+	    IF AV_SDIN = '17:00' AND N_OT_TIME > 0.5 THEN
+	        N_OT_TIME := N_OT_TIME - 0.5;
+    	ELSIF AV_SDIN = '17:30' AND N_OT_TIME > 1 THEN
+	        N_OT_TIME := N_OT_TIME - 0.5;
+    	ELSIF AV_SDIN = '18:00' AND N_OT_TIME > 1.5 THEN
+	        N_OT_TIME := N_OT_TIME - 0.5;
+    	ELSE
+	        N_OT_TIME := N_OT_TIME;
+	    END IF; */
+	END IF;
+IF AV_OT=4 THEN
+   IF N_OT_TIME>4 THEN
+   	  N_OT_TIME:=4;
+   END IF;
+ELSE
+   IF N_OT_TIME>4.5 THEN
+   	  N_OT_TIME:=4.5;
+   END IF;
+END IF;
+
+--	IF AS_START < '16:30' THEN --remove the this sorce because this case 15:00~16:00 for canteen
+--	    N_OT_TIME := 0;
+--	END IF;
+
+	RETURN N_OT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_Get_Ot_Nshift(
+  AS_START_OT        IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2,
+  AS_DINNER			 IN VARCHAR2,
+  AS_START			 IN VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    	   	 	 VARCHAR2(8);
+  AV_TOM_DT	                 VARCHAR2(8);
+  AV_START	                 VARCHAR2(14) := NULL;
+  AV_END		             VARCHAR2(14) := NULL;
+  SHIFT_START                VARCHAR2(14) := NULL;
+  SHIFT_END                  VARCHAR2(14) := NULL;
+  AV_DINNER                   VARCHAR2(5)  := NULL;
+  AV_EDINNER                  VARCHAR2(5)  := NULL;
+  AV_START1					 VARCHAR2(5)  := NULL;
+  AV_END1		             VARCHAR2(5)  := NULL;  
+  AV_DINNER_INTERVAL			 NUMBER;  	 
+  AV_IN_INTERVAL			 NUMBER;  
+  AV_OUT_INTERVAL			 NUMBER;
+  AV_START_LUNCH			 VARCHAR2(14) := NULL; 
+  AV_END_LUNCH				 VARCHAR2(14) := NULL; 
+  AV_START_OT				 VARCHAR2(14) := NULL;
+  AV_SHIFT_END				 VARCHAR2(14) := NULL;
+  AV_TEMP				 VARCHAR2(1) := NULL;
+  IN_TMP1				 NUMBER;
+  IN_TMP2				 VARCHAR2(2);
+  AV_OT					 NUMBER:=0;
+  
+  BEGIN
+  
+IF  (AS_END IS NULL) OR(AS_START IS NULL) THEN
+	N_WT_TIME:=0;
+	RETURN N_WT_TIME;
+END IF;
+  
+    SELECT A.START_TIME, A.END_TIME,OT INTO SHIFT_START, SHIFT_END,AV_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+/*
+	IF (SHIFT_START< SHIFT_END) THEN
+		 	N_WT_TIME := F_Get_Ot_New(AS_START_OT,AS_END,AS_SHIFT,'N');
+			IF N_WT_TIME<=0.6 THEN
+			   N_WT_TIME:=0;
+			END IF;	
+			RETURN N_WT_TIME;
+	END IF;	 */
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+	SELECT A.START_DINNER, A.END_DINNER, A.DINNER_INTERVAL, A.START_OT 
+	  INTO AV_DINNER, AV_EDINNER, AV_DINNER_INTERVAL, AV_START_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+	
+	IF AV_DINNER_INTERVAL >0 THEN --CO TRU GIO COM CHIEU
+	--  OUT TRONG KHOANG THOI GIAN COM CHIEU TINH TU KET THUC GIO AN COM CHIEU
+				IF (AS_END > AV_DINNER AND AS_END < AV_EDINNER) THEN
+				    AV_END1 := AV_EDINNER;
+				END IF;
+	END IF;
+
+	-- ************** LAM TRON GIO OUT 
+
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 9) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 10) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 19) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 39) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 49) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 50) THEN
+		IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;	    
+	
+	IF AS_START_OT = AV_END1 THEN
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+
+IF AS_START_OT>SHIFT_START THEN
+   		  IF AV_END1>AS_START_OT THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_CUR_DT || ' ' || AV_END1;
+		ELSIF AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_CUR_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+		END IF;
+ELSIF AV_END1>AS_START_OT AND AV_END1<SHIFT_START THEN
+   	  			 AV_START := AV_TOM_DT || ' ' || AS_START_OT;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;	
+		
+	
+	N_WT_TIME := N_HOUR + N_MINUTE;
+    IF AS_END IS NULL THEN
+	    N_WT_TIME := 0;
+	END IF;
+
+	RETURN N_WT_TIME; 
+
+	EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, AS_END ||'ERROR..'||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_OT_TIME(
+  AS_FLAG          IN  VARCHAR2, -- CHECK FALG : 'CHK' - CHECK, 'END' - END TIME, 'OTT' - OVER TIME
+  AS_START       IN  VARCHAR2, -- START TIME
+  AS_END           IN  VARCHAR2  -- END TIME
+  ) RETURN VARCHAR2 IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_OT_TIME 	NUMBER;
+  AN_LIMIT	NUMBER := 0;
+  AV_END_TIME	VARCHAR2(5);
+  AV_CUR_DT	VARCHAR2(8);
+  AV_TOM_DT	VARCHAR2(8);
+  AV_START	VARCHAR2(14) := NULL;
+  AV_END		VARCHAR2(14) := NULL;
+
+
+  BEGIN
+
+
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE + 1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+  	IF AS_START < AS_END THEN
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_CUR_DT || ' ' || AS_END;
+	ELSE
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_TOM_DT || ' ' || AS_END;
+  	END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_OT_TIME := N_HOUR + N_MINUTE;
+
+	BEGIN
+		SELECT NVL(NUM_VALUE2, 2) INTO AN_LIMIT
+		  FROM TCO_ABCODE
+		 WHERE DEL_IF = 0
+		   AND TCO_ABCODEGRP_PK = 409
+		   AND CODE = 'OT';
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AN_LIMIT :=  2;
+
+	END;
+
+	IF AS_FLAG = 'CHK' THEN
+		IF N_OT_TIME > AN_LIMIT THEN
+			RETURN '1';
+		ELSE
+			RETURN '0';
+		END IF;
+	ELSIF AS_FLAG = 'END' THEN
+		SELECT TO_CHAR(TO_DATE(AS_START,'HH24:MI') + AN_LIMIT/24,'HH24:MI') INTO AV_END_TIME
+		FROM DUAL;
+
+		RETURN AV_END_TIME;
+	ELSIF AS_FLAG = 'OTT' THEN
+		RETURN TO_CHAR(AN_LIMIT);
+	END IF;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_TAX(
+  AS_SAL   IN  NUMBER
+  ) RETURN NUMBER IS
+  AN_AMT 	    NUMBER;
+  AN_AMT1       NUMBER;
+  AN_RATE   	NUMBER;
+  AN_RATE1      NUMBER;
+  AN_TOT_TAX	NUMBER := 0;
+  I		        NUMBER := 0;
+
+  CURSOR V_EMP IS SELECT A.AMT,A.RATE
+	                  FROM THR_TAX A
+					 WHERE A.DEL_IF=0
+					 ORDER BY A.AMT;
+BEGIN
+
+	 AN_TOT_TAX:=0;
+	 AN_AMT:=0;
+	 AN_AMT1:=0;
+	 AN_RATE:=0;
+	 AN_RATE1:=0;
+	 OPEN V_EMP ;
+	 LOOP
+	 	 FETCH V_EMP INTO AN_AMT,AN_RATE;
+		 	   IF AS_SAL<=AN_AMT THEN
+			   	  AN_TOT_TAX:=AN_TOT_TAX+0;
+			   ELSE 
+			   	  AN_TOT_TAX:=AN_TOT_TAX + (AS_SAL-AN_AMT)*AN_RATE/100 + (AN_AMT-AN_AMT1)*AN_RATE1/100 - (AS_SAL-AN_AMT1)*AN_RATE1/100 ;	
+			   END IF; 
+			   AN_AMT1:=AN_AMT;
+			   AN_RATE1:=AN_RATE;
+		 EXIT WHEN V_EMP%NOTFOUND;
+		 
+	 END LOOP;
+	 CLOSE V_EMP;
+	 
+	RETURN AN_TOT_TAX;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_TIME(
+  AS_START         IN  VARCHAR2,
+  AS_END             IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_OT_TIME 	NUMBER;
+
+  AV_CUR_DT	VARCHAR2(8);
+  AV_TOM_DT	VARCHAR2(8);
+  AV_START	VARCHAR2(14) := NULL;
+  AV_END		VARCHAR2(14) := NULL;
+
+  BEGIN
+  	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE + 1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+  	IF AS_START < AS_END THEN
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_CUR_DT || ' ' || AS_END;
+	ELSE
+		AV_START := AV_CUR_DT || ' ' || AS_START;
+		AV_END     := AV_TOM_DT || ' ' || AS_END;
+  	END IF;
+
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,ROUND(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_OT_TIME := N_HOUR + N_MINUTE;
+	RETURN N_OT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_GET_TOTAL_MONTH_WORKING(
+in_DATE	  IN VARCHAR2,
+in_DATE2  IN VARCHAR2
+)
+ RETURN NUMBER IS
+ in_month	   NUMBER;
+ in_year	   NUMBER;
+ in_sysmonth   NUMBER;
+ in_sysyear	   NUMBER;
+ out_total NUMBER;
+/******************************************************************************
+   NAME:       F_GET_TOTAL_MONTH_WORKING
+   PURPOSE:    Calculate sum of months working 
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/5/2005    TruongHuynh	   2005-05-05      
+
+******************************************************************************/
+
+BEGIN
+	 
+	 out_total:=0;
+
+
+  SELECT TO_NUMBER(SUBSTR(in_DATE2,1,4)),
+  		 TO_NUMBER(SUBSTR(in_DATE2,5,2)),
+		 TO_NUMBER(SUBSTR(in_DATE,1,4)),
+		 TO_NUMBER(SUBSTR(in_DATE,5,2))
+   INTO in_sysyear,in_sysmonth,in_year,in_month 
+	FROM DUAL;
+   out_total:=(in_sysyear - in_year)*12 + (in_sysmonth - in_month);
+   
+   RETURN out_total;
+   
+   
+EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+     	RETURN -100;
+     
+END F_GET_TOTAL_MONTH_WORKING;
+/
+CREATE OR REPLACE FUNCTION F_GET_WEEK(in_DATE IN VARCHAR2) RETURN NUMBER IS
+WEEK_NO NUMBER;
+WEEK NUMBER;
+FROM_DATE VARCHAR2(10);
+
+/******************************************************************************
+   NAME:       F_GET_DAY
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        15/07/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_DAY
+      Sysdate:         15/07/2006
+      Date and Time:   15/07/2006, 1:43:40 PM, and 15/07/2006 1:43:40 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+
+   WEEK_NO := 0 ;
+   
+   SELECT MIN(CAR_DATE) INTO FROM_DATE FROM TCO_ABCALENDAR 
+   WHERE DAY_TYPE=2 AND CAR_DATE BETWEEN SUBSTR(in_DATE,1,4)||'0101' AND SUBSTR(in_DATE,1,4)||'0107' ;
+   
+   
+   SELECT COUNT(*) INTO WEEK FROM TCO_ABCALENDAR 
+   WHERE CAR_DATE BETWEEN FROM_DATE AND in_DATE ; 
+   
+   IF MOD(WEEK,7)>0 THEN
+   	  WEEK_NO := TRUNC(WEEK/7,0) + 1 ;
+   ELSE 
+   	  WEEK_NO := TRUNC(WEEK/7,0);
+   END IF ;
+   
+   RETURN WEEK_NO;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_WEEK;
+/
+CREATE OR REPLACE FUNCTION F_Get_Week_First_Date (MON  IN VARCHAR2 ,WEEK_NO IN NUMBER ) RETURN VARCHAR2 IS
+result  VARCHAR2(10);
+TMP_DT VARCHAR2(10);
+TMP_MON VARCHAR2(8);
+TMP_FIRST_MD VARCHAR2(10);
+/******************************************************************************
+   NAME:       F_Get_First_Week_Date
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        16/08/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_Get_First_Week_Date
+      Sysdate:         16/08/2006
+      Date and Time:   16/08/2006, 12:58:19 PM, and 16/08/2006 12:58:19 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+	 -- Dung khi dinh dang mon la MM/YYYY
+   TMP_MON:=MON;
+   	 -- SELECT SUBSTR(MON,4,4)||SUBSTR(MON,1,2) INTO TMP_MON FROM DUAL ;
+   
+   
+   
+    SELECT MIN(CAR_DATE) INTO    TMP_FIRST_MD  FROM TCO_ABCALENDAR 
+   WHERE DAY_TYPE=2 AND SUBSTR(CAR_DATE,1,6) = TMP_MON;
+   
+   IF WEEK_NO = 1 THEN 
+	  
+				IF TMP_FIRST_MD=TMP_MON||01 THEN 
+				  	 RESULT :=TO_CHAR(TO_DATE(TMP_FIRST_MD,'YYYYMMDD'),'YYYYMMDD') ;
+				ELSE 
+					 RESULT := TO_CHAR(TO_DATE(TMP_FIRST_MD,'YYYYMMDD')-7,'YYYYMMDD');
+				END IF ;
+				 
+ 	ELSE 
+	  
+	  	 		 RESULT:=TO_CHAR(TO_DATE(TMP_FIRST_MD,'YYYYMMDD') + 7* (WEEK_NO-2),'YYYYMMDD');
+				 
+	  	 		IF SUBSTR(TO_CHAR(TO_DATE(RESULT,'YYYYMMDD') +6,'YYYYMMDD'),5,2)>SUBSTR(TMP_MON,5,2) THEN
+				   RESULT :=0;
+				END IF; 
+				
+				
+   END IF   ;
+   
+   
+   
+   RETURN RESULT;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Get_Week_First_Date;
+/
+CREATE OR REPLACE FUNCTION F_GET_WEEK_IN_MONTH(in_DATE IN VARCHAR2) RETURN NUMBER IS
+WEEK_NO NUMBER;
+WEEK NUMBER;
+SEQ_DAY NUMBER;
+FROM_DATE VARCHAR2(10);
+
+/******************************************************************************
+   NAME:       F_GET_DAY
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        15/07/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_DAY
+      Sysdate:         15/07/2006
+      Date and Time:   15/07/2006, 1:43:40 PM, and 15/07/2006 1:43:40 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+
+   WEEK_NO := TO_NUMBER(SUBSTR(in_DATE,7,2)) ;
+   
+   SELECT TO_NUMBER(SUBSTR(MIN(CAR_DATE),7,2)) INTO SEQ_DAY FROM TCO_ABCALENDAR 
+   WHERE DAY_TYPE=2 AND CAR_DATE BETWEEN SUBSTR(in_DATE,1,6)||'01' AND TO_CHAR(LAST_DAY(to_date(in_DATE,'yyyymmdd')),'yyyymmdd');
+   
+   IF SEQ_DAY=1 THEN -- THU 2 LA NGAY DAU THANG
+   	  		  SELECT   (CASE WHEN WEEK_NO<=SEQ_DAY + 6 THEN 1  
+								WHEN WEEK_NO BETWEEN SEQ_DAY+7 AND SEQ_DAY+13 THEN 2
+								WHEN WEEK_NO BETWEEN SEQ_DAY+14 AND SEQ_DAY+20 THEN 3
+								WHEN WEEK_NO BETWEEN SEQ_DAY+21 AND SEQ_DAY+27 THEN 4
+								WHEN WEEK_NO>=SEQ_DAY+28 THEN 5	END) INTO WEEK
+				FROM DUAL;
+   	     
+   ELSE
+			   SELECT   (CASE WHEN WEEK_NO<SEQ_DAY THEN 1  
+						   		WHEN WEEK_NO BETWEEN SEQ_DAY AND SEQ_DAY+6 THEN 2
+								WHEN WEEK_NO BETWEEN SEQ_DAY+7 AND SEQ_DAY+13 THEN 3
+								WHEN WEEK_NO BETWEEN SEQ_DAY+14 AND SEQ_DAY+20 THEN 4
+								WHEN WEEK_NO>SEQ_DAY+20 THEN 5	END) INTO WEEK
+				FROM DUAL;				
+	END IF;
+   
+   RETURN WEEK;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_GET_WEEK_IN_MONTH;
+/
+CREATE OR REPLACE FUNCTION F_Get_Week_Last_Date (MON  IN VARCHAR2 ,WEEK_NO IN NUMBER ) RETURN VARCHAR2 IS
+result  VARCHAR2(10);
+TMP_DT VARCHAR2(10);
+TMP_MON VARCHAR2(8);
+TMP_FIRST_SD VARCHAR2(10);
+/******************************************************************************
+   NAME:       F_Get_First_Week_Date
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        16/08/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_Get_First_Week_Date
+      Sysdate:         16/08/2006
+      Date and Time:   16/08/2006, 12:58:19 PM, and 16/08/2006 12:58:19 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+IF F_Get_Week_First_Date(MON,WEEK_NO)<> '0' THEN 
+   RESULT :=     TO_CHAR( TO_DATE( F_Get_Week_First_Date(MON,WEEK_NO),'YYYYMMDD') + 6,'YYYYMMDD')  ;
+ELSE 
+	 RESULT :=0;
+END IF ; 
+  
+   RETURN RESULT;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Get_Week_Last_Date;
+/
+CREATE OR REPLACE FUNCTION F_Get_Week_SEQUENCE
+(
+ 	   in_DATE IN VARCHAR2,
+	   in_FROM IN VARCHAR2
+) RETURN NUMBER IS
+WEEK_NO NUMBER;
+WEEK NUMBER;
+FROM_DATE VARCHAR2(10);
+TO_DATE VARCHAR2(10);
+
+/******************************************************************************
+   NAME:       F_GET_DAY
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        15/07/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_GET_DAY
+      Sysdate:         15/07/2006
+      Date and Time:   15/07/2006, 1:43:40 PM, and 15/07/2006 1:43:40 PM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+
+   WEEK_NO := 0 ;
+   
+   
+   SELECT COUNT(*) INTO WEEK FROM TCO_ABCALENDAR 
+   WHERE CAR_DATE BETWEEN in_FROM AND in_DATE;
+   
+   SELECT (CASE WHEN WEEK<=7 THEN 1
+   		  	    		   		WHEN WEEK>7 AND WEEK <=14 THEN 2
+								WHEN WEEK >14 AND WEEK<=21 THEN 3
+								WHEN WEEK >21 AND WEEK<=28 THEN 4
+								ELSE 5
+								END) INTO WEEK_NO FROM DUAL;
+								
+   RETURN WEEK_NO;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Get_Week_SEQUENCE;
+/
+CREATE OR REPLACE FUNCTION F_GET_WT(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    VARCHAR2(8);
+  AV_TOM_DT	    VARCHAR2(8);
+  AV_START	    VARCHAR2(14) := NULL;
+  AV_END		VARCHAR2(14) := NULL;
+  SHIFT_START   VARCHAR2(14) := NULL;
+  SHIFT_END     VARCHAR2(14) := NULL;
+
+  BEGIN
+  
+    SELECT A.START_TIME, A.END_TIME INTO SHIFT_START, SHIFT_END
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+	
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+	
+	IF SHIFT_START < SHIFT_END THEN
+	    IF AS_START < SHIFT_START THEN
+		    IF AS_END < SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_CUR_DT || ' ' || AS_END;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+		    END IF;
+		ELSE
+		    IF AS_END > SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || AS_START;
+		        AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || AS_START;
+		        AV_END   := AV_CUR_DT || ' ' || AS_END;
+		    END IF;
+		
+		END IF;
+	ELSE
+	    IF AS_START < SHIFT_START THEN
+		    IF AS_END < SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_TOM_DT || ' ' || AS_END;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_TOM_DT || ' ' || SHIFT_END;
+		    END IF;
+		ELSE
+		    IF AS_END > SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || AS_START;
+		        AV_END   := AV_TOM_DT || ' ' || SHIFT_END;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || AS_START;
+		        AV_END   := AV_TOM_DT || ' ' || AS_END;
+		    END IF;
+		
+		END IF;
+	
+	END IF;
+	
+	
+	
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;
+
+	N_WT_TIME := N_HOUR + N_MINUTE+0.01;
+	
+	/*IF N_WT_TIME > 4 THEN
+	    N_WT_TIME := N_WT_TIME - 1;
+	ELSE
+	    N_WT_TIME := N_WT_TIME;
+	END IF;*/
+	
+	IF N_WT_TIME > 7.83 THEN 
+	    N_WT_TIME := 8;
+	ELSIF N_WT_TIME < 0 THEN
+	    N_WT_TIME := 0;
+	ELSE
+	    N_WT_TIME := N_WT_TIME;
+	END IF;
+		
+	N_WT_TIME := N_WT_TIME - 0.25;--MOVING TIME 
+	SELECT TRUNC(N_WT_TIME+0.25)+(ROUND(N_WT_TIME+0.25)-TRUNC(N_WT_TIME+0.25))/2
+	  INTO N_WT_TIME
+      FROM DUAL;
+	
+	
+/*	
+	IF AS_START < '16:30' THEN
+	    N_WT_TIME := 0;
+	END IF;
+	*/
+	RETURN N_WT_TIME;
+END;
+/
+CREATE OR REPLACE FUNCTION F_Get_Wt_New(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    	   	 	 VARCHAR2(8);
+  AV_TOM_DT	                 VARCHAR2(8);
+  AV_START	                 VARCHAR2(14) := NULL;
+  AV_END		             VARCHAR2(14) := NULL;
+  SHIFT_START                VARCHAR2(14) := NULL;
+  SHIFT_END                  VARCHAR2(14) := NULL;
+  AV_LUNCH                   VARCHAR2(5)  := NULL;
+  AV_ELUNCH                  VARCHAR2(5)  := NULL;
+  AV_START1					 VARCHAR2(5)  := NULL;
+  AV_END1		             VARCHAR2(5)  := NULL;  
+  AV_LUNCH_INTERVAL			 NUMBER;  	 
+  AV_IN_INTERVAL			 NUMBER;  
+  AV_OUT_INTERVAL			 NUMBER;
+  AV_START_LUNCH			 VARCHAR2(14) := NULL; 
+  AV_END_LUNCH				 VARCHAR2(14) := NULL; 
+  AV_START_OT				 VARCHAR2(14) := NULL;
+  AV_SHIFT_END				 VARCHAR2(14) := NULL;
+  AV_TEMP				 VARCHAR2(1) := NULL;
+  IN_TMP1				 NUMBER;
+  IN_TMP2				 VARCHAR2(2);
+  
+  BEGIN
+  --if there is no IN or OUT time ignore it
+  --RAISE_APPLICATION_ERROR(-20002, AS_START ||'ERROR..'||AS_END||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+	IF AS_START = AS_END THEN
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+
+    SELECT A.START_TIME, A.END_TIME INTO SHIFT_START, SHIFT_END
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+	SELECT A.START_LUNCH, A.END_LUNCH, A.LUNCH_INTERVAL, A.START_OT 
+	  INTO AV_LUNCH, AV_ELUNCH, AV_LUNCH_INTERVAL, AV_START_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+	   
+	/*IF (AS_END <= SHIFT_START) AND (SHIFT_START < SHIFT_END) THEN --CA NGAY MA GIO OUT LAI NHO HON  SHIFT START
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;*/	 
+
+	-- ************** LAM TRON GIO OUT
+		/*IF (TO_NUMBER(SUBSTR(AS_END,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=7) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 8) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 15) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '07';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 15) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=22) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 23) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 30) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '22';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 30) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 37) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 38) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 45) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '37';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 45) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 53) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 54) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <60) THEN
+		  	AV_END1 := SUBSTR(AS_END,1,3) || '52';
+	ELSE 	
+	    IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;			
+   */
+
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <20) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 40) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 50) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 50)  THEN 	
+	    IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;			
+	    
+		
+	--  IN TRONG KHOANG THOI GIAN COM TRUA TINH TU KET THUC GIO AN COM TRUA 
+	IF (AS_START > AV_LUNCH AND AS_START < AV_ELUNCH) THEN
+	    AV_START1 := AV_ELUNCH;
+	--  IN 07:35, 07:40 XEM NHU LA 07:30
+	ELSIF ((TO_NUMBER(SUBSTR(AS_START,1,2)) - TO_NUMBER(SUBSTR(SHIFT_START,1,2)) = 0) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) - TO_NUMBER(SUBSTR(SHIFT_START,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) - TO_NUMBER(SUBSTR(SHIFT_START,4,2)) < 10)) THEN
+	    AV_START1 := SHIFT_START;		
+	ELSE
+		AV_START1 := AS_START;
+	END IF;   
+	
+	--lam tron gio in
+	
+	IF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >=0) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 15) THEN
+	   		 AV_START1 := SUBSTR(AV_START1,1,3) || '00';							 
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >=15) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 20) THEN
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >=20 ) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 40) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >=40 ) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 50) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >=50 ) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 60) THEN 	
+	    --AV_START1 := SUBSTR(AV_START1,1,3) || '45';
+		  IN_TMP1:= TO_NUMBER(SUBSTR(AV_START1,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_START1 := IN_TMP2 ||':' || '00';
+	END IF;
+/*
+		IF (TO_NUMBER(SUBSTR(AV_START1,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) <=7) THEN
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '07';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 8) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 15) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 15) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) <=22) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '22';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 23) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 30) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 30) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) <= 37) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '37';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 38) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) < 45) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 45) AND (TO_NUMBER(SUBSTR(AV_START1,4,2)) <= 53) THEN 	
+	    AV_START1 := SUBSTR(AV_START1,1,3) || '52';
+	ELSIF (TO_NUMBER(SUBSTR(AV_START1,4,2)) >= 54)  THEN 	
+		  IN_TMP1:= TO_NUMBER(SUBSTR(AV_START1,1,2)) + 1;
+		IF IN_TMP1 >24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_START1 := IN_TMP2 ||':' || '00';
+	END IF;
+	
+	--  OUT TRONG KHOANG THOI GIAN COM TRUA TINH TU GIO BAT DAU AN COM TRUA 
+	IF AV_END1 > AV_LUNCH AND AV_END1 < AV_ELUNCH THEN
+	    AV_END1 := AV_LUNCH;		
+    ELSE
+	    AV_END1 := AV_END1;
+	END IF;
+*/
+	 -- VO SOM, VE TRE : WT=8
+IF SHIFT_START > AV_START1 AND SHIFT_END < AV_END1 THEN
+	N_WT_TIME := 8;
+ELSE
+	IF SHIFT_START < SHIFT_END THEN
+	    IF AV_START_OT < SHIFT_END THEN   -- START_OT = 15:00, 15:30
+		   	SHIFT_END := AV_START_OT;		   
+		END IF;
+		
+		IF AV_START1 <= SHIFT_START THEN
+		    IF AV_END1 < SHIFT_END THEN
+			   IF AV_END1< SHIFT_START THEN -- RA NGAY HOM SAU
+			   		    AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		       			 AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+				ELSE
+ 			   		    AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		       			 AV_END   := AV_CUR_DT || ' ' || AV_END1;
+					
+				END IF;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+				IF SUBSTR(AV_END1,1,2) = '24' THEN --CANNOT CLACULATE 24:00 CASE SO NEED CHANGE THE 00:00 CASE
+		            AV_END := AV_TOM_DT || ' ' || '00'||SUBSTR(AV_END1,3,5);
+		        END IF;
+		    END IF;
+		ELSE --VAO TRE
+		    IF AV_END1 <= SHIFT_END THEN
+			   	IF AV_END1< SHIFT_START THEN -- RA NGAY HOM SAU
+			       			AV_START := AV_CUR_DT || ' ' || AV_START1;
+		        			AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+				ELSE
+							AV_START := AV_CUR_DT || ' ' || AV_START1;
+							AV_END   := AV_CUR_DT || ' ' || AV_END1;
+				END IF;
+			ELSE
+			
+		        AV_START := AV_CUR_DT || ' ' || AV_START1;
+		        AV_END   := AV_CUR_DT || ' ' || SHIFT_END;
+		    END IF;
+
+		END IF;
+		
+		AV_SHIFT_END := AV_CUR_DT || ' ' || SHIFT_END;
+		
+	ELSE
+	    IF AV_START_OT < SHIFT_END THEN   -- START_OT = 15:00, 15:30
+		   	SHIFT_END := AV_START_OT;		   
+		END IF;
+		
+		IF AV_START1 < SHIFT_START THEN
+		    IF AV_END1 < SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+		        AV_END   := AV_TOM_DT || ' ' || SHIFT_END;
+		    END IF;
+		ELSE
+		    IF AV_END1 > SHIFT_END THEN
+			    AV_START := AV_CUR_DT || ' ' || AV_START1;
+		        AV_END   := AV_TOM_DT || ' ' || SHIFT_END;
+			ELSE
+		        AV_START := AV_CUR_DT || ' ' || AV_START1;
+		        AV_END   := AV_TOM_DT || ' ' || AV_END1;
+		    END IF;
+
+		END IF;
+
+		AV_SHIFT_END := AV_TOM_DT || ' ' || SHIFT_END;
+			
+	END IF;
+	
+	AV_START_LUNCH  := AV_CUR_DT || ' ' || AV_LUNCH;	
+	AV_END_LUNCH    := AV_CUR_DT || ' ' || AV_ELUNCH;		
+ 
+ 	IF AV_END1>=  AV_LUNCH  AND AV_END1 <= AV_ELUNCH THEN
+	   AV_END :=   AV_CUR_DT || ' ' || AV_LUNCH ;
+	END IF ;
+		
+	
+	
+/*	
+	SELECT TRUNC((TO_DATE(AV_START,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START_LUNCH,'YYYYMMDD HH24:MI')) * 24 )
+	      + TRUNC(MOD((TO_DATE(AV_START,'YYYYMMDD HH24:MI') - TO_DATE(AV_START_LUNCH,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO AV_IN_INTERVAL
+	FROM DUAL;
+	
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START_LUNCH,'YYYYMMDD HH24:MI')) * 24 )
+	      + TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START_LUNCH,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO AV_OUT_INTERVAL
+	FROM DUAL;
+*/		
+	
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;	
+		
+	
+	N_WT_TIME := N_HOUR + N_MINUTE;
+		
+	IF AV_LUNCH_INTERVAL>0 AND AV_START1<=AV_LUNCH AND AV_END1 >AV_ELUNCH THEN
+		N_WT_TIME := N_WT_TIME - AV_LUNCH_INTERVAL;		
+	ELSE
+	    N_WT_TIME := N_WT_TIME;
+	END IF;	
+	
+
+	
+	-- VE SOM 1 PHUT CUNG TRU GIO WT, 16:00 -> 16:29 : 7.5
+	IF (N_WT_TIME > 8)THEN
+	    N_WT_TIME := 8;	
+	ELSIF N_WT_TIME <= 0.5 THEN
+	    N_WT_TIME := 0;
+	ELSE
+	    N_WT_TIME := N_WT_TIME;
+	END IF;
+	
+
+END IF;
+    IF AS_END IS NULL THEN
+	    N_WT_TIME := 0;
+	END IF;
+
+	RETURN N_WT_TIME; 
+
+	EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, AS_END ||'ERROR..'||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_Get_Wt_Nshift(
+  AS_START           IN  VARCHAR2,
+  AS_END             IN  VARCHAR2,
+  AS_SHIFT           IN  VARCHAR2
+  ) RETURN NUMBER IS
+  N_HOUR    	NUMBER;
+  N_MINUTE  	NUMBER;
+  N_WT_TIME 	NUMBER;
+
+  AV_CUR_DT	    	   	 	 VARCHAR2(8);
+  AV_TOM_DT	                 VARCHAR2(8);
+  AV_START	                 VARCHAR2(14) := NULL;
+  AV_END		             VARCHAR2(14) := NULL;
+  SHIFT_START                VARCHAR2(14) := NULL;
+  SHIFT_END                  VARCHAR2(14) := NULL;
+  AV_DINNER                   VARCHAR2(5)  := NULL;
+  AV_EDINNER                  VARCHAR2(5)  := NULL;
+  AV_START1					 VARCHAR2(5)  := NULL;
+  AV_END1		             VARCHAR2(5)  := NULL;  
+  AV_DINNER_INTERVAL			 NUMBER;  	 
+  AV_IN_INTERVAL			 NUMBER;  
+  AV_OUT_INTERVAL			 NUMBER;
+  AV_START_LUNCH			 VARCHAR2(14) := NULL; 
+  AV_END_LUNCH				 VARCHAR2(14) := NULL; 
+  AV_START_OT				 VARCHAR2(14) := NULL;
+  AV_SHIFT_END				 VARCHAR2(14) := NULL;
+  AV_TEMP				 VARCHAR2(1) := NULL;
+  IN_TMP1				 NUMBER;
+  IN_TMP2				 VARCHAR2(2);
+  AV_OT					 NUMBER:=0;
+  
+  BEGIN
+  --if there is no IN or OUT time ignore it
+  --RAISE_APPLICATION_ERROR(-20002, AS_START ||'ERROR..'||AS_END||'. OTHER (PR_OT_RECALCULATE) '||SQLERRM );
+  
+	 SELECT A.START_TIME, A.END_TIME,A.OT INTO SHIFT_START, SHIFT_END,AV_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0 AND A.PK = AS_SHIFT;
+	
+	IF AS_START = AS_END  THEN
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+
+	IF (SHIFT_START< SHIFT_END)THEN
+		 	N_WT_TIME := F_Get_Wt_New(AS_START,AS_END,AS_SHIFT);
+			RETURN N_WT_TIME;
+	END IF;	 
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD'), TO_CHAR(SYSDATE+1, 'YYYYMMDD') INTO AV_CUR_DT, AV_TOM_DT FROM DUAL;
+
+	SELECT A.START_DINNER, A.END_DINNER, A.DINNER_INTERVAL, A.START_OT 
+	  INTO AV_DINNER, AV_EDINNER, AV_DINNER_INTERVAL, AV_START_OT
+      FROM THR_WORK_SHIFT A
+     WHERE A.DEL_IF = 0
+       AND A.PK = AS_SHIFT;
+
+	   
+	IF (AS_END <= SHIFT_START) AND (SHIFT_START < SHIFT_END) THEN --CA NGAY MA GIO OUT LAI NHO HON  SHIFT START
+	 	N_WT_TIME := 0;
+		RETURN N_WT_TIME;
+	END IF;	 
+
+		/*-- ************** LAM TRON GIO OUT
+		IF (TO_NUMBER(SUBSTR(AS_END,4,2)) > 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=7) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 8) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 15) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '07';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 15) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <=22) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 23) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 30) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '22';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 30) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 37) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 38) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) < 45) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '37';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 45) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 53) THEN 	
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 54) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <60) THEN
+		  	AV_END1 := SUBSTR(AS_END,1,3) || '52';
+	ELSE 	
+	    IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >=24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;			*/
+
+	-- ************** LAM TRON GIO OUT 
+	-- CHUT XIU COI LAI  
+	IF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 9) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '00';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 10) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 19) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '15';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 39) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '30';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_END,4,2)) <= 49) THEN
+	    AV_END1 := SUBSTR(AS_END,1,3) || '45';
+	ELSIF (TO_NUMBER(SUBSTR(AS_END,4,2)) >= 50) THEN
+		IN_TMP1:= TO_NUMBER(SUBSTR(AS_END,1,2)) + 1;
+		IF IN_TMP1 >=24 THEN
+		   IN_TMP1:=IN_TMP1-24;
+		END IF;
+		IF IN_TMP1 <10 THEN
+				IN_TMP2:='0'||IN_TMP1;
+		ELSE
+		  		  IN_TMP2:=IN_TMP1;
+		END IF;
+		
+	    AV_END1 := IN_TMP2 ||':' || '00';
+	END IF;	    
+	
+	IF AV_DINNER_INTERVAL >0 THEN
+	--  IN TRONG KHOANG THOI GIAN COM TRUA TINH TU KET THUC GIO AN COM TRUA 
+		IF (AS_START > AV_DINNER AND AS_START < AV_EDINNER) THEN
+		    AV_START1 := AV_EDINNER;
+		END IF;
+	END IF;
+	
+	--LAM TRON GIO IN DOI VO'I NHUNG NGUOI VO TRE 
+	IF AS_START>SHIFT_START THEN
+				IF (TO_NUMBER(SUBSTR(AS_START,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 9) THEN
+				    AV_START1 := SUBSTR(AS_START,1,3) || '00';
+				ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 10) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 19) THEN
+				    AV_START1 := SUBSTR(AS_START,1,3) || '15';
+				ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 39) THEN
+				    AV_START1 := SUBSTR(AS_START,1,3) || '30';
+				ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 49) THEN
+				    AV_START1 := SUBSTR(AS_START,1,3) || '45';
+				ELSIF (TO_NUMBER(SUBSTR(AS_START,4,2)) >= 50) THEN
+					IN_TMP1:= TO_NUMBER(SUBSTR(AS_START,1,2)) + 1;
+					IF IN_TMP1 >=24 THEN
+					   IN_TMP1:=IN_TMP1-24;
+					END IF;
+					IF IN_TMP1 <10 THEN
+							IN_TMP2:='0'||IN_TMP1;
+					ELSE
+					  		  IN_TMP2:=IN_TMP1;
+					END IF;
+					
+				    AV_START1 := IN_TMP2 ||':' || '00';
+
+				END IF;	
+	ELSE
+				 IF SHIFT_START>SHIFT_END THEN -- CA DEM 
+					 				IF AS_START<SHIFT_END THEN --VAO TRONG NGAY HOM SAU
+							   					  	  --LAM TRON GIO VAO TRE
+													  				IF (TO_NUMBER(SUBSTR(AS_START,4,2)) >= 0) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 9) THEN
+																					    AV_START1 := SUBSTR(AS_START,1,3) || '00';
+																					ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 10) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 19) THEN
+																					    AV_START1 := SUBSTR(AS_START,1,3) || '15';
+																					ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 20) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 39) THEN
+																					    AV_START1 := SUBSTR(AS_START,1,3) || '30';
+																					ELSIF(TO_NUMBER(SUBSTR(AS_START,4,2)) >= 40) AND (TO_NUMBER(SUBSTR(AS_START,4,2)) <= 49) THEN
+																					    AV_START1 := SUBSTR(AS_START,1,3) || '45';
+																					ELSIF (TO_NUMBER(SUBSTR(AS_START,4,2)) >= 50) THEN
+																						IN_TMP1:= TO_NUMBER(SUBSTR(AS_START,1,2)) + 1;
+																						IF IN_TMP1 >=24 THEN
+																						   IN_TMP1:=IN_TMP1-24;
+																						END IF;
+																						IF IN_TMP1 <10 THEN
+																								IN_TMP2:='0'||IN_TMP1;
+																						ELSE
+																						  		  IN_TMP2:=IN_TMP1;
+																						END IF;
+																						
+																					    AV_START1 := IN_TMP2 ||':' || '00';
+																	
+																	END IF;	
+												ELSE
+									  		  					 AV_START1 := SHIFT_START;	
+									END IF;
+					ELSE --CA NGAY
+						 	  	   AV_START1 := SHIFT_START;	
+					END IF;
+		
+	END IF;	
+			
+	
+	--  OUT TRONG KHOANG THOI GIAN AN COM TINH TU GIO BAT DAU AN COM TRUA 
+	IF AV_END1 > AV_DINNER AND AV_END1 < AV_EDINNER THEN
+	    AV_END1 := AV_DINNER;		
+    ELSE
+	    AV_END1 := AV_END1;
+	END IF;
+
+	 -- VO SOM, VE TRE : WT=8
+
+	IF SHIFT_START > SHIFT_END THEN --ca dem
+		IF SHIFT_START<AV_START_OT THEN
+		   			  IF AV_END1<AV_START_OT THEN
+					  	 			IF  AV_END1>SHIFT_START THEN
+													AV_END:=AV_CUR_DT || ' ' || AV_END1;
+									ELSE
+													AV_END:=AV_CUR_DT || ' ' ||AV_START_OT;
+									END IF;
+						ELSE
+									AV_END:=AV_CUR_DT || ' ' ||AV_START_OT;
+						END IF;
+		ELSE -- SHIFT_START > AV_START_OT
+			 			IF AV_END1<SHIFT_START THEN
+						   			IF AV_END1<AV_START_OT THEN
+									   			AV_END:=AV_TOM_DT || ' ' ||AV_END1;
+									ELSE
+												AV_END:=AV_TOM_DT || ' ' ||AV_START_OT;
+									END IF;
+						ELSE-- AV_END1>SHIFT_START
+							       AV_END:=AV_CUR_DT || ' ' ||AV_END1;
+					    END IF;
+		END IF;
+		IF AV_START1 < SHIFT_START THEN
+		   			 IF SHIFT_START>SHIFT_END THEN -- CA DEM 
+					 				IF AV_START1<SHIFT_END THEN --VAO TRONG NGAY HOM SAU
+											 				AV_START := AV_TOM_DT || ' ' || AV_START1;
+									ELSE
+									  		   AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+									END IF;
+					ELSE --CA NGAY
+						 	  	  AV_START := AV_CUR_DT || ' ' || SHIFT_START;
+					END IF;
+		 ELSE --VAO TRE
+		 	 		 AV_START := AV_CUR_DT || ' ' || AV_START1;
+		END IF;
+END IF;
+	
+	AV_START_LUNCH  := AV_CUR_DT || ' ' || AV_DINNER;	
+	AV_END_LUNCH    := AV_CUR_DT || ' ' || AV_EDINNER;		
+	
+	
+	SELECT TRUNC((TO_DATE(AV_END,'YYYYMMDD HH24:MI')     - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 )
+	      ,TRUNC(MOD((TO_DATE(AV_END,'YYYYMMDD HH24:MI') - TO_DATE(AV_START,'YYYYMMDD HH24:MI')) * 24 * 60, 60) / 0.6 ) * 0.01
+	INTO N_HOUR, N_MINUTE
+	FROM DUAL;	
+		
+	
+	N_WT_TIME := N_HOUR + N_MINUTE;
+
+	--TINH GIO LAM VIEC TRU GIO COM (GIO COM DUA VAO USER NHAP TREN MAY, NHAP SAI TINH SAI :-)
+	N_WT_TIME := N_WT_TIME - AV_DINNER_INTERVAL;		
+	
+
+	
+	-- VE SOM 1 PHUT CUNG TRU GIO WT, 16:00 -> 16:29 : 7.5
+	IF (N_WT_TIME > 8) THEN
+	    N_WT_TIME := 8;	
+	ELSIF (N_WT_TIME = 0.49) THEN   --********* 07:30 -> 08:00: 0.5WT
+		N_WT_TIME := 0.5;
+	ELSIF N_WT_TIME < 0 THEN
+	    N_WT_TIME := 0;
+	ELSE
+	    N_WT_TIME := N_WT_TIME;
+	END IF;
+	
+
+	--N_WT_TIME := N_WT_TIME - 0.25;--MOVING TIME
+	
+/*	SELECT TRUNC(N_WT_TIME+0.25)+(ROUND(N_WT_TIME+0.25)-TRUNC(N_WT_TIME+0.25))/2
+	  INTO N_WT_TIME
+      FROM DUAL;*/
+
+
+
+    IF AS_END IS NULL THEN
+	    N_WT_TIME := 0;
+	END IF;
+
+	RETURN N_WT_TIME; 
+
+	EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, AS_END ||'ERROR..'||'. OTHER (F_GET_WT_NSHIFT) '||SQLERRM );
+		
+	
+END;
+/
+CREATE OR REPLACE FUNCTION F_Is_SunDay 
+(
+ 	   inStrDate  IN  VARCHAR2
+)
+RETURN NUMBER IS
+
+BEGIN
+
+	 if mod((to_date(inStrDate,'YYYYMMDD')-to_date('19900107','YYYYMMDD')),7 )=0 then
+	 	return 0;
+	 else
+	 	 return 1;
+	 end if;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_Is_SunDay;
+/
+CREATE OR REPLACE FUNCTION F_MINUS_HOUR(
+HOURS IN VARCHAR2,
+NUM IN NUMBER
+)RETURN VARCHAR2 IS
+AV_NUM  NUMBER;
+
+
+BEGIN
+   AV_NUM:=TO_NUMBER(SUBSTR(HOURS,1,2));
+   IF AV_NUM=0 THEN
+   	  AV_NUM:=12;
+   END IF;
+   AV_NUM:=AV_NUM-NUM;
+   IF AV_NUM<0 THEN
+   	  RETURN HOURS;
+   ELSIF AV_NUM<10 THEN
+   		 RETURN '0'||AV_NUM||SUBSTR(HOURS,3,3);
+   ELSE
+  	  RETURN AV_NUM||SUBSTR(HOURS,3,3);
+   	  	   	   
+   END IF;
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_MINUS_HOUR;
+/
+CREATE OR REPLACE FUNCTION F_Replace_Time_P(
+  AS_EMP_PK           IN  NUMBER,
+  AS_DATE             IN  VARCHAR2
+   ) RETURN NUMBER IS
+  OT NUMBER;
+  NUM_OT NUMBER;
+
+  BEGIN
+  	   --UPDATE THR_TIME_MACHINE A SET A.WORK_TIME=A.WORK_TIME + F_Check_Ot_Yupoong(AS_EMP_PK,AS_DATE)  WHERE   A.WORK_TIME+F_Check_Ot_Yupoong(AS_EMP_PK,AS_DATE)<=8;
+	   --RETURN 0;
+  	   SELECT F_Check_Ot_Yupoong(AS_EMP_PK,AS_DATE) INTO OT FROM DUAL;
+	   RETURN OT;
+ EXCEPTION
+	WHEN  OTHERS THEN
+		RAISE_APPLICATION_ERROR(-20003, 'ERROR..'||'. OTHER (ERROR) '||SQLERRM );
+
+
+END;
+/
+CREATE OR REPLACE FUNCTION F_Sequence (v_user IN VARCHAR2)
+   RETURN VARCHAR2
+IS
+   PRAGMA autonomous_transaction;
+/*====================================================
+FUNCTION NM :  F_SEQUENCE
+REMARK      :  CREATE SEQUENCE
+PARAMETER   :   TABLE OWNER
+RETURN      :   TABLE QUANTITY
+MODULE:
+CREATED DT  :  2004/01/10
+CREATED BY  :  SYJEON, GENUWIN
+=====================================================*/
+   lsvsql     VARCHAR2 (4000) := NULL;
+   lnvmaxpk   NUMBER          := 0;
+   ddd        VARCHAR2 (1000) := '0';
+--------
+BEGIN
+--------
+   FOR c1 IN (SELECT table_name
+                FROM all_all_tables
+               WHERE owner = UPPER (v_user) AND table_name LIKE 'TH%')
+   LOOP
+      lsvsql :=
+            'select count (*) from  all_objects where owner = '''
+         || UPPER (v_user)
+         || ''' and object_type = ''SEQUENCE'' and object_name = '''
+         || UPPER (c1.table_name)
+         || '_SEQ''';
+
+      EXECUTE IMMEDIATE lsvsql
+                   INTO lnvmaxpk;
+
+      IF lnvmaxpk > 0
+      THEN
+         lsvsql := 'DROP SEQUENCE ' || v_user || '.' || c1.table_name || '_SEQ';
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lsvsql := 'SELECT nvl(MAX(PK),0)+1 from ' || c1.table_name;
+
+         EXECUTE IMMEDIATE lsvsql
+                      INTO lnvmaxpk;
+
+         lsvsql := 'create SEQUENCE ' || v_user || '.' || c1.table_name || '_SEQ start with ' || lnvmaxpk;
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         BEGIN
+            lsvsql :=
+               'CREATE PUBLIC SYNONYM ' || c1.table_name || '_SEQ FOR ' || v_user || '.' || c1.table_name
+               || '_SEQ';
+
+            EXECUTE IMMEDIATE lsvsql;
+         EXCEPTION
+            WHEN OTHERS
+            THEN
+               ddd := lsvsql;
+         END;
+
+         BEGIN
+            lsvsql := 'CREATE PUBLIC SYNONYM ' || c1.table_name || ' FOR ' || v_user || '.' || c1.table_name;
+
+            EXECUTE IMMEDIATE lsvsql;
+         EXCEPTION
+            WHEN OTHERS
+            THEN
+               ddd := lsvsql;
+         END;
+
+         lsvsql := 'grant select on ' || v_user || '.' || c1.table_name || '_SEQ to public';
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lsvsql := 'grant select on ' || v_user || '.' || c1.table_name || ' to public';
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lnvmaxpk := 0;
+      ELSE
+         lsvsql := 'create SEQUENCE ' || v_user || '.' || c1.table_name || '_SEQ start with ' || 1;
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lsvsql :=
+              'CREATE PUBLIC SYNONYM ' || c1.table_name || '_SEQ FOR ' || v_user || '.' || c1.table_name || '_SEQ';
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lsvsql := 'grant select on ' || v_user || '.' || c1.table_name || '_SEQ to public';
+
+         EXECUTE IMMEDIATE lsvsql;
+
+         lsvsql := 'grant select on ' || v_user || '.' || c1.table_name || ' to public';
+
+         EXECUTE IMMEDIATE lsvsql;
+      END IF;
+   END LOOP;
+
+   RETURN 'reset sequence is successful';
+EXCEPTION
+   WHEN OTHERS
+   THEN
+      RETURN lsvsql || SQLERRM;
+END;
+/
+CREATE OR REPLACE FUNCTION F_SEQUENCE_TABLE
+  (v_TABLE       IN       VARCHAR2         -- TABLE OWNER
+  )
+RETURN  VARCHAR2
+IS
+PRAGMA AUTONOMOUS_TRANSACTION;
+
+/*====================================================
+FUNCTION NM :	F_SEQUENCE
+REMARK      :	CREATE SEQUENCE
+PARAMETER   :   TABLE OWNER
+RETURN      :   TABLE QUANTITY
+MODULE:
+CREATED DT  :	2004/01/10
+CREATED BY  :	SYJEON, GENUWIN
+=====================================================*/
+
+lsvSql        VARCHAR2(4000) := NULL;
+
+lnvMaxPK          NUMBER := 0 ;
+
+ddd varchar2 (100) := '0' ;
+
+--------
+BEGIN
+--------
+
+
+		lsvSql := 'select count (*) from  all_objects where owner = ''HR'
+		      ||  ''' and object_type = ''SEQUENCE'' and object_name = ''' || UPPER(v_TABLE) || '_SEQ''';
+
+	    EXECUTE IMMEDIATE lsvSql INTO lnvMaxPK;
+
+		if lnvMaxPK > 0 then
+	      lsvSql := 'DROP SEQUENCE '||UPPER(v_TABLE)||'_SEQ';
+	      EXECUTE IMMEDIATE lsvSql;
+		end if;
+
+	    lsvSql := 'SELECT nvl(MAX(PK),0)+1 from '||UPPER(v_TABLE) ;
+
+	    EXECUTE IMMEDIATE lsvSql INTO lnvMaxPK;
+
+	    lsvSql := 'create SEQUENCE ' ||  UPPER(v_TABLE) || '_seq start with ' || lnvMaxPK  ;
+
+	    EXECUTE IMMEDIATE lsvSql;
+
+
+		lnvMaxPK := 0 ;
+
+
+RETURN '0';
+
+EXCEPTION
+WHEN  OTHERS  THEN
+	RETURN ddd || RTRIM(SUBSTR(SQLERRM,10,90)) || '[' || TO_CHAR(SQLCODE) || ']';
+
+END;
+/
+CREATE OR REPLACE FUNCTION F_TIME_COMP(
+  an_pk           IN  NUMBER,
+  av_time         IN  VARCHAR2,
+  av_flag         IN  VARCHAR2
+  ) RETURN NUMBER IS
+  n_start_time    NUMBER;
+  n_end_time      NUMBER;
+  v_start_time  THR_WORK_SHIFT.START_TIME%TYPE;
+  v_end_time    THR_WORK_SHIFT.END_TIME%TYPE;
+
+  BEGIN
+	SELECT START_TIME, END_TIME INTO v_start_time, v_end_time
+	FROM HR.THR_WORK_SHIFT
+	WHERE PK = an_pk;
+
+
+	SELECT (TO_DATE(av_time,   'HH24:MI') - TO_DATE(v_start_time,'HH24:MI')) * 24 * 60
+	      ,(TO_DATE(v_end_time,'HH24:MI') - TO_DATE(av_time,     'HH24:MI')) * 24 * 60
+	INTO n_start_time, n_end_time
+	--,TRUNC((TO_DATE('19:12','HH24:MI') - TO_DATE('16:00','HH24:MI')) * 24 ),
+	--,MOD((TO_DATE('19:12','HH24:MI') - TO_DATE('16:00','HH24:MI')) * 24 * 60, 60),
+	FROM DUAL;
+
+	IF av_flag = 'IN' THEN
+		IF n_start_time > 5 then
+			RETURN n_start_time;
+		ELSE
+			RETURN 0;
+		END IF;
+	ELSE
+		IF n_end_time > 5 AND n_end_time <= 240 THEN
+			RETURN n_end_time;
+		ELSIF n_end_time > 240 AND n_end_time < 530 THEN
+		    n_end_time := n_end_time - 60;
+		    RETURN n_end_time;
+		ELSE
+			RETURN 0;
+		END IF;
+	END IF;
+
+	RETURN 0;
+
+EXCEPTION
+	WHEN NO_DATA_FOUND THEN
+	RETURN 0;
+END;
+/
+CREATE OR REPLACE FUNCTION F_WEEK_TO_DATE(WEEK_NO IN NUMBER,IN_YEAR IN NUMBER,LASTDATE IN VARCHAR2) RETURN VARCHAR2 IS
+V_DATE VARCHAR2(10);
+FROM_DATE VARCHAR2(10);
+/******************************************************************************
+   NAME:       F_WEEK_TO_DATE
+   PURPOSE:    HAM TRA VE NGAY DAU TIEN HOAC CUOI CUNG CUA TUAN 
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        11/08/2006    GEM       1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_WEEK_TO_DATE
+      Sysdate:         11/08/2006
+      Date and Time:   11/08/2006, 9:15:38 AM, and 11/08/2006 9:15:38 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+	  
+	  FL : RETURN FIRST OR LATST DAY OF WEEK 
+
+******************************************************************************/
+BEGIN
+
+   SELECT MIN(CAR_DATE) INTO FROM_DATE FROM TCO_ABCALENDAR 
+   WHERE DAY_TYPE=2 AND CAR_DATE BETWEEN SUBSTR(in_YEAR,1,4)||'0101' AND SUBSTR(in_YEAR,1,4)||'0107' ;
+   
+   V_DATE:=0;
+      
+   SELECT TO_CHAR(TO_DATE(FROM_DATE,'YYYYMMDD')+(WEEK_NO-1)*7,'YYYYMMDD') INTO V_DATE FROM DUAL ;  
+   
+   IF ( LASTDATE = 'Y') THEN 
+   	  V_DATE:= TO_CHAR(TO_DATE(V_DATE,'YYYYMMDD')+ 6,'YYYYMMDD');
+   END IF ;
+   
+
+   RETURN V_DATE;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_WEEK_TO_DATE;
+/
+CREATE OR REPLACE FUNCTION F_WEEK_TO_MON(WEEK_NO IN NUMBER,IN_YEAR IN NUMBER) RETURN NUMBER IS
+V_MONTH NUMBER;
+/******************************************************************************
+   NAME:       F_WEEK_TO_MON
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        11/08/2006          1. Created this function.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     F_WEEK_TO_MON
+      Sysdate:         11/08/2006
+      Date and Time:   11/08/2006, 9:14:27 AM, and 11/08/2006 9:14:27 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+
+   SELECT SUBSTR(F_WEEK_TO_DATE(WEEK_NO,IN_YEAR,'N'),5,2) INTO V_MONTH FROM DUAL ;
+   
+    	 
+
+   RETURN V_MONTH;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END F_WEEK_TO_MON;
+/
+CREATE OR REPLACE PROCEDURE hgyg IS
+tmpVar NUMBER;
+/******************************************************************************
+   NAME:       hgyg
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/30/2006          1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     hgyg
+      Sysdate:         5/30/2006
+      Date and Time:   5/30/2006, 10:42:40 AM, and 5/30/2006 10:42:40 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+   tmpVar := 0;
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+END hgyg;
+/
+CREATE OR REPLACE PROCEDURE Pc_Atten_Mana_Daily
+(      in_Flag      in VARCHAR2, 
+	   in_EMP_PK    IN NUMBER, --1 
+	   inW_SHIFT	IN NUMBER,--  6 
+ 	   in_InTime    IN VARCHAR2,--7 
+	   in_OutTime   IN VARCHAR2,--8 
+	   in_WT	    IN NUMBER,--9  
+	   in_OT	    IN NUMBER,-- 10  
+	   in_NT	    IN NUMBER, --11  
+	   in_HT	    IN NUMBER,--12   
+	   in_ABSCode   IN VARCHAR2, --13  
+	   in_ABSTime   IN NUMBER, --14  
+	   in_TM_PK     IN NUMBER,  --15 
+	   in_OVT_PK    IN NUMBER,--OT  16  
+	   in_ABS_PK    IN NUMBER,  --17  
+	   in_Work_Date IN VARCHAR2,  --18  
+	   inNT_PK		IN NUMBER,  --19  
+	   inHT_PK		IN NUMBER, --20  
+	   inGroup_code IN NUMBER, --21  
+	   inNotes		IN VARCHAR2,
+	   in_UserID    IN VARCHAR2,
+	   rtn_Code     OUT VARCHAR2,
+	   rtn_Msg      OUT VARCHAR2
+) IS
+
+ tmp_Time NUMBER(5,2);
+ AN_CNT	  NUMBER(10) := 0;
+ V_SHIFT_START  VARCHAR2(8);
+ V_SHIFT_END  VARCHAR2(8);
+ AS_GRP_CODE NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+MARK_ERROR NUMBER(2):=0;
+MARK_NOTE  VARCHAR2(200):='';
+AV_OT_ALLOW			NUMBER(5,2) := 0;
+AV_COUNT_SHIFT		PLS_INTEGER:=0;
+
+--LUU CAC BIEN TAM
+V_TM_PK	   NUMBER(20):=0;
+V_OT_PK	   NUMBER(20):=0;
+V_NT_PK	   	 NUMBER(20):=0;
+V_HT_PK		 NUMBER(20):=0;
+V_ABS_PK	 NUMBER(20):=0;
+
+AV_BASIC_SAL		NUMBER(10):=0;
+AS_ABSENT_TIME		NUMBER(5,2):=8;
+AS_COM_FLAG			VARCHAR2(1):='N';
+AS_UNDISCIPLINED	VARCHAR2(1):='N';
+AS_COM_PAY_RATE		NUMBER(5,2):=0;
+AS_COM_AMOUNT		NUMBER(10,2):=0;
+AS_WORK_DT			VARCHAR2(8):='00000000';
+Max_Date			VARCHAR2(8);
+
+CLOSE_NUM	PLS_INTEGER:=0; 
+
+SAT_CNT		PLS_INTEGER:=0;
+
+EMP_STYLE	VARCHAR2(2);
+
+BEGIN
+AN_SYS_ERROR_MSG:='10';
+AS_WORK_DT:=SUBSTR(in_Work_Date,7,4)||SUBSTR(in_Work_Date,4,2)||SUBSTR(in_Work_Date,1,2); 
+--**********************Close****************-------------
+
+
+SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(AS_WORK_DT,1,4)||SUBSTR(AS_WORK_DT,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+	   ELSE
+						   SELECT COUNT(M.PK) INTO CLOSE_NUM FROM THR_TIME_MACHINE M
+   						   WHERE M.DEL_IF=0 AND M.WORK_DT = AS_WORK_DT
+   		 				   AND M.EMP_PK=in_EMP_PK AND M.CLOSE_FLAG='Y';
+						    IF  CLOSE_NUM>0 THEN
+								   	   	 RAISE_APPLICATION_ERROR(-20001,'');
+							END IF;
+	
+	END IF;
+	
+IF in_Flag='DELETE' THEN	
+
+   UPDATE THR_EMP_ABSENT ABS
+   SET ABS.DEL_IF=ABS.PK
+   ,ABS.REMARK=in_UserID ||'DELETE'
+   WHERE ABS.DEL_IF=0 AND ABS.ABS_DT=AS_WORK_DT AND ABS.EMP_PK=in_EMP_PK;
+   
+   UPDATE THR_TIME_MACHINE T
+   SET T.DEL_IF=T.PK
+   ,T.REMARK=in_UserID ||'DELETE'
+   WHERE T.DEL_IF=0 AND T.WORK_DT=AS_WORK_DT AND T.EMP_PK=in_EMP_PK;
+								
+	DELETE THR_EXTRA_TIME EX
+	WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT AND EX.EMP_PK=in_EMP_PK;
+	
+END IF;	
+
+
+--***********Checking Sunday***********
+		 SELECT COUNT(A.PK)
+		  INTO AN_CNT
+          FROM COMM.TCO_ABCALENDAR A
+         WHERE A.DEL_IF = 0
+           AND A.HOL_TYPE IS NOT NULL --AND A.HOL_TYPE<>'NOD'
+           AND A.CAR_DATE = AS_WORK_DT;
+		 --**************  
+-- Checking work shift --
+AN_SYS_ERROR_MSG:='20';
+if in_Flag='UPDATE' THEN
+	  		 SELECT COUNT(G.PK) INTO AV_COUNT_SHIFT
+    		 FROM THR_GRP_EMP G,THR_WORK_SHIFT H
+    		 WHERE G.del_if=0 AND H.DEL_IF=0 AND  G.WORK_SHIFT=H.PK  
+			 	   AND G.EMP_PK=in_EMP_PK AND g.START_DT=AS_WORK_DT;
+
+			IF AV_COUNT_SHIFT=0 THEN ---CHUA DUOC GROUP WORK SCHEDULE --
+			   					  MARK_ERROR:=4; 
+								  MARK_NOTE:='This Employee: '|| in_EMP_PK||' IS NOT GROUP WORK schedule';
+					   			RAISE_APPLICATION_ERROR(-20001,'');
+			
+			ELSE --UDPATE LAI NEU USER DIEU CHINH SHIFT 
+				 	UPDATE THR_GRP_EMP G
+					SET G.WORK_SHIFT=inW_SHIFT
+					WHERE G.DEL_IF=0 AND G.START_DT=AS_WORK_DT AND G.EMP_PK=in_EMP_PK
+					AND G.WORK_SHIFT<>inW_SHIFT;  
+					
+					UPDATE THR_TIME_MACHINE TM
+					SET TM.W_SHIFT=inW_SHIFT
+					WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK
+					AND TM.W_SHIFT<>inW_SHIFT;
+					
+					UPDATE THR_EXTRA_TIME EX
+					SET EX.W_SHIFT=inW_SHIFT
+					WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT AND EX.EMP_PK=in_EMP_PK
+					AND EX.W_SHIFT<>inW_SHIFT;
+			
+			END IF;
+			
+			
+
+	  		 SELECT H.START_TIME,H.END_TIME INTO  V_SHIFT_START,V_SHIFT_END
+    		 FROM THR_GRP_EMP G,THR_WORK_SHIFT H
+    		 WHERE G.del_if=0 AND G.WORK_SHIFT=H.PK  AND G.EMP_PK=in_EMP_PK AND g.START_DT=AS_WORK_DT;
+
+			 
+		 SELECT NVL(L.OT_ALLOW_TIME,0) INTO AV_OT_ALLOW
+		  FROM THR_OT_ALLOWANCE L, VHR_EMP E
+		 WHERE L.DEL_IF(+)=0 AND E.DEL_IF=0 
+		   AND E.PK = in_EMP_PK
+		   AND E.PK = L.EMP_PK(+)
+		   AND L.START_DT(+) <= AS_WORK_DT  
+		   AND L.END_DT(+) >= AS_WORK_DT; 
+
+		
+			 -- DIEU CHINH LAI CAC PK  --
+			 IF in_ABSCode IS NOT NULL THEN  -- CO VANG -
+			 			   	  V_TM_PK:=NULL;
+							  V_OT_PK:=NULL;
+							  V_NT_PK:=NULL;
+			 				  V_HT_PK:=NULL;
+							  V_ABS_PK:=in_ABS_PK;
+							 
+			ELSE
+							  V_TM_PK:=in_TM_PK;
+							  V_OT_PK:=in_OVT_PK;
+			 				  V_NT_PK:=inNT_PK;
+			 				  V_HT_PK:=inHT_PK;
+							  V_ABS_PK:=in_ABS_PK;
+				
+			END IF;
+			
+			IF in_InTime IS NULL AND in_OutTime IS NULL THEN
+			   			 	V_TM_PK:=NULL;
+							  V_OT_PK:=NULL;
+			 				  V_NT_PK:=NULL;
+			 				  V_HT_PK:=NULL;
+							  V_ABS_PK:=in_ABS_PK;
+			ELSE
+							  V_TM_PK:=in_TM_PK;
+							  V_OT_PK:=in_OVT_PK;
+			 				  V_NT_PK:=inNT_PK;
+			 				  V_HT_PK:=inHT_PK;
+							   V_ABS_PK:=in_ABS_PK;
+			END IF;
+							  
+			 IF in_ABSCode='MLE' THEN -- KO QUAN LY THAI SAN O DAY --
+			 					  MARK_ERROR:=1; 
+								  MARK_NOTE:='Can not update for meternity case';
+					   			RAISE_APPLICATION_ERROR(-20001,'');
+			END IF;
+			
+			-- ABSENT TIME=0 ==> USER MUON XOA VA'NG  --
+			IF	in_ABSCode IS NOT NULL AND 	(in_ABSTime=0 or in_ABSTime is NULL) THEN
+					 DELETE THR_EMP_ABSENT A
+						WHERE A.DEL_IF=0 AND A.EMP_PK=in_EMP_PK AND A.ABS_DT=AS_WORK_DT;
+						
+			END IF;
+			   
+			
+--ne'u co va'ng --> xoa cong, tang ca tru truong hop nghi theo ke hoach
+		IF  in_InTime IS NOT NULL Then---AND in_OutTime IS NOT NULL THEN
+													-- xoa trong vang tru truong hop nghi theo ke hoach 
+													
+					DELETE THR_EMP_ABSENT A
+					WHERE A.DEL_IF=0 AND A.EMP_PK=in_EMP_PK 
+					AND A.ABS_DT=AS_WORK_DT
+					AND A.ABS_CODE not in('TMP','WOW','ALE');
+
+								
+		ELSE --IF in_ABSCode IS NOT NULL  AND  in_ABSCode<>'TMP' THEN  --NGHI THAI SAN VA THEO KE HOACH KO TINH 
+			
+			 	   	  		 DELETE THR_TIME_MACHINE T
+								WHERE T.DEL_IF=0 AND T.WORK_DT=AS_WORK_DT AND T.EMP_PK=in_EMP_PK;
+								
+								DELETE THR_EXTRA_TIME EX
+								WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT AND EX.EMP_PK=in_EMP_PK;
+
+		END IF;
+		
+		  -- XU LY CO GIO IN - OUT - WT
+			/*	 	AN_SYS_ERROR_MSG:='30';
+				IF (in_InTime IS NULL AND in_OutTime IS NOT NULL) THEN
+					   					   MARK_ERROR:=2; --LOI IN OUT KO NHAP --
+										    MARK_NOTE:='In time - Out time can not be NULL!!!';
+					   					   RAISE_APPLICATION_ERROR(-20001,'');
+				   						   
+				END IF;*/
+			
+			IF in_ABSCode IS NOT NULL AND in_ABSCode<>'MLE'  THEN		--AND in_InTime IS NULL  AND in_OutTime IS NULL
+								
+												IF in_ABSCode IN('ALE','FLE','TMP','LA','WED') THEN --NHUNG TRUONG HOP NGHI NHU*NG DUOC TI'Nh CONG  -- 
+												   	  SELECT NVL(A.BASIC_SAL,0) INTO AV_BASIC_SAL FROM VHR_EMP A WHERE A.DEL_IF=0 AND A.PK = in_EMP_PK;
+													  		 IF in_ABSTime>0 THEN
+												   	  	  	  				  AS_ABSENT_TIME := in_ABSTime; --CO THE NGHI TMP
+															  ELSE
+															  	  			  AS_ABSENT_TIME := 8; --1 CONG WT
+															 END IF;
+															  
+															  AS_COM_FLAG :='Y';
+															  AS_COM_PAY_RATE:=100;
+															  AS_COM_AMOUNT:=ROUND(AV_BASIC_SAL*AS_ABSENT_TIME/(26*8),-2);
+												   	  
+												   ELSE--NGHI KO CO' DUOC TINH CONG
+												   	      AS_ABSENT_TIME := 8; --1 CONG WT
+														  AS_COM_FLAG :='N';
+														  AS_COM_PAY_RATE:=0;
+														  AS_COM_AMOUNT:=0;
+												END IF;
+												
+								IF in_ABSCode NOT IN('TMP','WOW') THEN --NGHI THEO KE HOACH
+							 	        DELETE THR_TIME_MACHINE T
+										WHERE T.DEL_IF=0 AND T.WORK_DT=AS_WORK_DT AND T.EMP_PK=in_EMP_PK;
+										
+										DELETE THR_EXTRA_TIME EX
+										WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT AND EX.EMP_PK=in_EMP_PK;
+								END IF;
+
+												
+							
+								IF V_ABS_PK >0 THEN --CO ROI THI UPDATE
+								    
+								
+								   			UPDATE THR_EMP_ABSENT E
+											   SET E.ABSENT_TIME = in_ABSTime
+											   	   ,E.ABS_CODE = in_ABSCode
+												   ,E.ABS_DT = AS_WORK_DT
+												   ,E.COM_AMT = AS_COM_AMOUNT
+												   ,E.COM_PAY_FLAG = AS_COM_FLAG
+												   ,E.COM_RATE = AS_COM_PAY_RATE
+												   ,E.MOD_BY = in_UserID
+												   ,E.MOD_DT = SYSDATE
+												WHERE E.PK = V_ABS_PK;
+								ELSE --CHUA CO  THI INSERT  
+								
+								
+									 INSERT INTO THR_EMP_ABSENT
+							       (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, START_DT, END_DT, ABSENT_TIME
+								   ,COM_PAY_FLAG, COM_RATE, COM_AMT,INS_PAY_FLAG,INS_RATE,APPLY_FLAG	   
+								   ,WORK_SHIFT, POS_CODE, REMARK, DEL_IF, CRT_DT, CRT_BY)	   
+								   SELECT THR_EMP_ABSENT_SEQ.NEXTVAL
+							      ,inGroup_code
+								  ,in_EMP_PK
+								  ,in_ABSCode
+								  ,B.CAR_DATE
+								  ,AS_WORK_DT
+								  ,AS_WORK_DT 
+								  ,(case when in_ABSTime is null or in_ABSTime =0 then 8 else in_ABSTime end)
+								  ,AS_COM_FLAG
+								  ,AS_COM_PAY_RATE
+								  ,AS_COM_AMOUNT
+								  ,'N',0,NULL
+								  ,inW_SHIFT
+								  ,NULL
+								  ,'INSERT FROM ATT_DAILY'
+								  ,0
+								  ,SYSDATE
+								  ,in_UserID
+							  FROM TCO_ABCALENDAR B
+							 WHERE B.DEL_IF = 0 
+							   AND B.HOL_TYPE IS NULL
+							   AND B.CAR_DATE BETWEEN AS_WORK_DT AND AS_WORK_DT
+							   AND in_EMP_PK NOT IN(SELECT C.EMP_PK FROM THR_EMP_ABSENT C 
+							   	   			 WHERE C.DEL_IF = 0 AND C.ABS_DT = B.CAR_DATE);
+
+						END IF;
+				 
+				END IF;	
+					
+				IF (in_InTime IS NOT NULL AND in_OutTime IS NOT NULL) THEN
+				
+					SELECT COUNT(C.CAR_DATE) INTO SAT_CNT FROM TCO_ABCALENDAR C WHERE C.DEL_IF = 0 AND C.DAY_TYPE = '7' AND C.CAR_DATE=AS_WORK_DT;
+					SELECT EMP_ID_STYLE INTO EMP_STYLE FROM THR_ABEMP WHERE DEL_IF=0 AND PK=in_EMP_PK;		
+							
+									IF in_WT IS NULL OR in_WT=0 THEN --AUTO CALCULATE ---
+									
+									   IF SAT_CNT = 0 THEN
+									   --------------------
+										   		   IF V_TM_PK IS NULL THEN --CHUA CO PHAI INSERT ---
+												
+												   	  		  IF AV_OT_ALLOW>0 THEN --DANG O TRONG CHE DO
+															  	 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW >=8 THEN 8
+																				  	   ELSE	F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW
+																					   END)	 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  
+															  ELSE
+															 
+ 												   	  				 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)			 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  END IF;
+																	 
+												    ELSIF AV_OT_ALLOW>0 THEN --- UPDATE NHUNG NGUOI CO ALLOWANCE  
+									                   UPDATE THR_TIME_MACHINE TM
+															SET TM.P_IN=in_InTime
+															 ,TM.P_OUT=in_OutTime
+															 ,TM.WORT_TIME=(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW>=8 THEN 8
+															 					 ELSE F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW
+																				 END)
+															 ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1+OT'
+															 ,TM.NOTES=inNotes
+   														     ,TM.MOD_BY=in_UserID
+   														     ,TM.MOD_DT=SYSDATE
+															WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK; 
+
+															
+															
+																	 
+													ELSE --KO CO ALLOWANCE
+					
+																	 	UPDATE THR_TIME_MACHINE TM
+																		SET TM.P_IN=in_InTime
+																				   ,TM.P_OUT=in_OutTime
+																				   ,TM.WORT_TIME=F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)
+																				   ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1'
+																				   ,TM.NOTES=inNotes
+																				   ,TM.MOD_BY=in_UserID
+																				   ,TM.MOD_DT=SYSDATE
+																		WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK;
+														 		
+													
+													END IF;
+										------------------
+										ELSE
+												IF EMP_STYLE = '00' THEN
+												   IF V_TM_PK IS NULL THEN --CHUA CO PHAI INSERT ---
+												
+												   	  		  IF AV_OT_ALLOW>0 THEN --DANG O TRONG CHE DO
+															  	 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW >=8 THEN 8
+																				  	   ELSE	F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW
+																					   END)	 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  
+															  ELSE
+															 
+ 												   	  				 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)			 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  END IF;
+																	 
+												    ELSIF AV_OT_ALLOW>0 THEN --- UPDATE NHUNG NGUOI CO ALLOWANCE  
+									                   UPDATE THR_TIME_MACHINE TM
+															SET TM.P_IN=in_InTime
+															 ,TM.P_OUT=in_OutTime
+															 ,TM.WORT_TIME=(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW>=8 THEN 8
+															 					 ELSE F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW
+																				 END)
+															 ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1+OT'
+															 ,TM.NOTES=inNotes
+   														     ,TM.MOD_BY=in_UserID
+   														     ,TM.MOD_DT=SYSDATE
+															WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK; 
+
+															
+															
+																	 
+													ELSE --KO CO ALLOWANCE
+					
+																	 	UPDATE THR_TIME_MACHINE TM
+																		SET TM.P_IN=in_InTime
+																				   ,TM.P_OUT=in_OutTime
+																				   ,TM.WORT_TIME=F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)
+																				   ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1'
+																				   ,TM.NOTES=inNotes
+																				   ,TM.MOD_BY=in_UserID
+																				   ,TM.MOD_DT=SYSDATE
+																		WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK;
+														 		
+													
+													END IF;
+												ELSE -- OFFICE THI TINH DU CONG 
+										   		   IF V_TM_PK IS NULL THEN --CHUA CO PHAI INSERT ---
+												   	  
+												   	  		  IF AV_OT_ALLOW>0 THEN --DANG O TRONG CHE DO 
+															  	 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW >=4 THEN 8
+																				  	   ELSE	F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)+ AV_OT_ALLOW
+																					   END)	 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  
+															  ELSE
+															 
+ 												   	  				 INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT) >=4 THEN 8
+																				  	   ELSE	F_Get_Wt_Nshift(in_InTime,in_OutTime,G.WORK_SHIFT)
+																					   END)			 
+														    		 		, 'N','INS AUTO FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+															  END IF;
+																	 
+												    ELSIF AV_OT_ALLOW>0 THEN --- UPDATE NHUNG NGUOI CO ALLOWANCE  
+									                   UPDATE THR_TIME_MACHINE TM
+															SET TM.P_IN=in_InTime
+															 ,TM.P_OUT=in_OutTime
+															 ,TM.WORT_TIME=(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW>=4 THEN 8
+															 					 ELSE F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)+AV_OT_ALLOW
+																				 END)
+															 ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1+OT'
+															 ,TM.NOTES=inNotes
+   														     ,TM.MOD_BY=in_UserID
+   														     ,TM.MOD_DT=SYSDATE
+															WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK; 
+
+															
+															
+																	 
+													ELSE --KO CO ALLOWANCE
+					
+																	 	UPDATE THR_TIME_MACHINE TM
+																		SET TM.P_IN=in_InTime
+																				   ,TM.P_OUT=in_OutTime
+																				   ,TM.WORT_TIME=(CASE WHEN F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)>=4 THEN 8
+																				   					   ELSE F_Get_Wt_Nshift(in_InTime,in_OutTime,inW_SHIFT)
+																									   END)
+																				   ,TM.REMARK= 'UPDATE AUTO FROM PC_ATT1'
+																				   ,TM.NOTES=inNotes
+																				   ,TM.MOD_BY=in_UserID
+																				   ,TM.MOD_DT=SYSDATE
+																		WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK;
+														 		
+													
+													END IF;									
+												END IF;								
+										END IF;
+										-----------------
+									ELSE --INPUT BY HAND --
+										 IF V_TM_PK IS NULL THEN --CHUA CO PHAI INSERT ---
+										 			INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,in_OutTime
+																	 		,in_WT			 
+														    		 		, 'Y','INS BY HAND FROM PC_ATT1',0,SYSDATE,in_UserID,in_InTime,in_OutTime,in_InTime,in_OutTime,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+										ELSE --CO ROI THI UPDATE
+										 	
+										 		 
+												 	UPDATE THR_TIME_MACHINE TM
+													SET TM.P_IN=in_InTime
+															   ,TM.P_OUT=in_OutTime
+															   ,TM.WORT_TIME=in_WT
+															   ,TM.APPLY_FLAG='Y'
+															   ,TM.REMARK= 'INPUT BY HAND  FROM PC_ATT1'
+															   ,TM.NOTES=inNotes
+															   ,TM.MOD_BY=in_UserID
+															   ,TM.MOD_DT=SYSDATE
+													WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK;
+										END IF;
+								END IF;
+				-----NHAP CHO TRUONG HOP IN VA OUT RONG   --				
+				 ELSIF (in_InTime IS NOT NULL AND in_OutTime IS NULL) THEN
+				     IF V_TM_PK IS NULL THEN --CHUA CO PHAI INSERT ---
+					 			   			 		INSERT INTO THR_TIME_MACHINE(PK, EMP_PK ,GRP_CODE ,WORK_DT ,W_SHIFT ,P_IN ,P_OUT ,WORT_TIME
+																	  ,APPLY_FLAG, REMARK,DEL_IF ,CRT_DT ,CRT_BY ,P2_IN ,P2_OUT ,P3_IN ,P3_OUT,NOTES)
+														    		 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,inGroup_code,AS_WORK_DT,G.WORK_SHIFT,in_InTime,NULL
+																	 		,0			 
+														    		 		, 'N','INS FROM PC_ATT2',0,SYSDATE,in_UserID,in_InTime,NULL,in_InTime,NULL,inNotes
+														    		 FROM THR_GRP_EMP G
+													 	    		 WHERE G.del_if=0 AND G.EMP_PK=in_EMP_PK  
+																	 and g.emp_pk NOT IN(SELECT EX.EMP_PK  FROM THR_TIME_MACHINE EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				      AND EX.EMP_PK=in_EMP_PK)
+																	 AND g.START_DT=AS_WORK_DT;
+					 
+					   ELSE --CO ROI THI UPDATE
+					
+												UPDATE THR_TIME_MACHINE TM
+												SET TM.P_IN=in_InTime
+												,TM.WORT_TIME=0
+												,TM.REMARK= 'UPDATE FROM PC_ATT2'
+												,TM.NOTES=inNotes
+											    ,TM.MOD_BY=in_UserID
+											    ,TM.MOD_DT=SYSDATE
+												WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_WORK_DT AND TM.EMP_PK=in_EMP_PK;
+														 		
+													
+				      END IF;	
+				END IF;			
+								
+								
+													
+								   			
+								
+								
+								
+				
+	  --HET CONG DOAN 1 --
+				
+		 ---XU LY T/CA NEU CO  =====>CONG DOAN  2 --
+		 IF in_WT IS NOT NULL  AND in_WT>0 AND in_InTime IS NOT NULL AND in_OutTime IS NOT NULL THEN --IN PUT BY HAND
+		 					 
+		 					 IF in_OT IS NOT NULL AND in_OT >0 THEN --OT 1.5 --
+						 						IF AN_CNT>0 THEN --CN, NGAY LE
+											 			  MARK_ERROR:=3; --LOI SAI NGAY ===> NGAY CN,LE KO CO OT
+														 MARK_NOTE:= 'Incorrect The Type of Day, Pls Check it again!';
+									   					   RAISE_APPLICATION_ERROR(-20001,'');
+										  	    END IF;
+
+							 					IF(V_OT_PK IS NOT NULL AND V_OT_PK>0) THEN --DA CO ROI -> UPDATE  --
+														   
+																		UPDATE THR_EXTRA_TIME EX
+																		SET EX.OT_TIME=in_OT
+																			,EX.APPLY_FLAG='Y'
+																				  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+																				  ,EX.MOD_BY=in_UserID
+																				  ,EX.MOD_DT=SYSDATE
+																		WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+																		AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='OT';
+																		
+												 ELSE --CHUA CO PHAI INSERT
+												 	  
+												 	  		 		 
+		 															 INSERT INTO THR_EXTRA_TIME
+							                                         (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+							                                         ,OT_TIME,B_OT_TIME
+							                                         ,START_TIME, END_TIME, B_END_TIME,APPLY_FLAG
+							                                         ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT)
+												         			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'OT',inGroup_code,AS_WORK_DT,in_EMP_PK,e.FULL_NM
+																		    ,in_OT  ,in_OT
+												         				   ,c.START_OT,in_OutTime,in_OutTime,'Y','INSERT BY HAND',0,SYSDATE,in_UserID,inW_SHIFT
+												         			FROM THR_ABEMP e,THR_WORK_SHIFT C
+												         			WHERE e.DEL_IF=0  AND c.DEL_IF=0
+																	and e.pk NOT IN(SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				   AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='OT')
+																	AND C.PK=inW_SHIFT AND E.PK= in_EMP_PK;
+													END IF;
+						END IF; --OT 1.5
+						-- xu ly neu user chinh gio ot =0 --
+						IF (in_OT =0 OR in_OT IS NULL)  AND V_OT_PK>0 THEN --OT 1.5 => DA CO OT NHUNG USER CHINH LAI =0 --
+																		UPDATE THR_EXTRA_TIME EX
+																		SET EX.OT_TIME=in_OT
+																			,EX.APPLY_FLAG='Y'
+																				  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+																				  ,EX.MOD_BY=in_UserID
+																				  ,EX.MOD_DT=SYSDATE
+																		WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+																		AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='OT';
+						END IF; --OT 1.5
+
+						
+						    IF in_NT IS NOT NULL AND in_NT>0 THEN --NT 0.3 CA DEM
+						 						IF AN_CNT>0 THEN --CN, NGAY LE
+											 			  MARK_ERROR:=3; --LOI SAI NGAY ===> NGAY CN,LE KO CO NT --
+														  MARK_NOTE:= 'Incorrect The Type of Day, Pls Check it again!';
+									   					   RAISE_APPLICATION_ERROR(-20001,'');
+										  	    END IF;
+
+							 					IF V_NT_PK IS NOT NULL AND V_NT_PK>0 THEN --DA CO ROI -> UPDATE
+																		
+																		UPDATE THR_EXTRA_TIME EX
+																		SET EX.OT_TIME=in_NT
+																			,EX.APPLY_FLAG='Y'
+																				  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+																				  ,EX.MOD_BY=in_UserID
+																				  ,EX.MOD_DT=SYSDATE
+																		WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+																		AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='NT';
+																		
+												 ELSE --CHUA CO PHAI INSERT
+												 	  		 		 
+		 															 	INSERT INTO THR_EXTRA_TIME
+							                                         (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+							                                         ,OT_TIME,B_OT_TIME
+							                                         ,START_TIME, END_TIME, B_END_TIME,APPLY_FLAG
+							                                         ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT)
+												         			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'NT',inGroup_code,AS_WORK_DT,in_EMP_PK,e.FULL_NM
+																		    ,in_NT  ,in_NT
+												         				   ,c.START_OT,in_OutTime,in_OutTime,'Y','INSERT BY HAND',0,SYSDATE,in_UserID,inW_SHIFT
+												         			FROM THR_ABEMP e,THR_WORK_SHIFT C
+												         			WHERE e.DEL_IF=0  AND c.DEL_IF=0
+																	and e.pk NOT IN(SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				   AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='NT')
+																	AND C.PK=inW_SHIFT AND E.PK= in_EMP_PK;
+													END IF;
+						END IF; --NT 0.3
+						
+						-- xu ly neu user chinh gio NT =0		
+					   IF (in_NT =0 OR in_NT IS NULL)  AND V_NT_PK>0 THEN --NT 0.3 CA DEM
+																		UPDATE THR_EXTRA_TIME EX
+																		SET EX.OT_TIME=in_NT
+																		,EX.APPLY_FLAG='Y'
+																				  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+																				  ,EX.MOD_BY=in_UserID
+																				  ,EX.MOD_DT=SYSDATE
+																		WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+																		AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='NT';
+  					 END IF; --NT 0.3
+
+						
+
+					IF in_HT IS NOT NULL AND in_HT>0 THEN --HT 
+						 						IF AN_CNT=0 THEN --KO PHAI CN, NGAY LE --
+											 			  MARK_ERROR:=3;--LOI SAI NGAY ===> KO NGAY CN,LE 
+														  MARK_NOTE:= 'Incorrect The Type of Day, Pls Check it again!';
+									   					   RAISE_APPLICATION_ERROR(-20001,'');
+										  	    END IF;
+
+							 					IF V_HT_PK IS NOT NULL AND V_HT_PK>0 THEN --DA CO ROI -> UPDATE  --
+																		
+																		UPDATE THR_EXTRA_TIME EX
+																		SET EX.OT_TIME=in_HT
+																		,EX.APPLY_FLAG='Y'
+																				  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+																				  ,EX.MOD_BY=in_UserID
+																				  ,EX.MOD_DT=SYSDATE
+																		WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+																		AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='HT';
+																		
+												 ELSE --CHUA CO PHAI INSERT
+												 	  		 		 
+		 															 	INSERT INTO THR_EXTRA_TIME
+							                                         (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+							                                         ,OT_TIME,B_OT_TIME
+							                                         ,START_TIME, END_TIME, B_END_TIME,APPLY_FLAG
+							                                         ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT)
+												         			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT',inGroup_code,AS_WORK_DT,in_EMP_PK,e.FULL_NM
+																		    ,in_HT  ,in_HT
+												         				   ,c.START_OT,in_OutTime,in_OutTime,'Y','INSERT BY HAND',0,SYSDATE,in_UserID,inW_SHIFT
+												         			FROM THR_ABEMP e,THR_WORK_SHIFT C
+												         			WHERE e.DEL_IF=0  AND c.DEL_IF=0
+																	and e.pk NOT IN(SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				   AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='HT')
+																	AND C.PK=inW_SHIFT AND E.PK= in_EMP_PK;
+													END IF;
+						 END IF; --HT
+						 
+						 ---USER CHINH HT LAI =0 --
+						IF (in_HT=0 OR in_HT IS NULL)  AND V_HT_PK>0 THEN --USER CHINH LAI HT=0 
+												UPDATE THR_EXTRA_TIME EX
+												SET EX.OT_TIME=in_HT
+													,EX.APPLY_FLAG='Y'
+														  ,EX.REMARK=in_UserID||' - INPUT BY HAND '
+														  ,EX.MOD_BY=in_UserID
+														  ,EX.MOD_DT=SYSDATE
+												WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT
+												AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='HT';
+						 END IF; --HT
+		
+							
+				END IF;			--- KET THUC CONG DOAN INPUT BY HAND  --
+				
+				 IF(in_WT IS NULL OR in_WT=0) AND in_InTime IS NOT NULL AND in_OutTime IS NOT NULL THEN --AUTO CALCULATE OT
+				 					 
+									  DELETE THR_EXTRA_TIME EX --XOA GIO CU
+									   WHERE EX.DEL_IF=0 AND EX.EMP_PK=in_EMP_PK AND EX.WORK_DT=AS_WORK_DT;		
+				 					 
+									  --- XET NGAY LE,CN
+									  IF AN_CNT>0 THEN --CN, NGAY LE
+											 			 INSERT INTO THR_EXTRA_TIME
+													                      (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, 
+																		  	   FULL_NAME
+													                      ,OT_TIME,B_OT_TIME
+													                      ,START_TIME, END_TIME, B_END_TIME
+													                      ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, 
+																		  CRT_BY,W_SHIFT)
+													               SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'HT', A.GRP_CODE, 
+																   		  AS_WORK_DT, in_EMP_PK,e.FULL_NM
+																		   , F_Get_Wt_Nshift(in_InTime,in_OutTime,C.PK)+F_Get_Ot(C.START_OT,in_OutTime,C.PK,A.P_IN)
+																		  , F_Get_Wt_Nshift(in_InTime,in_OutTime,C.PK)+F_Get_Ot(C.START_OT,in_OutTime,C.PK,A.P_IN)
+																		  ,in_InTime, in_OutTime, in_OutTime
+													                      ,'AUTO INS FROM PC_ATT1',0,'N',SYSDATE, in_UserID,A.W_SHIFT
+													   			   FROM THR_TIME_MACHINE A,THR_ABEMP e,THR_WORK_SHIFT C
+													    			WHERE A.DEL_IF = 0 AND e.DEL_IF=0  AND c.DEL_IF=0
+													    			AND e.PK=in_EMP_PK
+													    			AND a.W_SHIFT=c.pk
+													    			AND A.WORK_DT = AS_WORK_DT
+																	AND A.P_IN IS NOT NULL AND A.P_OUT IS NOT NULL
+													    			AND A.EMP_PK = in_EMP_PK
+																	AND A.EMP_PK NOT IN(SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_WORK_DT 
+																				 	 				 				   AND EX.EMP_PK=in_EMP_PK AND EX.OT_TYPE='HT');
+																								 
+									ELSE --NGAY THUONG --
+										 			
+										    INSERT INTO THR_EXTRA_TIME 
+										                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+										                   ,OT_TIME,B_OT_TIME
+										                   ,START_TIME, END_TIME, B_END_TIME
+										                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+										            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+														   ,F_Get_Ot(C.START_OT,in_OutTime,C.PK,in_InTime) AS OT_TIME 
+														   ,F_Get_Ot(C.START_OT,in_OutTime,C.PK,in_InTime) AS B_OT_TIME 
+										                   ,C.START_OT, in_OutTime, in_OutTime
+										                   ,'Auto INSERT FROM PC ATT',0,'N',SYSDATE, in_UserID
+										              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+										             WHERE A.DEL_IF = 0
+										               AND B.DEL_IF = 0
+													   AND D.DEL_IF = 0
+													   AND A.PK = B.EMP_PK
+													   AND A.PK = D.THR_ABEMP_PK
+													   AND B.W_SHIFT = C.PK
+										               AND B.WORK_DT = AS_WORK_DT
+													   AND B.P_IN IS NOT NULL
+													   AND B.P_OUT IS NOT NULL
+													   AND A.PK = in_EMP_PK
+													   AND F_Get_Ot(C.START_OT,in_OutTime,C.PK,in_InTime)>0.5
+										              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+										    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_WORK_DT)
+													 AND A.PK NOT IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_WORK_DT AND E.END_DT >= AS_WORK_DT AND E.EMP_PK = in_EMP_PK);
+							
+							
+										AN_SYS_ERROR_MSG := '35';
+										--INSERT CHO NHUNG NGUOI TS TANG CA
+										    INSERT INTO THR_EXTRA_TIME 
+										                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+										                   ,OT_TIME,B_OT_TIME
+										                   ,START_TIME, END_TIME, B_END_TIME
+										                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+										            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+														   ,F_Get_Ot(F_MINUS_HOUR(C.START_OT,1),in_OutTime,C.PK,in_InTime) AS OT_TIME 
+														   ,F_Get_Ot(F_MINUS_HOUR(C.START_OT,1),in_OutTime,C.PK,in_InTime) AS B_OT_TIME 
+										                   ,C.START_OT, in_OutTime, in_OutTime
+										                   ,'Auto INSERT FROM PC ATT',0,'N',SYSDATE, in_UserID
+										              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+										             WHERE A.DEL_IF = 0
+										               AND B.DEL_IF = 0
+													   AND D.DEL_IF = 0
+													   AND A.PK = B.EMP_PK
+													   AND A.PK = D.THR_ABEMP_PK
+													   AND B.W_SHIFT = C.PK
+										               AND B.WORK_DT = AS_WORK_DT
+													   AND B.P_IN IS NOT NULL
+													   AND B.P_OUT IS NOT NULL
+													   AND A.PK = in_EMP_PK
+													   AND F_Get_Ot(F_MINUS_HOUR(C.START_OT,1),B.P_OUT,C.PK,in_InTime)>0.5
+										              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+										    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_WORK_DT)
+													 AND A.PK IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_WORK_DT AND E.END_DT >= AS_WORK_DT AND E.EMP_PK = in_EMP_PK);
+													 
+																	 
+												
+													 			  
+										
+										AN_SYS_ERROR_MSG := '50';
+										 ---TINH NT CHO CA NGAY VA CA DEM
+										    INSERT INTO THR_EXTRA_TIME 
+										                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+										                   ,OT_TIME,B_OT_TIME
+										                   ,START_TIME, END_TIME, B_END_TIME
+										                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+										            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+														   ,F_Cal_Nt(C.START_NT,in_OutTime,C.PK,in_InTime) AS OT_TIME 
+														   ,F_Cal_Nt(C.START_NT,in_OutTime,C.PK,in_InTime) AS B_OT_TIME 
+										                   ,C.START_OT, in_OutTime, in_OutTime
+										                   ,'Auto Entry',0,'N',SYSDATE, in_UserID
+										              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+										             WHERE A.DEL_IF = 0
+										               AND B.DEL_IF = 0
+													   AND D.DEL_IF = 0
+													   AND A.PK = B.EMP_PK
+													   AND A.PK = D.THR_ABEMP_PK
+													   AND B.W_SHIFT = C.PK
+										               AND B.WORK_DT = AS_WORK_DT
+													   AND B.P_IN IS NOT NULL
+													   AND B.P_OUT IS NOT NULL
+													--   AND C.START_TIME<C.END_TIME
+													   AND A.PK = in_EMP_PK
+													   AND F_Cal_Nt(C.START_NT,in_OutTime,C.PK,in_InTime)>0.5
+										              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+										    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'NT' AND D.WORK_DT = AS_WORK_DT);
+				
+											 
+									END IF; --CN, NGAY LE
+				END IF;--LENG TH(WT)=0  ===> HET CONG DOAN 2
+																	   
+END IF;					   							
+	 COMMIT;
+
+    rtn_Code := '0';
+	rtn_Msg := 'Successful Process !';
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG  || '  ERROR..'||'. (PR_ATT_DAILY) '||SQLERRM );
+	   rtn_Code := '100';
+	   rtn_Msg := 'NO DATA FOUND !';
+     WHEN OTHERS THEN
+	 IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+	 	  		 --	IF MARK_ERROR>=1 AND MARK_ERROR<=10 THEN
+					   				  RAISE_APPLICATION_ERROR(-20001,MARK_NOTE);
+				--	END IF;
+	END IF;
+       
+END Pc_Atten_Mana_Daily;
+/
+CREATE OR REPLACE PROCEDURE Pc_Atten_Mana_Monthly_Popup
+(
+ 	   in_InTime  IN VARCHAR2,
+	   in_OutTime IN VARCHAR2,
+	   in_WT	  IN NUMBER,
+	   in_OT	  IN NUMBER,
+	   in_NT	  IN NUMBER,
+	   in_HT	  IN NUMBER,
+	   in_ABSCode IN VARCHAR2,
+	   in_ABSTime IN NUMBER,
+	   in_Work_Date IN  VARCHAR2,
+	   in_EMP_PK   IN NUMBER,
+	   in_WShift  IN NUMBER,
+	   in_UserID  IN VARCHAR2,
+	   rtn_Code   OUT VARCHAR2,
+	   rtn_Msg    OUT VARCHAR2
+
+)
+ IS
+
+ tmp_Time NUMBER(5,2);
+ AN_CNT	  NUMBER(10) := 0;
+ AN_CNT1	  NUMBER(10) := 0;
+ AV_BASIC_SAL		NUMBER(10):=0;
+ AS_ABSENT_TIME		NUMBER(5,2):=8;
+ AS_COM_FLAG			VARCHAR2(1):='N';
+AS_COM_PAY_RATE		NUMBER(5,2):=0;
+AS_COM_AMOUNT		NUMBER(10,2):=0;
+CLOSE_NUM	NUMBER(1):=0;
+BEGIN
+SELECT COUNT(S.PK) INTO CLOSE_NUM FROM THR_TIME_MACHINE S
+				WHERE S.DEL_IF=0 AND S.WORK_DT =in_Work_Date
+				AND S.EMP_PK=  in_EMP_PK AND S.CLOSE_FLAG='Y';
+				IF CLOSE_NUM>0 THEN
+				   			  RAISE_APPLICATION_ERROR(-20001,'');
+				ELSE
+							  	  					SELECT COUNT(M.PK) INTO CLOSE_NUM FROM THR_EMP_ABSENT M
+						   						   WHERE M.DEL_IF=0 AND M.ABS_DT = in_Work_Date
+						   		 				   AND M.EMP_PK=in_EMP_PK AND M.CLOSE_FLAG='Y';
+													    IF  CLOSE_NUM>0 THEN
+															   	   	 RAISE_APPLICATION_ERROR(-20001,'');
+														END IF;
+				END IF;			   
+
+
+    SELECT COUNT(A.PK)
+	  INTO AN_CNT1
+	  FROM THR_TIME_MACHINE A
+	 WHERE A.DEL_IF = 0
+	   AND A.WORK_DT = in_Work_Date
+	   AND A.EMP_PK = in_EMP_PK;
+
+	-- CO TRONG TIME MACHINE ROI
+	 IF (AN_CNT1 > 0) THEN
+	 	IF LENGTH(in_InTime)=5 AND LENGTH(in_OutTime)=5 THEN
+	 	
+	     	 UPDATE THR_TIME_MACHINE TM
+	     	 SET TM.P_IN=in_InTime
+			 	 ,P_OUT=in_OutTime
+			 	 ,WORT_TIME=in_WT
+				 ,TM.MOD_DT=SYSDATE
+			 	 ,TM.MOD_BY=in_UserID
+				 ,TM.REMARK='MONTHLY_POPUP_1'
+				 ,TM.APPLY_FLAG = 'Y'
+	     	 WHERE TM.WORK_DT=in_Work_Date 
+			 	   AND TM.EMP_PK=in_EMP_PK 
+				   AND TM.Del_if=0;
+         ELSE -- cho nghi
+		   IF LENGTH(in_ABSCode)>0 THEN
+		 
+				  	 UPDATE THR_TIME_MACHINE TM
+			     	 SET TM.del_if = TM.PK
+						 ,TM.REMARK=in_UserID||'DELETE'
+						 ,TM.MOD_BY = in_UserID
+						 ,TM.MOD_DT = SYSDATE
+			     	 WHERE TM.WORK_DT=in_Work_Date 
+					 	   AND TM.EMP_PK=in_EMP_PK 
+						   AND TM.Del_if=0;
+					
+					
+					IF in_ABSCode IN('ALE','OFF','FLE','LA','WOW','WED','REM') THEN --NHUNG TRUONG HOP NGHI NHU*NG DUOC TI'N CONG
+						   	  SELECT A.BASIC_SAL INTO AV_BASIC_SAL FROM VHR_EMP A WHERE A.DEL_IF=0 AND A.PK = in_EMP_PK;
+						   	  
+							  IF in_ABSCode ='WOW' THEN
+							  	 AS_ABSENT_TIME := 12;
+							  ELSE
+							  	  AS_ABSENT_TIME := 8; --1 CONG WT
+							  END IF;
+							  AS_COM_FLAG :='Y';
+							  AS_COM_PAY_RATE:=100;
+							  AS_COM_AMOUNT:=ROUND(AV_BASIC_SAL*AS_ABSENT_TIME/(26*8),-2);
+						 ELSE--NGHI KO CO' DUOC TINH CONG
+						   	      	  AS_ABSENT_TIME := 8; --1 CONG WT
+									  AS_COM_FLAG :='N';
+									  AS_COM_PAY_RATE:=0;
+									  AS_COM_AMOUNT:=0;
+					  END IF;
+				
+					   
+				INSERT INTO THR_EMP_ABSENT  --AUTO INSERT ABSENT LIST
+			               (PK, GRP_CODE, EMP_PK, ABS_CODE,ABSENT_TIME, ABS_DT, WORK_SHIFT
+			               , COM_PAY_FLAG,COM_RATE,COM_AMT, POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+		            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,NVL(B.THR_ABWORKGRP_PK,0), A.PK, in_ABSCode,AS_ABSENT_TIME, in_Work_Date, B.WORK_SHIFT
+			               ,AS_COM_FLAG,AS_COM_PAY_RATE,AS_COM_AMOUNT,D.POS_CODE, 0, SYSDATE, in_UserID
+		              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					   AND A.PK = D.THR_ABEMP_PK AND B.START_DT = F.CAR_DATE
+					   AND A.EMP_STATUS = 'A' AND F.HOL_TYPE IS NULL AND F.CAR_DATE = in_Work_Date
+		               AND A.PK NOT IN (SELECT C.EMP_PK
+				                              FROM THR_TIME_MACHINE C
+				                             WHERE C.DEL_IF = 0
+				                               AND C.WORK_DT = in_Work_Date)
+					   AND A.PK NOT IN (SELECT E.EMP_PK
+					                      FROM THR_EMP_ABSENT E
+										 WHERE E.DEL_IF = 0
+										   AND E.ABS_DT = in_Work_Date);	
+					
+					DELETE THR_EXTRA_TIME ET
+		         	 WHERE ET.del_if=0 
+					 	   AND ET.WORK_DT=in_Work_Date 
+						   AND ET.EMP_PK=in_EMP_PK 
+						   AND  ET.OT_TYPE='OT';										   
+										      
+				 COMMIT;
+			END IF;
+		END IF;
+	 ELSE --Not exist in THR_TIME_MACHINE ---
+	 	 
+		  IF ((in_InTime IS NOT NULL) AND (in_OutTime IS NOT NULL)) THEN
+		  	 UPDATE THR_EMP_ABSENT EA
+			 SET EA.DEL_IF=EA.PK
+			 WHERE EA.EMP_PK=in_EMP_PK AND EA.ABS_DT=in_Work_Date AND EA.DEL_IF=0;
+			 
+			 
+			 
+			 INSERT INTO THR_TIME_MACHINE(PK,EMP_PK,GRP_CODE,WORK_DT,W_SHIFT,P_IN,P_OUT,WORT_TIME
+			 		,CRT_DT,CRT_BY,remark,APPLY_FLAG)
+			 SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,in_EMP_PK,g.THR_ABWORKGRP_PK,in_Work_Date,g.WORK_SHIFT,in_InTime
+			 		,in_OutTime,in_WT,SYSDATE,in_UserID,'INS_MONTHLY_POPUP_NOT_EXIST_8','Y'
+			 FROM THR_GRP_EMP g
+			 WHERE g.EMP_PK=in_EMP_PK 
+			 	   AND g.DEL_IF=0
+				   AND G.START_DT = in_Work_Date;
+
+             --*****************************			 
+			 
+		  ELSE
+        	 UPDATE THR_EMP_ABSENT EA
+        	 SET EA.ABS_CODE=in_ABSCode,EA.ABSENT_TIME=in_ABSTime,EA.MOD_DT=SYSDATE,EA.MOD_BY=in_UserID
+			 ,REMARK='MONTHLY_POPUP_15'
+        	 WHERE 
+        	   EA.DEL_IF=0 AND
+        	   EA.EMP_PK=in_EMP_PK AND EA.ABS_DT=in_Work_Date;
+		 
+		 	   
+		  
+		  END IF; 
+		 
+	 END IF;			   
+
+     	 --*****XU LY OT ***************************
+  IF LENGTH(in_InTime)=5 AND LENGTH(in_OutTime)=5 THEN --CO IN OUT THI MOI NOI CHUYEN		 		 
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.OT_TIME) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 
+		 	   AND ET.WORK_DT=in_Work_Date 
+			   AND ET.EMP_PK=in_EMP_PK 
+			   AND  ET.OT_TYPE='OT';
+
+     	 IF tmp_Time>0 THEN
+         	 
+			 DELETE THR_EXTRA_TIME ET
+         	 WHERE ET.del_if=0 
+			 	   AND ET.WORK_DT=in_Work_Date 
+				   AND ET.EMP_PK=in_EMP_PK 
+				   AND  ET.OT_TYPE='OT';
+			
+     	 ELSE
+		 	 IF in_OT>0 THEN
+    		 
+				 INSERT INTO THR_EXTRA_TIME
+                                    (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                                    ,OT_TIME,B_OT_TIME
+                                    ,START_TIME, END_TIME, B_END_TIME
+                                    ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT,APPLY_FLAG)
+    			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'OT',A.GRP_CODE,in_Work_Date,in_EMP_PK,e.FULL_NM,in_OT,in_OT,
+    				   c.START_OT,a.P_OUT,a.P_OUT,'INS_MON_POP_3',0,SYSDATE,in_UserID,A.W_SHIFT,'Y'
+    			FROM THR_TIME_MACHINE A,THR_ABEMP e,THR_WORK_SHIFT C
+    			WHERE A.DEL_IF = 0 AND e.DEL_IF=0  AND c.DEL_IF=0
+    			AND e.PK=in_EMP_PK
+    			AND a.W_SHIFT=c.pk
+    			AND A.WORK_DT = in_Work_Date
+    			AND A.EMP_PK = in_EMP_PK;
+			  	
+			END IF;				
+		 END IF;
+
+     	 --********************************
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.OT_TIME) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='NT';
+
+     	 IF tmp_Time>0 THEN
+         	DELETE THR_EXTRA_TIME ET
+         	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='NT';
+     	 ELSE
+		 	 IF in_NT>0 THEN
+    		 	
+    				 INSERT INTO THR_EXTRA_TIME
+                                        (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                                        ,OT_TIME,B_OT_TIME
+                                        ,START_TIME, END_TIME, B_END_TIME
+                                        ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT,APPLY_FLAG)
+        			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'NT',A.GRP_CODE,in_Work_Date,in_EMP_PK,e.FULL_NM,in_NT,in_NT,
+        				   c.START_OT,a.P_OUT,a.P_OUT,'INS_MON_POP_5',0,SYSDATE,in_UserID,A.W_SHIFT,'Y'
+        			FROM THR_TIME_MACHINE A,THR_ABEMP e,THR_WORK_SHIFT C
+        			WHERE A.DEL_IF = 0 AND e.DEL_IF=0  AND c.DEL_IF=0
+        			AND e.PK=in_EMP_PK
+        			AND a.W_SHIFT=c.pk
+        			AND A.WORK_DT = in_Work_Date
+        			AND A.EMP_PK = in_EMP_PK;
+				
+			END IF;				
+		 
+		 END IF;
+     	 --********************************
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.OT_TIME) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='HT';
+
+     	 IF tmp_Time>0 THEN
+         	 UPDATE THR_EXTRA_TIME ET
+         	 SET ET.OT_TIME=in_HT
+			 	 ,ET.MOD_DT=SYSDATE
+				 ,ET.MOD_BY=in_UserID
+				 ,ET.REMARK='MONTHLY_POPUP_6'
+				 ,ET.APPLY_FLAG='Y'
+         	 WHERE ET.del_if=0 
+			 	   AND ET.WORK_DT=in_Work_Date 
+				   AND ET.EMP_PK=in_EMP_PK 
+				   AND  ET.OT_TYPE='HT';
+     	 ELSE
+		 	 IF in_HT>0 THEN
+    		 	 INSERT INTO THR_EXTRA_TIME
+                                    (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                                    ,OT_TIME,B_OT_TIME
+                                    ,START_TIME, END_TIME, B_END_TIME
+                                    ,REMARK, DEL_IF, CRT_DT, CRT_BY,W_SHIFT,APPLY_FLAG)
+    			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT',A.GRP_CODE,in_Work_Date,in_EMP_PK,e.FULL_NM,in_HT,in_HT,
+    				   c.START_OT,a.P_OUT,a.P_OUT,'INS_MON_POP_7',0,SYSDATE,in_UserID,A.W_SHIFT,'Y'
+    			FROM THR_TIME_MACHINE A,THR_ABEMP e,THR_WORK_SHIFT C
+    			WHERE A.DEL_IF = 0 AND e.DEL_IF=0  AND c.DEL_IF=0
+    			AND e.PK=in_EMP_PK
+    			AND a.W_SHIFT=c.pk
+    			AND A.WORK_DT = in_Work_Date
+    			AND A.EMP_PK = in_EMP_PK;
+			END IF;				
+		 END IF;
+   END IF;
+
+  COMMIT;		 		 
+
+     	 --*********************************
+	
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+	 IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+      				    RAISE;
+	   END IF;
+END Pc_Atten_Mana_Monthly_Popup;
+/
+CREATE OR REPLACE PROCEDURE Pc_Atten_Mana_Specialy
+(
+ 	   in_InTime    IN VARCHAR2,
+	   in_OutTime   IN VARCHAR2,
+	   in_WT	    IN NUMBER,
+	   in_OT	    IN NUMBER,
+	   in_NT	    IN NUMBER,
+	   in_HT	    IN NUMBER,
+	   in_TM_PK     IN NUMBER,
+	   in_Work_Date IN VARCHAR2, --HAVE TO CHANGE TO_DATE
+	   in_EMP_PK    IN NUMBER,
+	   in_WORKSHIFT IN NUMBER,
+	   in_UserID    IN VARCHAR2,
+	   rtn_Code     OUT VARCHAR2,
+	   rtn_Msg      OUT VARCHAR2
+	   
+
+)
+ IS
+V_MESSAGE VARCHAR2(10):='';
+ tmp_Time NUMBER(5,2);
+ AN_CNT	  NUMBER(10) := 0;
+ AS_GRP_CODE NUMBER(10) := 0;
+ in_Work_Date_tmp VARCHAR2(20) := TO_CHAR(TO_DATE(in_Work_Date,'YYYYMMDD'),'YYYYMMDD');
+ CLOSE_NUM	NUMBER(1):=0;
+
+BEGIN
+			 SELECT COUNT(S.PK) INTO CLOSE_NUM FROM THR_TIME_MACHINE S
+				WHERE S.DEL_IF=0 AND S.WORK_DT =in_Work_Date_tmp
+				AND S.EMP_PK= in_EMP_PK AND S.CLOSE_FLAG='Y';
+				IF CLOSE_NUM>0 THEN
+				   			  RAISE_APPLICATION_ERROR(-20001,'');
+				END IF;			   
+				
+	 --in_Work_Date := TO_CHAR(TO_DATE(in_Work_Date,'YYYYMMDD'),'YYYYMMDD');
+	 V_MESSAGE := '10'; 
+
+	 UPDATE THR_TIME_MACHINE TM
+	 SET TM.P_IN=in_InTime,P_OUT=in_OutTime,WORT_TIME=in_WT
+	     ,TM.W_SHIFT=in_WORKSHIFT
+		 ,TM.MOD_DT=SYSDATE,TM.MOD_BY=in_UserID
+	     ,TM.APPLY_FLAG = 'Y'
+	 WHERE TM.PK=in_TM_PK;
+	 IF (in_Work_Date IS NOT NULL) THEN
+         SELECT GRP_CODE INTO AS_GRP_CODE
+		   FROM THR_TIME_MACHINE
+		  WHERE DEL_IF = 0 AND PK = in_TM_PK;
+
+     	 --********************************
+		 V_MESSAGE := '20';
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.PK) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='OT';
+
+		 IF tmp_Time>0 THEN
+         	 UPDATE THR_EXTRA_TIME ET
+         	 SET ET.OT_TIME=in_OT,ET.END_TIME=in_OutTime,ET.MOD_DT=SYSDATE,ET.MOD_BY=in_UserID
+			     ,ET.APPLY_FLAG = 'Y'
+         	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='OT';
+		 END IF;
+	
+	--INSERT FOR OT TIME	 
+	     IF in_OT > 0 AND tmp_Time = 0 THEN 
+		     INSERT INTO THR_EXTRA_TIME
+                      (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                     ,OT_TIME,B_OT_TIME
+                      ,START_TIME, END_TIME, B_END_TIME
+                      ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+               VALUES( THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', AS_GRP_CODE, in_Work_Date_tmp, in_EMP_PK, ''
+                      ,in_OT,in_OT,in_InTime, in_OutTime, in_OutTime
+                      ,in_UserID||' INPUT BY HAND',0,'Y',SYSDATE, in_UserID);
+		 END IF;
+
+     	 --********************************
+		 V_MESSAGE := '30';
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.PK) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='NT';
+
+     	 -- INSERT FOR NT
+		 IF tmp_Time>0 THEN
+         	 UPDATE THR_EXTRA_TIME ET
+         	 SET ET.OT_TIME=in_NT,ET.END_TIME=in_OutTime,ET.MOD_DT=SYSDATE,ET.MOD_BY=in_UserID
+			     ,ET.APPLY_FLAG = 'Y'
+         	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='NT';
+		 END IF;
+		 
+		 IF in_NT > 0 AND tmp_Time = 0 THEN
+		     INSERT INTO THR_EXTRA_TIME
+                     (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                     ,OT_TIME,B_OT_TIME
+                      ,START_TIME, END_TIME, B_END_TIME
+                     ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+               VALUES( THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', AS_GRP_CODE, in_Work_Date_tmp, in_EMP_PK, ''
+                      ,in_NT,in_NT,in_InTime, in_OutTime, in_OutTime
+                      ,in_UserID||' INPUT BY HAND',0,'Y',SYSDATE, in_UserID);
+		 END IF;
+     	 --********************************
+		 V_MESSAGE := '40';
+     	 tmp_Time:=0;
+     	 SELECT COUNT(ET.PK) INTO tmp_Time
+     	 FROM THR_EXTRA_TIME ET
+     	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='HT';
+
+     	 IF tmp_Time>0 THEN
+         	 UPDATE THR_EXTRA_TIME ET
+         	 SET ET.OT_TIME=in_HT,ET.END_TIME=in_OutTime,ET.MOD_DT=SYSDATE,ET.MOD_BY=in_UserID
+			     ,ET.APPLY_FLAG = 'Y'
+         	 WHERE ET.del_if=0 AND ET.WORK_DT=in_Work_Date_tmp AND ET.EMP_PK=in_EMP_PK AND  ET.OT_TYPE='HT';
+		 END IF;
+		 
+		 IF in_HT > 0 AND tmp_Time = 0 THEN
+		     INSERT INTO THR_EXTRA_TIME
+                      (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                      ,OT_TIME,B_OT_TIME
+                      ,START_TIME, END_TIME, B_END_TIME
+                      ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+              VALUES( THR_EXTRA_TIME_SEQ.NEXTVAL, 'HT', AS_GRP_CODE, in_Work_Date_tmp, in_EMP_PK, ''
+                      ,in_HT,in_HT,in_InTime, in_OutTime, in_OutTime
+                      ,in_UserID||' INPUT BY HAND',0,'Y',SYSDATE, in_UserID);
+		 END IF;
+     	 --*********************************
+		 V_MESSAGE := '50';
+	 END IF;
+
+							   
+	 COMMIT;
+	 
+    rtn_Code := '0';
+	rtn_Msg := 'Successful Process !';
+	 
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       rtn_Code := '100';
+	   rtn_Msg := 'NO DATA FOUND !';
+	  RAISE_APPLICATION_ERROR(-20001,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+	  ROLLBACK WORK;
+	  RETURN;
+V_MESSAGE := '50';
+     WHEN OTHERS THEN
+	 IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+       -- Consider logging the error and then re-raise
+		  	   RAISE_APPLICATION_ERROR(-20002,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			 ROLLBACK WORK;
+					  RETURN;
+	 END IF;
+END Pc_Atten_Mana_Specialy;
+/
+CREATE OR REPLACE PROCEDURE PRC_UpdateBasicSal 
+(
+ 	   inMasPK	  			in number,
+	   inBASIC_SAL			in Number,
+	   inALLOW_AMT 			in Number,
+	   inEmpPK				in number,
+	   inMOD_BY				in varchar2,
+	   oCode				out varchar2,
+	   oMsg					out varchar2
+	    
+)
+IS
+
+  V_OUT_APPOINT  NUMBER(10):=0;
+  V_OUT_APPOINTD NUMBER(10):=0;
+  V_OUT_RESULT	 NUMBER(1) :=0;
+
+BEGIN
+
+	 UPDATE thr_abempmas
+	 SET BASIC_SAL = inBASIC_SAL,
+     	    ALLOW_AMT= inALLOW_AMT,
+			MOD_DT = sysdate,
+			MOD_BY = inMOD_BY
+	 WHERE PK = inMasPK;
+	 
+	 PR_APPOINT('BASIC SALARY',inEmpPK,'CHANGE FROM BASIC SALARY','01','CHANGE FROM BASIC SALARY',inMOD_BY,V_OUT_APPOINT,V_OUT_APPOINTD,V_OUT_RESULT);	 
+
+   COMMIT;
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+			  ROLLBACK WORK;
+			  RETURN;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE;
+			  ROLLBACK WORK;
+			  RETURN;
+	   
+END PRC_UpdateBasicSal;
+/
+CREATE OR REPLACE PROCEDURE PROCESS_MONTH_OT(
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD
+	AS_USER			IN	VARCHAR2,   -- USER ID
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER )
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER )
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_COUNT     NUMBER(10);
+num_ht			NUMBER(1):=0;
+
+--******************************************
+  -- Modify by    : huynh truong
+  -- Modify date  : 24/03/2005
+--******************************************
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = SUBSTR(AS_FROM_MON,1, 6)
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+
+DELETE THR_MONTH_OT WM
+WHERE WM.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+
+--SONG NGAY CONG THUC TE
+SELECT COUNT(*) INTO AV_DAYS_PERMONTH  FROM TCO_ABCALENDAR A WHERE A.CAR_DATE BETWEEN AS_FROM_MON AND AS_TO_MON AND A.DAY_TYPE<> 1;
+
+
+INSERT INTO THR_MONTH_OT
+(PK, WORK_MON, GRP_CODE, TOTAL, EMP_PK, HIGHTEST_OT, DAY_IN_MONTH, OT_LAST_MONTH, DEL_IF, CRT_BY, CRT_DT)
+SELECT THR_MONTH_OT_SEQ.NEXTVAL, OT_TRACKING.WORK_MON, OT_TRACKING.GRP_CODE,
+       OT_TRACKING.TOTAL, OT_TRACKING.MAX_EMP_PK,
+       OT_TRACKING.MAX_PROGRESSIVE_OT, AV_DAYS_PERMONTH, 0, 0, AS_USER, SYSDATE
+  FROM (SELECT   SE2.WORK_MON AS WORK_MON, SE1.GRP_CODE AS GRP_CODE,
+                 (SELECT COUNT (EMP_PK)
+                    FROM THR_SALARY_EMP
+                   WHERE DEL_IF = 0
+                     AND GRP_CODE = SE1.GRP_CODE
+                     AND WORK_MON = SUBSTR (AS_FROM_MON, 1, 6)) AS TOTAL,
+                 MAX (SE2.EMP_PK) AS MAX_EMP_PK,
+                 SE1.MAX_PROGRESSIVE_OT AS MAX_PROGRESSIVE_OT
+            FROM THR_SALARY_EMP SE2,
+                 (SELECT   SE.GRP_CODE, MAX (SE.EMP_PK),
+                           MAX (SE.PROGRESSIVE_OT) AS MAX_PROGRESSIVE_OT
+                      FROM THR_SALARY_EMP SE
+                     WHERE SE.DEL_IF = 0
+                       AND SE.WORK_MON = SUBSTR (AS_FROM_MON, 1, 6)
+                  GROUP BY SE.GRP_CODE
+                  ORDER BY SE.GRP_CODE) SE1
+           WHERE SE2.PROGRESSIVE_OT = SE1.MAX_PROGRESSIVE_OT
+             AND SE2.GRP_CODE = SE1.GRP_CODE
+             AND SE2.WORK_MON = SUBSTR (AS_FROM_MON, 1, 6)
+        GROUP BY SE1.GRP_CODE, SE1.MAX_PROGRESSIVE_OT, SE2.WORK_MON
+        ORDER BY SE1.GRP_CODE) OT_TRACKING;
+/*SELECT THR_MONTH_OT_SEQ.NEXTVAL,SUBSTR(AS_FROM_MON,1,6),OT_TRACKING.GRP_CODE,OT_TRACKING.TOTAL,NVL(OT_TRACKING.EMP_PK,0),NVL(OT_TRACKING.HIGHTEST_OT,0)
+,AV_DAYS_PERMONTH,0,0,AS_USER,SYSDATE
+FROM
+(SELECT V.GRP_CODE AS GRP_CODE,(SELECT COUNT(PK) FROM VHR_EMP WHERE DEL_IF=0 AND GRP_CODE=OT_TRACT.GRP_PK) AS TOTAL,MAX(OT_TRACT.EMP_PK) AS EMP_PK,MAX(OT_TRACT.TOTAL) AS HIGHTEST_OT
+FROM VHR_EMP V,
+(SELECT A.GRP_CODE AS GRP_PK,A.PK AS EMP_PK, SUM(NVL(B.OT_TIME,0)) AS TOTAL
+FROM VHR_EMP A,THR_EXTRA_TIME B
+WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND A.PK=B.EMP_PK
+AND B.OT_TYPE<>'NT' AND B.WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+GROUP BY A.GRP_CODE,A.PK
+HAVING SUM(NVL(B.OT_TIME,0))=(SELECT MAX(OT.TOTAL)
+						FROM(
+						SELECT A.GRP_CODE AS GRP_PK,A.PK AS EMP_PK, SUM(NVL(B.OT_TIME,0)) AS TOTAL
+						FROM VHR_EMP A,THR_EXTRA_TIME B
+						WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND A.PK=B.EMP_PK
+						AND B.OT_TYPE<>'NT' AND B.WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+						GROUP BY A.GRP_CODE,A.PK
+						)OT
+						WHERE OT.GRP_PK=A.GRP_CODE
+						GROUP BY OT.GRP_PK)
+)OT_TRACT
+WHERE V.DEL_IF=0
+AND V.GRP_CODE=OT_TRACT.GRP_PK(+)
+AND V.JOIN_DT<=AS_TO_MON
+AND (V.LEFT_DT>= AS_FROM_MON OR V.LEFT_DT IS NULL)
+GROUP BY V.GRP_CODE,OT_TRACT.GRP_PK)OT_TRACKING;
+
+--THANG 1 THI KO CO OT CUA THANG TRUOC
+
+UPDATE THR_MONTH_OT WM
+SET WM.OT_LAST_MONTH =(CASE WHEN SUBSTR(AS_FROM_MON,5,2)='01' THEN 0
+					 		ELSE (SELECT SUM(NVL(EX.OT_TIME,0)) FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0
+							AND SUBSTR(EX.WORK_DT,1,6)=TO_CHAR(TO_DATE(SUBSTR(AS_FROM_MON,1,6),'YYYYMM')-1,'YYYYMM')
+							AND EX.EMP_PK=WM.EMP_PK AND EX.OT_TYPE<>'NT')
+							END)
+,WM.HIGHTEST_OT=NVL(WM.HIGHTEST_OT,0)+(CASE WHEN SUBSTR(AS_FROM_MON,5,2)='01' THEN 0
+								 		ELSE (SELECT SUM(NVL(EX.OT_TIME,0)) FROM THR_EXTRA_TIME EX WHERE EX.DEL_IF=0
+										AND SUBSTR(EX.WORK_DT,1,6)=TO_CHAR(TO_DATE(SUBSTR(AS_FROM_MON,1,6),'YYYYMM')-1,'YYYYMM')
+										AND EX.EMP_PK=WM.EMP_PK AND EX.OT_TYPE<>'NT')
+										END)
+WHERE WM.DEL_IF=0 AND WM.WORK_MON=SUBSTR(AS_FROM_MON,1,6);*/
+
+
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PROCESS_MONTH_OT) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PROCESS_MONTH_OT;
+/
+CREATE OR REPLACE PROCEDURE PROCESS_WEEK_WORK_MON(
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD
+	AS_USER			IN	VARCHAR2,   -- USER ID
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER )
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER )
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_COUNT     NUMBER(10);
+num_ht			NUMBER(1):=0;
+
+--******************************************
+  -- Modify by    : huynh truong
+  -- Modify date  : 24/03/2005
+--******************************************
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = SUBSTR(AS_FROM_MON,1, 6)
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+
+DELETE THR_WEEK_WORK_MON WM
+WHERE WM.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+
+
+INSERT INTO THR_WEEK_WORK_MON(
+ PK, GRP_PK
+ , WEEK1_0_40, WEEK1_40_54, WEEK1_55_60, WEEK1_61_70, WEEK1_OVER_70
+ , WEEK2_0_40, WEEK2_40_54, WEEK2_55_60, WEEK2_61_70, WEEK2_OVER_70
+ , WEEK3_0_40, WEEK3_40_54, WEEK3_55_60, WEEK3_61_70, WEEK3_OVER_70
+ , WEEK4_0_40, WEEK4_40_54, WEEK4_55_60, WEEK4_61_70, WEEK4_OVER_70
+ , WEEK5_0_40, WEEK5_40_54, WEEK5_55_60, WEEK5_61_70, WEEK5_OVER_70
+ , CRT_BY, CRT_DT ,DEL_IF, WORK_MON
+)
+ SELECT THR_WEEK_WORK_MON_SEQ.NEXTVAL, PRO_END.GROUP_PK
+ ,PRO_END.WEEK1_0_40,PRO_END.WEEK1_40_54,PRO_END.WEEK1_55_60,PRO_END.WEEK1_61_70,PRO_END.WEEK1_OVER_70
+,PRO_END.WEEK2_0_40,PRO_END.WEEK2_40_54,PRO_END.WEEK2_55_60,PRO_END.WEEK2_61_70,PRO_END.WEEK2_OVER_70
+,PRO_END.WEEK3_0_40,PRO_END.WEEK3_40_54,PRO_END.WEEK3_55_60,PRO_END.WEEK3_61_70,PRO_END.WEEK3_OVER_70
+,PRO_END.WEEK4_0_40,PRO_END.WEEK4_40_54,PRO_END.WEEK4_55_60,PRO_END.WEEK4_61_70,PRO_END.WEEK4_OVER_70
+,PRO_END.WEEK5_0_40,PRO_END.WEEK5_40_54,PRO_END.WEEK5_55_60,PRO_END.WEEK5_61_70,PRO_END.WEEK5_OVER_70
+,AS_USER,SYSDATE,0,SUBSTR(AS_FROM_MON,1,6)
+FROM (
+SELECT ADDIAS.GRP_PK AS GROUP_PK
+,SUM(ADDIAS.WK1_0_40) AS WEEK1_0_40, SUM(ADDIAS.WK1_40_54) AS WEEK1_40_54, SUM(ADDIAS.WK1_55_60) AS WEEK1_55_60, SUM(ADDIAS.WK1_61_70) AS WEEK1_61_70, SUM(ADDIAS.WK1_OVER_70) AS WEEK1_OVER_70
+,SUM(ADDIAS.WK2_0_40) AS WEEK2_0_40, SUM(ADDIAS.WK2_40_54) AS WEEK2_40_54, SUM(ADDIAS.WK2_55_60) AS WEEK2_55_60, SUM(ADDIAS.WK2_61_70) AS WEEK2_61_70, SUM(ADDIAS.WK2_OVER_70) AS WEEK2_OVER_70
+,SUM(ADDIAS.WK3_0_40) AS WEEK3_0_40, SUM(ADDIAS.WK3_40_54) AS WEEK3_40_54, SUM(ADDIAS.WK3_55_60) AS WEEK3_55_60, SUM(ADDIAS.WK3_61_70) AS WEEK3_61_70, SUM(ADDIAS.WK3_OVER_70) AS WEEK3_OVER_70
+,SUM(ADDIAS.WK4_0_40) AS WEEK4_0_40, SUM(ADDIAS.WK4_40_54) AS WEEK4_40_54, SUM(ADDIAS.WK4_55_60) AS WEEK4_55_60, SUM(ADDIAS.WK4_61_70) AS WEEK4_61_70, SUM(ADDIAS.WK4_OVER_70) AS WEEK4_OVER_70
+,SUM(ADDIAS.WK5_0_40) AS WEEK5_0_40, SUM(ADDIAS.WK5_40_54) AS WEEK5_40_54, SUM(ADDIAS.WK5_55_60) AS WEEK5_55_60, SUM(ADDIAS.WK5_61_70) AS WEEK5_61_70, SUM(ADDIAS.WK5_OVER_70) AS WEEK5_OVER_70
+FROM
+(
+select Workhours.grp_pk AS GRP_PK,Workhours.EMP_PK AS EMP_PK
+,(CASE WHEN sum(Workhours.w1)>0 AND sum(Workhours.w1)<40 THEN 1 ELSE 0 END) AS WK1_0_40
+,(CASE WHEN sum(Workhours.w1)>=40 AND sum(Workhours.w1)<=54 THEN 1 ELSE 0 END) AS WK1_40_54
+,(CASE WHEN sum(Workhours.w1)>54 AND sum(Workhours.w1)<=60 THEN 1 ELSE 0 END) AS WK1_55_60
+,(CASE WHEN sum(Workhours.w1)>60 AND sum(Workhours.w1)<70 THEN 1 ELSE 0 END) AS WK1_61_70
+,(CASE WHEN sum(Workhours.w1)>70 THEN 1 ELSE 0 END) AS WK1_OVER_70
+,(CASE WHEN sum(Workhours.w2)>0 AND sum(Workhours.w2)<40 THEN 1 ELSE 0 END) AS WK2_0_40
+,(CASE WHEN sum(Workhours.w2)>=40 AND sum(Workhours.w2)<=54 THEN 1 ELSE 0 END) AS WK2_40_54
+,(CASE WHEN sum(Workhours.w2)>54 AND sum(Workhours.w2)<=60 THEN 1 ELSE 0 END) AS WK2_55_60
+,(CASE WHEN sum(Workhours.w2)>60 AND sum(Workhours.w2)<70 THEN 1 ELSE 0 END) AS WK2_61_70
+,(CASE WHEN sum(Workhours.w2)>70 THEN 1 ELSE 0 END) AS WK2_OVER_70
+,(CASE WHEN sum(Workhours.w3)>0 AND sum(Workhours.w3)<40 THEN 1 ELSE 0 END) AS WK3_0_40
+,(CASE WHEN sum(Workhours.w3)>=40 AND sum(Workhours.w3)<=54 THEN 1 ELSE 0 END) AS WK3_40_54
+,(CASE WHEN sum(Workhours.w3)>54 AND sum(Workhours.w3)<=60 THEN 1 ELSE 0 END) AS WK3_55_60
+,(CASE WHEN sum(Workhours.w3)>60 AND sum(Workhours.w3)<70 THEN 1 ELSE 0 END) AS WK3_61_70
+,(CASE WHEN sum(Workhours.w3)>70 THEN 1 ELSE 0 END) AS WK3_OVER_70
+,(CASE WHEN sum(Workhours.w4)>0 AND sum(Workhours.w4)<40 THEN 1 ELSE 0 END) AS WK4_0_40
+,(CASE WHEN sum(Workhours.w4)>=40 AND sum(Workhours.w4)<=54 THEN 1 ELSE 0 END) AS WK4_40_54
+,(CASE WHEN sum(Workhours.w4)>54 AND sum(Workhours.w4)<=60 THEN 1 ELSE 0 END) AS WK4_55_60
+,(CASE WHEN sum(Workhours.w4)>60 AND sum(Workhours.w4)<70 THEN 1 ELSE 0 END) AS WK4_61_70
+,(CASE WHEN sum(Workhours.w4)>70 THEN 1 ELSE 0 END) AS WK4_OVER_70
+,(CASE WHEN sum(Workhours.w5)>0 AND sum(Workhours.w5)<40 THEN 1 ELSE 0 END) AS WK5_0_40
+,(CASE WHEN sum(Workhours.w5)>=40 AND sum(Workhours.w5)<=54 THEN 1 ELSE 0 END) AS WK5_40_54
+,(CASE WHEN sum(Workhours.w5)>54 AND sum(Workhours.w5)<=60 THEN 1 ELSE 0 END) AS WK5_55_60
+,(CASE WHEN sum(Workhours.w5)>60 AND sum(Workhours.w5)<70 THEN 1 ELSE 0 END) AS WK5_61_70
+,(CASE WHEN sum(Workhours.w5)>70 THEN 1 ELSE 0 END) AS WK5_OVER_70
+ from
+(select B.pk as grp_pk,M.EMP_PK AS EMP_PK,decode(F_GET_WEEK_IN_MONTH(M.work_dt),1,sum(nvl(m.WORT_TIME,0)+nvl(E.OT_TIME,0)),0) as w1,decode(F_GET_WEEK_IN_MONTH(M.work_dt),2,sum(nvl(m.WORT_TIME,0)+nvl(E.OT_TIME,0)),0) as w2
+,decode(F_GET_WEEK_IN_MONTH(M.work_dt),3,sum(nvl(m.WORT_TIME,0)+nvl(E.OT_TIME,0)),0) as w3,decode(F_GET_WEEK_IN_MONTH(M.work_dt),4,sum(nvl(m.WORT_TIME,0)+nvl(E.OT_TIME,0)),0) as w4,decode(F_GET_WEEK_IN_MONTH(M.work_dt),5,sum(nvl(m.WORT_TIME,0)+nvl(E.OT_TIME,0)),0) as w5
+from vhr_emp a, THR_ABWORKGRP B,THR_TIME_MACHINE M,THR_EXTRA_TIME E
+where a.del_if=0 and b.del_if=0 AND M.DEL_IF=0 AND E.DEL_IF(+)=0 AND E.OT_TYPE(+)='OT'
+AND A.GRP_CODE=B.PK AND A.PK=M.EMP_PK AND M.WORK_DT=E.WORK_DT(+) AND M.EMP_PK=E.EMP_PK(+)
+and M.work_dt between AS_FROM_MON and AS_TO_MON
+group by B.PK,M.EMP_PK,F_GET_WEEK_IN_MONTH(M.work_dt)) Workhours
+group by Workhours.grp_pk,Workhours.EMP_PK) ADDIAS
+GROUP BY ADDIAS.GRP_PK)PRO_END;
+
+
+
+UPDATE THR_WEEK_WORK_MON WM
+SET (WM.TOTAL_W1,WM.TOTAL_W2,WM.TOTAL_W3,WM.TOTAL_W4,WM.TOTAL_W5)=(SELECT SUM(DECODE(DS.W_NUM,1,DS.NUM,0)) AS TOTAL_W1,SUM(DECODE(DS.W_NUM,2,DS.NUM,0)) AS TOTAL_W2,
+								SUM(DECODE(DS.W_NUM,3,DS.NUM,0)) AS TOTAL_W3,SUM(DECODE(DS.W_NUM,4,DS.NUM,0)) AS TOTAL_W4,SUM(DECODE(DS.W_NUM,5,DS.NUM,0)) AS TOTAL_W5
+								FROM(
+								SELECT B.GRP_CODE AS GRP_CODE,COUNT(B.PK) AS NUM,WEEK_NO.WEEK_NO AS W_NUM
+								FROM VHR_EMP B,(select 	F_GET_WEEK_IN_MONTH(A.CAR_DATE) AS WEEK_NO,MIN(A.CAR_DATE) AS DT_FROM,MAX(A.CAR_DATE) AS DT_TO
+														FROM TCO_ABCALENDAR A
+														where a.del_if=0
+														and A.CAR_DATE between AS_FROM_MON and AS_TO_MON
+														group by F_GET_WEEK_IN_MONTH(A.CAR_DATE))WEEK_NO
+								WHERE B.DEL_IF=0 AND B.JOIN_DT<=WEEK_NO.DT_TO
+								AND (B.LEFT_DT>WEEK_NO.DT_FROM OR B.LEFT_DT IS NULL)
+								GROUP BY B.GRP_CODE,WEEK_NO.WEEK_NO)DS
+								WHERE DS.GRP_CODE=WM.GRP_PK
+								GROUP BY DS.GRP_CODE)
+WHERE WM.DEL_IF=0 AND WM.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PROCESS_WEEK_WORK_MON) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PROCESS_WEEK_WORK_MON;
+/
+CREATE OR REPLACE PROCEDURE PROCESS_WT_OT(
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD 
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_COUNT     NUMBER(10);
+num_ht			NUMBER(1):=0;
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = SUBSTR(AS_FROM_MON,1, 6)
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+	
+DELETE THR_EMP_WORK_MON WM
+WHERE WM.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+
+	
+INSERT INTO THR_EMP_WORK_MON( 
+PK, DEPT_PK,GRP_CODE,EMP_PK, EMP_ID,  FULL_NAME, WORK_MON, D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10, D_11, D_12, D_13, D_14, D_15
+, D_16, D_17, D_18, D_19, D_20, D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30, D_31,
+ WD_P, WD_O, ABS_P, ABS_O, OT_P, OT_O, NT_P, NT_O, HT_P, HT_O
+, OT1, OT2, OT3, OT4, OT5, OT6, OT7, OT8, OT9, OT10, OT11, OT12, OT13, OT14, OT15
+, OT16, OT17, OT18, OT19, OT20, OT21, OT22, OT23, OT24, OT25, OT26, OT27, OT28, OT29, OT30, OT31
+, DEL_IF, CRT_DT, CRT_BY,GROUP_ID,STATUS
+)
+ SELECT  THR_EMP_WORK_MON_SEQ.NEXTVAL,DEP.PK AS DEPT_PK,GRP.PK AS GRP_CODE,EMP.PK AS EMP_PK,EMP.EMP_ID,EMP.FULL_NAME,
+ 		 SUBSTR(AS_FROM_MON,1,6) AS WORK_MON,
+		DECODE(DP1+DO1,0,DECODE(A1,'A',H1,A1),DECODE(DP1+DO1,8,to_char(DP1+DO1),DP1+DO1) ) D_1,
+		DECODE(DP2+DO2,0,DECODE(A2,'A',H2,A2),DECODE(DP2+DO2,8,to_char(DP2+DO2),DP2+DO2)) D_2,
+		DECODE(DP3+DO3,0,DECODE(A3,'A',H3,A3),DECODE(DP3+DO3,8,to_char(DP3+DO3),DP3+DO3)) D_3,
+		DECODE(DP4+DO4,0,DECODE(A4,'A',H4,A4),DECODE(DP4+DO4,8,to_char(DP4+DO4),DP4+DO4)) D_4,
+		DECODE(DP5+DO5,0,DECODE(A5,'A',H5,A5),DECODE(DP5+DO5,8,to_char(DP5+DO5),DP5+DO5)) D_5,
+		DECODE(DP6+DO6,0,DECODE(A6,'A',H6,A6),DECODE(DP6+DO6,8,to_char(DP6+DO6),DP6+DO6)) D_6,
+		DECODE(DP7+DO7,0,DECODE(A7,'A',H7,A7),DECODE(DP7+DO7,8,to_char(DP7+DO7),DP7+DO7)) D_7,
+		DECODE(DP8+DO8,0,DECODE(A8,'A',H8,A8),DECODE(DP8+DO8,8,to_char(DP8+DO8),DP8+DO8)) D_8,
+		DECODE(DP9+DO9,0,DECODE(A9,'A',H9,A9),DECODE(DP9+DO9,8,to_char(DP9+DO9),DP9+DO9)) D_9,
+		DECODE(DP10+DO10,0,DECODE(A10,'A',H10,A10),DECODE(DP10+DO10,8,to_char(DP10+DO10),DP10+DO10)) D_10,
+		DECODE(DP11+DO11,0,DECODE(A11,'A',H11,A11),DECODE(DP11+DO11,8,to_char(DP11+DO11),DP11+DO11)) D_11,
+		DECODE(DP12+DO12,0,DECODE(A12,'A',H12,A12),DECODE(DP12+DO12,8,to_char(DP12+DO12),DP12+DO12)) D_12,
+		DECODE(DP13+DO13,0,DECODE(A13,'A',H13,A13),DECODE(DP13+DO13,8,to_char(DP13+DO13),DP13+DO13)) D_13,
+		DECODE(DP14+DO14,0,DECODE(A14,'A',H14,A14),DECODE(DP14+DO14,8,to_char(DP14+DO14),DP14+DO14)) D_14,
+		DECODE(DP15+DO15,0,DECODE(A15,'A',H15,A15),DECODE(DP15+DO15,8,to_char(DP15+DO15),DP15+DO15)) D_15,
+		DECODE(DP16+DO16,0,DECODE(A16,'A',H16,A16),DECODE(DP16+DO16,8,to_char(DP16+DO16),DP16+DO16)) D_16,
+		DECODE(DP17+DO17,0,DECODE(A17,'A',H17,A17),DECODE(DP17+DO17,8,to_char(DP17+DO17),DP17+DO17)) D_17,
+		DECODE(DP18+DO18,0,DECODE(A18,'A',H18,A18),DECODE(DP18+DO18,8,to_char(DP18+DO18),DP18+DO18)) D_18,
+		DECODE(DP19+DO19,0,DECODE(A19,'A',H19,A19),DECODE(DP19+DO19,8,to_char(DP19+DO19),DP19+DO19)) D_19,
+		DECODE(DP20+DO20,0,DECODE(A20,'A',H20,A20),DECODE(DP20+DO20,8,to_char(DP20+DO20),DP20+DO20)) D_20,
+		DECODE(DP21+DO21,0,DECODE(A21,'A',H21,A21),DECODE(DP21+DO21,8,to_char(DP21+DO21),DP21+DO21)) D_21,
+		DECODE(DP22+DO22,0,DECODE(A22,'A',H22,A22),DECODE(DP22+DO22,8,to_char(DP22+DO22),DP22+DO22)) D_22,
+		DECODE(DP23+DO23,0,DECODE(A23,'A',H23,A23),DECODE(DP23+DO23,8,to_char(DP23+DO23),DP23+DO23)) D_23,
+		DECODE(DP24+DO24,0,DECODE(A24,'A',H24,A24),DECODE(DP24+DO24,8,to_char(DP24+DO24),DP24+DO24)) D_24,
+		DECODE(DP25+DO25,0,DECODE(A25,'A',H25,A25),DECODE(DP25+DO25,8,to_char(DP25+DO25),DP25+DO25)) D_25,
+		DECODE(DP26+DO26,0,DECODE(A26,'A',H26,A26),DECODE(DP26+DO26,8,to_char(DP26+DO26),DP26+DO26)) D_26,
+		DECODE(DP27+DO27,0,DECODE(A27,'A',H27,A27),DECODE(DP27+DO27,8,to_char(DP27+DO27),DP27+DO27)) D_27,
+		DECODE(DP28+DO28,0,DECODE(A28,'A',H28,A28),DECODE(DP28+DO28,8,to_char(DP28+DO28),DP28+DO28)) D_28,
+		DECODE(DP29+DO29,0,DECODE(A29,'A',H29,A29),DECODE(DP29+DO29,8,to_char(DP29+DO29),DP29+DO29)) D_29,
+		DECODE(DP30+DO30,0,DECODE(A30,'A',H30,A30),DECODE(DP30+DO30,8,to_char(DP30+DO30),DP30+DO30)) D_30,
+		DECODE(DP31+DO31,0,DECODE(A31,'A',H31,A31),DECODE(DP31+DO31,8,to_char(DP31+DO31),DP31+DO31)) D_31,
+		ROUND((DP1+DP2+DP3+DP4+DP5+DP6+DP7+DP8+DP9+DP10+DP11+DP12+DP13+DP14+DP15+DP16+DP17+DP18+DP19+DP20+DP21+DP22+DP23+DP24+DP25+DP26+DP27+DP28+DP29+DP30+DP31)/8,2) AS WD_P,
+		ROUND((DO1+DO2+DO3+DO4+DO5+DO6+DO7+DO8+DO9+DO10+DO11+DO12+DO13+DO14+DO15+DO16+DO17+DO18+DO19+DO20+DO21+DO22+DO23+DO24+DO25+DO26+DO27+DO28+DO29+DO30+DO31)/8,2) AS WD_O,
+		ROUND((F1+F2+F3+F4+F5+F6+F7+F8+F9+F10+F11+F12+F13+F14+F15+F16+F17+F18+F19+F20+F21+F22+F23+F24+F25+F26+F27+F28+F29+F30+F31)/8,2) AS ABS_P,
+		ROUND((K1+K2+K3+K4+K5+K6+K7+K8+K9+K10+K11+K12+K13+K14+K15+K16+K17+K18+K19+K20+K21+K22+K23+K24+K25+K26+K27+K28+K29+K30+K31)/8,2) AS ABS_O,	
+		ROUND(E1+E2+E3+E4+E5+E6+E7+E8+E9+E10+E11+E12+E13+E14+E15+E16+E17+E18+E19+E20+E21+E22+E23+E24+E25+E26+E27+E28+E29+E30+E31,2) AS OT_P,
+		ROUND(L1+L2+L3+L4+L5+L6+L7+L8+L9+L10+L11+L12+L13+L14+L15+L16+L17+L18+L19+L20+L21+L22+L23+L24+L25+L26+L27+L28+L29+L30+L31,2) AS OT_O,
+		ROUND(M1+M2+M3+M4+M5+M6+M7+M8+M9+M10+M11+M12+M13+M14+M15+M16+M17+M18+M19+M20+M21+M22+M23+M24+M25+M26+M27+M28+M29+M30+M31,2) AS NT_P,
+		ROUND(N1+N2+N3+N4+N5+N6+N7+N8+N9+N10+N11+N12+N13+N14+N15+N16+N17+N18+N19+N20+N21+N22+N23+N24+N25+N26+N27+N28+N29+N30+N31,2) AS NT_O,
+		ROUND(O1+O2+O3+O4+O5+O6+O7+O8+O9+O10+O11+O12+O13+O14+O15+O16+O17+O18+O19+O20+O21+O22+O23+O24+O25+O26+O27+O28+O29+O30+O31,2) AS HT_P,	
+		ROUND(P1+P2+P3+P4+P5+P6+P7+P8+P9+P10+P11+P12+P13+P14+P15+P16+P17+P18+P19+P20+P21+P22+P23+P24+P25+P26+P27+P28+P29+P30+P31,2) AS HT_O,	
+		ROUND(E1+L1,2) OT1,
+		ROUND(E2+L2,2) OT2,
+		ROUND(E3+L3,2) OT3,
+		ROUND(E4+L4,2) OT4,
+		ROUND(E5+L5,2) OT5,
+		ROUND(E6+L6,2) OT6,
+		ROUND(E7+L7,2) OT7,
+		ROUND(E8+L8,2) OT8,
+		ROUND(E9+L9,2) OT9,
+		ROUND(E10+L10,2) OT10,
+		ROUND(E11+L11,2) OT11,
+		ROUND(E12+L12,2) OT12,
+		ROUND(E13+L13,2) OT13,
+		ROUND(E14+L14,2) OT14,
+		ROUND(E15+L15,2) OT15,
+		ROUND(E16+L16,2) OT16,
+		ROUND(E17+L17,2) OT17,
+		ROUND(E18+L18,2) OT18,
+		ROUND(E19+L19,2) OT19,
+		ROUND(E20+L20,2) OT20,
+		ROUND(E21+L21,2) OT21,
+		ROUND(E22+L22,2) OT22,
+		ROUND(E23+L23,2) OT23,
+		ROUND(E24+L24,2) OT24,
+		ROUND(E25+L25,2) OT25,
+		ROUND(E26+L26,2) OT26,
+		ROUND(E27+L27,2) OT27,
+		ROUND(E28+L28,2) OT28,
+		ROUND(E29+L29,2) OT29,
+		ROUND(E30+L30,2) OT30,
+		ROUND(E31+L31,2) OT31,
+		 0, SYSDATE, AS_USER,GRP.WORKGRP_ID,
+		 CASE WHEN (EMP.LEFT_DT > AS_TO_MON  OR EMP.LEFT_DT IS NULL)  THEN 'A' ELSE EMP.STATUS  END  AS STATUS 
+	FROM (
+	SELECT EMP_PK,
+	      SUM(DP1)   DP1,
+	      SUM(DP2)   DP2,
+	      SUM(DP3)	DP3,
+	      SUM(DP4)	DP4,
+	      SUM(DP5)	DP5,
+	      SUM(DP6)	DP6,
+	      SUM(DP7)	DP7,
+	      SUM(DP8)	DP8,
+	      SUM(DP9)	DP9,
+	      SUM(DP10)	DP10,
+	      SUM(DP11)	DP11,
+	      SUM(DP12)	DP12,
+	      SUM(DP13)	DP13,
+	      SUM(DP14)	DP14,
+	      SUM(DP15)	DP15,
+	      SUM(DP16)	DP16,
+	      SUM(DP17)	DP17,
+	      SUM(DP18)	DP18,
+	      SUM(DP19)	DP19,
+	      SUM(DP20)	DP20,
+	      SUM(DP21)	DP21,
+	      SUM(DP22)	DP22,
+	      SUM(DP23)	DP23,
+	      SUM(DP24)	DP24,
+	      SUM(DP25)	DP25,
+	      SUM(DP26)	DP26,
+	      SUM(DP27)	DP27,
+	      SUM(DP28)	DP28,
+	      SUM(DP29)	DP29,
+	      SUM(DP30)	DP30,
+	      SUM(DP31)	DP31,
+		  SUM(DO1)   DO1,
+	      SUM(DO2)   DO2,
+	      SUM(DO3)	DO3,
+	      SUM(DO4)	DO4,
+	      SUM(DO5)	DO5,
+	      SUM(DO6)	DO6,
+	      SUM(DO7)	DO7,
+	      SUM(DO8)	DO8,
+	      SUM(DO9)	DO9,
+	      SUM(DO10)	DO10,
+	      SUM(DO11)	DO11,
+	      SUM(DO12)	DO12,
+	      SUM(DO13)	DO13,
+	      SUM(DO14)	DO14,
+	      SUM(DO15)	DO15,
+	      SUM(DO16)	DO16,
+	      SUM(DO17)	DO17,
+	      SUM(DO18)	DO18,
+	      SUM(DO19)	DO19,
+	      SUM(DO20)	DO20,
+	      SUM(DO21)	DO21,
+	      SUM(DO22)	DO22,
+	      SUM(DO23)	DO23,
+	      SUM(DO24)	DO24,
+	      SUM(DO25)	DO25,
+	      SUM(DO26)	DO26,
+	      SUM(DO27)	DO27,
+	      SUM(DO28)	DO28,
+	      SUM(DO29)	DO29,
+	      SUM(DO30)	DO30,
+	      SUM(DO31)	DO31,
+	      MAX(A1)   A1,
+	      MAX(A2)   A2,
+	      MAX(A3)   A3,
+	      MAX(A4)   A4,
+	      MAX(A5)   A5,
+	      MAX(A6)   A6,
+	      MAX(A7)   A7,
+	      MAX(A8)   A8,
+	      MAX(A9)   A9,
+	      MAX(A10)  A10,
+	      MAX(A11)  A11,
+	      MAX(A12)  A12,
+	      MAX(A13)  A13,
+	      MAX(A14)  A14,
+	      MAX(A15)  A15,
+	      MAX(A16)  A16,
+	      MAX(A17)  A17,
+	      MAX(A18)  A18,
+	      MAX(A19)  A19,
+	      MAX(A20)  A20,
+	      MAX(A21)  A21,
+	      MAX(A22)  A22,
+	      MAX(A23)  A23,
+	      MAX(A24)  A24,
+	      MAX(A25)  A25,
+	      MAX(A26)  A26,
+	      MAX(A27)  A27,
+	      MAX(A28)  A28,
+	      MAX(A29)  A29,
+	      MAX(A30)  A30,
+	      MAX(A31)  A31,
+		  SUM(E1)   E1,
+	      SUM(E2)   E2,
+	      SUM(E3)	E3,
+	      SUM(E4)	E4,
+	      SUM(E5)	E5,
+	      SUM(E6)	E6,
+	      SUM(E7)	E7,
+      	 SUM(E8)	E8,
+	      SUM(E9)	E9,
+	      SUM(E10)	E10,
+	      SUM(E11)	E11,
+	      SUM(E12)	E12,
+	      SUM(E13)	E13,
+	      SUM(E14)	E14,
+	      SUM(E15)	E15,
+	      SUM(E16)	E16,
+	      SUM(E17)	E17,
+	      SUM(E18)	E18,
+	      SUM(E19)	E19,
+	      SUM(E20)	E20,
+	      SUM(E21)	E21,
+	      SUM(E22)	E22,
+	      SUM(E23)	E23,
+	      SUM(E24)	E24,
+	      SUM(E25)	E25,
+	      SUM(E26)	E26,
+	      SUM(E27)	E27,
+	      SUM(E28)	E28,
+	      SUM(E29)	E29,
+	      SUM(E30)	E30,
+	      SUM(E31)	E31,
+		  SUM(F1)   F1,
+	      SUM(F2)   F2,
+	      SUM(F3)	F3,
+	      SUM(F4)	F4,
+	      SUM(F5)	F5,
+	      SUM(F6)	F6,
+	      SUM(F7)	F7,
+	      SUM(F8)	F8,
+	      SUM(F9)	F9,
+	      SUM(F10)	F10,
+	      SUM(F11)	F11,
+	      SUM(F12)	F12,
+	      SUM(F13)	F13,
+	      SUM(F14)	F14,
+	      SUM(F15)	F15,
+	      SUM(F16)	F16,
+	      SUM(F17)	F17,
+	      SUM(F18)	F18,
+	      SUM(F19)	F19,
+	      SUM(F20)	F20,
+	      SUM(F21)	F21,
+	      SUM(F22)	F22,
+	      SUM(F23)	F23,
+	      SUM(F24)	F24,
+	      SUM(F25)	F25,
+	      SUM(F26)	F26,
+	      SUM(F27)	F27,
+	      SUM(F28)	F28,
+	      SUM(F29)	F29,
+	      SUM(F30)	F30,
+	      SUM(F31)	F31,
+  	      MAX(H1)   H1,
+	      MAX(H2)   H2,
+	      MAX(H3)   H3,
+	      MAX(H4)   H4,
+	      MAX(H5)   H5,
+	      MAX(H6)   H6,
+	      MAX(H7)   H7,
+	      MAX(H8)   H8,
+	      MAX(H9)   H9,
+	      MAX(H10)  H10,
+	      MAX(H11)  H11,
+	      MAX(H12)  H12,
+	      MAX(H13)  H13,
+	      MAX(H14)  H14,
+	      MAX(H15)  H15,
+	      MAX(H16)  H16,
+	      MAX(H17)  H17,
+	      MAX(H18)  H18,
+	      MAX(H19)  H19,
+	      MAX(H20)  H20,
+	      MAX(H21)  H21,
+	      MAX(H22)  H22,
+	      MAX(H23)  H23,
+	      MAX(H24)  H24,
+	      MAX(H25)  H25,
+	      MAX(H26)  H26,
+	      MAX(H27)  H27,
+	      MAX(H28)  H28,
+	      MAX(H29)  H29,
+	      MAX(H30)  H30, 
+	      MAX(H31)  H31,
+		  SUM(K1)   K1,
+	      SUM(K2)   K2,
+	      SUM(K3)	K3,
+	      SUM(K4)	K4,
+	      SUM(K5)	K5,
+	      SUM(K6)	K6,
+	      SUM(K7)	K7,
+	      SUM(K8)	K8,
+	      SUM(K9)	K9,
+	      SUM(K10)	K10,
+	      SUM(K11)	K11,
+	      SUM(K12)	K12,
+	      SUM(K13)	K13,
+	      SUM(K14)	K14,
+	      SUM(K15)	K15,
+	      SUM(K16)	K16,
+	      SUM(K17)	K17,
+	      SUM(K18)	K18,
+	      SUM(K19)	K19,
+	      SUM(K20)	K20,
+	      SUM(K21)	K21,
+	      SUM(K22)	K22,
+	      SUM(K23)	K23,
+	      SUM(K24)	K24,
+	      SUM(K25)	K25,
+	      SUM(K26)	K26,
+	      SUM(K27)	K27,
+	      SUM(K28)	K28,
+	      SUM(K29)	K29,
+	      SUM(K30)	K30,
+	      SUM(K31)	K31,
+ 		  SUM(L1)   L1,
+	      SUM(L2)   L2,
+	      SUM(L3)	L3,
+	      SUM(L4)	L4,
+	      SUM(L5)	L5,
+	      SUM(L6)	L6,
+	      SUM(L7)	L7,
+	      SUM(L8)	L8,
+	      SUM(L9)	L9,
+	      SUM(L10)	L10,
+	      SUM(L11)	L11,
+	      SUM(L12)	L12,
+	      SUM(L13)	L13,
+	      SUM(L14)	L14,
+	      SUM(L15)	L15,
+	      SUM(L16)	L16,
+	      SUM(L17)	L17,
+	      SUM(L18)	L18,
+	      SUM(L19)	L19,
+	      SUM(L20)	L20,
+	      SUM(L21)	L21,
+	      SUM(L22)	L22,
+	      SUM(L23)	L23,
+	      SUM(L24)	L24,
+	      SUM(L25)	L25,
+	      SUM(L26)	L26,
+	      SUM(L27)	L27,
+	      SUM(L28)	L28,
+	      SUM(L29)	L29,
+	      SUM(L30)	L30,
+	      SUM(L31)	L31,
+		  SUM(M1)   M1,
+	      SUM(M2)   M2,
+	      SUM(M3)	M3,
+	      SUM(M4)	M4,
+	      SUM(M5)	M5,
+	      SUM(M6)	M6,
+	      SUM(M7)	M7,
+	      SUM(M8)	M8,
+	      SUM(M9)	M9,
+	      SUM(M10)	M10,
+	      SUM(M11)	M11,
+	      SUM(M12)	M12,
+	      SUM(M13)	M13,
+	      SUM(M14)	M14,
+	      SUM(M15)	M15,
+	      SUM(M16)	M16,
+	      SUM(M17)	M17,
+	      SUM(M18)	M18,
+	      SUM(M19)	M19,
+	      SUM(M20)	M20,
+	      SUM(M21)	M21,
+	      SUM(M22)	M22,
+	      SUM(M23)	M23,
+	      SUM(M24)	M24,
+	      SUM(M25)	M25,
+	      SUM(M26)	M26,
+	      SUM(M27)	M27,
+	      SUM(M28)	M28,
+	      SUM(M29)	M29,
+	      SUM(M30)	M30,
+	      SUM(M31)	M31,
+		  SUM(N1)   N1,
+	      SUM(N2)   N2,
+	      SUM(N3)	N3,
+	      SUM(N4)	N4,
+	      SUM(N5)	N5,
+	      SUM(N6)	N6,
+	      SUM(N7)	N7,
+	      SUM(N8)	N8,
+	      SUM(N9)	N9,
+	      SUM(N10)	N10,
+	      SUM(N11)	N11,
+	      SUM(N12)	N12,
+	      SUM(N13)	N13,
+	      SUM(N14)	N14,
+	      SUM(N15)	N15,
+	      SUM(N16)	N16,
+	      SUM(N17)	N17,
+	      SUM(N18)	N18,
+	      SUM(N19)	N19,
+	      SUM(N20)	N20,
+	      SUM(N21)	N21,
+	      SUM(N22)	N22,
+	      SUM(N23)	N23,
+	      SUM(N24)	N24,
+	      SUM(N25)	N25,
+	      SUM(N26)	N26,
+	      SUM(N27)	N27,
+	      SUM(N28)	N28,
+	      SUM(N29)	N29,
+	      SUM(N30)	N30,
+	      SUM(N31)	N31,
+ 		  SUM(O1)   O1,
+	      SUM(O2)   O2,
+	      SUM(O3)	O3,
+	      SUM(O4)	O4,
+	      SUM(O5)	O5,
+	      SUM(O6)	O6,
+	      SUM(O7)	O7,
+	      SUM(O8)	O8,
+	      SUM(O9)	O9,
+	      SUM(O10)	O10,
+	      SUM(O11)	O11,
+	      SUM(O12)	O12,
+	      SUM(O13)	O13,
+	      SUM(O14)	O14,
+	      SUM(O15)	O15,
+	      SUM(O16)	O16,
+	      SUM(O17)	O17,
+	      SUM(O18)	O18,
+	      SUM(O19)	O19,
+	      SUM(O20)	O20,
+	      SUM(O21)	O21,
+	      SUM(O22)	O22,
+	      SUM(O23)	O23,
+	      SUM(O24)	O24,
+	      SUM(O25)	O25,
+	      SUM(O26)	O26,
+	      SUM(O27)	O27,
+	      SUM(O28)	O28,
+	      SUM(O29)	O29,
+	      SUM(O30)	O30,
+	      SUM(O31)	O31,
+		  SUM(P1)   P1,
+	      SUM(P2)   P2,
+	      SUM(P3)	P3,
+	      SUM(P4)	P4,
+	      SUM(P5)	P5,
+	      SUM(P6)	P6,
+	      SUM(P7)	P7,
+	      SUM(P8)	P8,
+	      SUM(P9)	P9,
+	      SUM(P10)	P10,
+	      SUM(P11)	P11,
+	      SUM(P12)	P12,
+	      SUM(P13)	P13,
+	      SUM(P14)	P14,
+	      SUM(P15)	P15,
+	      SUM(P16)	P16,
+	      SUM(P17)	P17,
+	      SUM(P18)	P18,
+	      SUM(P19)	P19,
+	      SUM(P20)	P20,
+	      SUM(P21)	P21,
+	      SUM(P22)	P22,
+	      SUM(P23)	P23,
+	      SUM(P24)	P24,
+	      SUM(P25)	P25,
+	      SUM(P26)	P26,
+	      SUM(P27)	P27,
+	      SUM(P28)	P28,
+	      SUM(P29)	P29,
+	      SUM(P30)	P30,
+	      SUM(P31)	P31
+	FROM (
+	SELECT T.EMP_PK, --WT PROBATION
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01', (WORT_TIME), 0), 0)) DP1 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', (WORT_TIME), 0), 0)) DP2 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', (WORT_TIME), 0), 0)) DP3 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', (WORT_TIME), 0), 0)) DP4 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', (WORT_TIME), 0), 0)) DP5 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', (WORT_TIME), 0), 0)) DP6 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', (WORT_TIME), 0), 0)) DP7 
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', (WORT_TIME), 0), 0)) DP8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', (WORT_TIME), 0), 0)) DP9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', (WORT_TIME), 0), 0)) DP10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', (WORT_TIME), 0), 0)) DP11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', (WORT_TIME), 0), 0)) DP12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', (WORT_TIME), 0), 0)) DP13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', (WORT_TIME), 0), 0)) DP14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', (WORT_TIME), 0), 0)) DP15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', (WORT_TIME), 0), 0)) DP16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', (WORT_TIME), 0), 0)) DP17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', (WORT_TIME), 0), 0)) DP18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', (WORT_TIME), 0), 0)) DP19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', (WORT_TIME), 0), 0)) DP20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', (WORT_TIME), 0), 0)) DP21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', (WORT_TIME), 0), 0)) DP22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', (WORT_TIME), 0), 0)) DP23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', (WORT_TIME), 0), 0)) DP24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', (WORT_TIME), 0), 0)) DP25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', (WORT_TIME), 0), 0)) DP26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', (WORT_TIME), 0), 0)) DP27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', (WORT_TIME), 0), 0)) DP28
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', (WORT_TIME), 0), 0)) DP29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', (WORT_TIME), 0), 0)) DP30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', (WORT_TIME), 0), 0)) DP31
+		  ,0 DO1,0 DO2,0	DO3,0 DO4,0	DO5,0 DO6,0	DO7,0 DO8,0	DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0	DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0	DO27,0 DO28,0 DO29,0 DO30,0	DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		   ,0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	      ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		   ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM THR_TIME_MACHINE T, COMM.TCO_ABCALENDAR C,THR_ABEMP D
+	WHERE WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	  AND T.DEL_IF = 0 AND C.DEL_IF=0 AND D.DEL_IF=0 AND T.EMP_PK=D.PK
+	  AND C.HOL_TYPE IS NULL
+	  AND T.WORK_DT = C.CAR_DATE
+	  AND T.WORK_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,D.ET_PROBATION,0),1,D.ET_PROBATION,AS_TO_MON)
+	AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL 
+	AND D.ET_PROBATION>=AS_FROM_MON
+	GROUP BY  T.EMP_PK
+	  UNION ALL --WT OFFICAL 
+	  	SELECT T.EMP_PK, 
+	      0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01', (WORT_TIME), 0), 0)) DO1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', (WORT_TIME), 0), 0)) DO2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', (WORT_TIME), 0), 0)) DO3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', (WORT_TIME), 0), 0)) DO4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', (WORT_TIME), 0), 0)) DO5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', (WORT_TIME), 0), 0)) DO6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', (WORT_TIME), 0), 0)) DO7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', (WORT_TIME), 0), 0)) DO8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', (WORT_TIME), 0), 0)) DO9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', (WORT_TIME), 0), 0)) DO10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', (WORT_TIME), 0), 0)) DO11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', (WORT_TIME), 0), 0)) DO12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', (WORT_TIME), 0), 0)) DO13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', (WORT_TIME), 0), 0)) DO14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', (WORT_TIME), 0), 0)) DO15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', (WORT_TIME), 0), 0)) DO16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', (WORT_TIME), 0), 0)) DO17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', (WORT_TIME), 0), 0)) DO18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', (WORT_TIME), 0), 0)) DO19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', (WORT_TIME), 0), 0)) DO20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', (WORT_TIME), 0), 0)) DO21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', (WORT_TIME), 0), 0)) DO22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', (WORT_TIME), 0), 0)) DO23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', (WORT_TIME), 0), 0)) DO24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', (WORT_TIME), 0), 0)) DO25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', (WORT_TIME), 0), 0)) DO26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', (WORT_TIME), 0), 0)) DO27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', (WORT_TIME), 0), 0)) DO28
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', (WORT_TIME), 0), 0)) DO29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', (WORT_TIME), 0), 0)) DO30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', (WORT_TIME), 0), 0)) DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		   ,0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	     ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		   ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM THR_TIME_MACHINE T, COMM.TCO_ABCALENDAR C,THR_ABEMP D 
+	WHERE WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	  AND T.DEL_IF = 0 AND C.DEL_IF=0 AND D.DEL_IF=0 AND T.EMP_PK=D.PK
+	  AND C.HOL_TYPE IS NULL
+	  AND T.WORK_DT = C.CAR_DATE
+    AND T.WORK_DT BETWEEN DECODE(F_Check_Num(D.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(D.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+	AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL
+		AND D.ET_PROBATION<=AS_TO_MON
+	  GROUP BY  T.EMP_PK
+	UNION ALL   --ABS ALL 
+		SELECT EMP_PK,
+	      0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+	      ,0 DO1,0 DO2,0 DO3,0 DO4,0 DO5,0 DO6,0 DO7,0 DO8,0 DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0 DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0 DO27,0 DO28,0 DO29,0 DO30,0 DO31
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'01', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A1
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'02', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A2
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'03', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A3
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'04', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A4
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'05', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A5
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'06', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A6
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'07', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A7
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'08', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A8
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'09', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A9
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'10', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A10
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'11', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A11
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'12', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A12
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'13', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A13
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'14', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A14
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'15', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A15
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'16', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A16
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'17', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A17
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'18', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A18
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'19', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A19
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'20', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A20
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'21', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A21
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'22', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A22
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'23', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A23
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'24', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A24
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'25', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A25
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'26', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A26
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'27', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A27
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'28', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A28
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'29', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A29
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'30', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A30
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'31', DECODE(ABS_CODE,'NOP','AW','PER','AP','ALE','AL','SCH','SC','SLE','SL','HLE','HL','MLE','ML','NON','NO',ABS_CODE), 'A'), 'A')) A31
+		 ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		   ,0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	     ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		  ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM THR_EMP_ABSENT AB, COMM.TCO_ABCALENDAR CL
+	WHERE  AB.DEL_IF = 0 AND CL.DEL_IF=0 
+	  AND CL.HOL_TYPE IS NULL
+	  AND AB.ABS_DT = CL.CAR_DATE
+	   AND	AB.ABS_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	  GROUP BY  AB.EMP_PK
+UNION ALL    --ABS PROBATION  
+	SELECT EMP_PK,
+	       0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+	      ,0 DO1,0 DO2,0 DO3,0 DO4,0 DO5,0 DO6,0 DO7,0 DO8,0 DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0 DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0 DO27,0 DO28,0 DO29,0 DO30,0 DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'01', (ABSENT_TIME), 0), 0)) F1
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'02', (ABSENT_TIME), 0), 0)) F2
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'03', (ABSENT_TIME), 0), 0)) F3
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'04', (ABSENT_TIME), 0), 0)) F4
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'05', (ABSENT_TIME), 0), 0)) F5
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'06', (ABSENT_TIME), 0), 0)) F6
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'07', (ABSENT_TIME), 0), 0)) F7
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'08', (ABSENT_TIME), 0), 0)) F8
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'09', (ABSENT_TIME), 0), 0)) F9
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'10', (ABSENT_TIME), 0), 0)) F10
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'11', (ABSENT_TIME), 0), 0)) F11
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'12', (ABSENT_TIME), 0), 0)) F12
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'13', (ABSENT_TIME), 0), 0)) F13
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'14', (ABSENT_TIME), 0), 0)) F14
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'15', (ABSENT_TIME), 0), 0)) F15
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'16', (ABSENT_TIME), 0), 0)) F16
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'17', (ABSENT_TIME), 0), 0)) F17
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'18', (ABSENT_TIME), 0), 0)) F18
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'19', (ABSENT_TIME), 0), 0)) F19
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'20', (ABSENT_TIME), 0), 0)) F20
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'21', (ABSENT_TIME), 0), 0)) F21
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'22', (ABSENT_TIME), 0), 0)) F22
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'23', (ABSENT_TIME), 0), 0)) F23
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'24', (ABSENT_TIME), 0), 0)) F24
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'25', (ABSENT_TIME), 0), 0)) F25
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'26', (ABSENT_TIME), 0), 0)) F26
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'27', (ABSENT_TIME), 0), 0)) F27
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'28', (ABSENT_TIME), 0), 0)) F28
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'29', (ABSENT_TIME), 0), 0)) F29
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'30', (ABSENT_TIME), 0), 0)) F30
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'31', (ABSENT_TIME), 0), 0)) F31
+	      ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		   ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM THR_EMP_ABSENT AB, COMM.TCO_ABCALENDAR CL,THR_ABEMP D
+	WHERE  AB.DEL_IF = 0 AND CL.DEL_IF=0 AND D.DEL_IF=0
+	  AND AB.EMP_PK=D.PK
+	  AND CL.HOL_TYPE IS NULL
+	  AND AB.ABS_DT = CL.CAR_DATE
+	 AND	AB.ABS_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	 AND AB.ABS_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,D.ET_PROBATION,0),1,D.ET_PROBATION,AS_TO_MON)
+	 AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL 
+	 AND D.ET_PROBATION>=AS_FROM_MON
+	  GROUP BY  AB.EMP_PK
+UNION ALL    --ABS OFFICAL   
+	SELECT EMP_PK,
+	      0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+	      ,0 DO1,0 DO2,0 DO3,0 DO4,0 DO5,0 DO6,0 DO7,0 DO8,0 DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0 DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0 DO27,0 DO28,0 DO29,0 DO30,0 DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		  , 0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	     ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'01', (ABSENT_TIME), 0), 0)) K1
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'02', (ABSENT_TIME), 0), 0)) K2
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'03', (ABSENT_TIME), 0), 0)) K3
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'04', (ABSENT_TIME), 0), 0)) K4
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'05', (ABSENT_TIME), 0), 0)) K5
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'06', (ABSENT_TIME), 0), 0)) K6
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'07', (ABSENT_TIME), 0), 0)) K7
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'08', (ABSENT_TIME), 0), 0)) K8
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'09', (ABSENT_TIME), 0), 0)) K9
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'10', (ABSENT_TIME), 0), 0)) K10
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'11', (ABSENT_TIME), 0), 0)) K11
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'12', (ABSENT_TIME), 0), 0)) K12
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'13', (ABSENT_TIME), 0), 0)) K13
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'14', (ABSENT_TIME), 0), 0)) K14
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'15', (ABSENT_TIME), 0), 0)) K15
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'16', (ABSENT_TIME), 0), 0)) K16
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'17', (ABSENT_TIME), 0), 0)) K17
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'18', (ABSENT_TIME), 0), 0)) K18
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'19', (ABSENT_TIME), 0), 0)) K19
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'20', (ABSENT_TIME), 0), 0)) K20
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'21', (ABSENT_TIME), 0), 0)) K21
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'22', (ABSENT_TIME), 0), 0)) K22
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'23', (ABSENT_TIME), 0), 0)) K23
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'24', (ABSENT_TIME), 0), 0)) K24
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'25', (ABSENT_TIME), 0), 0)) K25
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'26', (ABSENT_TIME), 0), 0)) K26
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'27', (ABSENT_TIME), 0), 0)) K27
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'28', (ABSENT_TIME), 0), 0)) K28
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'29', (ABSENT_TIME), 0), 0)) K29
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'30', (ABSENT_TIME), 0), 0)) K30
+	       ,MAX(NVL(DECODE(SUBSTR(ABS_DT,7,2),'31', (ABSENT_TIME), 0), 0)) K31
+		 ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM THR_EMP_ABSENT AB, COMM.TCO_ABCALENDAR CL,THR_ABEMP D
+	WHERE  AB.DEL_IF = 0 AND CL.DEL_IF=0 AND D.DEL_IF=0
+	  AND AB.EMP_PK=D.PK
+	  AND CL.HOL_TYPE IS NULL
+	  AND AB.ABS_DT = CL.CAR_DATE
+	 AND	AB.ABS_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+    AND AB.ABS_DT BETWEEN DECODE(F_Check_Num(D.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(D.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+	AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL
+		AND D.ET_PROBATION<=AS_TO_MON
+	  GROUP BY  AB.EMP_PK
+	UNION ALL  --HOLIDAY 
+	SELECT EMP.PK,
+	       0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+	      ,0 DO1,0 DO2,0 DO3,0 DO4,0 DO5,0 DO6,0 DO7,0 DO8,0 DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0 DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0 DO27,0 DO28,0 DO29,0 DO30,0 DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		  , 0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+ 	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'01', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H1
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'02', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H2
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'03', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H3
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'04', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H4
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'05', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H5
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'06', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H6
+		   ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'07', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H7
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'08', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H8
+		   ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'09', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H9
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'10', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H10
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'11', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H11
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'12', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H12
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'13', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H13
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'14', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H14
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'15', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H15
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'16', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H16
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'17', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H17
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'18', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H18
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'19', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H19
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'20', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H20
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'21', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H21
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'22', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H22
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'23', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H23
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'24', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H24
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'25', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H25
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'26', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H26
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'27', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H27
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'28', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H28
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'29', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H29
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'30', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H30
+	       ,MAX(NVL(DECODE(SUBSTR(CAR_DATE,7,2),'31', DECODE(HOL_TYPE,'NAT','HL','COM','HL',''), ''), '')) H31
+		  ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		    ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+	FROM VHR_EMP EMP, COMM.TCO_ABCALENDAR CL
+	WHERE	CL.CAR_DATE BETWEEN AS_FROM_MON AND AS_TO_MON  
+	AND CL.CAR_DATE BETWEEN DECODE(F_CHECK_DT(EMP.JOIN_DT,AS_FROM_MON),1,EMP.JOIN_DT,AS_FROM_MON) 
+																				AND DECODE(F_CHECK_DT(NVL(EMP.LEFT_DT,AS_TO_MON),AS_TO_MON),1,AS_TO_MON,EMP.LEFT_DT) 
+	  AND EMP.DEL_IF = 0
+	  AND CL.HOL_TYPE IN('NAT','COM')
+	  AND EMP.JOIN_DT<=AS_TO_MON
+	  AND NVL(EMP.LEFT_DT,AS_TO_MON)>=AS_FROM_MON
+	  GROUP BY  EMP.PK 
+   UNION ALL  --- OT,NT,HR PROBATION  
+	SELECT EMP_PK,
+	      0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+		  ,0 DO1,0 DO2,0	DO3,0 DO4,0	DO5,0 DO6,0	DO7,0 DO8,0	DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0	DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0	DO27,0 DO28,0 DO29,0 DO30,0	DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) E31
+		    ,0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	     ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		   ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,0 L1,0 L2,0 L3,0 L4,0 L5,0 L6,0 L7,0 L8,0 L9,0 L10,0 L11,0 L12,0 L13,0 L14,0 L15
+		   ,0 L16,0 L17,0 L18,0 L19,0 L20,0 L21,0 L22,0 L23,0 L24,0 L25,0 L26,0 L27,0 L28,0 L29,0 L30,0 L31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) M31
+		   ,0 N1,0 N2,0 N3,0 N4,0 N5,0 N6,0 N7,0 N8,0 N9,0 N10,0 N11,0 N12,0 N13,0 N14,0 N15
+		   ,0 N16,0 N17,0 N18,0 N19,0 N20,0 N21,0 N22,0 N23,0 N24,0 N25,0 N26,0 N27,0 N28,0 N29,0 N30,0 N31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'HT',(OT_TIME),0), 0), 0)) O31
+		   , 0 P1,0 P2,0 P3,0 P4,0 P5,0 P6,0 P7,0 P8,0 P9,0 P10,0 P11,0 P12,0 P13,0 P14,0 P15
+		   ,0 P16,0 P17,0 P18,0 P19,0 P20,0 P21,0 P22,0 P23,0 P24,0 P25,0 P26,0 P27,0 P28,0 P29,0 P30,0 P31
+    FROM THR_EXTRA_TIME TM, COMM.TCO_ABCALENDAR CF, THR_ABEMP D
+	WHERE TM.WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	  AND TM.DEL_IF = 0 AND D.DEL_IF=0 AND TM.EMP_PK=D.PK
+	  AND TM.WORK_DT = CF.CAR_DATE
+ 	  AND TM.WORK_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,D.ET_PROBATION,0),1,D.ET_PROBATION,AS_TO_MON)
+  	 AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL 
+	AND D.ET_PROBATION>=AS_FROM_MON
+	  GROUP BY  TM.EMP_PK
+   UNION ALL  --- OT,NT,HT  OFFICAL    
+	SELECT EMP_PK,
+	     0 DP1,0 DP2,0 DP3,0 DP4,0 DP5,0 DP6,0 DP7,0 DP8,0 DP9,0 DP10,0 DP11,0 DP12,0 DP13,0 DP14,0 DP15
+		  ,0 DP16,0 DP17,0 DP18,0 DP19,0 DP20,0 DP21,0 DP22,0 DP23,0 DP24,0 DP25,0 DP26,0 DP27,0 DP28,0 DP29,0 DP30,0 DP31
+		  ,0 DO1,0 DO2,0	DO3,0 DO4,0	DO5,0 DO6,0	DO7,0 DO8,0	DO9,0 DO10,0 DO11,0 DO12,0 DO13,0 DO14,0 DO15
+		  ,0 DO16,0 DO17,0 DO18,0	DO19,0 DO20,0 DO21,0 DO22,0 DO23,0 DO24,0 DO25,0 DO26,0	DO27,0 DO28,0 DO29,0 DO30,0	DO31
+		  ,'A' A1,'A' A2,'A' A3,'A' A4,'A' A5,'A' A6,'A' A7,'A' A8,'A' A9,'A' A10,'A' A11,'A' A12,'A' A13,'A' A14,'A' A15
+		  ,'A' A16,'A' A17,'A' A18,'A' A19,'A' A20,'A' A21,'A' A22,'A' A23,'A' A24,'A' A25,'A' A26,'A' A27,'A' A28,'A' A29,'A' A30,'A' A31
+		  ,0 E1,0 E2,0 E3,0 E4,0 E5,0 E6,0 E7,0 E8,0 E9,0 E10,0 E11,0 E12,0 E13,0 E14,0 E15
+		  ,0 E16,0 E17,0 E18,0 E19,0 E20,0 E21,0 E22,0 E23,0 E24,0 E25,0 E26,0 E27,0 E28,0 E29,0 E30,0 E31
+		   ,0 F1,0 F2,0 F3,0 F4,0 F5,0 F6,0 F7,0 F8,0 F9,0 F10,0 F11,0 F12,0 F13,0 F14,0 F15
+		   ,0 F16,0 F17,0 F18,0 F19,0 F20,0 F21,0 F22,0 F23,0 F24,0 F25,0 F26,0 F27,0 F28,0 F29,0 F30,0 F31
+	     ,'' H1,'' H2,'' H3,'' H4,'' H5,'' H6,'' H7,'' H8,'' H9,'' H10,'' H11,'' H12,'' H13,'' H14,'' H15
+		  ,'' H16,'' H17,'' H18,'' H19,'' H20,'' H21,'' H22,'' H23,'' H24,'' H25,'' H26,'' H27,'' H28,'' H29,'' H30,'' H31
+		   ,0 K1,0 K2,0 K3,0 K4,0 K5,0 K6,0 K7,0 K8,0 K9,0 K10,0 K11,0 K12,0 K13,0 K14,0 K15
+		   ,0 K16,0 K17,0 K18,0 K19,0 K20,0 K21,0 K22,0 K23,0 K24,0 K25,0 K26,0 K27,0 K28,0 K29,0 K30,0 K31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'OT',(OT_TIME),0), 0), 0)) L31
+		  ,0 M1,0 M2,0 M3,0 M4,0 M5,0 M6,0 M7,0 M8,0 M9,0 M10,0 M11,0 M12,0 M13,0 M14,0 M15
+		   ,0 M16,0 M17,0 M18,0 M19,0 M20,0 M21,0 M22,0 M23,0 M24,0 M25,0 M26,0 M27,0 M28,0 M29,0 M30,0 M31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) N31
+		  ,0 O1,0 O2,0 O3,0 O4,0 O5,0 O6,0 O7,0 O8,0 O9,0 O10,0 O11,0 O12,0 O13,0 O14,0 O15
+		   ,0 O16,0 O17,0 O18,0 O19,0 O20,0 O21,0 O22,0 O23,0 O24,0 O25,0 O26,0 O27,0 O28,0 O29,0 O30,0 O31
+		   ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01',DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P1
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P2
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P3
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P4
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P5
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P6
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P7
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P8
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P9
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P10
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P11
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P12
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P13
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P14
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P15
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P16
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P17
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P18
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P19
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P20
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P21
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P22
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P23
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P24
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P25
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P26
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P27
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P28
+           ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P29
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P30
+	       ,SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', DECODE(OT_TYPE,'NT',(OT_TIME),0), 0), 0)) P31
+    FROM THR_EXTRA_TIME TM, COMM.TCO_ABCALENDAR CF, THR_ABEMP D
+	WHERE TM.WORK_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+	  AND TM.DEL_IF = 0 AND D.DEL_IF=0 AND TM.EMP_PK=D.PK
+	  AND TM.WORK_DT = CF.CAR_DATE
+ 	  AND TM.WORK_DT BETWEEN DECODE(F_Check_Num(D.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(D.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+	  AND D.ST_PROBATION IS NOT NULL AND D.ET_PROBATION IS NOT NULL
+	  AND D.ET_PROBATION<=AS_TO_MON
+	  GROUP BY  TM.EMP_PK )
+	  GROUP BY EMP_PK	  
+	 ) WORK, VHR_EMP EMP,THR_ABWORKGRP GRP,TCO_EODEPT DEP
+	WHERE WORK.EMP_PK(+) = EMP.PK
+	  	  AND EMP.DEL_IF=0 AND DEP.DEL_IF=0
+	 	  AND EMP.JOIN_DT <= AS_TO_MON
+	      AND (EMP.LEFT_DT > AS_FROM_MON OR EMP.LEFT_DT IS NULL)
+		  AND EMP.GRP_CODE = GRP.PK AND EMP.DEPT_PK=DEP.PK
+		  AND GRP.DEL_IF=0;
+
+
+COMMIT;		 
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PROCESS_WT_OT) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PROCESS_WT_OT;
+/
+CREATE OR REPLACE PROCEDURE Pro_Holiday_Manage(
+	P_WORK_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	P_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+MIN_NATIONAL_DAY	VARCHAR2(8);
+MAX_NATIONAL_DAY	VARCHAR2(8);
+num_ht			NUMBER(10):=0;
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+AN_SYS_ERROR_MSG := '10';
+ -- luu lai nhung nguoi ko quet the trong thang
+	 BEGIN
+	 	  DELETE THR_NOSCAN_CARD R
+	 	  WHERE R.WORK_MON=P_WORK_MON;
+	END;
+	 
+	 BEGIN
+	 INSERT INTO THR_NOSCAN_CARD 
+					(PK,DEPT_PK,GRP_CODE,EMP_PK,WORK_MON,NOSCAN_NUM,DEL_IF,CRT_BY,CRT_DT)
+					SELECT THR_NOSCAN_CARD_SEQ.NEXTVAL,CARD.DEPT_PK,CARD.GRP_CODE,CARD.EMP_PK,P_WORK_MON,CARD.NUM,0,P_USER,SYSDATE
+					FROM
+					(SELECT C.DEPT_PK AS DEPT_PK,C.GRP_CODE AS GRP_CODE, D.EMP_PK AS EMP_PK,SUM(DECODE(D.NUM_CHECK,'Y',1,0)) AS NUM FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)=P_WORK_MON AND D.NUM_CHECK='Y'
+								 AND C.PK=D.EMP_PK
+								 HAVING SUM(DECODE(D.NUM_CHECK,'Y',1,0))>=3
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)CARD;
+	END;
+	
+-- luu lai nhung nguoi di som ve tre 3 lan trong 1 thang
+BEGIN
+	 	  DELETE THR_EARLY_LATELY R
+	 	  WHERE R.WORK_MON=P_WORK_MON;
+	END;
+	 
+	 BEGIN
+	 
+	 INSERT INTO THR_EARLY_LATELY 
+					(PK,DEPT_PK,GRP_CODE,EMP_PK,WORK_MON,NUM_TIMES,DEL_IF,CRT_BY,CRT_DT)
+					SELECT THR_EARLY_LATELY_SEQ.NEXTVAL,CARD.DEPT_PK,CARD.GRP_CODE,CARD.EMP_PK,P_WORK_MON,CARD.NUM,0,P_USER,SYSDATE
+					FROM
+					(SELECT C.DEPT_PK AS DEPT_PK,C.GRP_CODE AS GRP_CODE, D.EMP_PK AS EMP_PK,COUNT(D.PK) AS NUM 
+							FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)=P_WORK_MON 
+								  AND (D.P_IN>(SELECT t.START_TIME FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT) 
+								 OR  F_Check_In_Out(D.P_OUT,(SELECT t.END_TIME FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),1) = 1 )
+								 AND D.EMP_PK NOT IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 AND C.PK=D.EMP_PK
+								 HAVING COUNT(D.PK) >0
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)CARD;
+								 
+	-- XAC DINH NHUNG CONG NHAN DA HET THU VIEC TRONG THANG
+	
+	UPDATE THR_EARLY_LATELY U
+		   SET U.INDUS_FLAG = 'Y'
+	WHERE U.EMP_PK IN (SELECT PK FROM THR_ABEMP A 
+		  	   	  		  WHERE A.DEL_IF = 0 
+						  AND A.ET_PROBATION < TO_CHAR(LAST_DAY(TO_DATE(P_WORK_MON || '01','YYYYMMDD')),'YYYYMMDD'))
+		AND U.DEL_IF = 0
+		AND U.WORK_MON = P_WORK_MON; 							 
+								 
+	-- UPDATE SO LAN DI TRE , VE SOM --
+	UPDATE THR_EARLY_LATELY U
+		   SET U.LATE_TIMES = (SELECT COUNT(*) AS NUM 
+ 							   FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)= P_WORK_MON 
+								 AND  F_Check_In_Out((SELECT t.START_TIME  FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),D.P_IN,1) = 1-- )
+								 AND D.EMP_PK NOT IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 AND D.P_IN <= D.P_OUT
+								 AND C.PK=D.EMP_PK AND U.EMP_PK = C.PK AND D.WORK_DT > c.END_PROB
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)
+		   	   ,U.EARLY_TIMES = (SELECT COUNT(*) AS NUM 
+							   FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)= P_WORK_MON 
+								 AND  F_Check_In_Out(D.P_OUT,(SELECT t.END_TIME  FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),1) = 1-- )
+								 AND D.EMP_PK NOT IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 AND D.P_IN <= D.P_OUT
+								 AND C.PK=D.EMP_PK AND U.EMP_PK = C.PK  AND D.WORK_DT > c.END_PROB
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)
+	WHERE U.DEL_IF = 0  
+		  AND U.EMP_PK NOT IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE U.WORK_MON BETWEEN SUBSTR(AO.START_DT,1,6) AND SUBSTR(AO.END_DT,1,6) AND AO.DEL_IF =0 )
+		  AND U.WORK_MON = P_WORK_MON; 
+	
+-- tinh lai cho nhung nguoi thai san 	
+	
+	 INSERT INTO THR_EARLY_LATELY 
+					(PK,DEPT_PK,GRP_CODE,EMP_PK,WORK_MON,NUM_TIMES,DEL_IF,CRT_BY,CRT_DT)
+					SELECT THR_EARLY_LATELY_SEQ.NEXTVAL,CARD.DEPT_PK,CARD.GRP_CODE,CARD.EMP_PK,P_WORK_MON,CARD.NUM,0,P_USER,SYSDATE
+					FROM
+					(SELECT C.DEPT_PK AS DEPT_PK,C.GRP_CODE AS GRP_CODE, D.EMP_PK AS EMP_PK,COUNT(D.PK) AS NUM 
+							FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)=P_WORK_MON 
+								  AND (D.P_IN>(SELECT t.START_TIME FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT) 
+								 OR  F_Check_In_Out(D.P_OUT,(SELECT t.END_TIME FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),61) = 1 )
+								 AND D.EMP_PK IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 --AND D.P_IN <= D.P_OUT
+								 AND C.PK=D.EMP_PK
+								 HAVING COUNT(D.PK) >0
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)CARD;
+								 
+	-- UPDATE SO LAN DI TRE , VE SOM  CUA THAI SAN--
+	UPDATE THR_EARLY_LATELY U
+		   SET U.LATE_TIMES = (SELECT COUNT(*) AS NUM 
+							   FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)= P_WORK_MON
+								 AND  F_Check_In_Out((SELECT t.START_TIME  FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),D.P_IN,61) = 1-- )
+								 AND D.EMP_PK IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 AND D.P_IN <= D.P_OUT
+								 AND C.PK=D.EMP_PK AND U.EMP_PK = C.PK  AND D.WORK_DT > c.END_PROB
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)
+		   	   ,U.EARLY_TIMES = (SELECT COUNT(*) AS NUM 
+							   FROM THR_TIME_MACHINE D,vhr_emp c
+			  	  	   			 WHERE D.DEL_IF=0 AND SUBSTR(D.WORK_DT,1,6)= P_WORK_MON
+								 AND  F_Check_In_Out(D.P_OUT,(SELECT t.END_TIME  FROM THR_WORK_SHIFT t WHERE del_if=0 AND t.pk=d.W_SHIFT),61) = 1-- )
+								 AND D.EMP_PK IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE D.WORK_DT BETWEEN AO.START_DT AND AO.END_DT AND AO.DEL_IF =0 )
+								 AND D.P_IN <= D.P_OUT
+								 AND C.PK=D.EMP_PK AND U.EMP_PK = C.PK  AND D.WORK_DT > c.END_PROB
+								 GROUP BY C.DEPT_PK,C.GRP_CODE,D.EMP_PK)
+	WHERE U.DEL_IF = 0 
+		  AND U.EMP_PK IN ( SELECT EMP_PK FROM THR_OT_ALLOWANCE AO WHERE U.WORK_MON BETWEEN SUBSTR(AO.START_DT,1,6) AND SUBSTR(AO.END_DT,1,6) AND AO.DEL_IF =0 )
+		  AND U.WORK_MON = P_WORK_MON;
+								 
+								 
+	END;
+	
+	
+	
+AN_SYS_ERROR_MSG := '10';
+
+	-- TIM RA NGAY LE LA NGAY NAO TRONG THANG
+	SELECT COUNT(C.CAR_DATE) INTO num_ht FROM COMM.TCO_ABCALENDAR C
+	WHERE C.DEL_IF = 0 
+	AND C.DAY_TYPE <>'1' 
+	AND C.HOL_TYPE IS NOT NULL 
+	AND SUBSTR(C.CAR_DATE,1,6) = 	P_WORK_MON;
+	
+	IF num_ht>0 THEN --NEU num_ht>1 tuc la co ngay nghi bu cho ngay le HOAC NGAY TET
+				SELECT MIN(C.CAR_DATE),MAX(C.CAR_DATE) INTO MIN_NATIONAL_DAY,MAX_NATIONAL_DAY FROM COMM.TCO_ABCALENDAR C
+				WHERE C.DEL_IF = 0 
+				AND C.DAY_TYPE <>'1' 
+				AND C.HOL_TYPE IS NOT NULL 
+				AND SUBSTR(C.CAR_DATE,1,6) = P_WORK_MON;
+
+	
+
+			AN_SYS_ERROR_MSG := '20';
+				DELETE THR_HOLIDAY_MANAGE
+				 WHERE DEL_IF = 0
+				   AND WORK_MON = P_WORK_MON;
+
+					BEGIN
+						 
+					AN_SYS_ERROR_MSG := '26';
+					
+					
+					-- INSERT TONG SO NGAY LE DUOC HUONG TRONG THANG
+					
+					INSERT INTO THR_HOLIDAY_MANAGE
+					(PK,EMP_PK,WORK_MON,HOL_DAY_PRO, HOL_DAY_OFF, REMARK, DEL_IF, CRT_BY, CRT_DT)  
+					SELECT THR_HOLIDAY_MANAGE_SEQ.NEXTVAL,HOL.EMP_PK,P_WORK_MON,NVL(HOL.HOL_PRO,0) AS HOL_DAY_PRO,NVL(HOL.HOL_OFF,0) AS HOL_DAY_OFF,'HOL',0,P_USER,SYSDATE
+					FROM(
+						SELECT  E.PK AS EMP_PK,NVL(HOL_PRO.HOL_DAY,0) AS HOL_PRO,NVL(HOL_OFF.HOL_DAY,0) AS HOL_OFF
+												FROM  VHR_EMP E,(SELECT A.PK AS PK ,COUNT(CL.CAR_DATE) AS HOL_DAY
+	   												  		  				 	   			   FROM VHR_EMP A,TCO_ABCALENDAR CL
+																			  					  		   	 ,(SELECT B.EMP_PK,b.START_DT AS START_DT,b.END_DT AS END_DT FROM THR_EMP_ABSENT b
+																					  					  	 		 WHERE b.del_if=0 AND b.ABS_CODE='MLE'  
+																													 	     AND ((B.END_DT>=MIN_NATIONAL_DAY  AND B.END_DT<= MAX_NATIONAL_DAY AND B.START_DT<=MIN_NATIONAL_DAY)
+																															  OR (B.START_DT<=MAX_NATIONAL_DAY AND B.START_DT>=MIN_NATIONAL_DAY  AND B.END_DT>=MAX_NATIONAL_DAY)
+																															   OR (B.START_DT<=MIN_NATIONAL_DAY AND B.END_DT>=MAX_NATIONAL_DAY ))
+																															 GROUP BY B.EMP_PK,b.START_DT,b.END_DT) ABS
+										 																					 	   WHERE A.PK = ABS.EMP_PK(+) 
+																																		   		 AND A.JOIN_DT<=MAX_NATIONAL_DAY
+																																			  AND (A.LEFT_DT > P_WORK_MON || '01' OR A.LEFT_DT IS NULL)
+																																			  AND CL.DEL_IF=0
+																																			 AND  CL.CAR_DATE LIKE P_WORK_MON || '%'
+																																			  AND CL.DAY_TYPE <> '1' 
+																																			  AND CL.HOL_TYPE IS NOT NULL
+																																			  AND CL.CAR_DATE BETWEEN A.BEGIN_PROB AND A.END_PROB
+																																			  AND A.BEGIN_PROB IS NOT NULL
+																																			  AND A.END_PROB IS NOT NULL
+																																			  AND A.END_PROB>=MIN_NATIONAL_DAY
+																																			  AND CL.CAR_DATE BETWEEN DECODE(F_Check_Mle(NVL(ABS.START_DT,0),MIN_NATIONAL_DAY,MAX_NATIONAL_DAY),2,MIN_NATIONAL_DAY,0, MIN_NATIONAL_DAY,ABS.END_DT)
+																																								     			  AND DECODE(F_Check_Mle(NVL(ABS.END_DT,0),MIN_NATIONAL_DAY,MAX_NATIONAL_DAY),2,MAX_NATIONAL_DAY,0,MAX_NATIONAL_DAY, ABS.START_DT)
+																																GROUP BY A.PK)HOL_PRO			
+																																
+																						,(SELECT A.PK AS PK ,COUNT(CL.CAR_DATE) AS HOL_DAY
+	   																							 	  	 FROM VHR_EMP A,TCO_ABCALENDAR CL
+																									  					  		   	 ,(SELECT B.EMP_PK,b.START_DT AS START_DT,b.END_DT AS END_DT FROM THR_EMP_ABSENT b
+																											  					  	 		 WHERE b.del_if=0 AND b.ABS_CODE='MLE'  
+																																			 	     AND ((B.END_DT>=MIN_NATIONAL_DAY  AND B.END_DT<= MAX_NATIONAL_DAY AND B.START_DT<=MIN_NATIONAL_DAY)
+																																					  OR (B.START_DT<=MAX_NATIONAL_DAY AND B.START_DT>=MIN_NATIONAL_DAY  AND B.END_DT>=MAX_NATIONAL_DAY)
+																																					   OR (B.START_DT<=MIN_NATIONAL_DAY AND B.END_DT>=MAX_NATIONAL_DAY ))
+																																					 GROUP BY B.EMP_PK,b.START_DT,b.END_DT) ABS
+																									 WHERE A.PK = ABS.EMP_PK(+) 
+																											   		 AND A.JOIN_DT<=MAX_NATIONAL_DAY
+																												  AND (A.LEFT_DT > P_WORK_MON || '01' OR A.LEFT_DT IS NULL)
+																												  AND CL.DEL_IF=0
+																												 AND  CL.CAR_DATE LIKE P_WORK_MON || '%'
+																												  AND CL.DAY_TYPE <> '1' 
+																												  AND CL.HOL_TYPE IS NOT NULL
+																												  AND CL.CAR_DATE BETWEEN DECODE(F_Check_Dt(A.END_PROB,MIN_NATIONAL_DAY),0,MIN_NATIONAL_DAY,TO_CHAR(TO_DATE(A.END_PROB,'YYYYMMDD')+1,'YYYYMMDD')) AND  MAX_NATIONAL_DAY
+																												  AND A.END_PROB IS NOT NULL
+																												    AND CL.CAR_DATE BETWEEN DECODE(F_Check_Mle(NVL(ABS.START_DT,0),MIN_NATIONAL_DAY,MAX_NATIONAL_DAY),2,MIN_NATIONAL_DAY,0, MIN_NATIONAL_DAY,ABS.END_DT)
+																																	     			  AND DECODE(F_Check_Mle(NVL(ABS.END_DT,0),MIN_NATIONAL_DAY,MAX_NATIONAL_DAY),2,MAX_NATIONAL_DAY,0,MAX_NATIONAL_DAY, ABS.START_DT)
+																									GROUP BY A.PK)HOL_OFF				
+													WHERE     E.DEL_IF=0
+											   AND E.PK=HOL_PRO.PK(+)
+											   AND E.PK=HOL_OFF.PK(+)
+											   AND E.JOIN_DT<=MAX_NATIONAL_DAY
+												AND (E.LEFT_DT >= MIN_NATIONAL_DAY OR E.LEFT_DT IS NULL)
+												AND (NVL(HOL_OFF.HOL_DAY,0)>0 OR NVL(HOL_PRO.HOL_DAY,0) >0)
+												  GROUP BY  E.PK,HOL_PRO.HOL_DAY,HOL_OFF.HOL_DAY) HOL;
+						 END;
+						 
+						 
+						 
+						 
+						 
+	 	END IF;
+		 
+COMMIT;
+	
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PRO_HOLIDAY_MANAGE) Month : '|| P_WORK_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pro_Holiday_Manage;
+/
+CREATE OR REPLACE PROCEDURE PR_ADJUST_SALARY(
+	   P_FLAG	  IN VARCHAR2,
+	  P_FULL_NAME IN VARCHAR2,
+	P_ADJ_DT		IN	VARCHAR2,	 
+	P_ADJ_TYPE		IN	VARCHAR2, 	 
+	P_ADJ_AMT			IN	NUMBER,
+	P_NOTE					IN VARCHAR2,
+	P_EMP_PK				IN NUMBER,
+	P_PK					   IN NUMBER, 
+	P_USER					   IN VARCHAR2,
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+AN_SYS_ERROR_MSG	VARCHAR(100);
+CLOSE_NUM	NUMBER(1):=0; 
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(P_ADJ_DT,1,4)||SUBSTR(P_ADJ_DT,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   
+ IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+ELSE
+	   	   			   	SELECT COUNT(E.PK) INTO CLOSE_NUM FROM THR_SAL_ADJ E
+							   WHERE E.DEL_IF=0 AND E.ADJ_DT = P_ADJ_DT
+							   		 AND E.EMP_PK=P_EMP_PK AND E.CLOSE_FLAG='Y';
+									 IF  CLOSE_NUM>0 THEN
+	   	   			 				 	 			   RAISE_APPLICATION_ERROR(-20001,'');
+									END IF;
+END IF;
+
+AN_SYS_ERROR_MSG := '10';
+
+				 IF P_FLAG='U' THEN -- UPDATE
+
+									UPDATE   THR_SAL_ADJ
+										SET  ADJ_DT = P_ADJ_DT,
+										       ADJ_TYPE = P_ADJ_TYPE,
+										       ADJ_AMT = P_ADJ_AMT, 
+										       NOTE = P_NOTE,
+										       MOD_DT = SYSDATE,
+										       MOD_BY =P_USER
+										WHERE  del_if = 0
+										          AND PK = P_PK;
+				END IF;
+
+				 IF P_FLAG='I' THEN -- INSERT
+
+								  INSERT INTO   THR_SAL_ADJ
+												(PK, 
+												 EMP_PK,
+												 FULL_NAME, 
+												 ADJ_DT,
+												 ADJ_TYPE,
+												 ADJ_AMT, 
+												 NOTE,
+												 CRT_DT,
+												 CRT_BY
+												)
+												VALUES
+												( THR_SAL_ADJ_SEQ.NEXTVAL, 
+												   P_EMP_PK,
+												 P_FULL_NAME, 
+												 P_ADJ_DT,
+												 P_ADJ_TYPE,
+												 P_ADJ_AMT, 
+												 P_NOTE,
+												 SYSDATE,
+												 P_USER	);
+
+				END IF;
+				 IF P_FLAG='D' THEN -- DELETE
+				 			   		   UPDATE   THR_SAL_ADJ
+										SET  DEL_IF=PK
+										      , MOD_DT = SYSDATE
+										       ,MOD_BY =P_USER
+										WHERE  del_if = 0
+										          AND PK = P_PK;
+				END IF;
+		  
+		  
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+					ROLLBACK;
+					RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_ADJUST_SALARY) '||SQLERRM );
+					AS_RET_NUM := -1;
+					AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+	END IF;
+END  PR_ADJUST_SALARY;
+/
+CREATE OR REPLACE PROCEDURE Pr_Annual_Leave
+(inYEAR	   IN  VARCHAR2,
+ outRESULT OUT NUMBER)
+---*****************************************************---
+  --      CREATE  BY              HO PHUONG THAO     --
+  --	  CREATE  DATE            14-March-2005      --
+  --      MODIFY  BY               HUYNHTRUONG       --
+  --      MODIFY  DATE                               --
+---*****************************************************---
+IS
+    V_ERROR  VARCHAR2(100) := '0';
+	V_JOINDT VARCHAR2(8);
+	V_JOINDD VARCHAR2(2);
+	V_JOINYY VARCHAR2(4);
+	V_JOINMM VARCHAR2(2);
+	V_AL	 NUMBER(5,2)   := 0; --V_AL	 PLS_INTEGER   := 0;
+	V_EMPPK  NUMBER(10)	   := 0;
+	V_SONAM NUMBER(10);
+	--V_NUM  NUMBER(10)	   := 0;
+	V_ANNUAL_LEAVE_DAYS_IN_YEAR PLS_INTEGER;
+	V_DEPT_PK NUMBER(10);
+	V_POS_CODE VARCHAR2(5);
+	V_CAL_DT   VARCHAR2(8);
+	V_EMP_STYLE   VARCHAR2(2);
+	V_SYSDATE	  VARCHAR2(8);
+	V_SYSYY	  VARCHAR2(4);
+	V_SEX VARCHAR2(1);
+	V_HESOPHEPNAM NUMBER(2) := 14;
+	
+	CURSOR V_EMP IS SELECT TRUNC(NVL((MONTHS_BETWEEN(SYSDATE,TO_DATE(A.JOIN_DATE,'YYYYMMDD'))/12),0)/5+14 ),A.PK,A.JOIN_DATE,SUBSTR(A.JOIN_DATE,7,2),SUBSTR(A.JOIN_DATE,1,4),SUBSTR(A.JOIN_DATE,5,2),B.TCO_EODEPT_PK,B.POS_CODE,A.CAL_DT,A.EMP_ID_STYLE,A.SEX
+	                  FROM THR_ABEMP A,THR_ABEMPMAS B
+					 WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND A.PK=B.THR_ABEMP_PK;-- AND A.ANNUAL_LEAVE_DAYS IS NULL;  
+BEGIN
+    
+
+	
+	 V_ERROR := '10';
+	 SELECT TO_CHAR(SYSDATE,'YYYYMMDD'),TO_CHAR(SYSDATE,'YYYY') INTO V_SYSDATE,V_SYSYY FROM DUAL;
+	 OPEN V_EMP;
+	 LOOP
+	 	 	 FETCH V_EMP INTO V_SONAM,V_EMPPK,V_JOINDT,V_JOINDD,V_JOINYY,V_JOINMM,V_DEPT_PK,V_POS_CODE,V_CAL_DT,V_EMP_STYLE,V_SEX;
+		     V_ERROR := '20';
+  	 	
+	/* Long
+	Cu 5 nam cong them 1 phep nam
+	*/
+	
+	/* IF V_SEX='0' THEN
+		   V_HESOPHEPNAM :=16.25;
+		   V_SONAM := V_SONAM + 2.25;
+		END IF;
+		*/
+	
+	   V_ANNUAL_LEAVE_DAYS_IN_YEAR := V_SONAM;
+	--	V_ANNUAL_LEAVE_DAYS_IN_YEAR := (14 + V_SONAM);
+	
+		   --LAY PHEP NAM CUA NHAN VIEN TRONG MOT NAM 
+		 
+		 -- kiem tra gioi tinh, nu duoc cong them 2,5
+		 
+	 		   IF (V_JOINYY < inYEAR) THEN
+				   V_AL := V_ANNUAL_LEAVE_DAYS_IN_YEAR ;
+			   ELSIF (V_JOINYY > inYEAR) THEN
+	 	           V_AL := 0;
+	 		   ELSIF (V_JOINYY = inYEAR) THEN
+			   		 IF (V_JOINYY < V_SYSYY) THEN
+					 	SELECT (TO_DATE(TO_CHAR(inYEAR)||'1231','YYYYMMDD') - TO_DATE(V_JOINDT,'YYYYMMDD'))/30*V_HESOPHEPNAM/12 INTO V_AL FROM DUAL; --MR KY SUA LAI THEO YEU CAU CUA MISS NGUYET TRUNG BINH CHIA 30 (03/12/2007)
+					 ELSIF (V_JOINYY = V_SYSYY)	 THEN
+			   		 	   SELECT (TO_DATE(V_SYSDATE,'YYYYMMDD') - TO_DATE(V_JOINDT,'YYYYMMDD'))/30*V_HESOPHEPNAM/12 INTO V_AL FROM DUAL; --MR KY SUA LAI THEO YEU CAU CUA MISS NGUYET TRUNG BINH CHIA 30 (03/12/2007) 
+			   		--V_AL := MONTHS_BETWEEN (TO_DATE(inYEAR||'1231','YYYYMMDD')+1,TO_DATE(V_JOINDT,'YYYYMMDD'))*14/12;
+					END IF;
+	 		   END IF;
+			   
+			   
+			   V_ERROR := '30';
+	 		   UPDATE THR_ABEMP B
+			      SET B.ANNUAL_LEAVE_DAYS = V_AL
+				      ,B.ANNUAL_LEAVE_DAYS_IN_YEAR = V_ANNUAL_LEAVE_DAYS_IN_YEAR
+	            WHERE B.DEL_IF=0
+				  AND B.ANNUALY_APPLY_FLAG <>'Y'
+				  AND B.PK = V_EMPPK;
+				
+		 
+		 EXIT WHEN V_EMP%NOTFOUND;
+
+	 END LOOP;
+	 
+	 CLOSE V_EMP;
+	 
+	 UPDATE THR_ABEMP B
+		SET B.CUR_ANNUAL_LEAVE = ROUND(NVL(MONTHS_BETWEEN(SYSDATE + 1,TO_DATE(CASE 
+  		 	  						  WHEN TO_CHAR(TO_DATE(B.JOIN_DATE,'YYYYMMDD'),'YYYY') < TO_CHAR(SYSDATE,'YYYY') THEN 
+									  	   TO_CHAR(SYSDATE,'YYYY') || '0101'
+			  						  ELSE B.JOIN_DATE
+		 						 	  END   
+   		  						 	,'YYYYMMDD')),0) * V_ANNUAL_LEAVE_DAYS_IN_YEAR / 12,2)
+	WHERE B.DEL_IF = 0
+		  AND B.EMP_STATUS = 'A';
+				
+	 PR_CAL_ANNUAL_LEAVE (inYEAR);
+	 
+	 V_ERROR :='40';
+	 outRESULT := 1;
+
+	 COMMIT;
+	 --RETURN;
+---------
+  EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error1, can not Update...');
+		ROLLBACK WORK;
+        --RETURN;
+
+  WHEN  OTHERS  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error2, can not Update...');
+		ROLLBACK WORK;
+        --RETURN;
+END Pr_Annual_Leave;
+/
+CREATE OR REPLACE PROCEDURE PR_APPOINT (
+
+       inAPPOINT_TITLE		IN		   THR_ABAPPOINT.APPOINT_TITLE%TYPE
+	  ,inTHR_ABEMP_PK		IN		   THR_ABAPPOINT.THR_ABEMP_PK%TYPE
+	  ,inREMARK_APPOINT		IN		   THR_ABAPPOINT.REMARK%TYPE
+	  ,inAPPOINT_TYPE		IN		   THR_ABAPPOINTD.APPOINT_TYPE%TYPE
+	  ,inREMARK_APPOINTD	IN		   THR_ABAPPOINTD.REMARK%TYPE
+	  ,inCRT_BY				IN		   THR_ABAPPOINTD.CRT_BY%TYPE
+	  ,outPK_APPOINT		OUT		   THR_ABAPPOINT.PK%TYPE
+	  ,outPK_APPOINTD		OUT		   THR_ABAPPOINTD.PK%TYPE
+	  ,outRESULT	  		OUT		   NUMBER
+)
+
+---*****************************************************---
+  --      CREATE  BY              HO PHUONG THAO     --
+  --	  CREATE  DATE            25-May-2004        --
+  --      MODIFY  BY                                 --
+  --      MODIFY  DATE                               --
+---*****************************************************---
+
+IS
+  V_MESSAGE 				VARCHAR2(10):='';
+  V_ABAPPOINT_SEQ 			NUMBER(10)  :=0;
+  V_ABAPPOINTD_SEQ 			NUMBER(10)  :=0;
+  V_EMP_PK					NUMBER(10)  :=0;
+  V_THR_ABAPPOINT_PK		NUMBER(10)  :=0;
+  V_COUNT					NUMBER(5)   :=0;
+BEGIN
+
+	 V_MESSAGE := '10';
+	 SELECT THR_ABAPPOINT_SEQ.NEXTVAL  INTO V_ABAPPOINT_SEQ FROM DUAL;
+
+	 V_MESSAGE := '20';
+	 SELECT THR_ABAPPOINTD_SEQ.NEXTVAL INTO V_ABAPPOINTD_SEQ FROM DUAL;
+
+	 V_MESSAGE := '30';
+	 SELECT COUNT(*) INTO V_COUNT
+	   FROM THR_ABAPPOINT
+	  WHERE APPOINT_DATE = TO_CHAR(SYSDATE,'YYYYMMDD')
+	    AND THR_ABEMP_PK = inTHR_ABEMP_PK
+		AND DEL_IF=0;
+
+
+	 IF V_COUNT = 0 THEN
+	 	--  Don't have same Date, same Employee will insert to tables THR_ABAPPOINT,THR_ABAPPOINTD   --
+	 	 V_MESSAGE := '40';
+		 INSERT INTO THR_ABAPPOINT (
+		  		 PK
+				 ,APPOINT_TITLE
+				 ,APPOINT_DATE
+				 ,LASTAPPOINT_DATE
+				 ,THR_ABEMP_PK
+				 ,CONFIRM_DATE
+				 ,REMARK
+				 ,DEL_IF
+				 ,CRT_BY
+				 ,CRT_DT)
+		 VALUES	 ( V_ABAPPOINT_SEQ
+		          ,inAPPOINT_TITLE
+				  ,TO_CHAR(SYSDATE,'YYYYMMDD')
+				  ,(SELECT MAX(APPOINT_DATE) FROM THR_ABAPPOINT WHERE THR_ABEMP_PK=inTHR_ABEMP_PK)
+				  ,inTHR_ABEMP_PK
+				  ,TO_CHAR(SYSDATE,'YYYYMMDD')
+				  ,inREMARK_APPOINT
+				  ,0
+		   		  ,inCRT_BY
+				  ,SYSDATE);
+         V_MESSAGE := '50';
+		 INSERT INTO THR_ABAPPOINTD (
+		  		 PK
+				 ,THR_ABAPPOINT_PK
+				 ,APPOINT_TYPE
+				 ,TCO_EODEPT_PK
+				 ,THR_ABWORKGRP_PK
+				 ,BASIC_SALARY
+				 ,POS_CODE
+				 ,EMP_STATUS
+				 ,JOB_CODE
+				 ,CONTRACT_DATE
+				 ,ALLOW_AMT
+				 ,REMARK
+				 ,DEL_IF
+				 ,CRT_BY
+				 ,CRT_DT)
+		 (SELECT  V_ABAPPOINTD_SEQ
+		         ,V_ABAPPOINT_SEQ
+				 ,inAPPOINT_TYPE
+				 ,D.TCO_EODEPT_PK
+				 ,D.THR_ABWORKGROUP_PK
+				 ,D.BASIC_SAL
+				 ,D.POS_CODE
+				 ,C.EMP_STATUS
+				 ,D.JOB_CODE
+				 ,C.ST_CONTRACT
+				 ,D.ALLOW_AMT
+				 ,inREMARK_APPOINTD
+				 ,0
+				 ,inCRT_BY
+		  		 ,SYSDATE
+		   FROM  THR_ABEMP C , THR_ABEMPMAS D
+		  WHERE  C.DEL_IF=0 AND D.DEL_IF=0
+		    AND  C.PK=D.THR_ABEMP_PK
+			AND  D.THR_ABEMP_PK=inTHR_ABEMP_PK);
+
+	 ELSIF V_COUNT > 0 THEN
+	   --  Same Date, same Employee will insert to table THR_ABAPPOINTD   --
+
+		 V_MESSAGE := '60';
+	   	 SELECT PK  INTO  V_THR_ABAPPOINT_PK
+		   FROM THR_ABAPPOINT
+	      WHERE APPOINT_DATE = TO_CHAR(SYSDATE,'YYYYMMDD')
+  	        AND THR_ABEMP_PK = inTHR_ABEMP_PK
+		    AND DEL_IF=0;
+
+	 	 V_MESSAGE := '70';
+		 V_ABAPPOINT_SEQ := V_THR_ABAPPOINT_PK;
+		 V_MESSAGE := '80';
+		 INSERT INTO THR_ABAPPOINTD (
+		  		 PK
+				 ,THR_ABAPPOINT_PK
+				 ,APPOINT_TYPE
+				 ,TCO_EODEPT_PK
+				 ,THR_ABWORKGRP_PK
+				 ,BASIC_SALARY
+				 ,POS_CODE
+				 ,EMP_STATUS
+				 ,JOB_CODE
+				 ,CONTRACT_DATE
+				 ,ALLOW_AMT
+				 ,REMARK
+				 ,DEL_IF
+				 ,CRT_BY
+				 ,CRT_DT)
+		  (SELECT V_ABAPPOINTD_SEQ
+		         ,V_ABAPPOINT_SEQ
+				 ,inAPPOINT_TYPE
+				 ,D.TCO_EODEPT_PK
+				 ,D.THR_ABWORKGROUP_PK
+				 ,D.BASIC_SAL
+				 ,D.POS_CODE
+				 ,C.EMP_STATUS
+				 ,D.JOB_CODE
+				 ,C.ST_CONTRACT
+				 ,D.ALLOW_AMT
+				 ,inREMARK_APPOINTD
+				 ,0
+				 ,inCRT_BY
+		  		 ,SYSDATE
+		   FROM  THR_ABEMP C , THR_ABEMPMAS D
+		  WHERE  C.DEL_IF=0 AND D.DEL_IF=0
+		    AND  C.PK=D.THR_ABEMP_PK
+			AND  D.THR_ABEMP_PK=inTHR_ABEMP_PK);
+	 END IF;
+
+V_MESSAGE      := '90';
+outPK_APPOINT  := V_ABAPPOINT_SEQ;
+outPK_APPOINTD := V_ABAPPOINTD_SEQ;
+outRESULT      := 1;
+COMMIT;
+RETURN;
+---------------------------
+   EXCEPTION
+---------------------------
+		 WHEN NO_DATA_FOUND THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20001,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+		 WHEN OTHERS THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20002,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+
+END;
+/
+CREATE OR REPLACE PROCEDURE Pr_Approve_Annual_Leave (
+ 	   p_emp_pk   				   NUMBER,
+	   p_annual_leave  		       NUMBER,
+	   p_approved_flag	  OUT	   NUMBER	 
+) IS
+l_annual_leave			  		   NUMBER;
+l_status						   VARCHAR2(200);
+l_seq_number					   NUMBER;						   
+l_date_approved					   VARCHAR2(8);
+l_count1						   NUMBER;
+l_count2						   NUMBER;
+l_count_emp						   NUMBER;
+/******************************************************************************
+   NAME:       PR_APPROVE_EMP_RESIGN
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/13/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_APPROVE_EMP_RESIGN
+      Sysdate:         5/13/2006
+      Date and Time:   5/13/2006, 9:12:38 AM, and 5/13/2006 9:12:38 AM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+
+   l_seq_number:='10';
+   --lay ngay approve gan nhat
+   l_date_approved:=F_Get_Date_Approved();
+   --kiem tra xem nhan vien nay co duoc approved vao ngay do ko?
+    SELECT COUNT(a.pk) INTO l_count_emp
+   	  FROM THR_APPROVE a  
+   	  WHERE a.del_if=0 AND a.PROCESS_FLAG='N' AND thr_abemp_pk=p_emp_pk  
+   		    AND a.DATE_APPROVE=l_date_approved; 
+		
+   IF l_count_emp=0 THEN
+   --truong hop nhan vien nay ko duoc approve
+   	  --lay annual leave 
+   	  SELECT COUNT(a.pk) INTO l_count1  
+	  FROM THR_ABEMP a
+	  WHERE a.del_if=0 AND a.pk=p_emp_pk
+	  		AND p_annual_leave = a.ANNUAL_LEAVE_LAST_YEAR;
+	  IF l_count1=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF; 
+   ELSE
+   --truong hop nhan vien nay duoc approve
+      --so sanh annnual leave 
+   	  SELECT COUNT(pk) INTO l_count2  
+	  FROM THR_APPROVE a 
+	  WHERE a.del_if=0 AND a.THR_ABEMP_PK=p_emp_pk
+	  		AND a.DATE_APPROVE=l_date_approved
+	        AND a.ANNUAL_LEAVE=p_annual_leave;
+	 IF l_count2=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF;  
+   END IF;
+   
+   EXCEPTION
+     WHEN OTHERS THEN
+	 	Errorpkg.HANDLEALL(FALSE);
+		Errorpkg.STORESTACKS(L_SEQ_NUMBER, 'U',L_STATUS, 'Y',TRUE);
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+END Pr_Approve_Annual_Leave;
+/
+CREATE OR REPLACE PROCEDURE Pr_Approve_Basic_Sal
+(
+ 	   p_emp_pk   				   NUMBER,
+	   p_basic_sal 				   NUMBER,
+	   p_tech_amt				   NUMBER,
+	   p_position				   VARCHAR2,
+	   p_approved_flag	  OUT	   NUMBER	 
+) IS
+l_status						   VARCHAR2(200);
+l_seq_number					   NUMBER;						   
+l_date_approved					   VARCHAR2(8);
+l_count1						   NUMBER;
+l_count2						   NUMBER;
+l_count_emp						   NUMBER;
+/******************************************************************************
+   NAME:       PR_APPROVE_EMP_RESIGN
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/13/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_APPROVE_EMP_RESIGN
+      Sysdate:         5/13/2006
+      Date and Time:   5/13/2006, 9:12:38 AM, and 5/13/2006 9:12:38 AM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+
+   l_seq_number:='10';
+   --lay ngay approve gan nhat
+   l_date_approved:=F_Get_Date_Approved();
+   --kiem tra xem nhan vien nay co duoc approved vao ngay do ko?
+    SELECT COUNT(a.pk) INTO l_count_emp
+   	  FROM THR_APPROVE a  
+   	  WHERE a.del_if=0 AND a.PROCESS_FLAG='N' AND thr_abemp_pk=p_emp_pk  
+   		    AND a.DATE_APPROVE=l_date_approved; 
+	l_seq_number:='20';	
+   IF l_count_emp=0 THEN
+   --truong hop nhan vien nay ko duoc approve
+   	  --lay basic sal, posistion, tech_amt hien tai 
+   	  SELECT COUNT(a.pk) INTO l_count1  
+	  FROM THR_ABEMP a,THR_ABEMPMAS b 
+	  WHERE a.del_if=0 AND b.del_if=0 AND a.pk=p_emp_pk
+	  		AND a.pk=b.THR_ABEMP_PK
+	        AND p_tech_amt= b.TECH_AMT
+			AND p_basic_sal=b.BASIC_SAL
+			AND p_position=b.POS_CODE ;
+	  IF l_count1=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF; 
+   ELSE
+   --truong hop nhan vien nay duoc approve
+      --so sanh  basic sal, posistion, tech_amt 
+   	  SELECT COUNT(pk) INTO l_count2  
+	  FROM THR_APPROVE a 
+	  WHERE a.del_if=0 AND a.THR_ABEMP_PK=p_emp_pk
+	  		AND a.DATE_APPROVE=l_date_approved
+	        AND p_tech_amt= a.TECH_AMT
+			AND p_basic_sal=a.BASIC_SAL
+			AND p_position=a.POS ;
+	 IF l_count2=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF;  
+   END IF;
+   
+   EXCEPTION
+     WHEN OTHERS THEN
+	 	Errorpkg.HANDLEALL(FALSE);
+		Errorpkg.STORESTACKS(L_SEQ_NUMBER, 'U',L_STATUS, 'Y',TRUE);
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+END Pr_Approve_Basic_Sal;
+/
+CREATE OR REPLACE PROCEDURE Pr_Approve_Emp_Resign
+(
+ 	   p_emp_pk   				   NUMBER,
+	   p_severance_flag  		   NUMBER,
+	   p_return_health_ticket_flag NUMBER,
+	   p_approved_flag	  OUT	   NUMBER	 
+) IS
+l_severance_flag				   NUMBER;
+l_return_health_ticket_flag		   NUMBER;
+l_status						   VARCHAR2(200);
+l_seq_number					   NUMBER;						   
+l_date_approved					   VARCHAR2(8);
+l_count1						   NUMBER;
+l_count2						   NUMBER;
+l_count_emp						   NUMBER;
+/******************************************************************************
+   NAME:       PR_APPROVE_EMP_RESIGN
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/13/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_APPROVE_EMP_RESIGN
+      Sysdate:         5/13/2006
+      Date and Time:   5/13/2006, 9:12:38 AM, and 5/13/2006 9:12:38 AM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+
+   l_seq_number:='10';
+   --lay ngay approve gan nhat
+   l_date_approved:=F_Get_Date_Approved();
+   --kiem tra xem nhan vien nay co duoc approved vao ngay do ko?
+    SELECT COUNT(a.pk) INTO l_count_emp
+   	  FROM THR_APPROVE a  
+   	  WHERE a.del_if=0 AND a.PROCESS_FLAG='N' AND thr_abemp_pk=p_emp_pk  
+   		    AND a.DATE_APPROVE=l_date_approved; 
+	l_seq_number:='20';	
+   IF l_count_emp=0 THEN
+   --truong hop nhan vien nay ko duoc approve
+   	  --lay severance flag va return health ticket hien tai 
+   	  SELECT COUNT(a.pk) INTO l_count1  
+	  FROM THR_ABEMP a,THR_ABEMPMAS b 
+	  WHERE a.del_if=0 AND b.del_if=0 AND a.pk=p_emp_pk
+	  		AND a.pk=b.THR_ABEMP_PK
+	        AND DECODE(p_severance_flag,0,'N','Y')= b.SEVERANCE_FLAG
+			AND DECODE(p_return_health_ticket_flag,0,'N','Y')=b.RETURN_HEALTH_TICKET ;
+	  IF l_count1=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF; 
+   ELSE
+   --truong hop nhan vien nay duoc approve
+      --so sanh severance flag va return health ticket flag 
+   	  SELECT COUNT(pk) INTO l_count2  
+	  FROM THR_APPROVE a 
+	  WHERE a.del_if=0 AND a.THR_ABEMP_PK=p_emp_pk
+	  		AND a.DATE_APPROVE=l_date_approved
+	        AND DECODE(p_severance_flag,0,'N','Y')=a.SEVERANCE_FLAG
+			AND DECODE(p_return_health_ticket_flag ,0,'N','Y')=a.RETURN_HEALTH_TICKET;
+	 IF l_count2=0 THEN
+	  	  p_approved_flag:=0;
+	  ELSE
+	  	  p_approved_flag:=1;
+	  END IF;  
+   END IF;
+   
+   EXCEPTION
+     WHEN OTHERS THEN
+	 	Errorpkg.HANDLEALL(FALSE);
+		Errorpkg.STORESTACKS(L_SEQ_NUMBER, 'U',L_STATUS, 'Y',TRUE);
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+       
+END Pr_Approve_Emp_Resign;
+/
+CREATE OR REPLACE PROCEDURE Pr_Approve_Emp_Status
+(
+ 	   inPK NUMBER,
+	   inDate VARCHAR2,
+	   inEmp_PK NUMBER,
+	   inCur_Status VARCHAR2,
+	   inStatus VARCHAR2,
+	   inCur_Severance_Flag VARCHAR2,
+   	   inSeverance_Flag VARCHAR2,
+	   inCur_Return_Health_Ticket VARCHAR2,
+	   inReturn_Health_Ticket VARCHAR2,	 
+	   inUser      VARCHAR2,
+	   inApprovedDate  VARCHAR2
+)
+IS
+l_num_error VARCHAR2(10);
+l_count NUMBER;
+l_annual_leave_days NUMBER(10);
+l_basic_sal NUMBER(10);
+l_pos_code VARCHAR2(10);
+l_tech_amt NUMBER;
+
+/******************************************************************************
+   NAME:       PR_APPROVE_SAL
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/5/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_APPROVE_SAL
+      Sysdate:         5/5/2006
+      Date and Time:   5/5/2006, 3:25:38 PM, and 5/5/2006 3:25:38 PM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+   l_num_error :='5';
+   --cap nhat process_flag cua ngay approve gan nhat thanh 'Y'
+   IF TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd') <> inApprovedDate THEN
+       UPDATE THR_APPROVE a
+	   SET a.PROCESS_FLAG='Y'
+	   WHERE a.DATE_APPROVE=inApprovedDate AND a.PROCESS_FLAG='N';
+   END IF;	
+   l_num_error := '10';
+   SELECT COUNT(a.pk) INTO l_count FROM THR_APPROVE a WHERE a.del_if=0 AND a.THR_ABEMP_PK= inEmp_PK AND a.DATE_APPROVE=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd');
+   l_num_error := '20';
+   IF l_count =0 THEN
+   		  INSERT INTO THR_APPROVE
+		  (
+		   		PK ,
+				THR_ABEMP_PK,
+				DATE_APPROVE ,
+				CUR_EMP_STATUS  ,
+				EMP_STATUS  ,
+				EMP_STATUS_PFLAG,
+				CUR_SEVERANCE_FLAG  ,
+				SEVERANCE_FLAG  ,
+				SEVERANCE_PFLAG,
+				CUR_RETURN_HEALTH_TICKET  ,
+				RETURN_HEALTH_TICKET  ,
+				RETURN_HEALTH_TICKET_PFLAG  ,
+				PROCESS_FLAG ,
+				DEL_IF ,
+				CRT_BY ,
+				CRT_DT 
+		   )
+		   VALUES
+		   (
+		   		 thr_approve_seq.NEXTVAL,
+			   	 inEmp_PK ,
+			   	 TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd') ,
+			   	 inCur_Status ,
+			   	 DECODE(inStatus,inCur_Status,inCur_Status,inStatus) ,
+				 DECODE(inStatus,inCur_Status,'N','Y') ,
+			   	 inCur_Severance_Flag ,
+		   	   	 DECODE(inSeverance_Flag,inCur_Severance_Flag,inCur_Severance_Flag,inSeverance_Flag) ,
+				 DECODE(inSeverance_Flag,inCur_Severance_Flag,'N','Y') ,
+				 inCur_Return_Health_Ticket,
+			   	 DECODE(inReturn_Health_Ticket,inCur_Return_Health_Ticket,inCur_Return_Health_Ticket,inReturn_Health_Ticket) ,
+			   	 DECODE(inReturn_Health_Ticket,inCur_Return_Health_Ticket,'N','Y') ,
+				 'N',
+				 0,	   
+			   	 inUser ,
+				 SYSDATE     
+		   );
+		   l_num_error := '30';
+		   --select phan du lieu ve salary
+		   SELECT b.TECH_AMT ,a.ANNUAL_LEAVE_DAYS ,b.BASIC_SAL ,b.pos_code
+		   INTO l_tech_amt,l_annual_leave_days,l_basic_sal,l_pos_code
+		   FROM THR_ABEMP a, THR_ABEMPMAS b
+		   WHERE a.del_if=0 AND b.del_if=0 AND a.pk=b.thr_abemp_pk
+		          AND a.pk=inEmp_PK;
+				  
+			--update phan du lieu ve salary	vao thr_approve
+		   l_num_error := '40';
+		    UPDATE THR_APPROVE
+		   SET 	TECH_AMT 	   	  =l_tech_amt,
+		   		CUR_TECH_AMT   	  =l_tech_amt,
+				TECH_AMT_PFLAG 	  ='N',
+				ANNUAL_LEAVE   	  =l_annual_leave_days ,
+				CUR_ANNUAL_LEAVE  =l_annual_leave_days	,
+				ANNUAL_LEAVE_PFLAG='N',
+				BASIC_SAL		  =l_basic_sal,
+				CUR_BASIC_SAL	  =l_basic_sal,
+				BASIC_SAL_PFLAG	  ='N',
+				POS 			  =l_pos_code,	
+				CUR_POS			  =l_pos_code,
+				POS_PFLAG 		  ='N'
+		   WHERE del_if=0 
+		   		 AND date_approve=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd')
+		   		 AND THR_ABEMP_PK=inEmp_PK;
+	  ELSE
+	  	   l_num_error := '50';
+	   	   UPDATE THR_APPROVE
+		   SET 	EMP_STATUS     			   = DECODE(inStatus,inCur_Status,inCur_Status,inStatus) ,
+		   		EMP_STATUS_PFLAG		   = DECODE(inStatus,inCur_Status,'N','Y') ,
+				SEVERANCE_FLAG 			   = DECODE(inSeverance_Flag,inCur_Severance_Flag,inCur_Severance_Flag,inSeverance_Flag) ,
+			   	SEVERANCE_PFLAG			   = DECODE(inSeverance_Flag,inCur_Severance_Flag,'N','Y') ,
+			   	RETURN_HEALTH_TICKET	   =DECODE(inReturn_Health_Ticket,inCur_Return_Health_Ticket,inCur_Return_Health_Ticket,inReturn_Health_Ticket) ,
+				RETURN_HEALTH_TICKET_PFLAG =DECODE(inReturn_Health_Ticket,inCur_Return_Health_Ticket,'N','Y') ,
+				Mod_BY 					   =inUser ,
+				Mod_DT					   =SYSDATE 
+		   WHERE del_if=0 
+		   		 AND date_approve=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd')
+		   		 AND THR_ABEMP_PK=inEmp_PK;
+	   END IF	;   
+	   COMMIT;
+   EXCEPTION
+      WHEN OTHERS THEN
+       RAISE_APPLICATION_ERROR(-20001,'ERROR:' || l_num_error || SQLERRM);
+	   RETURN;
+       
+END Pr_Approve_Emp_Status;
+/
+CREATE OR REPLACE PROCEDURE Pr_Approve_Sal
+(
+ 	   inPK NUMBER,
+	   inDate VARCHAR2,
+	   inEmp_PK NUMBER,
+	   inCur_Tech_Amt NUMBER,
+	   inTech_Amt NUMBER,
+	   inCur_Annual_Leave NUMBER,
+   	   inAnnual_Leave NUMBER,
+	   inCur_Basic_Sal NUMBER,
+	   inBasic_Sal NUMBER,	 
+	   inCur_Pos   VARCHAR2,
+	   inPos       VARCHAR2,  
+	   inUser      VARCHAR2,
+	   inApprovedDate  VARCHAR2
+)
+IS
+l_num_error VARCHAR2(10);
+l_count NUMBER;
+l_emp_status VARCHAR2(3); 
+l_severance_flag VARCHAR2(2);
+l_return_health_ticket VARCHAR2(2);
+
+/******************************************************************************
+   NAME:       PR_APPROVE_SAL
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/5/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_APPROVE_SAL
+      Sysdate:         5/5/2006
+      Date and Time:   5/5/2006, 3:25:38 PM, and 5/5/2006 3:25:38 PM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+   l_num_error :='5';
+   --cap nhat process_flag cua ngay approve gan nhat thanh 'Y'
+   IF TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd') <> inApprovedDate THEN
+       UPDATE THR_APPROVE a
+	   SET a.PROCESS_FLAG='Y'
+	   WHERE a.DATE_APPROVE=inApprovedDate AND a.PROCESS_FLAG='N';
+   END IF	;   
+   l_num_error := '10';
+   
+   SELECT COUNT(a.pk) INTO l_count FROM THR_APPROVE a WHERE a.del_if=0 AND a.THR_ABEMP_PK= inEmp_PK AND a.DATE_APPROVE=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd');
+   l_num_error := '20';
+   IF l_count =0 THEN
+   		  INSERT INTO THR_APPROVE
+		  (
+		   		PK ,
+				THR_ABEMP_PK,
+				DATE_APPROVE ,
+				CUR_TECH_AMT ,
+				TECH_AMT ,
+				TECH_AMT_PFLAG,
+				CUR_ANNUAL_LEAVE ,
+				ANNUAL_LEAVE ,
+				ANNUAL_LEAVE_PFLAG,
+				CUR_BASIC_SAL ,
+				BASIC_SAL ,
+				BASIC_SAL_PFLAG,
+				CUR_POS 	,
+				POS ,	
+				POS_PFLAG,
+				PROCESS_FLAG ,
+				DEL_IF ,
+				CRT_BY ,
+				CRT_DT 
+		   )
+		   VALUES
+		   (
+		   		 thr_approve_seq.NEXTVAL,
+			   	 inEmp_PK,
+			   	 TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd') ,
+			   	 inCur_Tech_Amt ,
+			   	 DECODE(inTech_Amt,inCur_Tech_Amt,inCur_Tech_Amt,inTech_Amt) ,
+				 DECODE(inTech_Amt,inCur_Tech_Amt,'N','Y') ,
+				 inCur_Annual_Leave,
+		   	   	 DECODE(inAnnual_Leave,inCur_Annual_Leave,inCur_Annual_Leave,inAnnual_Leave) ,
+				 DECODE(inAnnual_Leave,inCur_Annual_Leave,'N','Y') ,
+			   	 inCur_Basic_Sal ,
+			   	 DECODE(inBasic_Sal,inCur_Basic_Sal,inCur_Basic_Sal,inBasic_Sal) ,
+				 DECODE(inBasic_Sal,inCur_Basic_Sal,'N','Y') ,
+				 inCur_Pos,
+				 DECODE(inPos,inCur_Pos,inCur_Pos,inPos),
+				 DECODE(inPos,inCur_Pos,'N','Y'),
+				 'N',
+				 0,	   
+			   	 inUser ,
+				 SYSDATE     
+		   );
+		   l_num_error := '30';
+		   --select phan du lieu ve emp status
+				SELECT a.EMP_STATUS,b.SEVERANCE_FLAG,b.RETURN_HEALTH_TICKET  
+				INTO  l_emp_status,l_severance_flag,l_return_health_ticket
+				FROM THR_ABEMP a, THR_ABEMPMAS b
+				WHERE a.del_if=0 AND b.del_if=0 AND a.pk=b.thr_abemp_pk
+				AND a.EMP_STATUS='A' AND a.pk=inEmp_PK;
+		  --update phan du lieu ve emp status
+		  l_num_error := '40';
+		  		UPDATE THR_APPROVE
+		  		SET 	EMP_STATUS     		 		   =l_emp_status ,
+						CUR_EMP_STATUS		 		   =l_emp_status,
+						EMP_STATUS_PFLAG	 		   ='N',
+						SEVERANCE_FLAG 				   =l_severance_flag ,
+						CUR_SEVERANCE_FLAG 	 		   =l_severance_flag ,
+						SEVERANCE_PFLAG		 		   ='N',
+					   	RETURN_HEALTH_TICKET 		   =l_return_health_ticket,
+						CUR_RETURN_HEALTH_TICKET 	   =l_return_health_ticket,
+						RETURN_HEALTH_TICKET_PFLAG	   ='N'
+				WHERE del_if=0 
+		   		 AND date_approve=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd')
+		   		 AND THR_ABEMP_PK=inEmp_PK;   
+
+	   ELSE
+	   l_num_error := '50';
+	   	   UPDATE THR_APPROVE
+		   SET 	TECH_AMT 	 		=DECODE(inTech_Amt,inCur_Tech_Amt,inCur_Tech_Amt,inTech_Amt),
+		   		TECH_AMT_PFLAG		=DECODE(inTech_Amt,inCur_Tech_Amt,'N','Y'),
+				ANNUAL_LEAVE 		=DECODE(inAnnual_Leave,inCur_Annual_Leave,inCur_Annual_Leave,inAnnual_Leave) ,
+				ANNUAL_LEAVE_PFLAG	=DECODE(inAnnual_Leave,inCur_Annual_Leave,'N','Y') ,
+				BASIC_SAL	 		=DECODE(inBasic_Sal,inCur_Basic_Sal,inCur_Basic_Sal,inBasic_Sal) ,
+				BASIC_SAL_PFLAG		=DECODE(inBasic_Sal,inCur_Basic_Sal,'N','Y') ,
+				POS 		 		=DECODE(inPos,inCur_Pos,inCur_Pos,inPos),	
+				POS_PFLAG 	 		=DECODE(inPos,inCur_Pos,'N','Y'),	
+				Mod_BY 		 		=inUser ,
+				Mod_DT		 		=SYSDATE 
+		   WHERE del_if=0 
+		   		 AND date_approve=TO_CHAR(TO_DATE(inDate,'dd/mm/yyyy'),'yyyymmdd')
+		   		 AND THR_ABEMP_PK=inEmp_PK;
+	   END IF;   
+	   COMMIT;
+   EXCEPTION
+      WHEN OTHERS THEN
+       RAISE_APPLICATION_ERROR(-20001,'ERROR:' || l_num_error || SQLERRM);
+	   RETURN;
+ END Pr_Approve_Sal;
+/
+CREATE OR REPLACE PROCEDURE PR_C47(
+	  P_FLAG	  IN VARCHAR2,
+	P_EMP_PK IN NUMBER,  --1
+	P_EMP_ID IN VARCHAR2, --2
+	P_NAME	 IN VARCHAR2, --3
+	P_SOCIAL IN VARCHAR2,--4
+	P_FEMALE IN VARCHAR2, --5
+	P_MALE	 IN VARCHAR2, --6 
+	P_ADDRESS IN VARCHAR2, --8 
+	P_OLD_LEV_BASIC_SAL IN NUMBER, --10
+	P_OLD_LEV_ALLOW IN NUMBER,  --11
+	P_NEW_LEV_BASIC_SAL IN NUMBER,--12
+	P_NEW_LEV_ALLOW IN NUMBER,  --13
+	P_FROM_MON IN VARCHAR2, --16
+	P_TO_MON IN VARCHAR2, --17
+	P_TOTAL_MON IN NUMBER, --18
+	P_INCREASE_AMT IN NUMBER, --19
+	P_DECREASE_AMT IN NUMBER, --20
+	P_NOTE IN VARCHAR2, --21
+	P_MON	  	 	IN VARCHAR2, --22
+	P_TYPE			IN VARCHAR2, --23
+	P_JOB_CODE IN VARCHAR2, --24
+	P_HEALTH_PLACE IN VARCHAR2, --25 
+	P_USER			IN	VARCHAR2,   -- USER ID
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+COMPANY_NAME  VARCHAR2(100);
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+			BEGIN
+					SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+					WHERE MMYYYY = P_MON
+					  AND ID     = 'SAL'
+					  AND DEL_IF = 0;
+			
+				        IF AV_CHECK_MON = 'Y' THEN
+				        	AS_RET_NUM :=  -1;
+						AS_RET_VAR :=  'already closed this month !';
+						--RETURN;
+				        END IF;
+			
+					EXCEPTION
+					 WHEN NO_DATA_FOUND THEN
+				                AS_RET_NUM :=  -1;
+						AS_RET_VAR :=  'Not Found this Month !';
+						--RETURN;
+				END;
+
+
+	 COMPANY_NAME:='IL JUNG Co.';
+	 
+
+AN_SYS_ERROR_MSG := '5';
+
+IF P_FLAG='INSERT' THEN
+		INSERT INTO THR_INSURANCE_C47
+		( 
+		PK,
+		 THR_ABEMP_PK,
+		  EMP_ID,
+		  FULL_NAME,
+		  REPORT_MON,
+ 		  SOCIAL_NO,
+		  SEX,
+		  JOB_CODE,
+		  COMPANY_ADDRESS,
+		  HEALTH_PLACE,
+		  OLD_LEV_BASIC_SAL,
+		  OLD_LEV_ALLOW,
+		  NEW_LEV_BASIC_SAL,
+		  NEW_LEV_ALLOW,
+		  FROM_MON,
+		  TO_MON,
+		  TOTAL_MON,
+		  INCREASE_AMT,
+		  DECREASE_AMT,
+		  NOTE,
+		  INSURANCE_TYPE,
+		  DEL_IF,
+		  CRT_BY,
+		  CRT_DT
+		)
+		VALUES(
+		 THR_INSURANCE_C47_SEQ.NEXTVAL
+		,P_EMP_PK
+		,P_EMP_ID
+		,P_NAME
+		,P_MON
+		,P_SOCIAL
+		,(CASE WHEN P_FEMALE IS NULL THEN 1
+			   ELSE 0
+			   END)--DECODE(P_FEMALE,NULL,1,0)
+		,P_JOB_CODE
+		,COMPANY_NAME
+		,P_HEALTH_PLACE
+		,P_OLD_LEV_BASIC_SAL
+		,P_OLD_LEV_ALLOW
+		,P_NEW_LEV_BASIC_SAL
+		,P_NEW_LEV_ALLOW
+		,P_FROM_MON
+		 ,P_TO_MON
+		 ,P_TOTAL_MON
+		 ,P_NOTE
+		 ,P_INCREASE_AMT
+		 ,P_DECREASE_AMT
+		 ,P_TYPE
+		 ,0
+		 ,P_USER
+		 ,SYSDATE
+		 );
+END IF;
+
+IF P_FLAG='UPDATE' THEN
+   			UPDATE THR_INSURANCE_C47 A
+			SET A.OLD_LEV_BASIC_SAL=P_OLD_LEV_BASIC_SAL
+					,A.OLD_LEV_ALLOW=P_OLD_LEV_ALLOW
+					,A.NEW_LEV_BASIC_SAL=P_NEW_LEV_BASIC_SAL
+					,A.NEW_LEV_ALLOW=P_OLD_LEV_ALLOW
+					,A.FROM_MON=P_FROM_MON
+					,A.TO_MON=P_TO_MON
+					,A.TOTAL_MON=P_TOTAL_MON
+					,A.NOTE=P_NOTE
+					,A.INCREASE_AMT=P_INCREASE_AMT
+					,A.DECREASE_AMT=P_DECREASE_AMT
+					,A.MOD_BY=P_USER
+					,A.MOD_DT=TO_CHAR(SYSDATE,'YYYYMMDD')
+			WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=P_EMP_PK
+			AND A.REPORT_MON=P_MON AND A.INSURANCE_TYPE=P_TYPE;	 
+END IF;
+			  
+IF P_FLAG='DELETE' THEN
+   			DELETE THR_INSURANCE_C47 A
+			WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=P_EMP_PK
+			AND A.REPORT_MON=P_MON AND A.INSURANCE_TYPE=P_TYPE;	 
+END IF;
+				   
+				   
+
+		 
+		
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_C47) Month : '|| 'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PR_C47;
+/
+CREATE OR REPLACE PROCEDURE Pr_Calculate_All
+(
+AS_EMPPK 		  	IN 	NUMBER,
+AS_FROM 		   	IN 	VARCHAR2,
+AS_USER 			IN	VARCHAR2,
+AS_V				IN	NUMBER,
+AS_LOSE_INDUS_AMT	IN NUMBER,
+AS_RET_NUM			OUT	NUMBER,
+AS_RET_VAR			OUT	VARCHAR2)
+
+
+IS
+  V_ERROR				VARCHAR2(100);
+  AN_CNT			    NUMBER(10) := 0;
+  AV_OT_ALLOW			NUMBER(5,2) := 0;
+  AV_OT_TEMP			NUMBER(10) := 0;
+  AV_OT1				NUMBER(5,2) := 0;
+  AV_IN1				NUMBER(10) := 0;
+  AV_OUT1				NUMBER(10) := 0;
+  AV_WT1				NUMBER(5,2) := 0;
+  AV_DEM				NUMBER(1) := 0;
+  AV_INTMP				VARCHAR(5);
+  AV_OUTTMP				VARCHAR(5);
+REG_NUM				NUMBER(10):=0;
+NUM_TMP				   NUMBER(1):=0;
+  
+
+--******************************************
+  -- Modify by    : HUYNH TRUONG											
+  -- Modify date  : 24/03/2005 
+--******************************************  
+  
+BEGIN
+	 
+	 -- CHECK IN OUT
+	 
+	 SELECT DECODE(TM.P_IN,'',NULL,' ',NULL,TM.P_IN),DECODE(TM.P_OUT,'',NULL,' ',NULL,TM.P_OUT) INTO AV_INTMP,AV_OUTTMP FROM THR_TIME_MACHINE TM 
+	 WHERE TM.DEL_IF=0 AND TM.WORK_DT=AS_FROM AND TM.EMP_PK = AS_EMPPK;
+	 
+	 IF(AV_INTMP IS NULL)OR(AV_OUTTMP IS NULL) THEN
+	 		--delete du lieu tang ca neu co
+			DELETE THR_EXTRA_TIME A
+			WHERE A.DEL_IF=0 AND A.EMP_PK=AS_EMPPK AND A.WORK_DT=AS_FROM;
+			COMMIT;	 
+	 		RETURN;
+	 ELSE
+--UPDATE(FOR NORMAL TIME WORK PERSON)
+    BEGIN
+		V_ERROR := '01'; 
+		SELECT NVL(L.OT_ALLOW_TIME,0) INTO AV_OT_ALLOW
+		  FROM THR_OT_ALLOWANCE L, VHR_EMP E
+		 WHERE L.DEL_IF(+)=0 AND E.DEL_IF=0 
+		   AND E.PK = AS_EMPPK
+		   AND E.PK = L.EMP_PK(+)
+		   AND L.START_DT(+) <= AS_FROM   
+		   AND L.END_DT(+) >= AS_FROM; 
+
+-- KHONG XE'T TRUONG HOP >1
+		   IF AV_OT_ALLOW > 1 THEN
+		   	  AV_OT_ALLOW := 0;
+			END IF; 
+	
+		
+	END;
+    
+
+    BEGIN
+	 V_ERROR := '10';
+	 			UPDATE THR_TIME_MACHINE C
+		           --SET C.WORT_TIME = DECODE(C.WORT_TIME,0,F_Get_Wt(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT),NULL,F_Get_Wt(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT),C.WORT_TIME)
+        			 SET C.WORT_TIME = F_Get_Wt_Nshift(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT)  
+					   ,C.MOD_BY = AS_USER
+		        	   ,C.MOD_DT = SYSDATE
+		         WHERE C.DEL_IF  = 0 AND C.P_IN IS NOT NULL AND C.P_OUT IS NOT NULL
+		           AND C.WORK_DT = AS_FROM
+				   AND C.EMP_PK  = AS_EMPPK
+				   AND C.APPLY_FLAG <> 'Y';
+
+	
+	 BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = A.WORT_TIME + AV_OT_ALLOW  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.EMP_PK = AS_EMPPK
+					  AND A.WORT_TIME <= 8 - AV_OT_ALLOW;
+					  
+	END;
+	
+	BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = 8  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.WORT_TIME >7 
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL
+					  AND A.EMP_PK = AS_EMPPK
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = AS_EMPPK);
+	END;
+	BEGIN
+		 
+		 	UPDATE THR_TIME_MACHINE A -- update thong tin ko bam the
+				SET A.NUM_CHECK = DECODE(AS_V,-1,'Y','N')  ,
+					A.LOSE_INDUS_AMT = DECODE(AS_LOSE_INDUS_AMT,-1,'Y','N')
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.EMP_PK = AS_EMPPK;
+					  
+	
+	END;
+
+
+	
+				DELETE THR_EXTRA_TIME C
+				 WHERE C.DEL_IF  = 0 
+				   AND C.WORK_DT = AS_FROM
+				   AND C.EMP_PK  = AS_EMPPK
+				   AND C.APPLY_FLAG <>'Y' ;
+	END;							
+	
+	
+     V_ERROR := '20';
+	 
+	 BEGIN
+	    SELECT COUNT(A.PK)
+		  INTO AN_CNT
+          FROM COMM.TCO_ABCALENDAR A
+         WHERE A.DEL_IF = 0
+           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+           AND A.CAR_DATE = AS_FROM;
+
+	    IF AN_CNT = 1 THEN --ENTRY OT
+					-- THIS CASE IS LIKE PROCEDURE TIME_LOAD
+					--1: INSERT FOR NORMARL SHIFT
+					    INSERT INTO THR_EXTRA_TIME
+			                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+			                   ,OT_TIME,B_OT_TIME
+			                   ,START_TIME, END_TIME, B_END_TIME
+			                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)  AS HT
+							   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)  AS HT
+			                   ,B.P_IN, B.P_OUT, B.P_OUT
+			                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+			              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+			             WHERE A.DEL_IF = 0
+			               AND B.DEL_IF = 0
+						   AND D.DEL_IF = 0
+			               AND C.DEL_IF = 0			  
+			               AND A.PK = B.EMP_PK
+						   AND A.PK = D.THR_ABEMP_PK			   
+			               AND B.W_SHIFT = C.PK
+			               AND B.WORK_DT = AS_FROM			  
+						   AND A.PK = AS_EMPPK
+						   AND B.P_OUT IS NOT NULL
+						   AND B.P_IN IS NOT NULL 
+					       AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+					                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM)
+							AND A.EMP_ID_STYLE='00'; -- CONG NHAN								  
+							   
+										
+				    ELSE -- extra time for normal day
+						--ENTRY OT 
+			V_ERROR := '30';
+			    INSERT INTO THR_EXTRA_TIME 
+			                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+			                   ,OT_TIME,B_OT_TIME
+			                   ,START_TIME, END_TIME, B_END_TIME
+			                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							   ,F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN) AS OT_TIME 
+							   ,F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN) AS B_OT_TIME 
+			                   ,C.START_OT, B.P_OUT, B.P_OUT
+			                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+			              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+			             WHERE A.DEL_IF = 0
+			               AND B.DEL_IF = 0
+						   AND D.DEL_IF = 0
+						   AND A.PK = B.EMP_PK
+						   AND A.PK = D.THR_ABEMP_PK
+						   AND B.W_SHIFT = C.PK
+			               AND B.WORK_DT = AS_FROM
+						   AND B.P_IN IS NOT NULL
+						   AND B.P_OUT IS NOT NULL
+						   AND A.PK = AS_EMPPK
+						   AND F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)>0
+			              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+			    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+						 AND A.PK NOT IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_FROM AND E.END_DT >= AS_FROM AND E.EMP_PK = A.PK)
+						 AND A.EMP_ID_STYLE='00'; -- CONG NHAN
+
+
+			V_ERROR := '35';
+			--INSERT CHO NHUNG NGUOI TS TANG CA  
+			    INSERT INTO THR_EXTRA_TIME 
+			                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+			                   ,OT_TIME,B_OT_TIME
+			                   ,START_TIME, END_TIME, B_END_TIME
+			                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							   ,F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN) AS OT_TIME 
+							   ,F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN) AS B_OT_TIME 
+			                   ,C.START_OT, B.P_OUT, B.P_OUT
+			                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+			              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+			             WHERE A.DEL_IF = 0
+			               AND B.DEL_IF = 0
+						   AND D.DEL_IF = 0
+						   AND A.PK = B.EMP_PK
+						   AND A.PK = D.THR_ABEMP_PK
+						   AND B.W_SHIFT = C.PK
+			               AND B.WORK_DT = AS_FROM
+						   AND B.P_IN IS NOT NULL
+						   AND B.P_OUT IS NOT NULL
+						   AND A.PK = AS_EMPPK
+						   AND F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN)>0
+			              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+			    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+						 AND A.PK IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_FROM AND E.END_DT >= AS_FROM AND E.EMP_PK = A.PK)
+						 AND A.EMP_ID_STYLE='00'; -- CONG NHAN
+						 
+										 
+					
+						 			  
+			
+			V_ERROR := '50';
+			 ---TINH NT CHO CA NGAY VA CA DEM
+			    INSERT INTO THR_EXTRA_TIME 
+			                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+			                   ,OT_TIME,B_OT_TIME
+			                   ,START_TIME, END_TIME, B_END_TIME
+			                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							   ,F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN) AS OT_TIME 
+							   ,F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN) AS B_OT_TIME 
+			                   ,C.START_OT, B.P_OUT, B.P_OUT
+			                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+			              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D--, THR_OT_ALLOWANCE L
+			             WHERE A.DEL_IF = 0
+			               AND B.DEL_IF = 0
+						   AND D.DEL_IF = 0
+						   AND A.PK = B.EMP_PK
+						   AND A.PK = D.THR_ABEMP_PK
+						   AND B.W_SHIFT = C.PK
+			               AND B.WORK_DT = AS_FROM
+						   AND B.P_IN IS NOT NULL
+						   AND B.P_OUT IS NOT NULL
+						--   AND C.START_TIME<C.END_TIME
+						   AND A.PK = AS_EMPPK
+						   AND F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN)>0
+			              AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+			    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'NT' AND D.WORK_DT = AS_FROM)
+						  AND A.EMP_ID_STYLE='00'; -- CONG NHAN
+			
+									   
+				
+											   
+					END IF;
+					--XU LY DANG KY TANG CA
+										-- XU LY DANG KY OT
+		BEGIN
+									---XOA DONG DU LIEU GOC NEU CO
+									DELETE THR_EXTRA_TIME A
+									WHERE A.DEL_IF<>0 AND A.DATA_FLAG='N'
+									AND A.WORK_DT=AS_FROM AND A.EMP_PK=AS_EMPPK;				
+													
+									SELECT COUNT(E.PK) INTO REG_NUM FROM THR_ET_EXTRA_TIME E
+									WHERE E.DEL_IF=0 AND E.WORK_DT=AS_FROM AND E.EMP_PK=AS_EMPPK;
+								
+										IF REG_NUM>0 THEN -- da lam lich dang ky t/c roi
+										   				V_ERROR := '100';
+														--DATA FLAG = N : LUU BAN SAO CUA DONG DU LIEU GOC (CO TANG CA NHUNG KO DANG KY)
+														-- luu ban goc 
+													INSERT INTO THR_EXTRA_TIME
+												                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+												                   ,OT_TIME,B_OT_TIME
+												                   ,START_TIME, END_TIME, B_END_TIME
+												                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY,DATA_FLAG)
+													SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,A.OT_TYPE,A.GRP_CODE,A.WORK_DT,A.EMP_PK,A.FULL_NAME,A.W_SHIFT,A.OT_TIME
+													,A.B_OT_TIME,A.START_TIME,A.END_TIME,A.B_END_TIME,A.REMARK,A.PK AS DEL_IF,A.APPLY_FLAG,SYSDATE
+													,AS_USER,'N'
+													FROM THR_EXTRA_TIME A
+								   					   						  ,(SELECT B.EMP_PK AS EMP_PK,B.OT_TIME  AS OT_TIME,B.OT_TYPE AS OT_TYPE
+								   					   						  	 	 	  				 		   FROM THR_ET_EXTRA_TIME B
+								   			 	  							  				 				   WHERE B.DEL_IF=0 AND B.WORK_DT=AS_FROM
+																											   AND B.EMP_PK=AS_EMPPK )REG
+																			WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+																			AND A.EMP_PK=REG.EMP_PK
+																			AND A.OT_TYPE=REG.OT_TYPE
+																			AND A.EMP_PK=AS_EMPPK
+																			AND A.EMP_PK NOT IN(SELECT T.EMP_PK FROM THR_EXTRA_TIME T WHERE T.DEL_IF<>0 
+																						 	  AND T.DATA_FLAG='N' AND T.WORK_DT=AS_FROM AND T.EMP_PK=AS_EMPPK
+																							 GROUP BY T.EMP_PK);
+														
+													-- UPDATE GIO TANG CA NEU GIO TC > GIO DANG KY	
+														UPDATE THR_EXTRA_TIME A
+														SET A.OT_TIME =(SELECT B.OT_TIME FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 AND B.EMP_PK=A.EMP_PK 
+																	  		   			 	  AND B.WORK_DT=A.WORK_DT AND B.OT_TYPE=A.OT_TYPE AND B.WORK_DT = AS_FROM)
+																,A.DATA_FLAG=NULL 
+														WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+														AND A.EMP_PK=AS_EMPPK
+														AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 AND B.EMP_PK=AS_EMPPK 
+																	 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0));
+							
+											/*		-- UPDATE GIO TANG CA NEU GIO TC < GIO DANG KY =>LAY GIO DANG KY	
+														UPDATE THR_EXTRA_TIME A
+														SET A.DATA_FLAG='NULL' 
+														WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+														AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+																	 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)<NVL(B.OT_TIME,0));
+							
+												*/
+													-- luu lai gio tang ca nhung chua dang ky
+												
+													UPDATE THR_EXTRA_TIME A
+													SET A.DEL_IF=A.PK
+															,A.DATA_FLAG='N'
+													WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+													AND A.EMP_PK=AS_EMPPK
+													AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0
+																 	 		   AND B.EMP_PK=AS_EMPPK 
+																	 	AND B.WORK_DT=AS_FROM GROUP BY B.EMP_PK );
+																		
+											
+													-- RANDOM KHI VA CHI KHI GIO TC >GIO DANG KY 
+									SELECT COUNT(A.PK) INTO NUM_TMP FROM THR_EXTRA_TIME A,THR_ET_EXTRA_TIME B
+									WHERE A.DEL_IF<>0 AND A.DATA_FLAG='N' AND B.DEL_IF=0 AND A.EMP_PK=B.EMP_PK
+									AND A.WORK_DT=B.WORK_DT AND A.WORK_DT=AS_FROM
+									AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0) AND A.EMP_PK=AS_EMPPK;
+			 
+			 IF NUM_TMP>0 THEN
+													
+													UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=(SELECT MAX(ET.END_TIME)  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.WORK_DT=T.WORK_DT
+																				  					AND ET.EMP_PK=T.EMP_PK GROUP BY ET.EMP_PK)
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM 
+													AND T.P_OUT IS NOT NULL AND T.APPLY_FLAG<>'Y'
+													AND T.EMP_PK=AS_EMPPK
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.EMP_PK=AS_EMPPK 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  AND EX.EMP_PK=AS_EMPPK
+																				  					GROUP BY EX.EMP_PK);
+										
+													UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':'||(TO_NUMBER(SUBSTR(T.P_OUT,4,2))+ABS(MOD(DBMS_RANDOM.Random,15)))
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL AND T.P_IN IS NOT NULL
+													AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<45 AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))>9 
+													AND T.APPLY_FLAG<>'Y' AND T.EMP_PK=AS_EMPPK
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.EMP_PK=AS_EMPPK 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX 
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  AND EX.EMP_PK=AS_EMPPK
+																				  					GROUP BY EX.EMP_PK);
+										
+													
+											UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':0'||ABS(MOD(DBMS_RANDOM.Random,10))
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL
+													AND T.APPLY_FLAG<>'Y'
+													AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<10 AND T.EMP_PK=AS_EMPPK  
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.EMP_PK=AS_EMPPK 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  AND EX.EMP_PK=AS_EMPPK
+																				  					GROUP BY EX.EMP_PK);
+											
+											END IF;			
+								END IF;
+
+					END;
+					
+   			 END;
+  END IF;
+	 V_ERROR := '120';
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := V_ERROR || 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, V_ERROR ||'ERROR..'||'. OTHER (PR_RECALCULATE_ALL) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END Pr_Calculate_All;
+/
+CREATE OR REPLACE PROCEDURE Pr_Calculate_Bonus(
+	IN_YEAR		IN	VARCHAR2,	-- YYYYMMDD 
+	IN_NUMTIMES		IN	NUMBER, 
+	IN_BN_FROM		IN VARCHAR2,
+	IN_BN_TO		IN VARCHAR2,
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+TOTAL_DAY     NUMBER(10);
+
+
+--******************************************
+  -- CREATE BY    : huynh truong											
+ 
+--******************************************
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+SELECT TO_NUMBER(TO_DATE(IN_BN_TO,'yyyymmdd')-TO_DATE(IN_BN_FROM,'YYYYMMdd')) INTO TOTAL_DAY FROM DUAL;
+
+DELETE THR_BONUS BS
+WHERE BS.DEL_IF=0 AND BS.BN_YEAR=IN_YEAR AND BS.NUM_TIMES=IN_NUMTIMES;
+
+
+INSERT INTO THR_BONUS
+(PK, EMP_PK, BN_YEAR, NUM_TIMES, SALARY_AMT, BONUS_AMT, BNS_RATE,BN_FROM,BN_TO,DAYS_NUM,DEL_IF, CRT_DT, CRT_BY)
+SELECT THR_BONUS_SEQ.NEXTVAL, A.PK AS EMP_PK,IN_YEAR AS BN_YEAR,IN_NUMTIMES AS NUM_TIMES
+,(CASE WHEN A.END_PROB >=  IN_BN_TO  THEN A.PROB_SALARY
+	  ELSE A.BASIC_SAL
+	  END) AS SALARY_AMT 
+	  ,0 AS BONUS_AMT,50 AS BNS_RATE,IN_BN_FROM,IN_BN_TO
+	   ,(CASE WHEN IN_BN_TO>=A.JOIN_DT THEN TO_NUMBER(TO_DATE(IN_BN_TO,'yyyymmdd')-TO_DATE(A.JOIN_DT,'YYYYMMdd')+1)
+	   		 	  					  ELSE  0 
+									  END ) AS DAYS_NUM 
+	   ,0, SYSDATE, AS_USER
+ FROM VHR_EMP A,THR_SALARY_EMP S
+WHERE S.DEL_IF(+)=0 AND S.WORK_MON(+)=SUBSTR(IN_BN_TO,1,6) AND A.DEL_IF=0 AND A.PK=S.EMP_PK(+)
+AND A.STATUS='A' AND A.JOIN_DT<=IN_BN_TO; --STATUS CON TUY THUOC VAO TUNG CONG TY 
+
+
+UPDATE THR_BONUS BS
+SET BS.BONUS_AMT=(CASE WHEN  BS.DAYS_NUM>=TOTAL_DAY THEN 0.5*BS.SALARY_AMT
+					  					  	   							  	  ELSE (DAYS_NUM*BS.SALARY_AMT)/(TOTAL_DAY*2)
+																			  END)
+		,BS.DAYS_NUM=(CASE WHEN BS.DAYS_NUM>TOTAL_DAY THEN TOTAL_DAY
+						  	   						 	  ELSE BS.DAYS_NUM
+														  END) 																  
+WHERE BS.DEL_IF=0 AND BS.BN_YEAR=IN_YEAR AND BS.NUM_TIMES=IN_NUMTIMES;																			  
+
+	 
+COMMIT;		 
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_CALCULATE_BONUS) Month : '||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Calculate_Bonus;
+/
+CREATE OR REPLACE PROCEDURE PR_CAL_ANNUAL_LEAVE 
+(inYEAR	   IN  VARCHAR2) IS
+CF NUMBER := 1;
+/******************************************************************************
+   NAME:       PR_CAL_ANNUAL_LEAVE
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        12/25/2007          1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_CAL_ANNUAL_LEAVE
+      Sysdate:         12/25/2007
+      Date and Time:   12/25/2007, 8:57:47 AM, and 12/25/2007 8:57:47 AM
+      Username:         (set in TOAD Options, Procedure Editor)
+      Table Name:       (set in the "New PL/SQL Object" dialog)
+
+******************************************************************************/
+BEGIN
+   /*SELECT COUNT(C.CLOSE_FLAG) INTO CF
+              FROM THR_CLOSE C 
+              WHERE C.DEL_IF = 0 
+                    AND C.CLOSE_FLAG = 'Y' 
+                    AND SUBSTR(C.MMYYYY,1,4) = inYEAR 
+                    AND C.ID = 'ALE';
+   IF(CF = 'Y' )THEN
+        RETURN;
+   END IF;*/
+   
+   --RETURN;
+   BEGIN
+   DELETE THR_ANNUAL_LEAVE_EMP L
+   WHERE L.AL_YEAR = inYEAR
+         AND L.CLOSE_FLAG = 'N';
+   END;
+   BEGIN
+   INSERT INTO THR_ANNUAL_LEAVE_EMP
+          (
+               PK                    -- 1  --
+               ,THR_ABEMP_PK         -- 2  --
+               ,EMP_ID               -- 3  --
+               ,FULL_NAME            -- 4  --
+               ,JOIN_DT              -- 5  --
+               ,BASIC_SAL            -- 6  --
+               ,MON01                -- 7  --
+               ,MON02                -- 8  --
+               ,MON03                -- 9  --
+               ,MON04                --  10 --
+               ,MON05                -- 11  --
+               ,MON06                -- 12  --
+               ,MON07                -- 13  --
+               ,MON08                --  14 --
+               ,MON09                --  15 --
+               ,MON10                --  16 --
+               ,MON11                -- 17  --
+               ,MON12                -- 18  --
+               ,AL_YEAR              -- 19  --
+               ,AL_DAY               -- 20  --
+               ,AL_USED              -- 21  --
+               ,AL_UNUSE            -- 22  --
+               ,AL_AMT               -- 23  --
+               ,PAY_FLAG             -- 24  --
+               ,CLOSE_FLAG           -- 25  --
+               ,USER_CREATE          -- 26  --
+               ,DAY_CREATE           -- 27  --
+			   ,AL_CURR				 -- 28	--
+			   ,AL_CURR_BAL			 --	29	--
+          )
+          SELECT  THR_ANNUAL_LEAVE_EMP_SEQ.NEXTVAL      -- 1  --
+          ,AL.EMP_PK                 -- 2  --
+          ,AL.EMP_ID                 -- 3 --
+          ,AL.FULL_NM                -- 4 --
+          ,AL.JOIN_DATE              -- 5 -- 
+          ,AL.SAL                    -- 6 --
+          , NVL(mon01,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'01' THEN 0 ELSE NULL END) mon01 -- 7 --
+          , NVL(mon02,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'02' THEN 0 ELSE NULL END) mon02 -- 8 -
+          , NVL(mon03,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'03' THEN 0 ELSE NULL END) mon03 -- 9 -
+          , NVL(mon04,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'04' THEN 0 ELSE NULL END) mon04 -- 10 -
+          , NVL(mon05,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'05' THEN 0 ELSE NULL END) mon05 -- 11 -
+          , NVL(mon06,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'06' THEN 0 ELSE NULL END) mon06 -- 12 -
+          , NVL(mon07,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'07' THEN 0 ELSE NULL END) mon07 -- 13 -
+          , NVL(mon08,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'08' THEN 0 ELSE NULL END) mon08 -- 14 -
+          , NVL(mon09,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'09' THEN 0 ELSE NULL END) mon09 -- 15 -
+          , NVL(mon10,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'10' THEN 0 ELSE NULL END) mon10 -- 16 --
+          , NVL(mon11,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'11' THEN 0 ELSE NULL END) mon11 -- 17 --
+          , NVL(mon12,CASE WHEN SUBSTR(al.join_date,1,6) <= inYEAR ||'12' THEN 0 ELSE NULL END) mon12 -- 18 --
+          , inYEAR -- 19 --
+          , CASE WHEN SUBSTR(al.join_date,1,4) > inYEAR OR  SUBSTR(TO_CHAR(SYSDATE,'YYYYMMDD'),1,4) < inYEAR
+                 THEN 0 ELSE AL.ANNUAL_LEAVE_DAYS 
+                 END AS ANNUAL_LEAVE_DAYS -- 20 --
+          , 0       AS AL_USED               -- 21 -- 
+          , 0       AS AL_UNUSED             -- 22 --
+          , 0        AS AL_AMT            -- 23 --
+          , 'Y'    AS  PAY_FLAG             -- 24 -- Y : TRA TIEN MAT ; N : CHUYEN SANG NAM SAU
+          , 'N'     AS CLOSE_FLAG               -- 25 --
+          , 'auto'               -- 26 --
+          , SYSDATE              -- 27 --
+		  ,AL.AL_CURR	 --	28 --
+		  ,NVL(AL.AL_CURR,0) - NVL(ALSUM.YEARSUM,0)					 --	29 --
+  FROM 
+    (SELECT B.TCO_EODEPT_PK AS DEPT_PK 
+            ,C.DEPT_NM AS DEPT_NM 
+            ,DG.WORKGRP_NM AS WORKGRP_NM 
+            ,A.EMP_ID  AS EMP_ID 
+               ,A.FULL_NM AS FULL_NM 
+               ,NVL(NVL(B.BASIC_SAL,B.PROB_SALARY),0) AS SAL 
+            ,A.ANNUAL_LEAVE_DAYS AS ANNUAL_LEAVE_DAYS 
+            ,A.JOIN_DATE AS JOIN_DATE 
+            ,A.PK AS EMP_PK 
+			,A.CUR_ANNUAL_LEAVE AS AL_CURR
+      FROM THR_ABEMP A, THR_ABEMPMAS B,COMM.VCO_EODEPT C,THR_ABWORKGRP DG 
+     WHERE A.DEL_IF(+)=0 
+       AND B.DEL_IF(+)=0 
+       AND A.EMP_STATUS='A' 
+       AND SUBSTR(A.JOIN_DATE,1,4) <= inYEAR
+       AND A.PK = B.THR_ABEMP_PK 
+       AND B.TCO_EODEPT_PK=C.PK(+) 
+       AND B.THR_ABWORKGROUP_PK=DG.PK(+) 
+     ) AL, 
+     ( SELECT EMP_ID,EMP_PK, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '01', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'01' THEN 0 ELSE NULL END ) ) MON01, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '02', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'02' THEN 0 ELSE NULL END ) ) MON02, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '03', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'03' THEN 0 ELSE NULL END ) ) MON03, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '04', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'04' THEN 0 ELSE NULL END ) ) MON04, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '05', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'05' THEN 0 ELSE NULL END ) ) MON05, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '06', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'06' THEN 0 ELSE NULL END ) ) MON06, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '07', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'07' THEN 0 ELSE NULL END ) ) MON07, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '08', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'08' THEN 0 ELSE NULL END ) ) MON08, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '09', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'09' THEN 0 ELSE NULL END ) ) MON09, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '10', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'10' THEN 0 ELSE NULL END ) ) MON10, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '11', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'11' THEN 0 ELSE NULL END ) ) MON11, 
+   SUM ( DECODE ( SUBSTR(YEARMON,5,2) , '12', Mon_cnt, CASE WHEN SUBSTR(emp_id,1,4) <= SUBSTR (yearmon, 3,2)||'12' THEN 0 ELSE NULL END ) ) MON12, 
+   SUM (  Mon_cnt ) YEARSUM 
+  FROM   VHR_EMP_ABSENT_CNT 
+  WHERE  YEARMON LIKE  inYEAR || '%' 
+  GROUP BY EMP_ID,EMP_PK 
+  )  ALSUM 
+ WHERE AL.EMP_PK =  ALSUM.EMP_PK(+);
+    
+    END;   
+   
+   UPDATE THR_ANNUAL_LEAVE_EMP L
+          SET l.AL_USED = NVL(MON01,0)+ NVL(MON02,0)+ NVL(MON03,0)+ NVL(MON04,0)+ NVL(MON05,0)+
+                        NVL(MON06,0)+NVL(MON07,0)+NVL(MON08,0)+NVL(MON09,0)
+                        +NVL(MON10,0)+ NVL(MON11,0)+ NVL(MON12,0)
+               ,L.AL_UNUSE = NVL(L.AL_DAY,0) - (NVL(MON01,0)+ NVL(MON02,0)+ NVL(MON03,0)+ NVL(MON04,0)+ NVL(MON05,0)+
+                        NVL(MON06,0)+NVL(MON07,0)+NVL(MON08,0)+NVL(MON09,0)
+                        +NVL(MON10,0)+ NVL(MON11,0)+ NVL(MON12,0))
+   WHERE L.AL_YEAR = inYEAR;
+   
+   UPDATE THR_ANNUAL_LEAVE_EMP L
+   SET L.AL_AMT = L.BASIC_SAL/26* NVL(L.AL_UNUSE,0) 
+   	   ,L.AL_LAST_YEAR = (SELECT AL.AL_UNUSE FROM THR_ANNUAL_LEAVE_EMP AL 
+	   				   	 		 WHERE AL.THR_ABEMP_PK = L.THR_ABEMP_PK
+								 	   AND AL.AL_YEAR = TO_NUMBER(L.AL_YEAR) - 1)		  
+   WHERE L.AL_YEAR = inYEAR;
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       RAISE; --_APPLICATION_ERROR(-20001,'CAL ANUAL LEAVE FAIL : NO DATA FOUND ...');
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE; --_APPLICATION_ERROR(-20001,'CAL ANUAL LEAVE FAIL : UNKNOWN ERROR ...');
+END PR_CAL_ANNUAL_LEAVE;
+/
+CREATE OR REPLACE PROCEDURE Pr_Cal_Reg_Ot( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+                            AS_USER IN  VARCHAR2  -- USER ID
+                         ) IS
+AN_SYS_ERROR_MSG	VARCHAR(100);
+REG_NUM				NUMBER(10):=0;
+
+BEGIN
+
+
+AN_SYS_ERROR_MSG := '10';
+
+/*
+	-- restore lai du lieu goc , xoa du lieu da dang ky
+		   DELETE THR_EXTRA_TIME A
+		   WHERE A.WORK_DT=AS_FROM AND A.DEL_IF=0;
+		   
+		   
+		   UPDATE THR_EXTRA_TIME A
+		   SET A.DEL_IF=0
+		   	   			 ,A.REG_FLAG=NULL
+						 ,A.DATA_FLAG=NULL
+			WHERE A.DEL_IF<>0 AND A.WORK_DT=AS_FROM
+			AND A.DATA_FLAG='N'
+			 AND A.REG_FLAG IS NOT NULL;
+*/			 
+		    
+	
+		SELECT COUNT(E.PK) INTO REG_NUM FROM THR_ET_EXTRA_TIME E
+		WHERE E.DEL_IF=0 AND E.WORK_DT=AS_FROM;
+	
+			IF REG_NUM>0 THEN -- da lam lich dang ky t/c roi
+			   				AN_SYS_ERROR_MSG := '50';
+							--DATA FLAG = N : LUU BAN SAO CUA DONG DU LIEU GOC (CO TANG CA NHUNG KO DANG KY)
+							-- luu ban goc 
+						INSERT INTO THR_EXTRA_TIME
+					                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+					                   ,OT_TIME,B_OT_TIME
+					                   ,START_TIME, END_TIME, B_END_TIME
+					                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY,REG_FLAG,DATA_FLAG)
+						SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,A.OT_TYPE,A.GRP_CODE,A.WORK_DT,A.EMP_PK,A.FULL_NAME,A.W_SHIFT,A.OT_TIME
+						,A.B_OT_TIME,A.START_TIME,A.END_TIME,A.B_END_TIME,A.REMARK,A.PK AS DEL_IF,A.APPLY_FLAG,SYSDATE
+						,AS_USER,'Y','N'
+						FROM THR_EXTRA_TIME A
+	   					   						  ,(SELECT B.EMP_PK AS EMP_PK,B.OT_TIME  AS OT_TIME,B.OT_TYPE AS OT_TYPE
+	   					   						  	 	 	  				 		   FROM THR_ET_EXTRA_TIME B
+	   			 	  							  				 				   WHERE B.DEL_IF=0 AND B.WORK_DT=AS_FROM )REG
+												WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+												AND A.EMP_PK=REG.EMP_PK
+												--AND NVL(A.OT_TIME,0)<>NVL(REG.OT_TIME,0)
+												AND A.OT_TYPE=REG.OT_TYPE
+												AND A.EMP_PK NOT IN(SELECT T.EMP_PK FROM THR_EXTRA_TIME T WHERE T.DEL_IF<>0 
+															 	 AND T.REG_FLAG='Y' AND T.DATA_FLAG='N' AND T.WORK_DT=AS_FROM
+																 GROUP BY T.EMP_PK);
+							
+						-- UPDATE GIO TANG CA NEU GIO TC > GIO DANG KY	
+							UPDATE THR_EXTRA_TIME A
+							SET A.OT_TIME =(SELECT B.OT_TIME FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 AND B.EMP_PK=A.EMP_PK 
+										  		   			 	  AND B.WORK_DT=A.WORK_DT AND B.OT_TYPE=A.OT_TYPE AND B.WORK_DT = AS_FROM)
+									,A.DATA_FLAG='Y' 
+									,A.REG_FLAG='Y'
+							WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+							AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+										 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0));
+
+						-- UPDATE GIO TANG CA NEU GIO TC < GIO DANG KY =>LAY GIO DANG KY	
+							UPDATE THR_EXTRA_TIME A
+							SET A.DATA_FLAG='Y' 
+									,A.REG_FLAG='N'
+							WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG <>'Y'
+							AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+										 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)<NVL(B.OT_TIME,0));
+
+							
+						-- luu lai gio tang ca nhung chua dang ky
+					
+						UPDATE THR_EXTRA_TIME A
+						SET A.DEL_IF=A.PK
+								,A.DATA_FLAG='N'
+								,A.REG_FLAG='N'
+						WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+						AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+										 	AND B.WORK_DT=AS_FROM GROUP BY B.EMP_PK );
+					
+
+			END IF;
+			
+	COMMIT;
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_CAL_REG_OT) '||SQLERRM );
+END  Pr_Cal_Reg_Ot;
+/
+CREATE OR REPLACE PROCEDURE Pr_Cal_Reg_Ot_Emp_Pk( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+	   	  		  			AS_EMP_PK			  IN NUMBER,
+                            AS_USER IN  VARCHAR2  -- USER ID
+                         ) IS
+AN_SYS_ERROR_MSG	VARCHAR(100);
+REG_NUM				NUMBER(10):=0;
+NUM_APPLY			   NUMBER(1):=0;
+NUM_ORG				   NUMBER(1):=0;
+NUM_TMP				   NUMBER(1):=0;
+IN_OUT_CHECK		   NUMBER(1):=0;
+BEGIN
+
+SELECT COUNT(A.PK) INTO IN_OUT_CHECK FROM THR_TIME_MACHINE A
+WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.EMP_PK=AS_EMP_PK
+AND (A.P_IN IS NULL OR A.P_OUT IS NULL);
+IF IN_OUT_CHECK>0 THEN -- IN HOAC OUT NULL
+   RETURN;
+END IF;
+
+SELECT COUNT(A.PK) INTO NUM_APPLY FROM THR_EXTRA_TIME A
+WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG='Y' AND A.EMP_PK=AS_EMP_PK;
+
+AN_SYS_ERROR_MSG := '10';
+IF NUM_APPLY=0 THEN --CHUA DUOC SUA BANG TAY
+	-- restore lai du lieu goc , xoa du lieu da dang ky NEU CO
+	   -- KIEM TRA XEM CO DU LIEU GOC HAY CHUA
+	   	  SELECT COUNT(A.EMP_PK) INTO NUM_ORG FROM THR_EXTRA_TIME A
+		  		  WHERE A.DEL_IF<>0 AND A.EMP_PK=AS_EMP_PK AND A.OT_TYPE IN ('OT','HT')
+		 		   AND A.WORK_DT=AS_FROM AND A.DATA_FLAG='N';
+		  
+		  IF NUM_ORG>0 THEN
+		  
+					   DELETE THR_EXTRA_TIME A
+					   WHERE A.WORK_DT=AS_FROM AND A.DEL_IF=0 
+					   AND A.EMP_PK=AS_EMP_PK AND A.DATA_FLAG IS NULL;
+
+					   -- DEL_IF<>0 AND DATA_FLAG='N' :  DU LIEU GOC
+					   UPDATE THR_EXTRA_TIME A
+					   SET A.DEL_IF=0
+									 ,A.DATA_FLAG=NULL
+						WHERE A.DEL_IF<>0 AND A.WORK_DT=AS_FROM
+						AND A.DATA_FLAG='N'
+						 AND A.EMP_PK=AS_EMP_PK;
+			END IF;
+
+		SELECT COUNT(E.PK) INTO REG_NUM FROM THR_ET_EXTRA_TIME E
+		WHERE E.DEL_IF=0 AND E.WORK_DT=AS_FROM AND E.EMP_PK=AS_EMP_PK;
+	
+			IF REG_NUM>0 THEN -- da lam lich dang ky t/c roi
+			   					AN_SYS_ERROR_MSG := '50';
+							--DATA FLAG = N : LUU BAN SAO CUA DONG DU LIEU GOC (CO TANG CA NHUNG KO DANG KY)
+							-- luu ban goc 
+						INSERT INTO THR_EXTRA_TIME
+					                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+					                   ,OT_TIME,B_OT_TIME
+					                   ,START_TIME, END_TIME, B_END_TIME
+					                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY,DATA_FLAG)
+						SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,A.OT_TYPE,A.GRP_CODE,A.WORK_DT,A.EMP_PK,A.FULL_NAME,A.W_SHIFT,A.OT_TIME
+						,A.B_OT_TIME,A.START_TIME,A.END_TIME,A.B_END_TIME,A.REMARK,A.PK AS DEL_IF,A.APPLY_FLAG,SYSDATE
+						,AS_USER,'N'
+						FROM THR_EXTRA_TIME A
+	   					   						  ,(SELECT B.EMP_PK AS EMP_PK,B.OT_TIME  AS OT_TIME,B.OT_TYPE AS OT_TYPE
+	   					   						  	 	 	  				 		   FROM THR_ET_EXTRA_TIME B
+	   			 	  							  				 				   WHERE B.DEL_IF=0 AND B.WORK_DT=AS_FROM AND B.EMP_PK=AS_EMP_PK)REG
+												WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+												AND A.EMP_PK=REG.EMP_PK
+												AND A.OT_TYPE=REG.OT_TYPE 
+												AND A.EMP_PK = AS_EMP_PK
+												AND A.EMP_PK NOT IN(SELECT T.EMP_PK FROM THR_EXTRA_TIME T WHERE T.DEL_IF<>0 
+															 	 AND T.DATA_FLAG='N' AND T.WORK_DT=AS_FROM AND T.EMP_PK=AS_EMP_PK
+																 GROUP BY T.EMP_PK);
+							
+						-- UPDATE GIO TANG CA NEU GIO TC > GIO DANG KY	
+					AN_SYS_ERROR_MSG := '60';
+							UPDATE THR_EXTRA_TIME A
+							SET A.OT_TIME =(SELECT B.OT_TIME FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 AND B.EMP_PK=A.EMP_PK 
+										  		   			 	  AND B.WORK_DT=A.WORK_DT AND B.OT_TYPE=A.OT_TYPE AND B.WORK_DT = AS_FROM)
+									,A.DATA_FLAG=NULL 
+							WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+							AND A.EMP_PK=AS_EMP_PK
+							AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+										 	AND B.WORK_DT=AS_FROM  AND B.EMP_PK=AS_EMP_PK AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0));
+
+						-- luu lai gio tang ca nhung chua dang ky
+					
+						UPDATE THR_EXTRA_TIME A
+						SET A.DEL_IF=A.PK
+								,A.DATA_FLAG='N'
+						WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+						AND A.EMP_PK=AS_EMP_PK
+						AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+										 	AND B.WORK_DT=AS_FROM AND B.EMP_PK=AS_EMP_PK
+											 GROUP BY B.EMP_PK );
+											
+			
+			-- CHI UPDATE P_OUT NEU GIO DANG KY < GIO TANG CA
+			SELECT COUNT(A.PK) INTO NUM_TMP FROM THR_EXTRA_TIME A,THR_ET_EXTRA_TIME B
+			WHERE A.DEL_IF<>0 AND A.DATA_FLAG='N' AND B.DEL_IF=0 AND A.EMP_PK=B.EMP_PK
+			AND A.WORK_DT=B.WORK_DT AND A.WORK_DT=AS_FROM
+			AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0) AND A.EMP_PK=AS_EMP_PK;
+			 
+			 IF NUM_TMP>0 THEN
+									 								
+								UPDATE THR_TIME_MACHINE T
+								SET T.P_OUT=(SELECT MAX(ET.END_TIME)  FROM THR_ET_EXTRA_TIME ET
+															  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.WORK_DT=T.WORK_DT
+															  					AND ET.EMP_PK=T.EMP_PK AND ET.EMP_PK=AS_EMP_PK GROUP BY ET.EMP_PK)
+								WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL
+								AND T.P_IN IS NOT NULL
+								AND T.EMP_PK=AS_EMP_PK 
+								AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+															  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM 
+															  					GROUP BY ET.EMP_PK)
+								AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+															  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+															  AND EX.EMP_PK=AS_EMP_PK
+															  					GROUP BY EX.EMP_PK);
+																				
+								
+									UPDATE THR_TIME_MACHINE T
+								SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':'||(TO_NUMBER(SUBSTR(T.P_OUT,4,2))+ABS(MOD(DBMS_RANDOM.Random,15)))
+								WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL AND T.P_IN IS NOT NULL
+								AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<45 AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))>9 
+								AND T.EMP_PK=AS_EMP_PK 
+								AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+											  	 WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.EMP_PK =AS_EMP_PK
+								  					 	GROUP BY ET.EMP_PK)
+								AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+								  			 WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+								  				  AND EX.EMP_PK=AS_EMP_PK
+								  					GROUP BY EX.EMP_PK);
+											
+
+													
+											UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':0'||ABS(MOD(DBMS_RANDOM.Random,10))
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL
+													AND T.P_IN IS NOT NULL
+													AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<10  
+													AND T.EMP_PK=AS_EMP_PK 
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.EMP_PK= AS_EMP_PK
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+													  			 WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+													  				  AND EX.EMP_PK=AS_EMP_PK
+													  					  GROUP BY EX.EMP_PK);
+																		  
+							END IF;
+				END IF;												
+END IF;
+    
+	
+			
+	COMMIT;
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_CAL_REG_OT_EMP_PK) '||SQLERRM );
+END  Pr_Cal_Reg_Ot_Emp_Pk;
+/
+CREATE OR REPLACE PROCEDURE Pr_Delete_date(
+AS_DATE IN  VARCHAR2,  -- YYYYMMDD
+  AS_USER IN  VARCHAR2,  -- USER ID
+ AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+ AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+	BEGIN
+		SELECT COUNT(*) INTO VN_CLOSE_CHECK
+		FROM THR_CLOSE
+		WHERE ID = 'SAL'
+		  AND MMYYYY >= SUBSTR(AS_DATE,1, 6)
+		  AND MMYYYY <= SUBSTR(AS_DATE,  1, 6)
+		  AND CLOSE_FLAG = 'Y'
+		  AND DEL_IF = 0;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	              VN_CLOSE_CHECK := 0;
+
+	        IF VN_CLOSE_CHECK >= 1 THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+	END;
+
+	AV_FROM_DT := AS_DATE;
+
+	
+	DELETE THR_EXTRA_TIME B
+	WHERE B.WORK_DT=AV_FROM_DT AND B.APPLY_FLAG<>'Y'
+	AND B.EMP_PK IN(SELECT A.EMP_PK FROM THR_TIME_MACHINE A 
+				 		   WHERE A.WORK_DT=AV_FROM_DT AND A.APPLY_FLAG<>'Y'
+						   	AND (A.P_IN=A.P2_IN AND A.P_OUT = A.P2_OUT));
+
+	DELETE THR_TIME_MACHINE A
+	WHERE A.WORK_DT=AV_FROM_DT AND A.APPLY_FLAG<>'Y'
+	AND (A.P_IN=A.P2_IN AND A.P_OUT = A.P2_OUT);
+						
+
+	DELETE THR_EMP_ABSENT C
+	WHERE C.DEL_IF=0 AND C.ABS_DT=AV_FROM_DT AND C.ABS_CODE ='NON';
+
+
+
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Delete_date;
+/
+CREATE OR REPLACE PROCEDURE Pr_Delete_Emp_Entry 
+(
+ 	   inPK   IN NUMBER
+       ,inMOD_BY		   IN VARCHAR2	     
+	   ,outResult		   OUT NUMBER
+)
+IS
+l_status VARCHAR2(100):='';
+ERROR_NUM VARCHAR2(10);
+l_flag NUMBER;
+l_count NUMBER;
+/******************************************************************************
+   NAME:       PR_DELETE_EMP_ENTRY
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        4/10/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_DELETE_EMP_ENTRY
+      Sysdate:         4/10/2006
+      Date and Time:   4/10/2006, 5:28:53 PM, and 4/10/2006 5:28:53 PM
+      Username:        YEN 
+     
+******************************************************************************/
+BEGIN
+ 	 l_status := 'find employee in thr_time_machine and thr_emp_absent!';
+	 l_flag:=1;
+	 SELECT COUNT(pk) INTO l_count FROM THR_TIME_MACHINE a WHERE a.del_if=0 AND a.EMP_PK=inPK;
+	 IF l_count<>0 THEN
+	 	l_flag:=0;
+	 ELSE
+	 	  SELECT COUNT(pk) INTO l_count FROM THR_EMP_ABSENT  a WHERE a.del_if=0 AND a.EMP_PK =inPK;
+		  IF l_count <> 0 THEN
+		  	 l_flag:=0;
+		  END IF;
+	 END IF;
+	 ERROR_NUM := '10';
+	 IF l_flag=0 THEN
+	 	 RAISE_APPLICATION_ERROR(-20602,''); --not permit deleting this employee 
+	 END IF;
+	 l_status := 'delete employee in thr_abemp';
+    DELETE FROM THR_ABEMP 
+    WHERE pk=inPK;
+     l_status := 'delete employee in thr_abempmas';
+	 ERROR_NUM := '20';
+	 DELETE FROM THR_ABEMPMAS a
+	 WHERE a.THR_ABEMP_PK=inPK;
+	 
+	 l_status := 'delete employee in THR_LABOUR_CONTRACT';
+	 ERROR_NUM := '30';
+	 DELETE FROM THR_LABOUR_CONTRACT a
+	 WHERE a.THR_ABEMP_PK=inPK;
+	 
+	 l_status := 'delete employee in thr_emp_hist';
+	 ERROR_NUM := '40';
+	 UPDATE THR_EMP_HIST b
+	 SET
+	 b.del_if=pk,
+	 b.mod_dt=SYSDATE,
+	 b.mod_by=inMOD_BY
+	 WHERE b.emp_pk=inPK;
+	 
+	 outResult := 0;
+	  
+   EXCEPTION
+      WHEN  NO_DATA_FOUND  THEN
+	  	outResult  := -1;
+		L_STATUS:='|NO DATA FOUND|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || ERROR_NUM || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+		ROLLBACK WORK;
+
+  WHEN  OTHERS  THEN
+      	outResult  := -1;  
+		L_STATUS:='|OTHERS|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || ERROR_NUM || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+		ROLLBACK WORK;
+		
+END Pr_Delete_Emp_Entry;
+/
+CREATE OR REPLACE PROCEDURE PR_DELETE_GROUP_ENTRY
+(
+  	   inGROUP_PK IN 		NUMBER
+	  ,inMOD_BY	  IN		VARCHAR2
+	  ,outResult  OUT		NUMBER
+)
+IS
+V_COUNT_EMP NUMBER:=0;
+V_ERROR		VARCHAR2(10):='';
+BEGIN
+	V_ERROR:='10';
+    SELECT COUNT(A.EMP_PK) INTO V_COUNT_EMP
+	  FROM THR_GRP_EMP A
+	 WHERE A.DEL_IF=0
+  	   AND A.THR_ABWORKGRP_PK=inGROUP_PK
+  	   AND (A.END_DT IS NULL OR (A.END_DT > TO_CHAR(SYSDATE,'YYYYMMDD')));
+
+   V_ERROR:='20';
+   IF (V_COUNT_EMP = 0) OR (V_COUNT_EMP IS NULL)  THEN
+	  outResult:=0;
+	  UPDATE THR_ABWORKGRP SET
+	         DEL_IF    =    inGROUP_PK,
+		  	 END_DATE  =    TO_CHAR(SYSDATE,'YYYYMMDD'),
+			 MOD_BY    =    inMOD_BY,
+			 MOD_DT    =    SYSDATE
+	  WHERE PK=inGROUP_PK;
+   ELSE
+	  outResult:=1; --can not Delete Group
+   END IF;
+
+RETURN;
+---------
+EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+		 	  outResult :=-1;
+			  RAISE_APPLICATION_ERROR(-20001,'Procedure error: '||V_ERROR||'  '||SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+		 WHEN OTHERS THEN
+		 	  outResult :=-1;
+			  RAISE_APPLICATION_ERROR(-20002,'Procedure error: '||V_ERROR||'  '||SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+
+END;
+/
+CREATE OR REPLACE PROCEDURE Pr_Delete_Labour_Contract
+(
+ inPERIOD_CONTRACT     	IN  THR_ABEMP.PERIOD_CONTRACT%TYPE
+  ,inEMP_PK			IN  THR_ABEMP.PK%TYPE
+ ,inCRT_BY			IN  THR_ABEMP.CRT_BY%TYPE
+ ,outRESULT			OUT NUMBER
+)
+
+---*****************************************************---
+  --      CREATE  BY              TRUONG HUYNH          --
+  --	  CREATE  DATE            11-MAR-2005           --
+  --      MODIFY  BY              					    --
+  --      MODIFY  DATE                    			    --
+---*****************************************************---
+
+IS
+  V_MESSAGE VARCHAR2(10):='';
+  V_OUT_RESULT	 NUMBER(1) :=0;
+  V_COUNT		 NUMBER;
+  V_TIMES		 NUMBER; 
+   V_SEQ_CONTRACT VARCHAR2(100); 
+   V_PERIOD_CONTRACT NUMBER;
+   V_ST_PROBATION VARCHAR2(8);
+   V_ET_PROBATION VARCHAR2(8);
+   V_ST_CONTRACT VARCHAR2(8);
+   V_ET_CONTRACT VARCHAR2(8);
+   
+BEGIN
+	  V_OUT_RESULT:=1;
+	 --KIEM TRA XEM HOP DONG NAY THU MAY?
+	 SELECT NVL(TIMES,0)  INTO V_TIMES FROM THR_LABOUR_CONTRACT WHERE DEL_IF=0 AND THR_ABEMP_PK=inEMP_PK AND KIND_CONTRACT =inPERIOD_CONTRACT;
+	 V_TIMES:=V_TIMES -1;
+	 IF V_TIMES <=0 THEN
+	 	RETURN;
+	 END IF;
+	 V_OUT_RESULT:=2;
+	 --DELETE HOP DONG HIEN TAI -> HOP DONG CU TRO THANH HIEN TAI
+	 UPDATE THR_LABOUR_CONTRACT 
+	 SET DEL_IF=PK
+	 WHERE DEL_IF=0 AND THR_ABEMP_PK=inEMP_PK AND KIND_CONTRACT =inPERIOD_CONTRACT;
+	 
+	  V_OUT_RESULT:=3;
+	  --TIM XEM CO HOP DONG V_TIMES KO
+	  SELECT PK INTO V_COUNT FROM THR_LABOUR_CONTRACT A WHERE A.DEL_IF=0 AND THR_ABEMP_PK = inEMP_PK AND TIMES=V_TIMES;
+	  IF V_COUNT =0 THEN
+	  	 ROLLBACK WORK;
+		 RETURN;
+	  END IF;
+	 -- UPDATE HOP DONG CU THANH HOP DONG HIEN TAI 
+	 SELECT A.CONTRACT_NO, A.KIND_CONTRACT,A.ST_PROBATION,A.ET_PROBATION,A.ST_CONTRACT,A.ET_CONTRACT
+	    INTO  V_SEQ_CONTRACT,V_PERIOD_CONTRACT,V_ST_PROBATION,V_ET_PROBATION,V_ST_CONTRACT,V_ET_CONTRACT
+	 FROM THR_LABOUR_CONTRACT A
+	 WHERE A.DEL_IF=0 AND THR_ABEMP_PK = inEMP_PK AND TIMES=V_TIMES;
+	 
+	  V_OUT_RESULT:=4;
+	 UPDATE THR_ABEMP
+ 		SET 
+		    SEQ_CONTRACT    = V_SEQ_CONTRACT,
+	        PERIOD_CONTRACT = V_PERIOD_CONTRACT,
+	        ST_PROBATION    = V_ST_PROBATION,
+	        ET_PROBATION    = V_ET_PROBATION,
+	        ST_CONTRACT     = V_ST_CONTRACT,
+	        ET_CONTRACT     = V_ET_CONTRACT,
+			MOD_BY			= inCRT_BY,
+			MOD_DT	 		= SYSDATE
+      WHERE PK = inEMP_PK AND DEL_IF=0 ;
+	  
+	 
+--------------------
+     EXCEPTION
+--------------------
+         WHEN NO_DATA_FOUND THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20001,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+		 WHEN OTHERS THEN
+		 	  outRESULT:=-1;
+		  	  RAISE_APPLICATION_ERROR(-20002,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+		  	  RETURN;
+END;
+/
+CREATE OR REPLACE PROCEDURE PR_DELETE_OT_ALLOWANCE
+(	   
+	   inEMP_PK   IN THR_OT_ALLOWANCE.EMP_PK%TYPE
+	   ,inUSERID		 IN THR_OT_ALLOWANCE.CRT_BY%TYPE
+	   ,outRESULT		 OUT NUMBER
+
+) 
+IS
+
+
+BEGIN
+   
+   UPDATE THR_OT_ALLOWANCE a
+   SET a.DEL_IF = a.PK
+   	   ,a.MOD_BY = inUSERID
+   WHERE EMP_PK = inEMP_PK;
+   outRESULT  := 1;
+   
+ COMMIT;
+ RETURN;
+ -----------------
+ EXCEPTION
+ ----------------
+  WHEN  NO_DATA_FOUND  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,outRESULT||'Procedure error1, can not Delete...');
+		ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,outRESULT||'Procedure error2, can not Delete...');
+		ROLLBACK WORK;
+        RETURN;
+
+END PR_DELETE_OT_ALLOWANCE;
+/
+CREATE OR REPLACE PROCEDURE Pr_Detele_Absent(
+	   in_GRP_CODE			IN THR_EMP_ABSENT.GRP_CODE%TYPE
+	   ,in_WORK_SHIFT		IN THR_EMP_ABSENT.WORK_SHIFT%TYPE
+	   ,in_PK				IN THR_EMP_ABSENT.PK%TYPE
+	   ,in_EMP_PK			IN THR_EMP_ABSENT.EMP_PK%TYPE
+	   ,in_ABS_DT			IN THR_EMP_ABSENT.ABS_DT%TYPE
+	   ,in_FLAG				IN VARCHAR2
+	   ,in_USER				IN THR_EMP_ABSENT.MOD_BY%TYPE
+	   ,outRET_NUM			OUT NUMBER
+	   ,outRET_VAR			OUT VARCHAR2
+)IS
+V_NUM		NUMBER;
+V_ERROR      VARCHAR2(10):= '0';
+ CLOSE_NUM	NUMBER(1):=0;
+BEGIN
+
+	 SELECT COUNT(S.PK) INTO CLOSE_NUM FROM THR_EMP_ABSENT S
+				WHERE S.DEL_IF=0 AND S.ABS_DT =in_ABS_DT
+				AND S.EMP_PK= in_EMP_PK AND S.CLOSE_FLAG='Y';
+				IF CLOSE_NUM>0 THEN
+				   			  RAISE_APPLICATION_ERROR(-20001,'');
+				END IF;			   
+	 
+	 
+	 V_ERROR := '10';
+	 UPDATE THR_EMP_ABSENT A
+	 SET A.DEL_IF = in_PK
+	 	 		,A.MOD_BY=in_USER
+				,A.MOD_DT=SYSDATE
+	 WHERE A.PK = in_PK AND A.DEL_IF = 0;
+	 
+	 
+	 COMMIT;
+/*	 V_ERROR := '20';
+
+	 V_NUM:=0;
+	 SELECT COUNT(T.EMP_PK)INTO V_NUM FROM THR_TIME_MACHINE T 
+	 WHERE T.EMP_PK = in_EMP_PK AND T.DEL_IF = 0 AND T.WORK_DT = in_ABS_DT;
+	 
+	 IF in_FLAG = 0 AND V_NUM = 0 THEN
+	 
+	 INSERT INTO THR_TIME_MACHINE( PK,GRP_CODE,EMP_PK,WORK_DT, 
+       	   		  	   					 W_SHIFT,P_IN,P_OUT,WORT_TIME,
+       									 APPLY_FLAG,DEL_IF,CRT_DT,CRT_BY,
+       									 HAVE_DINNER)
+		   VALUES (THR_TIME_MACHINE_SEQ.NEXTVAL,in_GRP_CODE,in_EMP_PK,in_ABS_DT,
+            	   in_WORK_SHIFT,'07:30',NULL,0,
+                   'N',0,SYSDATE,in_USER,'Y');
+   
+
+
+	  V_ERROR := '30';
+	  COMMIT;
+	 END IF;
+	 */
+
+	  outRET_NUM := 0;
+	  outRET_VAR := V_ERROR || 'Successful Process !';
+		  
+EXCEPTION
+	WHEN OTHERS THEN
+	 IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+				RAISE_APPLICATION_ERROR(-20002, V_ERROR ||'ERROR..'||'. OTHER (PR_DETELE_ABSENT) '||SQLERRM );
+				outRET_NUM := -1;
+				outRET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+	END IF;
+
+
+END Pr_Detele_Absent;
+/
+CREATE OR REPLACE PROCEDURE PR_DISCIPLINE
+(in_flag  		  IN VARCHAR2
+,inEMP_PK        IN VHR_EMP.PK%TYPE,
+ inDATE		 IN THR_DISCIPLINE.DIS_DATE%TYPE,
+ inLEVEL      IN THR_DISCIPLINE.DIS_LEVEL%TYPE,
+ inREASON 	  IN THR_DISCIPLINE.REASON%TYPE,
+ inREMARK 	  IN THR_DISCIPLINE.REMARK%TYPE,
+ inPK	  IN THR_DISCIPLINE.PK%TYPE,
+ inUSERID		 IN THR_DISCIPLINE.CRT_BY%TYPE,
+ outRESULT		 OUT NUMBER
+)
+IS
+
+V_ERROR    VARCHAR2(10);
+V_DIS_PK    NUMBER(2):= 0;
+V_LEVEL NUMBER(1) := 0;
+V_DATE	VARCHAR2(8);
+
+--******************************************
+  -- Create by    : huynhtruong										
+  -- Create date  : 22/03/2005
+--******************************************  
+
+BEGIN
+
+	 V_DIS_PK:=0;
+	 IF in_flag='D' THEN -- DELETE
+	 	UPDATE THR_DISCIPLINE A
+		SET A.DEL_IF=A.PK
+		WHERE A.PK=inPK;
+	 ELSE
+
+			 V_ERROR := '10';--XET DIEU KIEN UPDATE HAY INSERT
+			 
+			 SELECT COUNT(A.PK) INTO V_DIS_PK FROM THR_DISCIPLINE A
+			  WHERE A.DEL_IF=0 
+			  		AND A.PK = inPK;
+			
+			IF V_DIS_PK>0 THEN --DA CO TRONG LIST
+			V_ERROR := '20';
+				 SELECT A.DIS_LEVEL,A.DIS_DATE INTO V_LEVEL,V_DATE
+				   FROM THR_DISCIPLINE A
+				  WHERE A.DEL_IF=0 
+				  		AND A.PK = inPK;
+						
+		
+			     IF (V_LEVEL=inLEVEL)OR(V_DATE=inDATE) THEN --UPDATE
+				 	 V_ERROR := '30';
+					 UPDATE THR_DISCIPLINE T
+				        SET T.DIS_LEVEL=inLEVEL,
+							T.DIS_DATE=inDATE,
+							T.REASON = inREASON,
+						    T.REMARK		= inREMARK,
+						    T.MOD_BY		= inUSERID,
+							T.MOD_DT		= SYSDATE
+				      WHERE T.DEL_IF=0
+				        AND T.PK=inPK;
+				 ELSE
+				 	 V_ERROR := '40';
+					  INSERT INTO THR_DISCIPLINE (PK,EMP_PK,DIS_DATE,DIS_LEVEL,REASON
+				                 ,REMARK,CRT_BY)
+					      VALUES (THR_DISCIPLINE_SEQ.NEXTVAL,inEMP_PK,inDATE,inLEVEL,inREASON,
+				                 inREMARK,inUSERID);
+						
+				 END IF;
+				 
+			ELSE
+				INSERT INTO THR_DISCIPLINE (PK,EMP_PK,DIS_DATE,DIS_LEVEL,REASON
+				                 ,REMARK,CRT_BY)
+					      VALUES (THR_DISCIPLINE_SEQ.NEXTVAL,inEMP_PK,inDATE,inLEVEL,inREASON,
+				                 inREMARK,inUSERID);
+				
+			END IF;
+ 			     
+			 
+    END IF;			 
+		     V_ERROR    :='60';
+			 outRESULT  := 1;
+
+	 COMMIT;
+	 RETURN;
+---------
+  EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||V_DIS_PK||'Procedure error1, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||V_DIS_PK||'Procedure error2, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+END PR_DISCIPLINE;
+/
+CREATE OR REPLACE PROCEDURE PR_EMP_CNV (AS_FILE_NAME IN VARCHAR2 -- FILE_NAME
+--			     AS_USER	  IN VARCHAR2, -- USER ID
+--                             AS_RET_NUM   OUT NUMBER,   -- RETURN VALUE( NUMBER )
+ --                            AS_RET_VAR	  OUT VARCHAR2
+)IS
+ AS_RET_NUM	NUMBER;
+ AS_RET_VAR	VARCHAR2(100);
+file_handle_mst   	utl_file.file_type;
+text_buffer      	string(4000);
+av_temp		string(4000);
+fpath         	varchar2(40)  := 'C:\Web_Project\GenuHR\web\temp';
+fname             	varchar2(100)   := NULL;
+AV_1		varchar2(5) := NULL;
+AV_2		nvarchar2(200) := NULL;
+AV_3		nvarchar2(200) := NULL;
+AV_4		nvarchar2(200) := NULL;
+Av_5		nvarchar2(200) := NULL;
+AV_6		nvarchar2(200) := NULL;
+AV_7		nvarchar2(200) := NULL;
+
+an		number(10) := 0;
+AN_MAX		NUMBER(10);
+BEGIN
+
+
+
+     fname := rtrim(AS_FILE_NAME);
+--     dbms_output.put_line('input path='    ||fpath);
+ --    dbms_output.put_line('input filename='||fname);
+
+
+     file_handle_mst := UTL_FILE.FOPEN(fpath, fname, 'r', 4000);
+
+--     dbms_output.put_line('before Process !');
+     <<goto_end_loop>>
+     LOOP
+	BEGIN
+	     	UTL_FILE.GET_LINE(file_handle_mst,  text_buffer);
+
+	        EXCEPTION
+	        WHEN NO_DATA_FOUND THEN
+	        	EXIT;
+	 END;
+	 IF LENGTH(text_buffer) > 10 THEN
+--		      dbms_output.put_line('Start Process !');
+	        /*-------------------------------------*/
+	        /* 0        1         2         3      */
+	        /* 123456789012345678901234567890123   */
+		/* 02 004229 3 2003/05/28 07:17 0799   */
+	        /*-------------------------------------*/
+	--      	AV_MACHINE   := RTRIM(LTRIM(substr(text_buffer, 1,    2)));
+	--      	AV_CARD      := RTRIM(LTRIM(substr(text_buffer, 4,    6)));
+	--      	AN_EVENT     := RTRIM(LTRIM(substr(text_buffer, 11,   1)));
+	--      	AV_DATE      := RTRIM(LTRIM(substr(text_buffer, 13,  10)));
+	--      	AV_TIME      := RTRIM(LTRIM(substr(text_buffer, 24,   5)));
+	--      	AV_SEQ       := RTRIM(LTRIM(substr(text_buffer, 30,   4)));
+	/*
+		c1 	= Left(s, InStr(s, "	")-1)
+		tmp_sR 	= Right(s, len(s) - len(c1) - 1)
+		c2	= Left(tmp_sR, InStr(tmp_sR, "	")-1)
+		tmp_sR 	= Right(tmp_sR, len(tmp_sR) - len(c2) - 1)
+		c3	= Left(tmp_sR, InStr(tmp_sR, "	")-1)
+		tmp_sR 	= Right(tmp_sR, len(tmp_sR) - len(c3) - 1)
+		c4 	= Left(tmp_sR, InStr(tmp_sR, "	")-1)
+		tmp_sR 	= Right(tmp_sR, len(tmp_sR) - len(c4) - 1)
+
+		c5 	= Left(tmp_sR, InStr(tmp_sR, "	")-1)
+		tmp_sR 	= Right(tmp_sR, len(tmp_sR) - len(c5) - 1)
+
+		c6  	= Left(tmp_sR, InStr(tmp_sR, "	")-1)
+		tmp_sR 	= Right(tmp_sR, len(tmp_sR) - len(c6) - 1)
+		c7	= tmp_sR
+	*/
+
+
+--		Av_1 :=SUBSTR(text_buffer, 1, INSTR(text_buffer, '	') - 1);
+
+
+--		AN := LENGTH(AV_1);
+--		AN_MAX := LENGTH(text_buffer);
+
+
+--		dbms_output.put_line('AV1 SIZE - ' || TO_CHAR(AN));
+--		dbms_output.put_line('ORG MAX - ' || TO_CHAR(AN_MAX));
+
+
+--		AV_TEMP := SUBSTR(text_buffer, AN + 1, 200);
+--		Av_2 :=SUBSTR(AV_TEMP, 1, INSTR(AV_TEMP, '	') - 1);
+
+--
+--		AN := LENGTH(Av_2);
+--		AN_MAX := LENGTH(AV_TEMP);
+
+--		dbms_output.put_line('AV2 SIZE - ' || TO_CHAR(AN));
+--		dbms_output.put_line('TEMP MAX - ' || TO_CHAR(AN_MAX));
+		AV_1 := ltrim(rtrim(substr(text_buffer, 1,    5)));
+
+		AV_2 := ltrim(rtrim(substr(text_buffer, 6,   10)));
+		AV_3 := ltrim(rtrim(substr(text_buffer, 16, 50)));
+		AV_4 := ltrim(rtrim(substr(text_buffer, 66,   8)));
+		AV_5 := ltrim(rtrim(substr(text_buffer, 75, 10)));
+		AV_6 := ltrim(rtrim(substr(text_buffer, 85, 10)));
+		AV_7 := ltrim(rtrim(substr(text_buffer, 95, 10)));
+
+		an := an + 1;
+	/*
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_2   := SUBSTR(text_buffer, 1, INSTR(AV_TEMP, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_3   := SUBSTR(text_buffer, 1, INSTR(text_bAV_TEMPuffer, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_4   := SUBSTR(text_buffer, 1, INSTR(AV_TEMP, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_5   := SUBSTR(text_buffer, 1, INSTR(AV_TEMP, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_6   := SUBSTR(text_buffer, 1, INSTR(AV_TEMP, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+		AV_7   := SUBSTR(text_buffer, 1, INSTR(AV_TEMP, "	") - 1);
+		AV_TEMP := SUBSTR(text_buffer, LENGTH(AV_SEQ) + 1, LENTH(text_buffer) - LENTH(AV_SEQ))
+
+	*/
+
+
+
+--	                dbms_output.put_line(to_char(length(text_buffer)));
+--	                dbms_output.put_line(text_buffer);
+		INSERT INTO TMP_CNV
+		(PK, C1, C2, C3, C4, C5, C6, C7)
+		VALUES
+		(an, av_1, av_2, AV_3, AV_4, AV_5, AV_6, AV_7);
+
+	END IF;
+     END LOOP goto_end_loop;
+
+    COMMIT;
+     utl_file.fclose(file_handle_mst);
+     dbms_output.put_line('Successful Process !');
+  --   COMMIT;
+     AS_RET_NUM := 0;
+     AS_RET_VAR := 'Successful Process !';
+     EXCEPTION
+        when no_data_found then
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+     	     AS_RET_VAR := 'ERROR MSG :' || SUBSTR(SQLERRM, 1, 100);
+        when utl_file.invalid_path then
+             dbms_output.put_line('Invalid Path');
+             AS_RET_VAR := 'ERROR MSG : Invlaid Path';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_mode then
+             dbms_output.put_line('Invalid Mode');
+             AS_RET_VAR := 'ERROR MSG : Invalid Mode';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_filehandle then
+             dbms_output.put_line('Invalid Filehandle');
+             AS_RET_VAR := 'ERROR MSG : Invalid Filehandle ';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_operation then
+             dbms_output.put_line('Invalid Operation');
+             AS_RET_VAR := 'ERROR MSG : Invalid Operation';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.read_error then
+             dbms_output.put_line('Read Error');
+             AS_RET_VAR := 'ERROR MSG :Read Error ' ;
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.write_error then
+             dbms_output.put_line('Write Error');
+             AS_RET_VAR := 'ERROR MSG : Write Error ';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.internal_error then
+            dbms_output.put_line('Internal Error');
+             AS_RET_VAR := 'ERROR MSG : Internal Error';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when others then
+             dbms_output.put_line(sqlerrm);
+             AS_RET_VAR := 'ERROR MSG : ' || SUBSTR(SQLERRM, 1, 100);
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+END PR_EMP_CNV;
+/
+CREATE OR REPLACE PROCEDURE
+PR_EMP_CODE_HIST(
+ 	AS_EMP_PK   IN  NUMBER,  -- EMPLOYEE PK
+	AS_USER       IN  VARCHAR2,  -- USER_ID
+	AS_RTN_NUM OUT NUMBER
+ ) IS
+--AS_RTN_NUM	NUMBER;
+AV_YYYYMMDD	VARCHAR2(8);
+
+AV_POS		VHR_EMP.POS_CODE%TYPE;
+AN_DEPT		VHR_EMP.DEPT_PK%TYPE;
+AV_JOB		VHR_EMP.JOB_CODE%TYPE;
+AV_POS_OLD	VHR_EMP.POS_CODE%TYPE;
+AN_DEPT_OLD	VHR_EMP.DEPT_PK%TYPE;
+AV_JOB_OLD	VHR_EMP.JOB_CODE%TYPE;
+
+AN_CHECK	NUMBER(1) := 0;
+
+BEGIN
+
+
+	INSERT INTO THR_EMP_HIST
+	(PK, EMP_ID, CARD_ID, FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, DEPT_PK,
+	 GRP_CODE, JOB_CODE, POS_CODE, BASIC_SAL, ALLOW_AMT, CERT_ALLOW_AMT,
+	 BIRTH_DT, PLACE_BIRTH_DT, SEX, ADDR, PER_ADDR, TEL, PER_CONTACT,
+	 NATION_CODE, JOIN_DT, EDU_CODE, LEFT_DT, CITY_CODE, PERSON_ID, ISSUE_DT,
+	 PLACE_PER_ID, MARRIED, CHILDREN_CNT, SOCIAL_NO, SOCIAL_DT, SOCIAL_FLAG,
+	 HEALTH_NO, HEALTH_DT, HEALTH_PLACE, HEALTH_FLAG, LAST_SAL, FORMAL_FLAG,
+	 CANTACT_DT, COM_CODE, PHOTO_PK, REMARK, DEL_IF, CRT_DT, CRT_BY,
+	 STATUS, GRADE, ETHNIC_CD, RELIG_CD, FACT_CD, SOCIAL_PLACE
+	)
+	SELECT THR_EMP_HIST_SEQ.NEXTVAL,
+	EMP_ID, CARD_ID, FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, DEPT_PK,
+	GRP_CODE, JOB_CODE, POS_CODE, BASIC_SAL, ALLOW_AMT, CERT_ALLOW_AMT,
+	BIRTH_DT, PLACE_BIRTH_DT, SEX, ADDR, PER_ADDR, TEL, PER_CONTACT,
+	NATION_CODE, JOIN_DT, EDU_CODE, LEFT_DT, CITY_CODE, PERSON_ID, ISSUE_DT,
+	PLACE_PER_ID, MARRIED, CHILDREN_CNT, SOCIAL_NO, SOCIAL_DT, SOCIAL_FLAG,
+	HEALTH_NO, HEALTH_DT, HEALTH_PLACE, HEALTH_FLAG, LAST_SAL, FORMAL_FLAG,
+	CANTACT_DT, COM_CODE, PHOTO_PK, REMARK, DEL_IF,  CRT_DT, CRT_BY,
+	STATUS, GRADE, ETHNIC_CD, RELIG_CD, FACT_CD, SOCIAL_PLACE
+	FROM VHR_EMP
+	WHERE PK = AS_EMP_PK;
+
+	SELECT TO_CHAR(SYSDATE, 'YYYYMMDD') INTO AV_YYYYMMDD
+	FROM DUAL;
+
+	SELECT DEPT_PK, JOB_CODE, POS_CODE INTO AN_DEPT, AV_JOB, AV_POS
+	FROM VHR_EMP
+	WHERE PK = AS_EMP_PK;
+
+
+	BEGIN
+		SELECT DEPT_PK INTO AN_DEPT_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'DEP' );
+
+
+		IF AN_DEPT <> AN_DEPT_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, AN_DEPT, AV_YYYYMMDD, 'DEP',
+			 'NONE', 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, AN_DEPT, AV_YYYYMMDD, 'DEP',
+			 'NONE', 0, SYSDATE, AS_USER);
+	END;
+
+	BEGIN
+		SELECT CODE INTO AV_JOB_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'JOB' );
+
+
+		IF AV_JOB <> AV_JOB_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'JOB',
+			NVL(AV_JOB, 'NONE'), 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'JOB',
+			NVL(AV_JOB, 'NONE'), 0, SYSDATE, AS_USER);
+	END;
+
+	BEGIN
+		SELECT CODE INTO AV_POS_OLD
+		FROM THR_EMP_CODE_HIST
+		WHERE PK = (
+			SELECT MAX(PK)
+			  FROM THR_EMP_CODE_HIST
+			WHERE EMP_PK = AS_EMP_PK
+			  AND ID = 'POS' );
+
+
+		IF AV_POS <> AV_POS_OLD THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'POS',
+			 NVL(AV_POS, 'NONE'), 0, SYSDATE, AS_USER);
+		END IF;
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			INSERT INTO THR_EMP_CODE_HIST
+			(PK, EMP_PK, DEPT_PK, CH_DT, ID,
+			 CODE, DEL_IF, CRT_DT, CRT_BY	)
+			VALUES
+			(THR_EMP_CODE_HIST_SEQ.NEXTVAL, AS_EMP_PK, 0, AV_YYYYMMDD, 'POS',
+			 NVL(AV_POS, 'NONE'), 0, SYSDATE, AS_USER);
+	END;
+
+
+	--DBMS_OUTPUT.PUT_LINE( 'sqlcode' || TO_CHAR(sqlcode));
+	AS_RTN_NUM := 0;
+
+	COMMIT;
+
+	EXCEPTION
+	WHEN  NO_DATA_FOUND  THEN
+		--RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_EMP_CODE_HIST) '||SQLERRM );
+		ROLLBACK;
+		AS_RTN_NUM := -1;
+	WHEN  OTHERS         THEN
+		--RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_EMP_CODE_HIST) '||SQLERRM );
+		ROLLBACK;
+		AS_RTN_NUM := -1;
+
+END PR_EMP_CODE_HIST;
+/
+CREATE OR REPLACE PROCEDURE PR_EMP_CONTROL (
+	IN_DEPT			IN  VARCHAR2,
+	IN_GROUP		IN  VARCHAR2,
+	IN_EMP_ID		IN  VARCHAR2,
+	IN_CARD_ID		IN  VARCHAR2,
+	IN_NAME			IN  VARCHAR2,
+--	IN_JOIN_DATE		IN  VARCHAR2,
+--	IN_BIRTH_DATE1		IN  VARCHAR2,
+--	IN_PLACE_OF_BIRTH	IN  VARCHAR2,
+--	IN_SEX			IN  VARCHAR2,
+--	IN_MARRIED		IN  VARCHAR2,
+--	IN_CHILDREN		IN  VARCHAR2,
+--	IN_POSITION		IN  VARCHAR2,
+--	IN_JOB			IN  VARCHAR2,
+--	IN_ADDRESS		IN  VARCHAR2,
+--	IN_PHONE		IN  VARCHAR2,
+--	IN_CITY			IN  VARCHAR2,
+--	IN_RELIGION		IN  VARCHAR2,
+--	IN_ETHNIC		IN  VARCHAR2,
+--	IN_NATION		IN  VARCHAR2,
+--	IN_EDUCATION		IN  VARCHAR2,
+--	IN_PERSON_ID		IN  VARCHAR2,
+--	IN_LIVING_ADD		IN  VARCHAR2,
+--	IN_ISSUE_PLACE		IN  VARCHAR2,
+--	IN_ISSUE_DATE		IN  VARCHAR2,
+--	IN_PER_CONTACT		IN  VARCHAR2,
+--	IN_CONTACE_DATE		IN  VARCHAR2,
+--	IN_COMPANY		IN  VARCHAR2,
+--	IN_FACTORY		IN  VARCHAR2,
+--	IN_SOCIAL_NO		IN  VARCHAR2,
+--	IN_SOCIAL_FDATE		IN  VARCHAR2,
+--	IN_SOCIAL_TDATE		IN  VARCHAR2,
+--	IN_SOCIAL_PLACE		IN  VARCHAR2,
+--	IN_SOCIAL_FLAG		IN  VARCHAR2,
+--	IN_HEALTH_NO		IN  VARCHAR2,
+--	IN_HEALTH_FDATE		IN  VARCHAR2,
+--	IN_HEALTH_TDATE		IN  VARCHAR2,
+--	IN_HEALTH_PLACE		IN  VARCHAR2,
+--	IN_HEALTH_FLAG		IN  VARCHAR2,
+--	IN_FORMAL_FLAG		IN  VARCHAR2,
+--	IN_GRADE		IN  VARCHAR2,
+--	IN_LEFT_DATE		IN  VARCHAR2,
+--	IN_REAMRK		IN  VARCHAR2,
+--	IN_STATUS		IN  VARCHAR2,
+	IN_PK			IN  VARCHAR2,
+	IN_DEPT_PK		IN  VARCHAR2
+--	IN_UNOIN_FLAG		IN  VARCHAR2,
+--	IN_BIRTH_DATE		IN  VARCHAR2,
+--	OUT_ERROR_RTN   	OUT VARCHAR2
+)
+IS
+
+BEGIN
+	BEGIN
+	UPDATE	THR_ABEMP A
+	   SET	A.EMP_ID = IN_EMP_ID,
+		A.CARD_ID = IN_CARD_ID,
+		A.FULL_NM = IN_NAME
+---		A.JOIN_DATE = IN_JOIN_DATE,
+--		A.BIRTH_DATE = TO_CHAR(TO_DATE(IN_BIRTH_DATE,'DD/MM/YYYY'),'YYYYMMDD'),
+--		A.PLACE_BIRTH_DATE = IN_PLACE_OF_BIRTH,
+--		A.SEX = IN_SEX,
+--		A.MARRIED_YN = DECODE(IN_MARRIED,-1,'Y','N'),
+--		A.CHILDREN_CNT = IN_CHILDREN,
+--		A.ADDR = IN_ADDRESS,
+--		A.TEL = IN_PHONE,
+--		A.CITY_CODE = IN_CITY,
+--		A.RELIG_TYPE = IN_RELIGION,
+--		A.ETHNIC_TYPE = IN_ETHNIC,
+--		A.NATION = IN_NATION,
+--		A.EDU_TYPE = IN_EDUCATION,
+--		A.PERSON_ID = IN_PERSON_ID,
+--		A.LIVING_ADDR = IN_LIVING_ADD,
+--		A.PLACE_PER_ID = IN_ISSUE_PLACE,
+--		A.ISSUE_DATE = IN_ISSUE_DATE,
+--		A.URGENT_CONTACT = IN_PER_CONTACT,
+--		A.TCO_EOCOMPANY_PK = IN_COMPANY,
+--		A.LEFT_DATE = IN_LEFT_DATE,
+--		A.REMARK = IN_REAMRK,
+--		A.DEL_IF = DECODE(IN_STATUS,0,0,1)
+	 WHERE	A.PK = IN_PK;
+	END;
+
+	BEGIN
+	UPDATE	THR_ABEMPMAS A
+	   SET	A.TCO_EODEPT_PK = IN_DEPT_PK
+--		A.POS_CODE = IN_POSITION,
+--		A.JOB_CODE = IN_JOB,
+--		A.CONFIRM_DATE = IN_CONTACE_DATE,
+--		A.TCO_EOFACTORY_PK = IN_FACTORY,
+--		A.SOCIAL_NO = IN_SOCIAL_NO,
+--		A.SOCIAL_FDATE = IN_SOCIAL_FDATE,
+--		A.SOCIAL_TDATE = IN_SOCIAL_TDATE,
+--		A.SOCIAL_PLACE = IN_SOCIAL_PLACE,
+--		A.SOCIAL_YN = DECODE(IN_SOCIAL_FLAG,-1,'Y','N'),
+--		A.HEALTH_NO = IN_HEALTH_NO,
+--		A.HEALTH_FDATE = IN_HEALTH_FDATE,
+--		A.HEALTH_TDATE = IN_HEALTH_TDATE,
+--		A.HEALTH_PLACE = IN_HEALTH_PLACE,
+--		A.HEALTH_YN = DECODE(IN_HEALTH_FLAG,-1,'Y','N'),
+--		A.FORMAL_YN = DECODE(IN_FORMAL_FLAG,-1,'Y','N'),
+--		A.THR_BSSALGRADE_PK = IN_GRADE,
+--		A.UNION_YN = IN_UNOIN_FLAG
+	 WHERE	A.THR_ABEMP_PK = IN_PK;
+	END;
+
+COMMIT;
+
+EXCEPTION
+     WHEN OTHERS  THEN
+	RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_EMP_CONTROL) '||SQLERRM );
+--	OUT_ERROR_RTN := 'Error MSG :'||'EMP_ID' || SUBSTR(SQLERRM, 1, 100);
+END;
+/
+CREATE OR REPLACE PROCEDURE PR_ENTRY_DAILY_STATUS(
+    P_DAILY_DATE       IN   VARCHAR2,  -- YYYYMMDD
+	P_FLAG		  IN   VARCHAR2,
+    OUT_RET_NUM   OUT  NUMBER,    -- RETURN VALUE ( NUMBER)
+    OUT_RET_VAR   OUT  VARCHAR2   -- RETURN VALUE ( CHARACTER )
+) IS
+NUM				  NUMBER(10):=0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+				 SELECT COUNT(A.PK) INTO NUM FROM THR_ABEMP_DAILY A
+				 WHERE A.DEL_IF=0 AND A.DAILY_DATE=P_DAILY_DATE;
+	BEGIN
+				 IF NUM>0 THEN 
+						 IF P_FLAG='Y' THEN
+						 		  UPDATE THR_ABEMP_DAILY A
+								  SET A.DEL_IF=A.PK
+								  ,A.MOD_BY='T'
+								  ,A.MOD_DT=SYSDATE
+					     		  WHERE DAILY_DATE = P_DAILY_DATE AND A.DEL_IF=0;
+								    OUT_RET_NUM := 0;
+									OUT_RET_VAR := 'Successful Process !';
+							ELSE
+								OUT_RET_NUM := 1;
+								OUT_RET_VAR := 'Already confirm before !';
+						END IF;
+			END IF;
+	END;
+AN_SYS_ERROR_MSG := '20';
+	BEGIN
+		 IF NUM=0 THEN
+					INSERT INTO THR_ABEMP_DAILY
+					(PK,DAILY_DATE,DEPT_PK,GRP_CODE,YESTERDAY,TODAY, ABSENT, OTH_ABSENT, MLE_ABSENT, OT_EMP, OT_HOURS,
+					DEL_IF, CRT_BY, CRT_DT, ATTENDENT) 
+					SELECT THR_ABEMP_DAILY_SEQ.NEXTVAL,P_DAILY_DATE,HR.DEPT_PK,HR.GRP_PK
+						   ,HR.YES,HR.NOW,HR.ABS_TOTAL,HR.OTH_ABS,HR.ABS_MLE,HR.OT_PEOPLE,HR.OT_HOURS
+						   ,0,'T',SYSDATE,HR.ATT_TOTAL
+					 FROM(SELECT B.PK AS DEPT_PK,GRP.PK AS GRP_PK,0 YES,COUNT(A.PK) NOW,C.ABS_TOTAL,OTH.OTH_ABS AS OTH_ABS,C.ABS_MLE, M.OT_PEOPLE,M.OT_HOURS, D.ATT_TOTAL
+							 FROM VHR_EMP A,TCO_EODEPT B,THR_ABWORKGRP GRP
+							 	  ,(SELECT E.DEPT_PK DEPT_PK,E.GRP_CODE AS GRP_PK,SUM(DECODE(F.ABS_CODE,'MLE',0,1)) ABS_TOTAL,SUM(DECODE(F.ABS_CODE,'MLE',1,0)) ABS_MLE
+									  FROM VHR_EMP E,THR_EMP_ABSENT F
+									 WHERE E.DEL_IF = 0 AND F.DEL_IF=0 AND E.PK=F.EMP_PK AND F.ABS_DT=P_DAILY_DATE
+								   AND DECODE(E.JOIN_DT,'','20000101',E.JOIN_DT) <= P_DAILY_DATE
+								   AND DECODE(E.LEFT_DT,'',TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')+1,'YYYYMMDD'),E.LEFT_DT) > P_DAILY_DATE
+								    GROUP BY E.DEPT_PK,E.GRP_CODE)C
+									,(SELECT EM.DEPT_PK DEPT_PK,EM.GRP_CODE AS GRP_PK,COUNT(EM.PK) AS OTH_ABS
+									  FROM VHR_EMP EM
+									 WHERE EM.DEL_IF = 0 
+								   AND DECODE(EM.JOIN_DT,'','20000101',EM.JOIN_DT) <= P_DAILY_DATE
+								   AND DECODE(EM.LEFT_DT,'',TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')+1,'YYYYMMDD'),EM.LEFT_DT) > P_DAILY_DATE
+								   AND EM.PK NOT IN(SELECT K.EMP_PK FROM THR_GRP_EMP K WHERE K.DEL_IF=0 AND K.START_DT=P_DAILY_DATE)
+								    GROUP BY EM.DEPT_PK,EM.GRP_CODE)OTH
+								  ,(SELECT G.DEPT_PK DEPT_PK,G.GRP_CODE AS GRP_PK,COUNT(G.PK) ATT_TOTAL
+									  FROM VHR_EMP G, THR_TIME_MACHINE H
+									 WHERE G.DEL_IF = 0 AND H.DEL_IF = 0 AND G.PK = H.EMP_PK AND H.WORK_DT = P_DAILY_DATE 
+								 AND DECODE(G.JOIN_DT,'','20000101',G.JOIN_DT) <= P_DAILY_DATE
+								   AND DECODE(G.LEFT_DT,'',TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')+1,'YYYYMMDD'),G.LEFT_DT) > P_DAILY_DATE
+									GROUP BY G.DEPT_PK,G.GRP_CODE) D
+								  ,(SELECT I.DEPT_PK AS DEPT_PK,I.GRP_CODE AS GRP_PK, COUNT(I.PK) AS OT_PEOPLE, SUM(NVL(J.OT_TIME,0))+SUM(NVL(L.OT,0)) AS OT_HOURS
+								      FROM VHR_EMP I, THR_EXTRA_TIME J,THR_WORK_SHIFT L
+									 WHERE I.DEL_IF = 0 AND J.DEL_IF = 0 AND L.DEL_IF = 0 AND I.PK = J.EMP_PK  AND J.W_SHIFT = L.PK AND J.WORK_DT = P_DAILY_DATE
+								  AND DECODE(I.JOIN_DT,'','20000101',I.JOIN_DT) <= P_DAILY_DATE
+								   AND DECODE(I.LEFT_DT,'',TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')+1,'YYYYMMDD'),I.LEFT_DT) > P_DAILY_DATE
+								   GROUP BY I.DEPT_PK,I.GRP_CODE)M
+							 WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND GRP.DEL_IF=0 AND A.DEPT_PK = B.PK 
+							   AND C.DEPT_PK(+) = A.DEPT_PK AND D.DEPT_PK(+) = A.DEPT_PK AND M.DEPT_PK(+) = A.DEPT_PK
+							   AND A.GRP_CODE=GRP.PK AND A.GRP_CODE=C.GRP_PK(+) AND A.GRP_CODE=D.GRP_PK(+) 
+							   AND A.DEPT_PK=OTH.DEPT_PK(+) AND A.GRP_CODE=M.GRP_PK(+) 
+							   AND A.GRP_CODE=OTH.GRP_PK(+)		      AND DECODE(A.JOIN_DT,'','20000101',A.JOIN_DT) <= P_DAILY_DATE
+							AND DECODE(A.LEFT_DT,'',TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')+1,'YYYYMMDD'),A.LEFT_DT) > P_DAILY_DATE
+							GROUP BY B.PK,GRP.PK , C.ABS_TOTAL,OTH.OTH_ABS,C.ABS_MLE,D.ATT_TOTAL,M.OT_PEOPLE, M.OT_HOURS,C.ABS_MLE
+							UNION ALL
+							SELECT B.PK AS DEPT_PK,GRP.PK AS GRP_PK, COUNT(A.PK) AS YES
+								   , 0 AS NOW,0, 0, 0, 0,0,0
+							  FROM VHR_EMP A, TCO_EODEPT B, THR_ABWORKGRP GRP
+							 WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND GRP.DEL_IF = 0 AND A.DEPT_PK = B.PK AND A.GRP_CODE=GRP.PK 
+							   AND DECODE(A.JOIN_DT,'','20000101',' ','20000101',A.JOIN_DT) <= TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')-1,'YYYYMMDD')
+							   AND DECODE(A.LEFT_DT,'',P_DAILY_DATE,' ',P_DAILY_DATE,A.LEFT_DT) > TO_CHAR(TO_DATE(P_DAILY_DATE,'YYYYMMDD')-1,'YYYYMMDD')
+							GROUP BY B.PK,GRP.PK ) HR;
+								OUT_RET_NUM := 0;
+								OUT_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+					END IF;
+	END;
+
+	COMMIT;
+
+	
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		OUT_RET_NUM := 2;
+		OUT_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  PR_ENTRY_DAILY_STATUS;
+/
+CREATE OR REPLACE PROCEDURE Pr_Entry_Emp_Daily_Status(
+    IN_DATE       IN   VARCHAR2,  -- YYYYMMDD
+	IN_FLAG		  IN   VARCHAR2,
+	IN_USER		  IN   VARCHAR2,
+    OUT_RET_NUM   OUT  NUMBER,    -- RETURN VALUE ( NUMBER)
+    OUT_RET_VAR   OUT  VARCHAR2   -- RETURN VALUE ( CHARACTER )
+) IS
+NUM				  NUMBER(10):=0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+				 SELECT COUNT(A.PK) INTO NUM FROM THR_ABEMP_DAILY A
+				 WHERE A.DEL_IF=0 AND A.DAILY_DATE=IN_DATE;
+
+	BEGIN
+				 IF NUM>0 THEN 
+						 IF IN_FLAG='Y' THEN
+						 		  UPDATE THR_ABEMP_DAILY A
+								  SET A.DEL_IF=A.PK
+								  ,A.MOD_BY=IN_USER
+								  ,A.MOD_DT=SYSDATE
+					     		  WHERE DAILY_DATE = IN_DATE AND A.DEL_IF=0;
+								    OUT_RET_NUM := 0;
+									OUT_RET_VAR := 'Successful Process !';
+							ELSE
+								OUT_RET_NUM := 1;
+								OUT_RET_VAR := 'Already confirm before !';
+						END IF;
+			END IF;
+	END;
+AN_SYS_ERROR_MSG := '20';
+	BEGIN
+		 IF NUM=0 THEN
+					INSERT INTO THR_ABEMP_DAILY
+					(PK,DAILY_DATE,DEPT_PK,GRP_CODE,YESTERDAY,TODAY, ABSENT, OTH_ABSENT, MLE_ABSENT, OT_EMP, OT_HOURS,
+					DEL_IF, CRT_BY, CRT_DT, ATTENDENT) 
+					SELECT THR_ABEMP_DAILY_SEQ.NEXTVAL,IN_DATE,HR.DEPT_PK,HR.GRP_PK
+						   ,HR.YES,HR.NOW,HR.ABS_TOTAL,HR.OTH_ABS,HR.ABS_MLE,HR.OT_PEOPLE,HR.OT_HOURS
+						   ,0,IN_USER,SYSDATE,HR.ATT_TOTAL
+					 FROM(SELECT B.PK AS DEPT_PK,GRP.PK AS GRP_PK,0 YES,COUNT(A.PK) NOW,C.ABS_TOTAL,OTH.OTH_ABS AS OTH_ABS,C.ABS_MLE, M.OT_PEOPLE,M.OT_HOURS, D.ATT_TOTAL
+							 FROM VHR_EMP A,TCO_EODEPT B,THR_ABWORKGRP GRP
+							 	  ,(SELECT E.DEPT_PK DEPT_PK,E.GRP_CODE AS GRP_PK,SUM(DECODE(F.ABS_CODE,'MLE',0,1)) ABS_TOTAL,SUM(DECODE(F.ABS_CODE,'MLE',1,0)) ABS_MLE
+									  FROM VHR_EMP E,THR_EMP_ABSENT F
+									 WHERE E.DEL_IF = 0 AND F.DEL_IF=0 AND E.PK=F.EMP_PK AND F.ABS_DT=IN_DATE
+								   AND DECODE(E.JOIN_DT,'','20000101',E.JOIN_DT) <= IN_DATE
+								   AND DECODE(E.LEFT_DT,'',TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')+1,'YYYYMMDD'),E.LEFT_DT) > IN_DATE
+								    GROUP BY E.DEPT_PK,E.GRP_CODE)C
+									,(SELECT EM.DEPT_PK DEPT_PK,EM.GRP_CODE AS GRP_PK,COUNT(EM.PK) AS OTH_ABS
+									  FROM VHR_EMP EM
+									 WHERE EM.DEL_IF = 0 
+								   AND DECODE(EM.JOIN_DT,'','20000101',EM.JOIN_DT) <= IN_DATE
+								   AND DECODE(EM.LEFT_DT,'',TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')+1,'YYYYMMDD'),EM.LEFT_DT) > IN_DATE
+								   AND EM.PK NOT IN(SELECT K.EMP_PK FROM THR_GRP_EMP K WHERE K.DEL_IF=0 AND K.START_DT=IN_DATE)
+								    GROUP BY EM.DEPT_PK,EM.GRP_CODE)OTH
+								  ,(SELECT G.DEPT_PK DEPT_PK,G.GRP_CODE AS GRP_PK,COUNT(G.PK) ATT_TOTAL
+									  FROM VHR_EMP G, THR_TIME_MACHINE H
+									 WHERE G.DEL_IF = 0 AND H.DEL_IF = 0 AND G.PK = H.EMP_PK AND H.WORK_DT = IN_DATE 
+								 AND DECODE(G.JOIN_DT,'','20000101',G.JOIN_DT) <= IN_DATE
+								   AND DECODE(G.LEFT_DT,'',TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')+1,'YYYYMMDD'),G.LEFT_DT) > IN_DATE
+									GROUP BY G.DEPT_PK,G.GRP_CODE) D
+								  ,(SELECT I.DEPT_PK AS DEPT_PK,I.GRP_CODE AS GRP_PK, COUNT(I.PK) AS OT_PEOPLE, SUM(NVL(J.OT_TIME,0))+SUM(NVL(L.OT,0)) AS OT_HOURS
+								      FROM VHR_EMP I, THR_EXTRA_TIME J,THR_WORK_SHIFT L
+									 WHERE I.DEL_IF = 0 AND J.DEL_IF = 0 AND L.DEL_IF = 0 AND I.PK = J.EMP_PK  AND J.W_SHIFT = L.PK AND J.WORK_DT = IN_DATE
+								  AND DECODE(I.JOIN_DT,'','20000101',I.JOIN_DT) <= IN_DATE
+								   AND DECODE(I.LEFT_DT,'',TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')+1,'YYYYMMDD'),I.LEFT_DT) > IN_DATE
+								   GROUP BY I.DEPT_PK,I.GRP_CODE)M
+							 WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND GRP.DEL_IF=0 AND A.DEPT_PK = B.PK 
+							   AND C.DEPT_PK(+) = A.DEPT_PK AND D.DEPT_PK(+) = A.DEPT_PK AND M.DEPT_PK(+) = A.DEPT_PK
+							   AND A.GRP_CODE=GRP.PK AND A.GRP_CODE=C.GRP_PK(+) AND A.GRP_CODE=D.GRP_PK(+) 
+							   AND A.DEPT_PK=OTH.DEPT_PK(+) AND A.GRP_CODE=M.GRP_PK(+) 
+							   AND A.GRP_CODE=OTH.GRP_PK(+)		      AND DECODE(A.JOIN_DT,'','20000101',A.JOIN_DT) <= IN_DATE
+							AND DECODE(A.LEFT_DT,'',TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')+1,'YYYYMMDD'),A.LEFT_DT) > IN_DATE
+							GROUP BY B.PK,GRP.PK , C.ABS_TOTAL,OTH.OTH_ABS,C.ABS_MLE,D.ATT_TOTAL,M.OT_PEOPLE, M.OT_HOURS,C.ABS_MLE
+							UNION ALL
+							SELECT B.PK AS DEPT_PK,GRP.PK AS GRP_PK, COUNT(A.PK) AS YES
+								   , 0 AS NOW,0, 0, 0, 0,0,0
+							  FROM VHR_EMP A, TCO_EODEPT B, THR_ABWORKGRP GRP
+							 WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND GRP.DEL_IF = 0 AND A.DEPT_PK = B.PK AND A.GRP_CODE=GRP.PK 
+							   AND DECODE(A.JOIN_DT,'','20000101',' ','20000101',A.JOIN_DT) <= TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')-1,'YYYYMMDD')
+							   AND DECODE(A.LEFT_DT,'',IN_DATE,' ',IN_DATE,A.LEFT_DT) > TO_CHAR(TO_DATE(IN_DATE,'YYYYMMDD')-1,'YYYYMMDD')
+							GROUP BY B.PK,GRP.PK ) HR;
+								OUT_RET_NUM := 0;
+								OUT_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+					END IF;
+	END;
+
+
+	COMMIT;
+
+	
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		OUT_RET_NUM := -1;
+		OUT_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Entry_Emp_Daily_Status;
+/
+CREATE OR REPLACE PROCEDURE PR_GET_EMPID_SEQ(AS_DATE  IN  VARCHAR2,
+                           AN_RTN   OUT VARCHAR2
+)
+IS
+AV_DATE		VARCHAR2(4)  :=NULL;
+AN_SEQ          NUMBER(5)    :=0;
+AV_CRTSEQ	VARCHAR2(100):=NULL;
+AV_DSQL		VARCHAR2(100):=NULL;
+AN_TEMP		VARCHAR2(10) :=NULL;
+BEGIN
+	AV_DATE := AS_DATE;
+
+	IF AV_DATE IS NULL THEN
+	     SELECT TO_CHAR(SYSDATE,'YYYY')
+	       INTO AV_DATE
+	       FROM DUAL;
+	END IF;
+
+	AV_DSQL := 'SELECT THR_ABEMPID_SEQ_' ||  AV_DATE || '.NEXTVAL FROM DUAL';
+
+
+        EXECUTE IMMEDIATE AV_DSQL INTO AN_SEQ;
+
+
+	AN_RTN := '05' || LTRIM(RTRIM(TO_CHAR(AN_SEQ, '00999')));
+	--AN_RTN := SUBSTR(AV_DATE, 3, 2) || LTRIM(RTRIM(AN_SEQ));
+--	dbms_output.put_line(AN_TEMP);
+EXCEPTION
+     WHEN OTHERS  THEN
+          AV_CRTSEQ := 'CREATE SEQUENCE THR_EMPID_SEQ_' || AV_DATE || ' START WITH 2';
+          EXECUTE IMMEDIATE AV_CRTSEQ;
+          AN_SEQ := 1;
+	  AN_RTN := SUBSTR(AV_DATE, 3, 2) || LTRIM(RTRIM(TO_CHAR(AN_SEQ, '00999')));
+END;
+/
+CREATE OR REPLACE PROCEDURE Pr_Groupwork_Manage(
+	SQL_TYPE              IN  VARCHAR2,
+	IN_THR_ABWORKGRPDDSCH IN  VARCHAR2,
+	IN_THR_ABWORKGRP_PK   IN  VARCHAR2,
+	IN_WORK_DATE          IN  VARCHAR2,
+	IN_THR_WORK_SHIFT_PK  IN  VARCHAR2,
+	IN_WT                 IN  VARCHAR2,
+	IN_OT                 IN  VARCHAR2,
+	IN_NT                 IN  VARCHAR2,
+	IN_HT                 IN  VARCHAR2,
+	IN_WORK_TIME          IN  VARCHAR2,
+	IN_EXTRA_TIME         IN  VARCHAR2,
+	IN_REMARK             IN  VARCHAR2,
+	IN_DEPT_PK			  IN NUMBER,
+	IN_CRT_BY             IN  VARCHAR2,
+	OUT_ERR_CODE          OUT VARCHAR2,
+	OUT_ERR_MAG           OUT VARCHAR2
+)
+IS
+
+AN_SYS_ERROR_MSG	VARCHAR(100);
+num_count			NUMBER;
+W_GRP				NUMBER(10):=0;
+W_DATE				VARCHAR2(8):='';
+
+BEGIN
+    IF SQL_TYPE = 'I' THEN
+	--kiem tra xem grp do' trong ngay do' da co' hay chua?
+		num_count:=0;
+		SELECT COUNT(a.pk) INTO num_count FROM THR_ABWORKGRPDDSCH A
+		WHERE a.DEL_IF=0 AND a.THR_ABWORKGRP_PK=IN_THR_ABWORKGRP_PK
+		AND a.WORK_DATE = IN_WORK_DATE;   
+		
+	IF num_count=0 THEN --mr truong add
+	
+	    BEGIN
+		
+		    INSERT INTO THR_ABWORKGRPDDSCH A
+                   (A.PK,A.THR_ABWORKGRP_PK,A.WORK_DATE,A.THR_WORK_SHIFT_PK
+				   ,A.WT,A.OT,A.NT,A.HT,A.WORK_TIME,
+                    A.EXTRA_TIME,A.REMARK,A.CRT_BY,A.CRT_DT)
+            VALUES
+                   (THR_ABWORKGRPDDSCH_SEQ.NEXTVAL,IN_THR_ABWORKGRP_PK,IN_WORK_DATE,IN_THR_WORK_SHIFT_PK
+				   ,IN_WT,IN_OT,IN_NT,IN_HT,IN_WORK_TIME,IN_EXTRA_TIME,IN_REMARK,IN_CRT_BY,SYSDATE);
+	    END;
+
+	    BEGIN
+	        INSERT INTO THR_GRP_EMP(
+			       PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			       ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+            SELECT THR_GRP_EMP_SEQ.NEXTVAL,A.THR_ABWORKGRP_PK, B.THR_ABEMP_PK, C.FULL_NM, A.WORK_DATE, A.WORK_DATE
+                   ,A.THR_WORK_SHIFT_PK,WT,OT,NT, 0, SYSDATE, IN_CRT_BY
+              FROM THR_ABWORKGRPDDSCH A, THR_ABEMPMAS B, THR_ABEMP C
+             WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND C.DEL_IF = 0 
+               AND A.THR_ABWORKGRP_PK = B.THR_ABWORKGROUP_PK AND B.THR_ABEMP_PK = C.PK
+               AND A.WORK_DATE = IN_WORK_DATE AND A.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK
+			     AND C.JOIN_DATE <=IN_WORK_DATE AND (C.LEFT_DATE>IN_WORK_DATE OR C.LEFT_DATE IS NULL)
+               AND C.PK NOT IN (SELECT EMP_PK FROM THR_GRP_EMP D WHERE D.DEL_IF = 0 AND D.START_DT = IN_WORK_DATE);
+	    END;
+	END IF;
+	ELSIF SQL_TYPE = 'U' THEN
+	    BEGIN
+			 -- KHONG CHO DOI GROUP VA DATE, CHI CHO UPDATE SHIFT
+			
+			 SELECT A.THR_ABWORKGRP_PK,A.WORK_DATE INTO W_GRP,W_DATE ---LAY THONG TIN GRP VA DATE CU
+			  FROM THR_ABWORKGRPDDSCH A
+			 WHERE A.PK=IN_THR_ABWORKGRPDDSCH;
+			 
+			 IF( IN_THR_ABWORKGRP_PK<> W_GRP)OR(IN_WORK_DATE<>W_DATE) THEN --DA SUA GRP HOAC DATE
+			 	 					   OUT_ERR_CODE := -2;
+			 	 					   RAISE_APPLICATION_ERROR(-20002, '');
+									   RETURN;
+			 END IF;
+		
+		    UPDATE THR_ABWORKGRPDDSCH A
+               SET 			   --A.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK, --khong cho update group
+			       A.WORK_DATE = IN_WORK_DATE,
+				   A.THR_WORK_SHIFT_PK = IN_THR_WORK_SHIFT_PK,
+				   A.WT = IN_WT, A.OT = IN_OT, A.NT = IN_NT, A.HT = IN_HT,
+				   A.WORK_TIME = IN_WORK_TIME,
+				   A.EXTRA_TIME = IN_EXTRA_TIME,
+				   A.REMARK=IN_REMARK, A.MOD_DT = SYSDATE, A.MOD_BY = IN_CRT_BY
+             WHERE A.PK=IN_THR_ABWORKGRPDDSCH;
+
+
+            UPDATE THR_GRP_EMP A
+			   SET A.WORK_SHIFT = IN_THR_WORK_SHIFT_PK, A.WT = IN_WT, A.OT = IN_OT, A.NT = IN_NT,A.REMARK='Update'
+			       ,A.MOD_DT = SYSDATE, A.MOD_BY = IN_CRT_BY
+			 WHERE A.DEL_IF = 0
+               AND A.START_DT = IN_WORK_DATE
+               AND A.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK;
+		END;
+	ELSIF SQL_TYPE = 'D' THEN
+	    BEGIN
+		    DELETE THR_ABWORKGRPDDSCH A
+             WHERE A.PK=IN_THR_ABWORKGRPDDSCH;
+
+			DELETE THR_GRP_EMP A
+			WHERE A.DEL_IF = 0
+               AND A.START_DT = IN_WORK_DATE
+               AND A.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK;
+		END;
+	END IF;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		  IF OUT_ERR_CODE=-2 THEN
+		  	 				 RAISE_APPLICATION_ERROR(-20002,'You can not change Group or Change Work Date!');
+		  ELSE
+		  	RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_GRP_EMP) '||SQLERRM );
+				OUT_ERR_CODE := -1;
+				OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+			END IF;
+END Pr_Groupwork_Manage;
+/
+CREATE OR REPLACE PROCEDURE PR_GROUPWORK_SCHEDULE(
+	IN_WORK_DT     IN  VARCHAR2,
+	IN_CRT_BY      IN  VARCHAR2,
+	OUT_ERR_CODE   OUT VARCHAR2,
+	OUT_ERR_MAG    OUT VARCHAR2
+)
+IS
+
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+	BEGIN
+		INSERT INTO THR_ABWORKGRPDDSCH (PK, THR_ABWORKGRP_PK, WORK_DATE, THR_WORK_SHIFT_PK, WT, OT, NT
+                                 , WORK_TIME, DEL_IF, CRT_BY, CRT_DT)
+        SELECT THR_ABWORKGRPDDSCH_SEQ.NEXTVAL,GRP.PK, IN_WORK_DT, D.PK, NVL(D.WT,0), NVL(D.OT,0), NVL(D.NT,0)
+                                 , NVL(D.WT,0)+NVL(D.OT,0)+NVL(D.NT,0), 0, IN_CRT_BY, SYSDATE
+          FROM (SELECT A.PK, B.THR_WORK_SHIFT_PK
+                  FROM THR_ABWORKGRP A, THR_ABWORKGRPDDSCH B
+                 WHERE A.DEL_IF = 0 AND B.DEL_IF = 0
+                   AND A.PK = B.THR_ABWORKGRP_PK
+                   AND B.WORK_DATE = (SELECT MAX(C.WORK_DATE)
+                                        FROM THR_ABWORKGRPDDSCH C
+                                       WHERE C.DEL_IF = 0
+                                         AND C.THR_ABWORKGRP_PK = A.PK AND C.WORK_DATE<IN_WORK_DT)
+		           AND B.THR_ABWORKGRP_PK NOT IN (SELECT D.THR_ABWORKGRP_PK
+                                                    FROM THR_ABWORKGRPDDSCH D
+                                                   WHERE D.DEL_IF = 0 AND D.WORK_DATE = IN_WORK_DT )
+               )GRP, THR_WORK_SHIFT D
+        WHERE GRP.THR_WORK_SHIFT_PK = D.PK;
+	END;
+
+	BEGIN
+	    INSERT INTO THR_GRP_EMP(
+			   PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			   ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+        SELECT THR_GRP_EMP_SEQ.NEXTVAL,A.THR_ABWORKGRP_PK, B.THR_ABEMP_PK, C.FULL_NM, A.WORK_DATE, A.WORK_DATE
+               ,A.THR_WORK_SHIFT_PK,A.WT,A.OT,A.NT, 0, SYSDATE, IN_CRT_BY
+          FROM THR_ABWORKGRPDDSCH A, THR_ABEMPMAS B, THR_ABEMP C
+         WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND C.DEL_IF = 0 AND C.EMP_STATUS = 'A'
+           AND A.THR_ABWORKGRP_PK = B.THR_ABWORKGROUP_PK AND B.THR_ABEMP_PK = C.PK
+           AND A.WORK_DATE = IN_WORK_DT
+		   AND C.JOIN_DATE<=IN_WORK_DT
+           AND C.PK NOT IN (SELECT EMP_PK FROM THR_GRP_EMP D WHERE D.DEL_IF = 0 AND D.START_DT = IN_WORK_DT);
+	END;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_GRP_EMP) '||SQLERRM );
+		OUT_ERR_CODE := -1;
+		OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END PR_GROUPWORK_SCHEDULE;
+/
+CREATE OR REPLACE PROCEDURE Pr_Groupwork_Schedule_AUTO(
+	  IN_DEPT_PK	  IN VARCHAR2,
+	   IN_GROUP_CODE	  IN VARCHAR2,
+	FROM_WORK_DT     IN  VARCHAR2,
+	TO_WORK_DT	   IN  VARCHAR2,
+	IN_WSHIFT	   IN NUMBER,
+	IN_CRT_BY      IN  VARCHAR2,
+	OUT_ERR_CODE   OUT VARCHAR2,
+	OUT_ERR_MAG    OUT VARCHAR2
+)
+IS
+DEPT			   NUMBER(10):=0;
+GRP				   NUMBER(10):=0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+	 
+	 IF IN_DEPT_PK='ALL' THEN 
+	 	DEPT:=0;
+	ELSE
+		DEPT:=TO_NUMBER(IN_DEPT_PK);
+	END IF;
+
+	 IF IN_GROUP_CODE='ALL' THEN
+	 	GRP:=0;
+	ELSE
+		GRP:=TO_NUMBER(IN_GROUP_CODE);
+	END IF;
+	 
+
+	BEGIN
+	--- LAY LICH GAN NHAT VA INSERT (NHUNG GROUP NAO CO LICH ROI THI BO QUA)
+	--TRUONG HOP AUTO THI KO DUNG DEN BIEN SHIFT_PK
+	INSERT INTO THR_ABWORKGRPDDSCH (PK, THR_ABWORKGRP_PK, WORK_DATE, THR_WORK_SHIFT_PK, WT, OT, NT
+                                 , WORK_TIME, DEL_IF, CRT_BY, CRT_DT)
+	SELECT THR_ABWORKGRPDDSCH_SEQ.NEXTVAL,GRP.PK, CL.CAR_DATE, D.PK, NVL(D.WT,0), NVL(D.OT,0), NVL(D.NT,0)
+                                 , NVL(D.WT,0)+NVL(D.OT,0)+NVL(D.NT,0), 0,IN_CRT_BY, SYSDATE
+          FROM (SELECT A.PK, B.THR_WORK_SHIFT_PK
+                  FROM THR_ABWORKGRP A, THR_ABWORKGRPDDSCH B
+                 WHERE A.DEL_IF = 0 AND B.DEL_IF = 0
+                   AND A.PK = B.THR_ABWORKGRP_PK
+		   		   AND DECODE(GRP,0,GRP,A.PK)=GRP
+    			  AND DECODE(DEPT,0,DEPT,A.TCO_EODEPT_PK)=DEPT
+                   AND B.WORK_DATE = (SELECT MAX(C.WORK_DATE)
+                                        FROM THR_ABWORKGRPDDSCH C
+                                       WHERE C.DEL_IF = 0
+                                         AND C.THR_ABWORKGRP_PK = A.PK)
+               )GRP, THR_WORK_SHIFT D,TCO_ABCALENDAR CL
+        WHERE GRP.THR_WORK_SHIFT_PK = D.PK
+		AND CL.CAR_DATE BETWEEN  FROM_WORK_DT AND TO_WORK_DT
+		AND GRP.PK NOT IN(SELECT E.THR_ABWORKGRP_PK FROM THR_ABWORKGRPDDSCH E WHERE E.DEL_IF=0 AND E.WORK_DATE=CL.CAR_DATE)
+		AND GRP.PK IN(SELECT V.GRP_CODE FROM VHR_EMP V WHERE V.DEL_IF=0 GROUP BY V.GRP_CODE HAVING COUNT(V.PK)>0 );
+									 
+	END;
+
+	BEGIN
+	    INSERT INTO THR_GRP_EMP(
+			   PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			   ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+         SELECT THR_GRP_EMP_SEQ.NEXTVAL,A.THR_ABWORKGRP_PK, B.THR_ABEMP_PK, C.FULL_NM, A.WORK_DATE, A.WORK_DATE
+               ,A.THR_WORK_SHIFT_PK,A.WT,A.OT,A.NT, 0, SYSDATE, IN_CRT_BY
+          FROM THR_ABWORKGRPDDSCH A, THR_ABEMPMAS B, THR_ABEMP C,THR_ABWORKGRP G,TCO_EODEPT H
+         WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND C.DEL_IF = 0 AND G.DEL_IF=0 AND H.DEL_IF=0
+           AND A.THR_ABWORKGRP_PK = B.THR_ABWORKGROUP_PK AND B.THR_ABEMP_PK = C.PK
+		   AND A.THR_ABWORKGRP_PK=G.PK AND G.TCO_EODEPT_PK=H.PK 
+		   AND DECODE(GRP,0,GRP,G.PK)=GRP
+  			  AND DECODE(DEPT,0,DEPT,H.PK)=DEPT
+			  AND A.WORK_DATE BETWEEN FROM_WORK_DT AND TO_WORK_DT
+		   AND C.PK IN (SELECT d.pk FROM THR_ABEMP d WHERE  d.del_if=0 AND d.JOIN_DATE <= A.WORK_DATE 
+		   	   		AND (D.LEFT_DATE>A.WORK_DATE OR D.LEFT_DATE IS NULL ))
+		   AND C.PK NOT IN (SELECT E.EMP_PK FROM THR_GRP_EMP E WHERE E.DEL_IF=0 AND E.START_DT =A.WORK_DATE);
+	END;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||DEPT||GRP||'. OTHER (PR_GRP_EMP) '||SQLERRM );
+		OUT_ERR_CODE := -1;
+		OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END Pr_Groupwork_Schedule_AUTO;
+/
+CREATE OR REPLACE PROCEDURE Pr_Groupwork_Schedule_New(
+	  IN_DEPT_PK	  IN VARCHAR2,
+	   IN_GROUP_CODE	  IN VARCHAR2,
+	FROM_WORK_DT     IN  VARCHAR2,
+	TO_WORK_DT	   IN  VARCHAR2,
+	IN_WSHIFT	   IN NUMBER,
+	IN_CRT_BY      IN  VARCHAR2,
+	OUT_ERR_CODE   OUT VARCHAR2,
+	OUT_ERR_MAG    OUT VARCHAR2
+)
+IS
+DEPT			   NUMBER(10):=0;
+GRP				   NUMBER(10):=0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+	 
+	 IF IN_DEPT_PK='ALL' THEN 
+	 	DEPT:=0;
+	ELSE
+		DEPT:=TO_NUMBER(IN_DEPT_PK);
+	END IF;
+
+	 IF IN_GROUP_CODE='ALL' THEN
+	 	GRP:=0;
+	ELSE
+		GRP:=TO_NUMBER(IN_GROUP_CODE);
+	END IF;
+	 
+
+	BEGIN
+		INSERT INTO THR_ABWORKGRPDDSCH (PK, THR_ABWORKGRP_PK, WORK_DATE, THR_WORK_SHIFT_PK, WT, OT, NT
+                                 , WORK_TIME, DEL_IF, CRT_BY, CRT_DT)
+                SELECT THR_ABWORKGRPDDSCH_SEQ.NEXTVAL,D.GRPPK, WORK_DT, D.PK, NVL(D.WT,0), NVL(D.OT,0), NVL(D.NT,0)
+                                 , NVL(D.WT,0)+NVL(D.OT,0)+NVL(D.NT,0), 0, IN_CRT_BY, SYSDATE
+          FROM (SELECT B.CAR_DATE AS WORK_DT,C.PK AS GRPPK,A.PK AS PK,A.WT AS WT,A.OT AS OT,A.NT AS NT
+    	  	   FROM THR_WORK_SHIFT A,TCO_ABCALENDAR B,THR_ABWORKGRP C,TCO_EODEPT E
+    		   WHERE A.DEL_IF = 0 
+			   AND B.DEL_IF=0 AND C.DEL_IF=0 AND E.DEL_IF=0 AND C.TCO_EODEPT_PK=E.PK 
+			   AND DECODE(GRP,0,GRP,C.PK)=GRP
+			   AND DECODE(DEPT,0,DEPT,E.PK)=DEPT
+			   AND A.PK = IN_WSHIFT
+    		   AND B.CAR_DATE BETWEEN FROM_WORK_DT AND TO_WORK_DT
+			   AND C.PK NOT IN (SELECT E.THR_ABWORKGRP_PK FROM THR_ABWORKGRPDDSCH E WHERE E.DEL_IF=0 AND E.WORK_DATE=B.CAR_DATE)) D;
+
+	END;
+
+	BEGIN
+	    INSERT INTO THR_GRP_EMP(
+			   PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			   ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+         SELECT THR_GRP_EMP_SEQ.NEXTVAL,A.THR_ABWORKGRP_PK, B.THR_ABEMP_PK, C.FULL_NM, A.WORK_DATE, A.WORK_DATE
+               ,A.THR_WORK_SHIFT_PK,A.WT,A.OT,A.NT, 0, SYSDATE, IN_CRT_BY
+          FROM THR_ABWORKGRPDDSCH A, THR_ABEMPMAS B, THR_ABEMP C,THR_ABWORKGRP G,TCO_EODEPT H
+         WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND C.DEL_IF = 0 AND G.DEL_IF=0 AND H.DEL_IF=0
+           AND A.THR_ABWORKGRP_PK = B.THR_ABWORKGROUP_PK AND B.THR_ABEMP_PK = C.PK
+		   AND A.THR_ABWORKGRP_PK=G.PK AND G.TCO_EODEPT_PK=H.PK 
+		   AND DECODE(GRP,0,GRP,G.PK)=GRP
+  			  AND DECODE(DEPT,0,DEPT,H.PK)=DEPT
+			  AND A.WORK_DATE BETWEEN FROM_WORK_DT AND TO_WORK_DT
+		   AND C.PK IN (SELECT d.pk FROM THR_ABEMP d WHERE  d.del_if=0 AND d.JOIN_DATE <= A.WORK_DATE 
+		   	   		AND (D.LEFT_DATE>A.WORK_DATE OR D.LEFT_DATE IS NULL ))
+		   AND C.PK NOT IN (SELECT E.EMP_PK FROM THR_GRP_EMP E WHERE E.DEL_IF=0 AND E.START_DT =A.WORK_DATE);
+	END;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||DEPT||GRP||'. OTHER (PR_GRP_EMP) '||SQLERRM );
+		OUT_ERR_CODE := -1;
+		OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END Pr_Groupwork_Schedule_New;
+/
+CREATE OR REPLACE PROCEDURE Pr_Group_Manage(
+	IN_SQL_TYPE           IN  VARCHAR2,
+	IN_THR_ABWORKGRP_PK   IN  VARCHAR2,
+	IN_THR_ABEMP_PK       IN  VARCHAR2,
+	IN_WORK_DATE          IN  VARCHAR2,
+	IN_THR_WORK_SHIFT_PK  IN  VARCHAR2,
+	IN_WT                 IN  VARCHAR2,
+	IN_OT                 IN  VARCHAR2,
+	IN_NT                 IN  VARCHAR2,
+	IN_PK				  IN  NUMBER,
+	IN_CRT_BY             IN  VARCHAR2,
+	OUT_ERR_CODE          OUT VARCHAR2,
+	OUT_ERR_MAG           OUT VARCHAR2
+)
+IS
+
+AN_COUNT            NUMBER(10);
+AN_COUNT_GRP		NUMBER(10);
+AN_GRP				NUMBER(10);
+AN_COUNT_GRP2		NUMBER(10);
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+    IF IN_SQL_TYPE = 'I' THEN
+	    SELECT COUNT(PK) INTO AN_COUNT
+		  FROM THR_GRP_EMP
+		 WHERE DEL_IF = 0 AND START_DT >= IN_WORK_DATE;
+
+		IF AN_COUNT > 0 THEN  --IF THIS EMP HAS ORIGINAL DATA
+		    BEGIN
+		        DELETE THR_GRP_EMP --DELETE THE ORIGINAL DATA
+		        WHERE DEL_IF = 0
+		           AND EMP_PK = IN_THR_ABEMP_PK
+				   AND START_DT >= IN_WORK_DATE;
+			END;
+		END IF;
+
+		BEGIN
+			INSERT INTO THR_GRP_EMP(  -- INSERT NEW DATA
+			       PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			       ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+		    SELECT THR_GRP_EMP_SEQ.NEXTVAL, IN_THR_ABWORKGRP_PK, A.PK, A.FULL_NM, GRP.wdate, GRP.wdate
+			       ,GRP.shift,IN_WT,IN_OT,IN_NT, 0, SYSDATE, IN_CRT_BY
+		      FROM THR_ABEMP A
+		           ,(SELECT b.WORK_DATE AS wdate, b.THR_WORK_SHIFT_PK AS shift
+                       FROM THR_ABWORKGRPDDSCH B
+                      WHERE B.DEL_IF = 0
+                        AND B.WORK_DATE >= IN_WORK_DATE AND B.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK
+                     ) GRP
+		     WHERE A.DEL_IF = 0
+		       AND A.PK = IN_THR_ABEMP_PK
+			   AND A.JOIN_DATE <=IN_WORK_DATE;
+			UPDATE THR_ABEMPMAS
+               SET THR_ABWORKGROUP_PK = IN_THR_ABWORKGRP_PK
+             WHERE DEL_IF = 0
+               AND THR_ABEMP_PK = IN_THR_ABEMP_PK; 
+	    END;
+	ELSIF IN_SQL_TYPE = 'U' THEN
+		  BEGIN
+		  	   -- TH KHONG UPDATE GRP
+			   SELECT COUNT(A.THR_ABWORKGRP_PK) INTO AN_COUNT_GRP2 
+			   	FROM THR_GRP_EMP A
+				WHERE A.DEL_IF=0 AND A.PK=IN_PK;
+				
+				IF AN_COUNT_GRP2>0 THEN
+				   SELECT A.THR_ABWORKGRP_PK INTO AN_GRP 
+			   	   FROM THR_GRP_EMP A
+				   WHERE A.DEL_IF=0 AND A.PK=IN_PK;
+				END IF;
+			   
+			   IF AN_GRP=IN_THR_ABWORKGRP_PK THEN -- KHONG UPDATE GRP
+					UPDATE THR_GRP_EMP A
+			           SET A.WORK_SHIFT = IN_THR_WORK_SHIFT_PK
+						   ,MOD_DT = SYSDATE, MOD_BY = IN_CRT_BY
+			         WHERE A.DEL_IF = 0
+			           AND A.PK=IN_PK;
+			   ELSE --UPDATE CA GRP
+
+					DELETE FROM THR_GRP_EMP A --XOA LICH CU VA SAP THEO LICH MOI
+			           WHERE A.DEL_IF = 0
+			           AND A.EMP_PK = IN_THR_ABEMP_PK
+			           AND A.START_DT >= IN_WORK_DATE;	
+					
+					INSERT INTO THR_GRP_EMP(  -- INSERT NEW DATA
+						       PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+						       ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+					    SELECT THR_GRP_EMP_SEQ.NEXTVAL, IN_THR_ABWORKGRP_PK, A.PK, A.FULL_NM, GRP.wdate, GRP.wdate
+						       ,GRP.shift,IN_WT,IN_OT,IN_NT, 0, SYSDATE, IN_CRT_BY
+					      FROM THR_ABEMP A
+					           ,(SELECT b.WORK_DATE AS wdate, b.THR_WORK_SHIFT_PK AS shift
+			                       FROM THR_ABWORKGRPDDSCH B
+			                      WHERE B.DEL_IF = 0
+			                        AND B.WORK_DATE >= IN_WORK_DATE AND B.THR_ABWORKGRP_PK = IN_THR_ABWORKGRP_PK
+			                     ) GRP
+					     WHERE A.DEL_IF = 0
+					       AND A.PK = IN_THR_ABEMP_PK;
+					
+					 UPDATE THR_ABEMPMAS
+				     SET THR_ABWORKGROUP_PK = IN_THR_ABWORKGRP_PK,
+					           TCO_EODEPT_PK=(SELECT TCO_EODEPT_PK FROM THR_ABWORKGRP WHERE DEL_IF=0 AND PK=IN_THR_ABWORKGRP_PK)
+				     WHERE DEL_IF = 0
+				      AND THR_ABEMP_PK = IN_THR_ABEMP_PK; 
+			 END IF;
+		END;
+		   
+		   
+		   
+    ELSIF IN_SQL_TYPE = 'D' THEN
+		UPDATE THR_GRP_EMP A
+           SET A.DEL_IF = A.PK
+			   ,MOD_DT = SYSDATE, MOD_BY = IN_CRT_BY
+         WHERE A.DEL_IF = 0
+           AND A.EMP_PK = IN_THR_ABEMP_PK
+           AND A.START_DT = IN_WORK_DATE;
+	END IF;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_GROUP_MANAGE) '||SQLERRM );
+		OUT_ERR_CODE := -1;
+		OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END Pr_Group_Manage;
+/
+CREATE OR REPLACE PROCEDURE PR_GRP_EMP(
+	IN_GRP_PK      IN  VARCHAR2,
+	IN_EMP_PK      IN  VARCHAR2,
+	IN_START_DT    IN  VARCHAR2,
+	IN_END_DT      IN  VARCHAR2,
+	IN_WORK_SHIFT  IN  VARCHAR2,
+	IN_CRT_BY      IN  VARCHAR2,
+	OUT_ERR_CODE   OUT VARCHAR2,
+	OUT_ERR_MAG    OUT VARCHAR2
+)
+IS
+
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+	BEGIN
+		UPDATE THR_GRP_EMP
+		   SET END_DT = TO_CHAR(TO_DATE(IN_START_DT,'YYYYMMDD')-1,'YYYYMMDD')
+		   	   ,DEL_IF = PK
+		 WHERE DEL_IF = 0
+		   AND EMP_PK = IN_EMP_PK;
+	END;
+	
+	BEGIN
+	    INSERT INTO THR_GRP_EMP(
+			   PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			   ,WORK_SHIFT, DEL_IF, CRT_DT, CRT_BY)
+		SELECT THR_GRP_EMP_SEQ.NextVal, IN_GRP_PK, A.PK, A.FULL_NM, IN_START_DT, IN_END_DT
+			   ,IN_WORK_SHIFT, 0, SYSDATE, IN_CRT_BY
+		  FROM THR_ABEMP A
+		 WHERE A.DEL_IF = 0
+		   AND A.PK = IN_EMP_PK;
+	END;
+	
+	BEGIN
+		UPDATE THR_ABEMPMAS
+           SET THR_ABWORKGROUP_PK = IN_GRP_PK
+         WHERE DEL_IF = 0
+           AND THR_ABEMP_PK = IN_EMP_PK;
+	END;
+
+	COMMIT;
+
+	OUT_ERR_CODE := 0;
+	OUT_ERR_MAG := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_GRP_EMP) '||SQLERRM );
+		OUT_ERR_CODE := -1;
+		OUT_ERR_MAG  := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END PR_GRP_EMP;
+/
+CREATE OR REPLACE PROCEDURE PR_HEALTH_MANAGE
+(in_flag  		  IN VARCHAR2
+,inEMP_PK        IN NUMBER,
+ inDATE		 IN VARCHAR2,
+ inCHECK_STATUS  IN   VARCHAR2,
+ inCHECK_TYPE IN VARCHAR2,
+ inTIME 	  IN VARCHAR2,
+ inPLACE 	  IN VARCHAR2,
+ inREASON IN VARCHAR2,
+ inREMARK IN VARCHAR2,
+ inPK	  IN NUMBER,
+ inUSERID		 IN VARCHAR2,
+ outRESULT		 OUT NUMBER
+)
+IS
+V_ERROR    VARCHAR2(10);
+V_DIS_PK    NUMBER(2):= 0;
+V_LEVEL NUMBER(1) := 0;
+V_DATE	VARCHAR2(8);
+
+--******************************************
+  -- Create by    : huynhtruong										
+  -- Create date  : 22/03/2005
+--******************************************  
+
+BEGIN
+
+	 V_DIS_PK:=0;
+	 IF in_flag='D' THEN -- DELETE
+	 	UPDATE THR_HEALTH A
+		SET A.DEL_IF=A.PK
+		WHERE A.PK=inPK;
+	 ELSE
+
+			 V_ERROR := '10';--XET DIEU KIEN UPDATE HAY INSERT
+			 
+			 SELECT COUNT(A.PK) INTO V_DIS_PK FROM THR_HEALTH A
+			  WHERE A.DEL_IF=0 
+			  		AND A.PK = inPK;
+			
+			IF V_DIS_PK>0 THEN --DA CO TRONG LIST
+			V_ERROR := '20';
+				 SELECT A.ISSUE_DT INTO V_DATE
+				   FROM THR_HEALTH A
+				  WHERE A.DEL_IF=0 
+				  		AND A.PK = inPK;
+						
+		
+			     IF V_DATE=inDATE THEN --UPDATE
+				 	 V_ERROR := '30';
+					 UPDATE THR_HEALTH T
+				        SET T.TYPE= inCHECK_TYPE
+							   ,T.CHECK_STATUS=inCHECK_STATUS
+								,T.CHECK_ADDR=inPLACE
+								,T.CHECK_REASON=inREASON
+								,T.CHECK_TIME=inTIME
+								,T.REMARK= inREMARK
+						      ,T.MOD_BY		= inUSERID
+							,T.MOD_DT		= SYSDATE
+				      WHERE T.DEL_IF=0
+				        AND T.PK=inPK;
+				 ELSE
+				 	 V_ERROR := '40';
+ 					  
+					  INSERT INTO THR_HEALTH (					  
+					  PK, EMP_PK, ISSUE_DT, TYPE, REMARK, DEL_IF, CRT_DT, CRT_BY
+					  ,CHECK_STATUS, CHECK_TIME, CHECK_ADDR,CHECK_REASON)
+					      VALUES (THR_HEALTH_SEQ.NEXTVAL,inEMP_PK,inDATE, inCHECK_TYPE,inREMARK,0,SYSDATE, inUSERID
+						  ,inCHECK_STATUS, inTIME, inPLACE, inREASON);
+						
+				 END IF;
+				 
+			ELSE
+					  INSERT INTO THR_HEALTH (					  
+					  PK, EMP_PK, ISSUE_DT, TYPE, REMARK, DEL_IF, CRT_DT, CRT_BY
+					  ,CHECK_STATUS, CHECK_TIME, CHECK_ADDR,CHECK_REASON)
+					      VALUES (THR_HEALTH_SEQ.NEXTVAL,inEMP_PK,inDATE, inCHECK_TYPE,inREMARK,0,SYSDATE, inUSERID
+						  ,inCHECK_STATUS, inTIME, inPLACE, inREASON);
+				
+			END IF;
+ 			     
+			 
+    END IF;			 
+		     V_ERROR    :='60';
+			 outRESULT  := 1;
+
+	 COMMIT;
+	 RETURN;
+---------
+  EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error1, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error2, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+END PR_HEALTH_MANAGE;
+/
+CREATE OR REPLACE PROCEDURE Pr_Insert_Emp_Entry
+(
+   	   inREMARK  IN VARCHAR2
+	   ,inCARD_ID IN VARCHAR2
+	   ,inFULL_NAME	 IN VARCHAR2
+	   ,inFULL_NAME_ENG	IN VARCHAR2
+	   ,inFULL_NM_N		IN VARCHAR2
+	   ,inPHOTO_PK		IN NUMBER
+	   ,inLIVING_ADDR	   IN VARCHAR2
+	   ,inPERMANENT_ADDR   IN VARCHAR2
+	   ,inSEX			   IN VARCHAR2
+	   ,inBIRTH_DATE	   IN VARCHAR2
+	   ,inPLACE_BIRTH_DATE IN VARCHAR2
+	   ,inPERSON_ID		   IN VARCHAR2
+	   ,inISSUE_DATE	   IN VARCHAR2
+	   ,inPLACE_PER_ID	   IN VARCHAR2
+	   ,inSOCIAL_NO		   IN VARCHAR2
+	   ,inSOCIAL_FDATE	   IN VARCHAR2
+	   ,inPOS_AMT		   IN NUMBER
+	   ,inSOCIAL_PLACE	   IN VARCHAR2
+	   ,inSOCIAL_FLAG	   IN VARCHAR2
+	   ,inJOIN_DT		   IN VARCHAR2
+	   ,inNATION_CODE	   IN VARCHAR2
+	   ,inGRP_CODE		   IN NUMBER
+	   ,inDEPT_PK		   IN NUMBER
+	   ,inEDU_CODE		   IN VARCHAR2
+	   ,inMARRIED		   IN VARCHAR2
+	   ,inCHILDREN_CNT	   IN NUMBER
+	   ,inHEALTH_NO		   IN VARCHAR2
+	   ,inHEALTH_FDATE	   IN VARCHAR2
+	   ,inHEALTH_TDATE	   IN VARCHAR2
+	   ,inHEALTH_PLACE	   IN VARCHAR2
+	   ,inHEALTH_FLAG	   IN VARCHAR2
+	   ,inLEFT_DT		   IN VARCHAR2
+	   ,inTEL			   IN VARCHAR2
+	   ,inETHNIC_CD		   IN VARCHAR2
+	   ,inRELIG_CD		   IN VARCHAR2
+	   ,inJOB_CODE		   IN VARCHAR2
+	   ,inPOS_CODE		   IN VARCHAR2
+	   ,inCITY_CODE		   IN VARCHAR2
+	   ,inFACT_CD		   IN VARCHAR2
+	   ,inEMP_STATUS 	   IN VARCHAR2
+	   ,inBASIC_SAL		   IN NUMBER
+	   ,inPERIOD_CONTRACT  IN VARCHAR2
+	   ,inST_CONTRACT	   IN VARCHAR2
+	   ,inET_CONTRACT	   IN VARCHAR2
+	   ,inST_PROBATION	   IN VARCHAR2
+	   ,inET_PROBATION	   IN VARCHAR2
+	   ,inSEQ_CONTRACT	   IN VARCHAR2
+	   ,inPROB_SALARY	   IN NUMBER	
+	   ,inPAY_TYPE	   	   IN VARCHAR2
+	   ,inSAL_ALLOW		   IN NUMBER
+	   ,inACCOUNT			IN VARCHAR2
+	   ,inCARD_AMT			IN NUMBER
+	   ,inEMP_ID_STYLE		IN VARCHAR2
+	   ,inTECH_AMT			IN NUMBER
+	   ,inHARD_WORK_AMT		IN NUMBER
+	   ,inOTHER_AMT			IN NUMBER
+	   ,inMOD_BY		   IN VARCHAR2	     
+	   ,outOUT_PK		   OUT NUMBER
+	   ,outResult		   OUT NUMBER
+)
+IS
+AV_EMPID VARCHAR2(10);
+AV_CARDID VARCHAR2(10);
+--AV_CONTRACT_SEQ NUMBER;
+AV_YEAR VARCHAR2(4);
+AV_ABEMP_SEQ NUMBER;
+AV_ABEMPMAS_SEQ NUMBER;
+AV_EMP_HIST_SEQ NUMBER;
+AV_SEQ_CONTRACT VARCHAR2(200);
+l_status VARCHAR2(100):='';
+ERROR_NUM VARCHAR2(10);
+AV_AL NUMBER;
+AV_AL_IN_YEAR  NUMBER;
+BEGIN
+	 --lay so hop dong
+	 outResult :=1;
+	SELECT  a.CODE_lNM	INTO AV_SEQ_CONTRACT FROM COMM.TCO_ABCODE a, COMM.TCO_ABCODEGRP b 
+	 WHERE a.del_if=0 AND b.del_if=0 AND b.ID='HRAB0030' AND a.TCO_ABCODEGRP_PK=b.PK AND a.code='0';
+	
+	 l_status := 'get empid';
+
+	 ERROR_NUM := '10';
+
+	-- PR_GET_EMPID_SEQ('2004',AV_EMPID);
+--	 AV_EMPID:=F_Get_Emp_Id(inJOIN_DT);
+ 	 
+     SELECT F_GET_EMP_ID_SHINWOO(inEMP_ID_STYLE) INTO AV_EMPID FROM dual;
+	 l_status := 'get contract no';
+    
+     AV_CARDID := AV_EMPID; 
+
+	 ERROR_NUM := '20';
+
+	 --AV_CONTRACT_SEQ := F_GET_CONTRACT_SEQ(inST_CONTRACT);
+
+	 ERROR_NUM := '30';
+
+	 SELECT THR_ABEMP_SEQ.NEXTVAL INTO AV_ABEMP_SEQ FROM dual;
+	 SELECT THR_ABEMPMAS_SEQ.NEXTVAL INTO AV_ABEMPMAS_SEQ FROM dual;
+	 SELECT THR_EMP_HIST_SEQ.NEXTVAL INTO AV_EMP_HIST_SEQ FROM DUAL;
+	 
+	 --AV_EMPID:=AV_EMPID||AV_ABEMP_SEQ;
+
+	 ERROR_NUM := '40';
+	 --AV_SEQ_CONTRACT:=inCARD_ID||'/' ||  AV_SEQ_CONTRACT; 
+	 AV_SEQ_CONTRACT:=AV_EMPID||'/' ||  AV_SEQ_CONTRACT; 
+	  outResult :=2;
+	  l_status := 'insert THR_ABEMP';
+	 INSERT INTO THR_ABEMP A
+	 (A.PK,		 		   	-- 1
+	 A.EMP_ID,		 		   	-- 2
+	 A.REMARK,		 		   	-- 3
+	 A.CARD_ID,		 		   	-- 4
+	 A.FULL_NM,		 		   	-- 
+	 A.FULL_LNM,		 		   	-- 5
+	 A.PHOTO_PK,		 		   	-- 6
+	 A.LIVING_ADDR,		 		   	-- 7
+	 A.ADDR,		 		   	-- 8
+	 A.SEX,		 		   	-- 9
+	 A.BIRTH_DATE,		 		   	-- 10
+	 A.PLACE_BIRTH_DATE,		 		   	-- 11
+	 A.PERSON_ID,		 		   	-- 12
+	 A.ISSUE_DATE,		 		   	-- 13
+	 A.PLACE_PER_ID,		 		   	-- 14
+	 A.JOIN_DATE,		 		   	-- 15
+	 A.NATION,		 		   	-- 16
+	 A.EDU_TYPE,		 		   	-- 17
+	 A.MARRIED_YN,		 		   	-- 18
+	 A.CHILDREN_CNT,		 		   	-- 19
+	 A.LEFT_DATE,		 		   	-- 20
+	 A.TEL,		 		   	-- 21
+	 A.ETHNIC_TYPE,		 		   	-- 22
+	 A.RELIG_TYPE,		 		   	-- 23
+	 A.CITY_CODE,		 		   	-- 24
+	 A.EMP_STATUS,		 		   	-- 25
+	 A.PERIOD_CONTRACT,		 		   	-- 26
+	 A.ST_CONTRACT,		 		   	-- 27
+	 A.ET_CONTRACT,		 		   	-- 28
+	 A.ST_PROBATION,		 		   	-- 29
+	 A.ET_PROBATION,		 		   	-- 30
+	 A.SEQ_CONTRACT,		 		   	-- 31
+	 --A.PROB_MON,		 		   	-- 
+	 --A.PROFESSIONAL_SKILL, 		 		   	-- 
+	 --A.BASIC_SALARY, 		 		   	-- 
+	 A.CRT_BY,		 		   	-- 
+	 A.CRT_DT,		 		   	-- 
+	 A.DEL_IF,		 		   	-- 
+	 A.FULL_NM_N,		 		   	-- 
+	 A.EMP_ID_STYLE		 		   	-- 
+	 )
+	  VALUES
+	  (AV_ABEMP_SEQ 		 		   	-- 1
+	  ,AV_EMPID		 		   	-- 2
+	  ,inREMARK		 		   	-- 3
+	  ,av_CARDID		 		   	-- 4
+	  ,inFULL_NAME		 		   	-- 5
+	  ,inFULL_NAME_ENG		 		   	-- 6
+	  ,inPHOTO_PK		 		   	-- 7
+	  ,inLIVING_ADDR		 		   	-- 8
+	  ,inPERMANENT_ADDR		 		   	-- 9
+	  ,inSEX		 		   	-- 10
+	  ,inBIRTH_DATE		 		   	-- 11
+	  ,inPLACE_BIRTH_DATE		 		   	-- 12
+	  ,inPERSON_ID		 		   	-- 13
+	  ,inISSUE_DATE		 		   	-- 14
+	  ,inPLACE_PER_ID		 		   	-- 15
+	  ,inJOIN_DT		 		   	-- 16
+	  ,inNATION_CODE		 		   	-- 17
+	  ,inEDU_CODE		 		   	-- 18
+	  ,inMARRIED		 		   	-- 19
+	  ,inCHILDREN_CNT		 		   	-- 20
+	  ,inLEFT_DT		 		   	-- 21
+	  ,inTEL		 		   	-- 22
+	  ,inETHNIC_CD		 		   	-- 23
+	  ,inRELIG_CD		 		   	-- 24
+	  ,inCITY_CODE		 		   	-- 25
+	  ,inEMP_STATUS		 		   	-- 26
+	  ,inPERIOD_CONTRACT		 		   	-- 27
+	  ,inST_CONTRACT		 		   	-- 28
+	  ,inET_CONTRACT		 		   	-- 29
+	  ,inST_PROBATION		 		   	-- 30
+	  ,inET_PROBATION		 		   	-- 31
+	  ,AV_SEQ_CONTRACT		 		   	-- 32
+	  --,inBASIC_SAL 		 		   	-- 
+	  --,inPROFESSION_SKILL   		 		   	-- 
+	  ,inMOD_BY		 		   	-- 
+	  ,SYSDATE		 		   	-- 
+	  ,0		 		   	-- 
+	  ,inFULL_NM_N		 		   	-- 
+	  ,inEMP_ID_STYLE		 		   	-- 
+	  );
+
+	  ERROR_NUM := '50';
+	   outResult :=3;
+	   l_status := 'insert THR_ABEMPMAS';
+    INSERT INTO THR_ABEMPMAS B
+	(B.PK,
+	B.THR_ABEMP_PK,
+	B.VALID_FROM,
+	B.SOCIAL_NO,
+	B.SOCIAL_FDATE,
+	B.POS_AMT,
+	B.SOCIAL_PLACE,
+	B.SOCIAL_YN,
+	B.THR_ABWORKGROUP_PK,
+	B.TCO_EODEPT_PK,
+	B.HEALTH_NO,
+	B.HEALTH_FDATE,
+	B.HEALTH_TDATE,
+	B.HEALTH_PLACE,
+	B.HEALTH_YN,
+	B.JOB_CODE,
+	B.POS_CODE,
+	B.TCO_EOFACTORY_PK,
+	B.BASIC_SAL,
+	--B.PROB_MON,
+	B.PROB_SALARY,
+	B.BANK_ACCOUNT,
+	B.CARD_AMT,
+	B.REMAINING_CARD_AMT,
+	B.PAY_TYPE,
+	B.SAL_ALLOW,
+	B.TECH_AMT,
+	B.HARD_WORK_AMT,
+	B.OTHER_AMT,
+	B.CRT_BY,
+	B.CRT_DT,
+	B.DEL_IF
+	)
+	VALUES
+	(
+	 AV_ABEMPMAS_SEQ
+	 ,AV_ABEMP_SEQ
+	 ,TO_CHAR(SYSDATE,'YYYYMMDD')
+	 ,inSOCIAL_NO
+	 ,inSOCIAL_FDATE
+	 ,inPOS_AMT
+	 ,inSOCIAL_PLACE
+	 ,inSOCIAL_FLAG
+	 ,DECODE(inGRP_CODE,0,NULL,inGRP_CODE)
+	 ,DECODE(inDEPT_PK,0,NULL,inDEPT_PK)
+	 ,inHEALTH_NO
+	 ,inHEALTH_FDATE
+	 ,inHEALTH_TDATE
+	 ,inHEALTH_PLACE
+	 ,inHEALTH_FLAG
+	 ,inJOB_CODE
+	 ,inPOS_CODE
+	 ,inFACT_CD
+	 ,inBASIC_SAL
+	 ,inPROB_SALARY
+	 --,inBASIC_SAL
+	 ,inACCOUNT
+	 ,inCARD_AMT
+	 ,DECODE(inCARD_AMT,0,NULL,inCARD_AMT)
+	 ,inPAY_TYPE
+	 ,inSAL_ALLOW
+	 ,inTECH_AMT
+	 ,inHARD_WORK_AMT
+	 ,inOTHER_AMT
+	 ,inMOD_BY
+	 ,SYSDATE
+	 ,0);
+
+	 ERROR_NUM := '60';
+	  outResult :=4;
+	 l_status := 'insert THR_EMP_HIST';
+	INSERT INTO THR_EMP_HIST (
+	   PK 
+	   ,EMP_PK
+	   ,EMP_ID
+	   ,REMARK
+	   ,CARD_ID
+	   ,FULL_NAME
+	   ,FULL_NAME_ENG
+	   ,PHOTO_PK
+	   ,ADDR
+	   ,PER_ADDR
+	   ,SEX
+	   ,BIRTH_DT
+	   ,PLACE_BIRTH_DT
+	   ,PERSON_ID
+	   ,ISSUE_DT
+	   ,PLACE_PER_ID
+	   ,SOCIAL_NO
+	   ,SOCIAL_DT
+	   --,SOCIAL_DT_TO
+	   ,SOCIAL_PLACE
+	   ,SOCIAL_FLAG
+	   ,JOIN_DT
+	   ,NATION_CODE
+	   ,GRP_CODE
+	   ,DEPT_PK
+	   ,EDU_CODE
+	   ,MARRIED
+	   ,CHILDREN_CNT
+	   ,HEALTH_NO
+	   ,HEALTH_DT
+	   ,HEALTH_DT_TO
+	   ,HEALTH_PLACE
+	   ,HEALTH_FLAG
+	   ,LEFT_DT
+	   ,TEL
+	   ,ETHNIC_CD
+	   ,RELIG_CD
+	   ,JOB_CODE
+	   ,POS_CODE
+	   ,CITY_CODE
+	   ,FACT_CD
+	   ,STATUS
+	   ,BASIC_SAL
+	   ,PERIOD_CONTRACT
+	   ,ST_CONTRACT
+	   ,ET_CONTRACT
+	   ,ST_PROBATION
+	   ,ET_PROBATION
+	   ,SEQ_CONTRACT
+	   --PROB_MON
+	   ,PROB_SAL
+	   --,BASIC_SAL
+	   ,PAY_TYPE
+	   ,CRT_DT
+	   ,CRT_BY
+	   ,DEL_IF
+	  )
+	  VALUES
+	  (
+	   AV_EMP_HIST_SEQ
+	   ,AV_ABEMP_SEQ
+	   ,AV_EMPID
+	   ,inREMARK
+	   ,inCARD_ID
+	   ,inFULL_NAME
+	   ,inFULL_NAME_ENG
+	   ,inPHOTO_PK
+	   ,inLIVING_ADDR
+	   ,inPERMANENT_ADDR
+	   ,inSEX
+	   ,inBIRTH_DATE
+	   ,inPLACE_BIRTH_DATE
+	   ,inPERSON_ID
+	   ,inISSUE_DATE
+	   ,inPLACE_PER_ID
+	   ,inSOCIAL_NO
+	   ,inSOCIAL_FDATE
+	   --,inSOCIAL_TDATE
+	   ,inSOCIAL_PLACE
+	   ,inSOCIAL_FLAG
+	   ,inJOIN_DT
+	   ,inNATION_CODE
+	   ,DECODE(inGRP_CODE,0,NULL,inGRP_CODE)
+	   ,DECODE(inDEPT_PK,0,NULL,inDEPT_PK)
+	   ,inEDU_CODE
+	   ,inMARRIED
+	   ,inCHILDREN_CNT
+	   ,inHEALTH_NO
+	   ,inHEALTH_FDATE
+	   ,inHEALTH_TDATE
+	   ,inHEALTH_PLACE
+	   ,inHEALTH_FLAG
+	   ,inLEFT_DT
+	   ,inTEL
+	   ,inETHNIC_CD
+	   ,inRELIG_CD
+	   ,inJOB_CODE
+	   ,inPOS_CODE
+	   ,inCITY_CODE
+	   ,inFACT_CD
+	   ,inEMP_STATUS
+	   ,inBASIC_SAL
+	   ,inPERIOD_CONTRACT
+	   ,inST_CONTRACT
+	   ,inET_CONTRACT
+	   ,inST_PROBATION
+	   ,inET_PROBATION
+	   ,AV_SEQ_CONTRACT
+	   --inPROB_MON
+	   ,inPROB_SALARY
+	   --,inBASIC_SAL
+	   ,inPAY_TYPE
+	   ,SYSDATE
+	   ,inMOD_BY
+	   ,0
+	   );
+
+	    outResult :=5;
+	   ERROR_NUM := '70';
+	  INSERT INTO THR_GRP_EMP(
+			       PK, THR_ABWORKGRP_PK, EMP_PK, FULL_NAME, START_DT, END_DT
+			       ,WORK_SHIFT,WT,OT,NT, DEL_IF, CRT_DT, CRT_BY)
+            SELECT THR_GRP_EMP_SEQ.NEXTVAL,A.THR_ABWORKGRP_PK, c.pk, C.FULL_NAME, A.WORK_DATE, A.WORK_DATE
+                   ,A.THR_WORK_SHIFT_PK,WT,OT,NT, 0, SYSDATE, inMOD_BY
+              FROM THR_ABWORKGRPDDSCH A, VHR_EMP C
+             WHERE A.DEL_IF = 0  AND C.DEL_IF = 0 AND C.STATUS = 'A' 
+			 AND c.grp_code=a.THR_ABWORKGRP_PK
+               AND C.PK=AV_ABEMP_SEQ
+               AND A.WORK_DATE >= inJOIN_DT AND A.THR_ABWORKGRP_PK = inGRP_CODE;
+	--xu ly phep nam cho nhan vien moi vao
+	IF SUBSTR(inJOIN_DT,4) < TO_CHAR(SYSDATE,'yyyy') THEN
+	/*	IF inDEPT_PK =4 THEN
+		   AV_AL_IN_YEAR :=12;
+		   AV_AL := 12;
+			
+		ELSIF (inPOS_CODE ='A' OR inPOS_CODE='N' OR inPOS_CODE='O' OR inPOS_CODE ='P' OR inPOS_CODE='B' OR inPOS_CODE='X') THEN 
+			  AV_AL_IN_YEAR :=14;
+			  AV_AL := 14;
+		ELSE 
+		   AV_AL_IN_YEAR :=12;
+		   AV_AL := 12;
+		END IF;	 */
+		AV_AL_IN_YEAR :=14;
+		AV_AL := 14;
+	ELSE
+		AV_AL:=14-TO_NUMBER(SUBSTR(inJOIN_DT,5,2));
+		AV_AL_IN_YEAR :=14;
+	END IF;			  
+				
+		UPDATE THR_ABEMP B
+        SET B.ANNUAL_LEAVE_DAYS = AV_AL,
+		          B.ANNUAL_LEAVE_DAYS_IN_YEAR = AV_AL_IN_YEAR
+            WHERE B.DEL_IF=0
+  	  		AND B.ANNUALY_APPLY_FLAG <>'Y'
+  	    	AND B.PK = AV_ABEMP_SEQ; 	
+	--tao hop dong thu viec cho nhan vien		
+	 outResult :=6;
+	 IF inPERIOD_CONTRACT IS NOT NULL THEN
+	   	  INSERT INTO THR_LABOUR_CONTRACT
+		  ( 
+			PK 		,
+			THR_ABEMP_PK   	,
+			CONTRACT_NO ,
+			ST_PROBATION ,
+			ET_PROBATION ,
+			ST_CONTRACT ,
+			ET_CONTRACT ,
+			KIND_CONTRACT ,
+			BASIC_SALARY ,
+			NON_ABSENT ,
+			TIMES,
+			DEL_IF ,
+			CTR_By,
+			CTR_DT
+			) 
+		  VALUES
+		  (
+		    THR_LABOUR_CONTRACT_SEQ.NEXTVAL,
+			AV_ABEMP_SEQ   	,
+			AV_SEQ_CONTRACT ,
+			inST_PROBATION ,
+			inET_PROBATION ,
+			NULL ,
+			NULL ,
+			inPERIOD_CONTRACT ,
+			0,
+			0 ,
+			1,
+			0 ,
+			inMOD_BY	,
+			SYSDATE
+		  ) ;	
+		END IF;	 
+		 	  
+		l_status := 'success';
+		outOUT_PK := AV_ABEMP_SEQ;
+		outResult := 0;
+RETURN;
+---------
+EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outResult  := -1;
+		RAISE_APPLICATION_ERROR(-20001,ERROR_NUM||'Procedure error 1: '||SQLERRM);
+	ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outResult  := -1;
+		DBMS_OUTPUT.PUT_LINE('EMP ID: '||AV_ABEMP_SEQ);
+		RAISE_APPLICATION_ERROR(-20002,ERROR_NUM||'Procedure error 2: '||SQLERRM);
+	ROLLBACK WORK;
+        RETURN;
+
+END;
+/
+CREATE OR REPLACE PROCEDURE PR_INSERT_GROUP_ENTRY(
+	   P_TCO_EODEPT_PK	  IN NUMBER,
+	  P_WORKGRP_ID IN VARCHAR2,
+	P_WORKGRP_NM		IN	VARCHAR2,	 
+	P_WORKGRP_LNM		IN	VARCHAR2, 	 
+	P_WORKGRP_FNM			IN	VARCHAR2,
+	P_ST_DATE				IN VARCHAR2,
+	P_END_DATE					   IN VARCHAR2, 
+	P_REMARK					   VARCHAR2,
+	P_USER					   IN VARCHAR2,
+	AS_RET_NUM		OUT NUMBER  	-- RETURN VALUE ( NUMBER ) 
+) IS
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+					INSERT INTO THR_ABWORKGRP
+					(PK,
+					TCO_EODEPT_PK,
+					WORKGRP_ID,
+					WORKGRP_NM,
+					WORKGRP_LNM,
+					WORKGRP_FNM,
+					ST_DATE,
+					END_DATE,
+					REMARK,
+					CRT_BY,
+					CRT_DT)
+					VALUES
+					(THR_ABWORKGRP_SEQ.NEXTVAL,
+					P_TCO_EODEPT_PK	,
+					P_WORKGRP_ID,
+					P_WORKGRP_NM,
+					DECODE(P_WORKGRP_LNM,NULL,P_WORKGRP_NM,P_WORKGRP_LNM),
+					DECODE(P_WORKGRP_FNM,NULL,P_WORKGRP_NM,P_WORKGRP_FNM),
+					DECODE(P_ST_DATE,NULL,TO_CHAR(SYSDATE,'YYYYMMDD'),P_ST_DATE),
+					P_END_DATE,
+					P_REMARK,
+					P_USER,
+					SYSDATE	);
+					
+					
+	AS_RET_NUM := 0;
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+					ROLLBACK;
+					RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_INSERT_GROUP_ENTRY) '||SQLERRM );
+					AS_RET_NUM := -1;
+	
+END  PR_INSERT_GROUP_ENTRY;
+/
+CREATE OR REPLACE PROCEDURE Pr_Insurance_C47(
+	AS_WORK_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	AS_DT		IN	VARCHAR2,	-- YYYYMMDD
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+COMPANY_NAME  VARCHAR2(100);
+COUNT_NUM	  NUMBER(10):=0;
+V_FMON		  NUMBER(2):=0;
+V_TMON		  NUMBER(2):=0;
+V_COUNT_MON NUMBER(2):=0;    
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+			BEGIN
+					SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+					WHERE MMYYYY = AS_WORK_MON
+					  AND ID     = 'SAL'
+					  AND DEL_IF = 0;
+			
+				        IF AV_CHECK_MON = 'Y' THEN
+				        	AS_RET_NUM :=  -1;
+						AS_RET_VAR :=  'already closed this month !';
+						RETURN;
+				        END IF;
+			
+					EXCEPTION
+					 WHEN NO_DATA_FOUND THEN
+				                AS_RET_NUM :=  -1;
+						AS_RET_VAR :=  'Not Found this Month !';
+						RETURN;
+				END;
+
+
+	 COMPANY_NAME:='Il Jung Vina Co.';
+
+	 SELECT COUNT(*) INTO COUNT_NUM FROM THR_INSURANCE_C47
+	 WHERE DEL_IF=0 AND REPORT_MON = AS_WORK_MON;
+
+	 IF COUNT_NUM>0 THEN
+	 				DELETE THR_INSURANCE_C47
+					 WHERE DEL_IF=0 AND REPORT_MON = AS_WORK_MON;
+	END IF;
+	 
+
+AN_SYS_ERROR_MSG := '5';
+		INSERT INTO THR_INSURANCE_C47
+		( PK,
+		 THR_ABEMP_PK,
+		  EMP_ID,
+		  FULL_NAME,
+		  REPORT_MON,
+ 		  SOCIAL_NO,
+		  SEX,
+		  JOB_CODE,
+		  COMPANY_ADDRESS,
+		  HEALTH_PLACE,
+		  OLD_LEV_BASIC_SAL,
+		  OLD_LEV_ALLOW,
+		  NEW_LEV_BASIC_SAL,
+		  NEW_LEV_ALLOW,
+		  FROM_MON,
+		  TO_MON,
+		  TOTAL_MON,
+		  NOTE,
+		  REMARK,
+		  INSURANCE_TYPE,
+		  INCREASE_AMT,
+		  DECREASE_AMT,
+		  DEL_IF,
+		  CRT_BY,
+		  CRT_DT
+		)
+		SELECT THR_INSURANCE_C47_SEQ.NEXTVAL,INS.EMP_PK,INS.EMP_ID,INS.FULL_NAME,INS.REPORT_MON,INS.SOCIAL_NO,INS.SEX,INS.JOB_CODE,INS.COMPANY_ADDRESS
+	   				,INS.HEALTH_PLACE,INS.OLD_LEV_BASIC_SAL,INS.OLD_LEV_ALLOW,INS.NEW_LEV_BASIC_SAL,INS.NEW_LEV_ALLOW,INS.FROM_MON
+					,INS.TO_MON,INS.TOTAL_MON,INS.NOTE,INS.REMARK,INS.INSURANCE_TYPE,INS.INCREASE_AMT,INS.DECREASE_AMT,INS.DEL_IF,INS.CRT_BY,INS.CRT_DT																							
+			FROM
+			(	SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+				,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.POS_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+				,a.HEALTH_PLACE AS HEALTH_PLACE,NULL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,A.PROB_SALARY AS NEW_LEV_BASIC_SAL
+				,NULL AS NEW_LEV_ALLOW,NULL AS FROM_MON,NULL AS TO_MON,NULL AS TOTAL_MON,NULL AS NOTE,NULL AS REMARK
+				,0  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,AS_USER AS CRT_BY,SYSDATE AS CRT_DT
+				 FROM vhr_emp a
+				 WHERE a.del_if=0 AND A.PERIOD_CONTRACT=1 AND (A.LEFT_DT IS NULL OR A.LEFT_DT >AS_DT)
+				  AND A.BEGIN_CONTRACT BETWEEN TO_CHAR(ADD_MONTHS(TO_DATE(AS_DT,'YYYYMMDD'),-1)+1,'YYYYMMDD') AND AS_DT
+			UNION  --TS DI LAM LAI 
+				SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+				,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.POS_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+				,a.HEALTH_PLACE AS HEALTH_PLACE,NULL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,A.BASIC_SAL AS NEW_LEV_BASIC_SAL
+				,NULL AS NEW_LEV_ALLOW,NULL AS FROM_MON,NULL AS TO_MON,NULL AS TOTAL_MON,'TS' AS NOTE,NULL AS REMARK
+				,0  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,AS_USER AS CRT_BY,SYSDATE AS CRT_DT
+				 FROM vhr_emp a
+				 WHERE a.del_if=0 	   AND a.STATUS='A' 
+				 AND A.JOIN_DT<AS_DT 
+				AND a.pk IN(SELECT A.PK 
+						 		    FROM THR_TIME_MACHINE A1,VHR_EMP A,THR_ABWORKGRP D
+		   							 ,(SELECT M.EMP_PK AS EMP_PK,M.START_DT AS START_DT,M.END_DT AS END_DT
+		   						 			 FROM THR_MATERNITY M,VHR_EMP B1 WHERE M.DEL_IF=0 AND M.EMP_PK=B1.PK)H
+										WHERE A1.DEL_IF=0 AND A1.EMP_PK=H.EMP_PK AND A.DEL_IF=0 AND D.DEL_IF=0 AND A.PK=A1.EMP_PK AND A.GRP_CODE=D.PK
+										AND A1.WORK_DT BETWEEN TO_CHAR(ADD_MONTHS(TO_DATE(AS_DT,'YYYYMMDD'),-1)+1,'YYYYMMDD') AND AS_DT
+										GROUP BY A.PK,H.END_DT 
+										HAVING MIN(A1.WORK_DT)>H.END_DT)
+					AND A.PK NOT IN(SELECT C47.THR_ABEMP_PK FROM THR_INSURANCE_C47 C47 
+							 	 WHERE C47.DEL_IF=0 AND C47.REPORT_MON>=TO_CHAR(TO_DATE(AS_WORK_MON,'YYYYMM')-12,'YYYYMM') --TRONG 12 THANG 
+								 AND C47.INSURANCE_TYPE=0
+								GROUP BY C47.THR_ABEMP_PK)
+			UNION --GIAM LD 
+				SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+				,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.JOB_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+				,a.HEALTH_PLACE AS HEALTH_PLACE,A.BASIC_SAL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,NULL AS NEW_LEV_BASIC_SAL
+				,NULL AS NEW_LEV_ALLOW,NULL AS FROM_MON,NULL AS TO_MON,NULL AS TOTAL_MON,NULL AS NOTE,NULL AS REMARK
+				,1  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,AS_USER AS CRT_BY,SYSDATE AS CRT_DT
+				 FROM vhr_emp a
+				 WHERE a.del_if=0 	  
+				  AND A.LEFT_DT BETWEEN TO_CHAR(ADD_MONTHS(TO_DATE(AS_DT,'YYYYMMDD'),-1)+1,'YYYYMMDD') AND AS_DT
+				  AND A.STATUS='R' AND A.SOCIAL_FLAG='Y' AND A.SOCIAL_FLAG='Y'
+			  UNION --NGHI TS 
+				  SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+				,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.POS_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+				,a.HEALTH_PLACE AS HEALTH_PLACE,A.BASIC_SAL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,NULL AS NEW_LEV_BASIC_SAL
+				,NULL AS NEW_LEV_ALLOW,'T'||SUBSTR(AS_WORK_MON,5,2) AS FROM_MON, 'T'||SUBSTR(AS_WORK_MON,5,2) AS TO_MON,1 AS TOTAL_MON,'TS' AS NOTE,NULL AS REMARK
+				,1  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,'T' AS CRT_BY,SYSDATE AS CRT_DT
+				 FROM THR_MATERNITY M,VHR_EMP A 
+				 WHERE a.del_if=0 AND M.DEL_IF=0 AND M.EMP_PK=A.PK AND a.STATUS='A' AND A.SOCIAL_FLAG='Y' AND A.SOCIAL_FLAG='Y'
+				 AND M.START_DT BETWEEN TO_CHAR(ADD_MONTHS(TO_DATE(AS_DT,'YYYYMMDD'),-1)+1,'YYYYMMDD') AND AS_DT
+				AND A.PK NOT IN(SELECT C47.THR_ABEMP_PK FROM THR_INSURANCE_C47 C47 
+							 	 WHERE C47.DEL_IF=0 AND C47.REPORT_MON>=TO_CHAR(TO_DATE(AS_WORK_MON,'YYYYMM')-12,'YYYYMM') --TRONG 12 THANG LIEN
+								 AND C47.INSURANCE_TYPE=1
+								GROUP BY C47.THR_ABEMP_PK )		
+			UNION --TANG LUONG	
+			SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+			,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.POS_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+			,a.HEALTH_PLACE AS HEALTH_PLACE,S.BASIC_SAL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,a.BASIC_SAL AS NEW_LEV_BASIC_SAL
+			,NULL AS NEW_LEV_ALLOW,NULL AS FROM_MON,NULL AS TO_MON,NULL AS TOTAL_MON,NULL AS NOTE,NULL AS REMARK
+			,2  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,AS_USER AS CRT_BY,SYSDATE AS CRT_DT
+			FROM vhr_emp a,THR_SALARY_EMP s
+			WHERE a.del_if=0 AND s.del_if=0 AND a.pk=s.emp_pk
+			AND ( A.STATUS='A' OR (A.STATUS='R' AND a.left_dt > AS_WORK_MON  || '31'))
+			AND NVL(A.BASIC_SAL,0)>NVL(S.BASIC_SAL,0)
+			AND A.END_PROB<AS_WORK_MON||'01'
+			AND S.WORK_MON=TO_CHAR(TO_DATE(AS_WORK_MON,'YYYYMM')-1,'YYYYMM')
+			AND A.PK NOT IN(SELECT M.EMP_PK FROM THR_MATERNITY M
+							 	 WHERE M.DEL_IF=0 AND AS_DT BETWEEN M.START_DT AND M.END_DT)		
+			UNION ALL --GIAM LUONG  		
+			SELECT A.PK AS EMP_PK,a.emp_id AS EMP_ID,a.FULL_NAME AS FULL_NAME,AS_WORK_MON AS REPORT_MON
+			,a.SOCIAL_NO AS SOCIAL_NO,a.SEX AS SEX,a.POS_CODE AS JOB_CODE,COMPANY_NAME AS COMPANY_ADDRESS
+			,a.HEALTH_PLACE AS HEALTH_PLACE,S.BASIC_SAL AS OLD_LEV_BASIC_SAL,NULL OLD_LEV_ALLOW,a.BASIC_SAL AS NEW_LEV_BASIC_SAL
+			,NULL AS NEW_LEV_ALLOW,NULL AS FROM_MON,NULL AS TO_MON,NULL AS TOTAL_MON,NULL AS NOTE,NULL AS REMARK
+			,3  AS INSURANCE_TYPE,NULL AS INCREASE_AMT,NULL AS DECREASE_AMT,0 AS DEL_IF,AS_USER AS CRT_BY,SYSDATE AS CRT_DT
+			FROM vhr_emp a,THR_SALARY_EMP s
+			WHERE a.del_if=0 AND s.del_if=0 AND a.pk=s.emp_pk
+			AND ( A.STATUS='A' OR (A.STATUS='R' AND a.left_dt > AS_WORK_MON  || '31'))
+			AND NVL(A.BASIC_SAL,0)<NVL(S.BASIC_SAL,0)
+			AND A.END_PROB<AS_WORK_MON||'01'
+			AND S.WORK_MON=TO_CHAR(TO_DATE(AS_WORK_MON,'YYYYMM')-1,'YYYYMM')
+			AND A.PK NOT IN(SELECT M.EMP_PK  FROM THR_MATERNITY M
+							 	 WHERE M.DEL_IF=0 AND AS_DT BETWEEN M.START_DT AND M.END_DT))INS;
+
+/*			---UPDATE NHUNG NGUOI NGHI MA KHONG TRA THE 1 QUY 3 THANG 
+			SELECT TO_NUMBER(SUBSTR(AS_WORK_MON,5,2)) INTO V_FMON FROM DUAL;
+			
+			IF V_FMON<=6 THEN
+			   			V_COUNT_MON:=7-V_FMON;
+						V_TMON:=6;
+			ELSE
+						  V_COUNT_MON:=13-V_FMON;
+						  V_TMON:=12;
+			END IF;
+			
+			
+			UPDATE THR_INSURANCE_C47 R
+			SET R.INCREASE_AMT=NVL(R.OLD_LEV_BASIC_SAL,0)*0.03*V_COUNT_MON
+			       ,FROM_MON=V_FMON
+				   ,TO_MON=V_TMON
+				   ,TOTAL_MON=V_COUNT_MON
+			WHERE R.DEL_IF=0 AND R.REPORT_MON=AS_WORK_MON
+			AND R.THR_ABEMP_PK IN(SELECT A.PK FROM VHR_EMP A WHERE A.DEL_IF=0 AND A.STATUS='R' 
+						 		   				  	AND A.LEFT_DT BETWEEN AS_WORK_MON||'01' AND AS_WORK_MON||'31'
+													AND DECODE(A.RETURN_HEALTH_TICKET,NULL,'N',A.RETURN_HEALTH_TICKET)='N');
+*/													
+		COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_INSURANCE_C47) Month : '|| 'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Insurance_C47;
+/
+CREATE OR REPLACE PROCEDURE Pr_In_Time_Random( AS_DT IN  VARCHAR2,  -- YYYYMMDD
+                        AS_USER IN  VARCHAR2,  -- USER ID
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+AV_FROM_DT		VARCHAR2(10);
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+--HUYNH TRUONG
+-- TRUONG HOP EP GIO IN LAI NEU CONG NHAN VAO SOM HON START SHIFT 10 PHUT
+-- PROCEDURE KHONG GIAI QUYET CHO TRUONG HOP START SHIFT LA SO' LE  VI DU: 07:45
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+	AV_FROM_DT := AS_DT;
+
+	BEGIN
+	
+	--luu giu gio DUNG DE KIEM TRA KHI PROCESS LAI
+	  UPDATE THR_TIME_MACHINE A
+	  SET A.P3_IN=(CASE WHEN A.P3_IN IS NULL THEN A.P_IN
+	  	  					 		 		 	  ELSE A.P3_IN
+												  END)
+	  	  		,A.P3_OUT=(CASE WHEN A.P3_OUT IS NULL THEN A.P_OUT
+	  	  					 		 		 	  ELSE A.P3_OUT
+												  END)
+	  WHERE A.DEL_IF=0
+		 AND A.WORK_DT=AV_FROM_DT;
+		 
+	
+	-- TRUONG HOP START WORK SHIFT LA GIO CHAN 00 
+		 UPDATE THR_TIME_MACHINE A
+		 SET A.P_IN=SUBSTR(A.P_IN,1,3)||(ABS(MOD(DBMS_RANDOM.Random,10))+40)
+		 ,A.REMARK=AS_USER||'RANDOM PROCESS : 00 '
+		 WHERE A.DEL_IF=0 
+		 AND TO_NUMBER(REPLACE(A.P_IN,':'))<(SELECT TO_NUMBER(REPLACE(B.START_TIME,':'))-59 FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND A.W_SHIFT=B.PK)
+		 AND A.WORK_DT=AV_FROM_DT
+		 AND A.W_SHIFT IN (SELECT B.PK FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND TO_NUMBER(SUBSTR(B.START_TIME,4,2))=0)
+		 AND A.P_IN IS NOT NULL;	
+	END;
+	BEGIN
+	-- TRUONG HOP START WORK SHIFT LA GIO CHAN 30 
+		 UPDATE THR_TIME_MACHINE A
+		 SET A.P_IN=SUBSTR(A.P_IN,1,3)||(ABS(MOD(DBMS_RANDOM.Random,10))+20)
+		 ,A.REMARK=AS_USER||'RANDOM PROCESS : 30'
+		 WHERE A.DEL_IF=0 
+		 AND TO_NUMBER(REPLACE(A.P_IN,':'))<(SELECT TO_NUMBER(REPLACE(B.START_TIME,':'))-19 FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND A.W_SHIFT=B.PK)
+		 AND A.WORK_DT=AV_FROM_DT
+		 AND A.W_SHIFT IN (SELECT B.PK FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND TO_NUMBER(SUBSTR(B.START_TIME,4,2))=30)
+		 AND A.P_IN IS NOT NULL;	
+	END;
+
+BEGIN	
+	-- update lai gio cho truong hop start shift: 07:30, gio vao 06:30
+	UPDATE THR_TIME_MACHINE A
+	SET A.P_IN=(SELECT SUBSTR(B.START_TIME,1,3)||(ABS(MOD(DBMS_RANDOM.Random,10))+20) FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND B.PK= A.W_SHIFT)
+	WHERE A.DEL_IF=0 AND A.WORK_DT=AV_FROM_DT 
+	AND TO_NUMBER(SUBSTR(A.P_IN,1,2))<(SELECT TO_NUMBER(SUBSTR(B.START_TIME,1,2)) FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND B.PK= A.W_SHIFT)
+	AND A.W_SHIFT IN (SELECT B.PK FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND TO_NUMBER(SUBSTR(B.START_TIME,4,2))=30);
+END;	
+BEGIN	
+	-- update lai gio cho truong hop start shift: 08:00, gio vao 06:30 
+	UPDATE THR_TIME_MACHINE A
+	SET A.P_IN=(SELECT '0'||TO_CHAR(TO_NUMBER(SUBSTR(B.START_TIME,1,2))-1)||':'||(ABS(MOD(DBMS_RANDOM.RANDOM,15))+40) FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND B.PK= A.W_SHIFT)
+	WHERE A.DEL_IF=0 AND A.WORK_DT=AV_FROM_DT 
+	AND TO_NUMBER(SUBSTR(A.P_IN,1,2))<=(SELECT TO_NUMBER(SUBSTR(B.START_TIME,1,2))-2 FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND B.PK= A.W_SHIFT)
+	AND A.W_SHIFT IN (SELECT B.PK FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND TO_NUMBER(SUBSTR(B.START_TIME,4,2))=0)
+	AND A.P_IN IS NOT NULL;
+END;	
+
+/*--RANDOM LAI MOT LAN NUA
+BEGIN
+	UPDATE THR_TIME_MACHINE A
+	SET A.P_IN=SUBSTR(A.P_IN,1,3)||'0'||(ABS(MOD(DBMS_RANDOM.Random,10)))
+	WHERE A.DEL_IF=0 AND TO_NUMBER(SUBSTR(A.P_IN,4,2))<20
+	AND TO_NUMBER(SUBSTR(A.P_IN,1,2))<=(SELECT TO_NUMBER(SUBSTR(B.START_TIME,1,2)) FROM THR_WORK_SHIFT B WHERE B.DEL_IF=0 AND B.PK= A.W_SHIFT)  
+	AND A.WORK_DT=AV_FROM_DT;
+
+END;*/
+
+BEGIN
+
+	--luu giu gio DUNG DE KIEM TRA KHI PROCESS LAI
+	  UPDATE THR_TIME_MACHINE A
+	  SET A.P2_IN=A.P_IN
+	  	  		,A.P2_OUT=A.P_OUT
+	  WHERE A.DEL_IF=0 AND A.MOD_BY IS NULL -- CHUA DUOC SUA 
+		 AND A.WORK_DT=AV_FROM_DT;
+
+END;
+	
+	
+	
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD_RD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_In_Time_Random;
+/
+CREATE OR REPLACE PROCEDURE Pr_Labour_Contract(
+	   P_LC_PK   NUMBER,
+ 	   P_THR_ABEMP_PK NUMBER,
+	   P_CONTRACT_NO VARCHAR2,
+	   P_ST_PROBATION VARCHAR2,
+	   P_ET_PROBATION VARCHAR2,
+	   P_ST_CONTRACT VARCHAR2,
+	   P_ET_CONTRACT VARCHAR2,
+	   P_KIND_CONTRACT NUMBER,
+	   P_BASIC_SAL NUMBER,
+	   P_USER VARCHAR2,
+	   P_OUT_PK  OUT NUMBER 
+)
+IS
+  	   L_LABOUR_CONTRACT_PK NUMBER;
+	   L_NON_ABSENT NUMBER;
+	   L_ERROR   VARCHAR2(10);
+	   L_COUNT_PK NUMBER;   
+	   L_OLD_PERIOD_CONTRACT NUMBER;
+	   L_OLD_LC_PK NUMBER;
+
+BEGIN   
+/******************************************************************************
+   NAME:       PR_LABOUR_CONTRACT
+   PURPOSE:    UPDATE LABOUR CONTRACT OF EMPLOYEE
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        3/2/2006   YEN              1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_LABOUR_CONTRACT
+      Sysdate:         3/2/2006
+      Date and Time:   3/2/2006, 1:00:02 PM, and 3/2/2006 1:00:02 PM
+      Username:        YEN 
+     
+******************************************************************************/
+	   L_ERROR:='10';
+	   IF (P_KIND_CONTRACT = 3) THEN
+	   	  L_NON_ABSENT:=1;
+	   ELSIF (P_KIND_CONTRACT = 1) THEN
+	   		L_NON_ABSENT:=60000;
+	   ELSE
+	   	   L_NON_ABSENT:=100000;
+	   END IF;	
+
+	   IF (P_LC_PK=0 OR P_LC_PK=NULL) THEN
+	   	  --INSERT DATA INTO LABOUR CONTRACT HIST
+		  L_ERROR:='20';
+		  SELECT THR_LABOUR_CONTRACT_SEQ.NEXTVAL INTO L_LABOUR_CONTRACT_PK FROM DUAL;
+		  IF P_KIND_CONTRACT IS NOT NULL THEN
+	   	  P_OUT_PK:=L_LABOUR_CONTRACT_PK;   
+		  INSERT INTO THR_LABOUR_CONTRACT
+		  ( 
+			PK 		,
+			THR_ABEMP_PK   	,
+			CONTRACT_NO ,
+			ST_PROBATION ,
+			ET_PROBATION ,
+			ST_CONTRACT ,
+			ET_CONTRACT ,
+			KIND_CONTRACT ,
+			BASIC_SALARY ,
+			NON_ABSENT ,
+			TIMES,
+			DEL_IF ,
+			CTR_By,
+			CTR_DT
+			) 
+		  VALUES
+		  (
+		    L_LABOUR_CONTRACT_PK 		,
+			P_THR_ABEMP_PK   	,
+			P_CONTRACT_NO ,
+			P_ST_PROBATION ,
+			P_ET_PROBATION ,
+			P_ST_CONTRACT ,
+			P_ET_CONTRACT ,
+			P_KIND_CONTRACT ,
+			P_BASIC_SAL,
+			L_NON_ABSENT ,
+			1,
+			0 ,
+			P_USER,
+			SYSDATE
+		  ) ;	
+		  END IF;
+	   ELSE
+   	   		L_ERROR:='30';
+	   		UPDATE THR_LABOUR_CONTRACT
+			SET
+			   CONTRACT_NO =P_CONTRACT_NO,
+			   KIND_CONTRACT=P_KIND_CONTRACT,
+				ST_PROBATION =P_ST_PROBATION,
+				ET_PROBATION =P_ET_PROBATION,
+				ST_CONTRACT =P_ST_CONTRACT,
+				ET_CONTRACT =P_ET_CONTRACT,
+				BASIC_SALARY =DECODE(P_BASIC_SAL,1, BASIC_SALARY,P_BASIC_SAL),
+				NON_ABSENT =L_NON_ABSENT,
+				MOD_By=P_USER,
+				MOD_DT=SYSDATE
+		 	WHERE PK=P_LC_PK;
+			P_OUT_PK:=P_LC_PK;
+	   END IF;
+	   
+	   	   COMMIT;
+	   EXCEPTION
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+       RAISE_APPLICATION_ERROR(-20002,'ERROR:'||L_ERROR|| SQLERRM);
+END Pr_Labour_Contract;
+/
+CREATE OR REPLACE PROCEDURE Pr_Ot_Allowance
+(inEMP_PK        IN VHR_EMP.PK%TYPE,
+ inOLD_CODE		 IN THR_OT_ALLOWANCE.REMARK%TYPE,
+ inOT_ALLOW      IN THR_OT_ALLOWANCE.OT_ALLOW%TYPE,
+ inOT_ALLOW_TYPE IN THR_OT_ALLOWANCE.OT_ALLOW_TYPE%TYPE,
+ inOT_ALLOW_TIME IN THR_OT_ALLOWANCE.OT_ALLOW_TIME%TYPE,
+ inSTART_DT      IN THR_OT_ALLOWANCE.START_DT%TYPE,
+ inEND_DT		 IN THR_OT_ALLOWANCE.END_DT%TYPE,
+ inUSERID		 IN THR_OT_ALLOWANCE.CRT_BY%TYPE,
+ outRESULT		 OUT NUMBER
+)
+IS
+
+V_ERROR    VARCHAR2(10);
+V_OT_PK    NUMBER(10):= 0;
+V_COUNT_PK NUMBER(5) := 0;
+
+--******************************************
+  -- Create by    : Ho Phuong Thao											
+  -- Create date  : 22/03/2005
+--******************************************  
+
+BEGIN
+
+	 V_ERROR := '10';
+	 SELECT THR_OT_ALLOWANCE_SEQ.NEXTVAL INTO V_OT_PK FROM DUAL;
+
+	 V_ERROR := '20';
+	 SELECT COUNT(A.EMP_PK) INTO V_COUNT_PK
+	   FROM THR_OT_ALLOWANCE A
+	  WHERE A.DEL_IF=0 
+		AND A.EMP_PK = inEMP_PK;
+
+	--raise_application_error(-20001, 'NUM_PK='|| V_COUNT_PK|| 'TR'||V_COUNT_PK);
+	--return;
+     IF (V_COUNT_PK=0) THEN
+	 	 	 IF  LENGTH(inOT_ALLOW_TYPE)>0 AND  inOT_ALLOW_TIME>0 AND  LENGTH(inSTART_DT)>0 AND LENGTH( inEND_DT)>0 THEN
+		
+				 	 V_ERROR := '30';
+					 INSERT INTO THR_OT_ALLOWANCE (PK,EMP_PK,OT_ALLOW,OT_ALLOW_TYPE,OT_ALLOW_TIME
+				                 ,START_DT,END_DT,REMARK,CRT_BY)
+					      VALUES (V_OT_PK,inEMP_PK,'Y',inOT_ALLOW_TYPE,inOT_ALLOW_TIME,
+				                 inSTART_DT,inEND_DT,inOLD_CODE,inUSERID);
+			 END IF;
+	 ELSE
+ 	     V_ERROR := '40';
+	     UPDATE THR_OT_ALLOWANCE T
+	        SET T.OT_ALLOW      = inOT_ALLOW,
+		        T.OT_ALLOW_TYPE = inOT_ALLOW_TYPE,
+			    T.OT_ALLOW_TIME = inOT_ALLOW_TIME,
+			    T.START_DT      = inSTART_DT,
+			    T.END_DT		= inEND_DT,
+			    T.REMARK		= inOLD_CODE,
+			    T.MOD_BY		= inUSERID,
+				T.MOD_DT		= SYSDATE
+	      WHERE T.DEL_IF=0
+	        AND T.EMP_PK=inEMP_PK;
+	 END IF;
+     V_ERROR    :='50';
+	 outRESULT  := 1;
+
+	 COMMIT;
+	 RETURN;
+---------
+  EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error1, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error2, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+END Pr_Ot_Allowance;
+/
+CREATE OR REPLACE PROCEDURE PR_OT_LOAD( AS_MON  IN  VARCHAR2,   -- YYYYMM
+                      AS_USER IN  VARCHAR2,   -- User ID
+                      AS_RET_NUM OUT NUMBER,  -- RETURN VALUE(NUMBER)
+                      AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE(CHARACTER)
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+AN_CHECK		    NUMBER;
+AV_MON			    VARCHAR2(6);
+AV_CHECK_MON		VARCHAR2(1);
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = AS_MON
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+AN_SYS_ERROR_MSG := '20';
+	AV_MON := AS_MON;
+	IF AV_MON IS NULL THEN
+		SELECT TO_CHAR(SYSDATE, 'YYYYMM') INTO AV_MON
+		FROM DUAL;
+	END IF;
+
+AN_SYS_ERROR_MSG := '30';
+	BEGIN
+		DELETE THR_EMP_OT_MON
+		WHERE WORK_MON = AV_MON;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+AN_SYS_ERROR_MSG := '40';
+	BEGIN
+		INSERT INTO THR_EMP_OT_MON
+		( PK, EMP_PK, OT_TYPE, EMP_ID, GRP_CODE,
+		  FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, WORK_MON,
+		  D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10,
+		  D_11, D_12, D_13, D_14, D_15, D_16, D_17, D_18, D_19, D_20,
+		  D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30, D_31,
+		  TOT, DEL_IF, CRT_DT, CRT_BY
+		)
+		SELECT THR_EMP_OT_MON_SEQ.NEXTVAL, WORK.EMP_PK, WORK.OT_TYPE, NVL(EMP.EMP_ID,'NONE'), NVL(GRP.THR_ABWORKGRP_PK, 0),
+		       EMP.FULL_NAME, EMP.FULL_NAME_ENG, EMP.F_NAME, EMP.L_NAME, AV_MON,
+			D1, D2, D3, D4, D5, D6, D7, D8, D9, D10,
+			D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,
+			D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,
+			D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9 + D10 +
+			D11+ D12+ D13+ D14+ D15+ D16+ D17+ D18+ D19+ D20 +
+			D21+ D22+ D23+ D24+ D25+ D26+ D27+ D28+ D29+ D30+ D31,
+			0, SYSDATE, AS_USER
+		FROM (
+		SELECT  OT_TYPE,
+			EMP_PK,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '01', NVL(OT_TIME, 0), 0)) D1,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '02', NVL(OT_TIME, 0), 0)) D2,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '03', NVL(OT_TIME, 0), 0)) D3,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '04', NVL(OT_TIME, 0), 0)) D4,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '05', NVL(OT_TIME, 0), 0)) D5,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '06', NVL(OT_TIME, 0), 0)) D6,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '07', NVL(OT_TIME, 0), 0)) D7,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '08', NVL(OT_TIME, 0), 0)) D8,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '09', NVL(OT_TIME, 0), 0)) D9,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '10', NVL(OT_TIME, 0), 0)) D10,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '11', NVL(OT_TIME, 0), 0)) D11,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '12', NVL(OT_TIME, 0), 0)) D12,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '13', NVL(OT_TIME, 0), 0)) D13,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '14', NVL(OT_TIME, 0), 0)) D14,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '15', NVL(OT_TIME, 0), 0)) D15,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '16', NVL(OT_TIME, 0), 0)) D16,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '17', NVL(OT_TIME, 0), 0)) D17,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '18', NVL(OT_TIME, 0), 0)) D18,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '19', NVL(OT_TIME, 0), 0)) D19,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '20', NVL(OT_TIME, 0), 0)) D20,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '21', NVL(OT_TIME, 0), 0)) D21,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '22', NVL(OT_TIME, 0), 0)) D22,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '23', NVL(OT_TIME, 0), 0)) D23,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '24', NVL(OT_TIME, 0), 0)) D24,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '25', NVL(OT_TIME, 0), 0)) D25,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '26', NVL(OT_TIME, 0), 0)) D26,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '27', NVL(OT_TIME, 0), 0)) D27,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '28', NVL(OT_TIME, 0), 0)) D28,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '29', NVL(OT_TIME, 0), 0)) D29,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '30', NVL(OT_TIME, 0), 0)) D30,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '31', NVL(OT_TIME, 0), 0)) D31
+		FROM THR_EXTRA_TIME
+		WHERE WORK_DT LIKE AV_MON || '%'
+		AND DEL_IF = 0
+		AND NVL(APPLY_FLAG, 'N') = 'N'
+		GROUP BY OT_TYPE, EMP_PK ) WORK,
+		VHR_EMP EMP,
+		THR_GRP_EMP GRP
+		WHERE WORK.EMP_PK = EMP.PK(+)
+		  AND WORK.EMP_PK = GRP.EMP_PK(+)
+		  AND 0 = GRP.DEL_IF(+);
+AN_SYS_ERROR_MSG := '50';
+
+		COMMIT;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+AN_SYS_ERROR_MSG := '60';
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS            THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR... OTHER (PR_OT_LOAD) '|| SUBSTR(SQLERRM, 1, 100) );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error Other !';
+END  PR_OT_LOAD;
+/
+CREATE OR REPLACE PROCEDURE PR_OT_LOAD_B( AS_MON  IN  VARCHAR2,   -- YYYYMM
+                      AS_USER IN  VARCHAR2,   -- User ID
+                      AS_RET_NUM OUT NUMBER,  -- RETURN VALUE(NUMBER)
+                      AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE(CHARACTER)
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+AN_CHECK		NUMBER;
+AV_MON			VARCHAR2(6);
+AV_CHECK_MON		VARCHAR2(1);
+
+BEGIN
+
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = AS_MON
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+
+	AV_MON := AS_MON;
+	IF AV_MON IS NULL THEN
+		SELECT TO_CHAR(SYSDATE, 'YYYYMM') INTO AV_MON
+		FROM DUAL;
+	END IF;
+
+
+	BEGIN
+		DELETE THR_EMP_OT_MON_B
+		WHERE WORK_MON = AV_MON;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+	BEGIN
+		INSERT INTO THR_EMP_OT_MON_B
+		( PK, EMP_PK, EMP_ID, GRP_CODE,
+		  FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, WORK_MON,
+		  D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10,
+		  D_11, D_12, D_13, D_14, D_15, D_16, D_17, D_18, D_19, D_20,
+		  D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30, D_31,
+		  TOT, DEL_IF, CRT_DT, CRT_BY
+		)
+		SELECT THR_EMP_OT_MON_B_SEQ.NEXTVAL, WORK.EMP_PK, NVL(EMP.EMP_ID,'NONE'), NVL(GRP.THR_ABWORKGRP_PK, 'NON'),
+		       EMP.FULL_NAME, EMP.FULL_NAME_ENG, EMP.F_NAME, EMP.L_NAME, AV_MON,
+			D1, D2, D3, D4, D5, D6, D7, D8, D9, D10,
+			D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,
+			D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,
+			D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9 + D10 +
+			D11+ D12+ D13+ D14+ D15+ D16+ D17+ D18+ D19+ D20 +
+			D21+ D22+ D23+ D24+ D25+ D26+ D27+ D28+ D29+ D30+ D31,
+			0, SYSDATE, AS_USER
+		FROM (
+		SELECT  EMP_PK,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '01', NVL(B_OT_TIME, 0), 0)) D1,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '02', NVL(B_OT_TIME, 0), 0)) D2,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '03', NVL(B_OT_TIME, 0), 0)) D3,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '04', NVL(B_OT_TIME, 0), 0)) D4,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '05', NVL(B_OT_TIME, 0), 0)) D5,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '06', NVL(B_OT_TIME, 0), 0)) D6,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '07', NVL(B_OT_TIME, 0), 0)) D7,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '08', NVL(B_OT_TIME, 0), 0)) D8,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '09', NVL(B_OT_TIME, 0), 0)) D9,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '10', NVL(B_OT_TIME, 0), 0)) D10,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '11', NVL(B_OT_TIME, 0), 0)) D11,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '12', NVL(B_OT_TIME, 0), 0)) D12,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '13', NVL(B_OT_TIME, 0), 0)) D13,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '14', NVL(B_OT_TIME, 0), 0)) D14,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '15', NVL(B_OT_TIME, 0), 0)) D15,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '16', NVL(B_OT_TIME, 0), 0)) D16,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '17', NVL(B_OT_TIME, 0), 0)) D17,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '18', NVL(B_OT_TIME, 0), 0)) D18,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '19', NVL(B_OT_TIME, 0), 0)) D19,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '20', NVL(B_OT_TIME, 0), 0)) D20,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '21', NVL(B_OT_TIME, 0), 0)) D21,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '22', NVL(B_OT_TIME, 0), 0)) D22,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '23', NVL(B_OT_TIME, 0), 0)) D23,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '24', NVL(B_OT_TIME, 0), 0)) D24,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '25', NVL(B_OT_TIME, 0), 0)) D25,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '26', NVL(B_OT_TIME, 0), 0)) D26,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '27', NVL(B_OT_TIME, 0), 0)) D27,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '28', NVL(B_OT_TIME, 0), 0)) D28,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '29', NVL(B_OT_TIME, 0), 0)) D29,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '30', NVL(B_OT_TIME, 0), 0)) D30,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '31', NVL(B_OT_TIME, 0), 0)) D31
+		FROM THR_EXTRA_TIME
+		WHERE WORK_DT LIKE AV_MON || '%'
+		AND DEL_IF = 0
+		AND OT_TYPE = 'OT'
+		AND NVL(APPLY_FLAG, 'N') = 'N'
+		GROUP BY EMP_PK ) WORK,
+		VHR_EMP EMP,
+		THR_GRP_EMP GRP
+		WHERE WORK.EMP_PK = EMP.PK(+)
+		  AND WORK.EMP_PK = GRP.EMP_PK(+)
+		  AND 0 = GRP.DEL_IF(+);
+
+
+		COMMIT;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+
+
+	/* INSERTING TO NIGHT TIME  */
+	BEGIN
+		DELETE THR_EMP_NT_MON_B
+		WHERE WORK_MON = AV_MON;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+	BEGIN
+		INSERT INTO THR_EMP_NT_MON_B
+		( PK, EMP_PK, EMP_ID, GRP_CODE,
+		  FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, WORK_MON,
+		  D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10,
+		  D_11, D_12, D_13, D_14, D_15, D_16, D_17, D_18, D_19, D_20,
+		  D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30, D_31,
+		  TOT, DEL_IF, CRT_DT, CRT_BY
+		)
+		SELECT THR_EMP_OT_MON_B_SEQ.NEXTVAL, WORK.EMP_PK, NVL(EMP.EMP_ID,'NONE'), NVL(GRP.THR_ABWORKGRP_PK, 'NON'),
+		       EMP.FULL_NAME, EMP.FULL_NAME_ENG, EMP.F_NAME, EMP.L_NAME, AV_MON,
+			D1, D2, D3, D4, D5, D6, D7, D8, D9, D10,
+			D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,
+			D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,
+			D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9 + D10 +
+			D11+ D12+ D13+ D14+ D15+ D16+ D17+ D18+ D19+ D20 +
+			D21+ D22+ D23+ D24+ D25+ D26+ D27+ D28+ D29+ D30+ D31,
+			0, SYSDATE, AS_USER
+		FROM (
+		SELECT  EMP_PK,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '01', NVL(B_OT_TIME, 0), 0)) D1,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '02', NVL(B_OT_TIME, 0), 0)) D2,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '03', NVL(B_OT_TIME, 0), 0)) D3,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '04', NVL(B_OT_TIME, 0), 0)) D4,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '05', NVL(B_OT_TIME, 0), 0)) D5,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '06', NVL(B_OT_TIME, 0), 0)) D6,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '07', NVL(B_OT_TIME, 0), 0)) D7,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '08', NVL(B_OT_TIME, 0), 0)) D8,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '09', NVL(B_OT_TIME, 0), 0)) D9,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '10', NVL(B_OT_TIME, 0), 0)) D10,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '11', NVL(B_OT_TIME, 0), 0)) D11,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '12', NVL(B_OT_TIME, 0), 0)) D12,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '13', NVL(B_OT_TIME, 0), 0)) D13,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '14', NVL(B_OT_TIME, 0), 0)) D14,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '15', NVL(B_OT_TIME, 0), 0)) D15,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '16', NVL(B_OT_TIME, 0), 0)) D16,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '17', NVL(B_OT_TIME, 0), 0)) D17,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '18', NVL(B_OT_TIME, 0), 0)) D18,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '19', NVL(B_OT_TIME, 0), 0)) D19,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '20', NVL(B_OT_TIME, 0), 0)) D20,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '21', NVL(B_OT_TIME, 0), 0)) D21,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '22', NVL(B_OT_TIME, 0), 0)) D22,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '23', NVL(B_OT_TIME, 0), 0)) D23,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '24', NVL(B_OT_TIME, 0), 0)) D24,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '25', NVL(B_OT_TIME, 0), 0)) D25,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '26', NVL(B_OT_TIME, 0), 0)) D26,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '27', NVL(B_OT_TIME, 0), 0)) D27,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '28', NVL(B_OT_TIME, 0), 0)) D28,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '29', NVL(B_OT_TIME, 0), 0)) D29,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '30', NVL(B_OT_TIME, 0), 0)) D30,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '31', NVL(B_OT_TIME, 0), 0)) D31
+		FROM THR_EXTRA_TIME
+		WHERE WORK_DT LIKE  AV_MON || '%'
+		AND DEL_IF = 0
+		AND OT_TYPE = 'NT'
+		AND NVL(APPLY_FLAG, 'N') = 'N'
+		GROUP BY EMP_PK ) WORK,
+		VHR_EMP EMP,
+		THR_GRP_EMP GRP
+		WHERE WORK.EMP_PK = EMP.PK(+)
+		  AND WORK.EMP_PK = GRP.EMP_PK(+)
+		  AND 0  = GRP.DEL_IF(+);
+
+		COMMIT;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+
+
+
+	/* INSERTING TO HOLIDAY TIME  */
+	BEGIN
+		DELETE THR_EMP_HT_MON_B
+		WHERE WORK_MON = AV_MON;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+	BEGIN
+		INSERT INTO THR_EMP_HT_MON_B
+		( PK, EMP_PK, EMP_ID, GRP_CODE,
+		  FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME, WORK_MON,
+		  D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10,
+		  D_11, D_12, D_13, D_14, D_15, D_16, D_17, D_18, D_19, D_20,
+		  D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30, D_31,
+		  TOT, DEL_IF, CRT_DT, CRT_BY
+		)
+		SELECT THR_EMP_OT_MON_B_SEQ.NEXTVAL, WORK.EMP_PK, NVL(EMP.EMP_ID,'NONE'), NVL(GRP.THR_ABWORKGRP_PK, 'NON'),
+		       EMP.FULL_NAME, EMP.FULL_NAME_ENG, EMP.F_NAME, EMP.L_NAME, AV_MON,
+			D1, D2, D3, D4, D5, D6, D7, D8, D9, D10,
+			D11,D12,D13,D14,D15,D16,D17,D18,D19,D20,
+			D21,D22,D23,D24,D25,D26,D27,D28,D29,D30,D31,
+			D1 + D2 + D3 + D4 + D5 + D6 + D7 + D8 + D9 + D10 +
+			D11+ D12+ D13+ D14+ D15+ D16+ D17+ D18+ D19+ D20 +
+			D21+ D22+ D23+ D24+ D25+ D26+ D27+ D28+ D29+ D30+ D31,
+			0, SYSDATE, AS_USER
+		FROM (
+		SELECT  EMP_PK,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '01', NVL(B_OT_TIME, 0), 0)) D1,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '02', NVL(B_OT_TIME, 0), 0)) D2,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '03', NVL(B_OT_TIME, 0), 0)) D3,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '04', NVL(B_OT_TIME, 0), 0)) D4,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '05', NVL(B_OT_TIME, 0), 0)) D5,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '06', NVL(B_OT_TIME, 0), 0)) D6,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '07', NVL(B_OT_TIME, 0), 0)) D7,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '08', NVL(B_OT_TIME, 0), 0)) D8,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '09', NVL(B_OT_TIME, 0), 0)) D9,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '10', NVL(B_OT_TIME, 0), 0)) D10,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '11', NVL(B_OT_TIME, 0), 0)) D11,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '12', NVL(B_OT_TIME, 0), 0)) D12,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '13', NVL(B_OT_TIME, 0), 0)) D13,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '14', NVL(B_OT_TIME, 0), 0)) D14,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '15', NVL(B_OT_TIME, 0), 0)) D15,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '16', NVL(B_OT_TIME, 0), 0)) D16,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '17', NVL(B_OT_TIME, 0), 0)) D17,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '18', NVL(B_OT_TIME, 0), 0)) D18,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '19', NVL(B_OT_TIME, 0), 0)) D19,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '20', NVL(B_OT_TIME, 0), 0)) D20,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '21', NVL(B_OT_TIME, 0), 0)) D21,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '22', NVL(B_OT_TIME, 0), 0)) D22,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '23', NVL(B_OT_TIME, 0), 0)) D23,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '24', NVL(B_OT_TIME, 0), 0)) D24,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '25', NVL(B_OT_TIME, 0), 0)) D25,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '26', NVL(B_OT_TIME, 0), 0)) D26,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '27', NVL(B_OT_TIME, 0), 0)) D27,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '28', NVL(B_OT_TIME, 0), 0)) D28,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '29', NVL(B_OT_TIME, 0), 0)) D29,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '30', NVL(B_OT_TIME, 0), 0)) D30,
+		        SUM(DECODE(SUBSTR(WORK_DT,  7, 2), '31', NVL(B_OT_TIME, 0), 0)) D31
+		FROM THR_EXTRA_TIME
+		WHERE WORK_DT LIKE  AV_MON || '%'
+		AND DEL_IF = 0
+		AND OT_TYPE = 'HT'
+		AND NVL(APPLY_FLAG, 'N') = 'N'
+		GROUP BY EMP_PK ) WORK,
+		VHR_EMP EMP,
+		THR_GRP_EMP GRP
+		WHERE WORK.EMP_PK = EMP.PK(+)
+		  AND WORK.EMP_PK = GRP.EMP_PK(+)
+		  AND 0  = GRP.DEL_IF(+);
+
+		COMMIT;
+
+		EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+	              AN_CHECK := 0;
+	END;
+
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS            THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_OT_LOAD_B) '|| SUBSTR(SQLERRM, 1, 100) );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error Other !';
+END  PR_OT_LOAD_B;
+/
+CREATE OR REPLACE PROCEDURE Pr_Ot_Recal_Sup
+(
+AS_ACTION 		    IN  VARCHAR2,
+AS_GROUP			IN	THR_TIME_MACHINE.GRP_CODE%TYPE,
+AS_FROM 		   	IN 	VARCHAR2,
+AS_WSHIFT			IN  NUMBER,
+AS_IN				IN  VARCHAR2,
+AS_OUT				IN  VARCHAR2,
+AS_WORKTIME			IN  NUMBER,
+--AS_HAVEDINNER		IN  VARCHAR2,
+AS_EMPPK			IN  NUMBER,
+AS_V				IN	NUMBER,
+AS_LOSE_INDUS_AMT   IN NUMBER,
+--AS_EATNIGHT			IN  VARCHAR2,
+AS_USER 			IN	VARCHAR2,
+AS_RET_NUM			OUT	NUMBER,
+AS_RET_VAR			OUT	VARCHAR2
+)
+IS
+  	V_NUM		NUMBER;
+    V_ERROR      VARCHAR2(10):= '0';
+	V_GROUP 	 NUMBER(10)  := '0';
+	V_START_TIME VARCHAR2(5) := '';
+	V_END_TIME	 VARCHAR2(5) := '';
+	V_DEPT		 NUMBER(10)  := '0';
+	V_CHECK_SHIFT NUMBER(1):=0;
+	CLOSE_NUM	NUMBER(1):=0; 
+	HOURS_IN_SH	NUMBER(2):=0;
+	V_DATE   VARCHAR2(8):=0;
+BEGIN
+
+SELECT SUBSTR(AS_FROM,7,4)||SUBSTR(AS_FROM,4,2)||SUBSTR(AS_FROM,1,2) INTO   V_DATE
+FROM DUAL;
+
+SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(V_DATE,1,4)||SUBSTR(V_DATE,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+	   ELSE
+						   SELECT COUNT(M.PK) INTO CLOSE_NUM FROM THR_TIME_MACHINE M
+   						   WHERE M.DEL_IF=0 AND M.WORK_DT = V_DATE
+   		 				   AND M.EMP_PK=AS_EMPPK AND M.CLOSE_FLAG='Y';
+						    IF  CLOSE_NUM>0 THEN
+								   	   	 RAISE_APPLICATION_ERROR(-20001,'');
+							END IF;
+	
+	END IF;
+	IF AS_ACTION = 'UPDATE' THEN
+	    V_ERROR := '10';
+		
+				V_ERROR := '20';
+		SELECT W.START_TIME,W.END_TIME,W.WT INTO V_START_TIME,V_END_TIME,HOURS_IN_SH
+		  FROM THR_WORK_SHIFT W
+		 WHERE W.DEL_IF = 0
+		   AND W.PK     = AS_WSHIFT;  
+
+		
+		UPDATE THR_TIME_MACHINE
+		   SET
+			   W_SHIFT     = AS_WSHIFT,		     	  
+       	       WORT_TIME   = AS_WORKTIME,
+       	       MOD_BY      = AS_USER,
+       	       MOD_DT      = SYSDATE,
+			   HOURS_IN_SHIFT=HOURS_IN_SH
+		 WHERE
+        	   EMP_PK  = AS_EMPPK
+		   AND WORK_DT  = V_DATE
+		   AND APPLY_FLAG <> 'Y';
+		   
+
+		
+		
+
+			IF (AS_IN IS NULL) OR (AS_OUT IS NULL) THEN  
+				UPDATE  THR_TIME_MACHINE 
+				SET
+				   	 P_IN = AS_IN,
+  	   			     P_OUT       = AS_OUT,
+					   WORT_TIME   = 0,
+       	               MOD_BY      = AS_USER,
+       	               MOD_DT      = SYSDATE
+   		        WHERE
+        	           EMP_PK  = AS_EMPPK
+		          AND WORK_DT  = V_DATE
+				  AND APPLY_FLAG <> 'Y';
+				  
+				  DELETE THR_EXTRA_TIME A
+				  WHERE A.DEL_IF=0 AND A.WORK_DT=V_DATE 
+				  AND  A.EMP_PK=AS_EMPPK AND A.APPLY_FLAG<>'Y';
+				  
+				  COMMIT;
+				  RETURN;
+			ELSE
+				
+			   UPDATE  THR_TIME_MACHINE
+				SET
+					   P_IN        = AS_IN,	   
+					   P_OUT       = AS_OUT,
+       	               WORT_TIME   = AS_WORKTIME,
+       	               MOD_BY      = AS_USER,
+       	               MOD_DT      = SYSDATE
+		        WHERE
+        	           EMP_PK  = AS_EMPPK
+		          AND WORK_DT  = V_DATE
+				  AND APPLY_FLAG <> 'Y';
+			END IF;		
+	  
+
+
+    	V_ERROR := '50';
+	/*	SELECT COUNT(B.PK) INTO V_CHECK_SHIFT FROM THR_WORK_SHIFT B 
+		WHERE B.DEL_IF = 0 AND B.START_TIME > B.END_TIME AND B.PK = AS_WSHIFT;
+		
+		SELECT A.DEPT_PK INTO V_DEPT FROM VHR_EMP A WHERE A.PK = AS_EMPPK;
+		IF (V_CHECK_SHIFT>0)OR(V_DEPT=54)OR(V_DEPT=55) THEN --tinh cho ca dem
+		   	 -- PR_CALCULATE_ALL2(AS_EMPPK,AS_WSHIFT,V_DATE,AS_USER,AS_RET_NUM,AS_RET_VAR);
+			 PR_CALCULATE_ALL3(AS_EMPPK,AS_WSHIFT,V_DATE,AS_GROUP,AS_USER,AS_RET_NUM,AS_RET_VAR);
+			  
+		ELSE
+				PR_CALCULATE_ALL(AS_EMPPK,V_DATE,AS_USER,AS_RET_NUM,AS_RET_VAR);
+		END IF;*/
+		Pr_Calculate_All(AS_EMPPK,V_DATE,AS_USER,AS_V,AS_LOSE_INDUS_AMT,AS_RET_NUM,AS_RET_VAR);
+	END IF;
+	
+		  
+    IF AS_ACTION = 'INSERT' THEN
+	 	   
+		   V_ERROR := '60';
+		   SELECT G.THR_ABWORKGRP_PK INTO V_GROUP 
+		     FROM THR_GRP_EMP G
+		    WHERE G.DEL_IF=0
+			  AND G.EMP_PK = AS_EMPPK
+			  AND G.START_DT = V_DATE;
+		   
+		   V_ERROR := '70';	  --P2_IN,P2_OUT DUNG CHO CHUC NANG RESTORE
+		   INSERT INTO THR_TIME_MACHINE( PK,GRP_CODE,EMP_PK,WORK_DT, 
+       	   		  	   					 W_SHIFT,P_IN,P_OUT,WORT_TIME,
+       									 APPLY_FLAG,DEL_IF,CRT_DT,CRT_BY,P2_IN,P2_OUT)
+		   VALUES (THR_TIME_MACHINE_SEQ.NEXTVAL,V_GROUP,AS_EMPPK,V_DATE,
+            	   AS_WSHIFT,AS_IN,AS_OUT,AS_WORKTIME,
+                   'N',0,SYSDATE,AS_USER,AS_IN,AS_OUT);
+
+		   V_ERROR := '80';
+		   
+		  UPDATE THR_EMP_ABSENT A -- delete absent mr.truong
+		   SET A.DEL_IF = A.PK
+		   WHERE A.EMP_PK = AS_EMPPK AND A.ABS_DT = V_DATE AND A.DEL_IF = 0;
+		
+		   Pr_Calculate_All(AS_EMPPK,V_DATE,AS_USER,AS_V,AS_LOSE_INDUS_AMT,AS_RET_NUM,AS_RET_VAR);
+	END IF;	
+		      	 
+	IF AS_ACTION = 'DELETE' THEN
+	       V_ERROR := '90';
+	 	   UPDATE THR_TIME_MACHINE T
+		      SET T.DEL_IF = T.PK,			      
+  			      T.MOD_DT = SYSDATE,
+                  T.MOD_BY = AS_USER
+            WHERE T.EMP_PK = AS_EMPPK
+			  AND T.WORK_DT= V_DATE;
+		
+			
+			UPDATE THR_EXTRA_TIME K
+		      SET K.DEL_IF = K.PK,			      
+  			      K.MOD_DT = SYSDATE,
+                  K.MOD_BY = AS_USER
+            WHERE K.EMP_PK = AS_EMPPK
+			  AND K.WORK_DT= V_DATE;
+		
+			
+	V_NUM:=0;
+	 SELECT COUNT(Q.EMP_PK) INTO V_NUM FROM THR_EMP_ABSENT Q
+	 WHERE 	   Q.EMP_PK = AS_EMPPK  AND Q.ABS_DT = V_DATE AND Q.DEL_IF = 0 ;
+	 
+	 SELECT COUNT(C.PK) + V_NUM INTO V_NUM FROM TCO_ABCALENDAR C 
+	 WHERE 	C.CAR_DATE= V_DATE AND C.DEL_IF = 0  AND  C.HOL_TYPE IS NOT NULL;     
+		
+		IF V_NUM = 0 THEN
+				INSERT INTO THR_EMP_ABSENT
+			               (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, WORK_SHIFT
+			               ,COM_PAY_FLAG, COM_RATE,COM_AMT,INS_PAY_FLAG,INS_RATE
+						   ,ABSENT_TIME,POS_CODE, DEL_IF, CRT_DT, CRT_BY,START_DT,END_DT)
+					VALUES(THR_EMP_ABSENT_SEQ.NEXTVAL,AS_GROUP,AS_EMPPK,'NON',V_DATE,AS_WSHIFT
+									,'N',0,0,'N',NULL,8,NULL, 0, SYSDATE, AS_USER,V_DATE,V_DATE);
+		END IF;
+	 	   
+	END IF;
+
+	  V_ERROR := '100';
+	  COMMIT;
+	  AS_RET_NUM := 0;
+	  AS_RET_VAR := V_ERROR || 'Successful Process !';
+		  
+EXCEPTION
+	WHEN OTHERS THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+				RAISE_APPLICATION_ERROR(-20002, V_ERROR ||'ERROR..'||'. OTHER (PR_OT_RECAL_SUP) '||SQLERRM );
+				AS_RET_NUM := -1;
+				AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+      END IF;				
+END Pr_Ot_Recal_Sup;
+/
+CREATE OR REPLACE PROCEDURE Pr_Process_Ot( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+                            AS_USER IN  VARCHAR2,  -- USER ID
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_TO_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+REG_NUM				NUMBER(10):=0;
+
+
+BEGIN
+
+--- OFFICE KO TINH TANG CA IL JUNG
+
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+	AV_FROM_DT := AS_FROM;
+	
+					--CALCULATE OVER TIME (NEED THE HOLIDAY TIME CALCULATIN)
+					    BEGIN
+						    SELECT COUNT(A.PK)
+							  INTO AN_CNT
+					          FROM COMM.TCO_ABCALENDAR A
+					         WHERE A.DEL_IF = 0
+					           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+					           AND A.CAR_DATE = AS_FROM;
+					
+						    IF AN_CNT = 1 THEN
+					   -- THERE IS TWO CASE 1: P_IN IS NOT NULL  NORMAL SHIFT, 2: P_IN IS NULL NIGHT SHIFT
+							   --1: INSERT FOR NORMAL SHIFT
+							   AN_SYS_ERROR_MSG := '20';
+							   			INSERT INTO THR_EXTRA_TIME
+							                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+							                   ,OT_TIME,B_OT_TIME
+							                   ,START_TIME, END_TIME, B_END_TIME
+							                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+							            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							                   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN) AS HT
+											   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN) AS HT
+											   ,B.P_IN, B.P_OUT, B.P_OUT
+							                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+							              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C --, THR_ABEMPMAS D
+							             WHERE A.DEL_IF = 0
+							               AND B.DEL_IF = 0
+							               AND C.DEL_IF = 0
+							               AND A.PK = B.EMP_PK
+							               AND B.W_SHIFT = C.PK
+							               AND B.WORK_DT = AS_FROM
+										   AND F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)>0
+										   AND B.P_OUT IS NOT NULL
+										   AND B.P_IN IS NOT NULL
+										   AND C.NT=0
+										   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+									                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);
+											--AND A.EMP_ID_STYLE='00'; -- CONG NHAN 
+											
+							
+						    ELSE
+								--ENTRY OT
+								AN_SYS_ERROR_MSG := '30';
+							   INSERT INTO THR_EXTRA_TIME
+							                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+							                   ,OT_TIME,B_OT_TIME
+							                   ,START_TIME, END_TIME, B_END_TIME
+							                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+							            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							                   ,F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)  AS OT_TIME
+											   ,F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN)  AS B_OT_TIME
+											   ,C.START_OT, B.P_OUT, B.P_OUT
+							                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+							              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+							             WHERE A.DEL_IF = 0
+							               AND B.DEL_IF = 0
+										   AND D.DEL_IF = 0
+										   AND C.DEL_IF = 0
+							               AND A.PK = B.EMP_PK
+										   AND A.PK = D.THR_ABEMP_PK
+										   AND B.W_SHIFT = C.PK
+							               AND B.WORK_DT = AS_FROM
+										   AND B.P_OUT IS NOT NULL
+										   AND B.P_IN IS NOT NULL
+										   AND F_Get_Ot(C.START_OT,B.P_OUT,C.PK,B.P_IN) >0.5
+								    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+							    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+										   AND A.PK NOT IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_FROM AND E.END_DT >= AS_FROM AND E.EMP_PK = A.PK);
+										   --AND A.EMP_ID_STYLE='00'; -- CONG NHAN Mr My  : moi nguoi due co tang ca
+										   
+										   
+										   
+								AN_SYS_ERROR_MSG := '35';
+								--INSERT CHO NHUNG NGUOI THAI SAN TANG CA
+							   INSERT INTO THR_EXTRA_TIME
+							                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+							                   ,OT_TIME,B_OT_TIME
+							                   ,START_TIME, END_TIME, B_END_TIME
+							                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+							            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							                   ,F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN)  AS OT_TIME
+											   ,F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN)  AS B_OT_TIME
+											   ,C.START_OT, B.P_OUT, B.P_OUT
+							                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+							              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+							             WHERE A.DEL_IF = 0
+							               AND B.DEL_IF = 0
+										   AND D.DEL_IF = 0
+										   AND C.DEL_IF = 0
+							               AND A.PK = B.EMP_PK
+										   AND A.PK = D.THR_ABEMP_PK
+										   AND B.W_SHIFT = C.PK
+							               AND B.WORK_DT = AS_FROM
+										   AND B.P_OUT IS NOT NULL
+										   AND B.P_IN IS NOT NULL
+										   AND F_Get_Ot(F_MINUS_HOUR(C.END_TIME,1),B.P_OUT,C.PK,B.P_IN) >0.5
+								    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+							    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+										   AND A.PK IN (SELECT E.EMP_PK FROM THR_OT_ALLOWANCE E WHERE E.DEL_IF = 0 AND E.START_DT <= AS_FROM AND E.END_DT >= AS_FROM AND E.EMP_PK = A.PK);
+										   --AND A.EMP_ID_STYLE='00'; -- CONG NHAN
+
+										   
+															 
+										--INSERT NT CHO CA NGAY  VA CA DEM --CAN CU VAO START NT TRONG WORK SHIFT
+										
+										 INSERT INTO THR_EXTRA_TIME
+							                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+							                   ,OT_TIME,B_OT_TIME
+							                   ,START_TIME, END_TIME, B_END_TIME
+							                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+							            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+							                   ,F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN)  AS OT_TIME
+											   ,F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN)  AS B_OT_TIME
+											   ,C.START_NT, B.P_OUT, B.P_OUT
+							                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+							              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+							             WHERE A.DEL_IF = 0
+							               AND B.DEL_IF = 0
+										   AND D.DEL_IF = 0
+										   AND C.DEL_IF = 0
+							               AND A.PK = B.EMP_PK
+										   AND A.PK = D.THR_ABEMP_PK
+										   AND B.W_SHIFT = C.PK
+							               AND B.WORK_DT = AS_FROM
+										   AND B.P_OUT IS NOT NULL
+										   AND B.P_IN IS NOT NULL
+										   AND F_Cal_Nt(C.START_NT,B.P_OUT,C.PK,B.P_IN) >0
+								    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+							    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'NT' AND D.WORK_DT = AS_FROM);
+											--AND A.EMP_ID_STYLE='00'; -- CONG NHAN
+
+					
+							END IF;
+					
+						END;
+					-- XU LY DANG KY OT 
+		BEGIN
+													
+									SELECT COUNT(E.PK) INTO REG_NUM FROM THR_ET_EXTRA_TIME E
+									WHERE E.DEL_IF=0 AND E.WORK_DT=AS_FROM;
+								
+										IF REG_NUM>0 THEN -- da lam lich dang ky t/c roi
+										   				AN_SYS_ERROR_MSG := '50';
+														--DATA FLAG = N : LUU BAN SAO CUA DONG DU LIEU GOC (CO TANG CA NHUNG KO DANG KY)
+														-- luu ban goc 
+													INSERT INTO THR_EXTRA_TIME
+												                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+												                   ,OT_TIME,B_OT_TIME
+												                   ,START_TIME, END_TIME, B_END_TIME
+												                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY,DATA_FLAG)
+													SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,A.OT_TYPE,A.GRP_CODE,A.WORK_DT,A.EMP_PK,A.FULL_NAME,A.W_SHIFT,A.OT_TIME
+													,A.B_OT_TIME,A.START_TIME,A.END_TIME,A.B_END_TIME,A.REMARK,A.PK AS DEL_IF,A.APPLY_FLAG,SYSDATE
+													,AS_USER,'N'
+													FROM THR_EXTRA_TIME A
+								   					   						  ,(SELECT B.EMP_PK AS EMP_PK,B.OT_TIME  AS OT_TIME,B.OT_TYPE AS OT_TYPE
+								   					   						  	 	 	  				 		   FROM THR_ET_EXTRA_TIME B
+								   			 	  							  				 				   WHERE B.DEL_IF=0 AND B.WORK_DT=AS_FROM )REG
+																			WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM 
+																			AND A.EMP_PK=REG.EMP_PK
+																			AND A.OT_TYPE=REG.OT_TYPE
+																			AND A.EMP_PK NOT IN(SELECT T.EMP_PK FROM THR_EXTRA_TIME T WHERE T.DEL_IF<>0 
+																						 	  AND T.DATA_FLAG='N' AND T.WORK_DT=AS_FROM
+																							 GROUP BY T.EMP_PK);
+														
+													-- UPDATE GIO TANG CA NEU GIO TC > GIO DANG KY	
+														UPDATE THR_EXTRA_TIME A
+														SET A.OT_TIME =(SELECT B.OT_TIME FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 AND B.EMP_PK=A.EMP_PK 
+																	  		   			 	  AND B.WORK_DT=A.WORK_DT AND B.OT_TYPE=A.OT_TYPE AND B.WORK_DT = AS_FROM)
+																,A.DATA_FLAG=NULL 
+														WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+														AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+																	 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)>NVL(B.OT_TIME,0));
+							
+											/*		-- UPDATE GIO TANG CA NEU GIO TC < GIO DANG KY =>LAY GIO DANG KY	
+														UPDATE THR_EXTRA_TIME A
+														SET A.DATA_FLAG='NULL' 
+														WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+														AND A.EMP_PK IN (SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+																	 	AND B.WORK_DT=AS_FROM AND A.OT_TYPE=B.OT_TYPE AND NVL(A.OT_TIME,0)<NVL(B.OT_TIME,0));
+							
+												*/
+													-- luu lai gio tang ca nhung chua dang ky
+												
+													UPDATE THR_EXTRA_TIME A
+													SET A.DEL_IF=A.PK
+															,A.DATA_FLAG='N'
+													WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+													AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+																	 	AND B.WORK_DT=AS_FROM GROUP BY B.EMP_PK );
+																		
+													-- RANDOM KHI VA CHI KHI GIO TC >GIO DANG KY 
+													
+													
+													UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=(SELECT MAX(ET.END_TIME)  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM AND ET.WORK_DT=T.WORK_DT
+																				  					AND ET.EMP_PK=T.EMP_PK GROUP BY ET.EMP_PK)
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM 
+													AND T.P_OUT IS NOT NULL AND T.APPLY_FLAG<>'Y'
+													AND T.P_IN IS NOT NULL
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  					GROUP BY EX.EMP_PK);
+										
+													
+													
+													UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':'||(TO_NUMBER(SUBSTR(T.P_OUT,4,2))+ABS(MOD(DBMS_RANDOM.Random,15)))
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL AND T.P_IN IS NOT NULL
+													AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<45 AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))>9 
+													AND T.APPLY_FLAG<>'Y'
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  					GROUP BY EX.EMP_PK);
+										
+													
+											UPDATE THR_TIME_MACHINE T
+													SET T.P_OUT=SUBSTR(T.P_OUT,1,2)||':0'||ABS(MOD(DBMS_RANDOM.Random,10))
+													WHERE T.DEL_IF=0 AND T.WORK_DT=AS_FROM AND T.P_OUT IS NOT NULL
+													AND T.APPLY_FLAG<>'Y' AND T.P_IN IS NOT NULL
+													AND TO_NUMBER(SUBSTR(T.P_OUT,4,2))<10  
+													AND T.EMP_PK IN (SELECT ET.EMP_PK  FROM THR_ET_EXTRA_TIME ET
+																				  WHERE ET.DEL_IF=0 AND ET.WORK_DT=AS_FROM 
+																				  					GROUP BY ET.EMP_PK)
+													AND T.EMP_PK IN (SELECT EX.EMP_PK  FROM THR_EXTRA_TIME EX
+																				  WHERE EX.DEL_IF=0 AND EX.WORK_DT=AS_FROM AND NVL(EX.OT_TIME,0)>0
+																				  					GROUP BY EX.EMP_PK);
+											
+											
+										END IF;
+
+					END;
+					
+/*					-- KHONG CHO TANG CA NUA TIENG . CHI VO VAN PHONG DC TANG CA 1/2 TIENG
+					UPDATE THR_EXTRA_TIME E
+					SET E.OT_TIME=0 
+					WHERE E.DEL_IF = 0  
+						  		   AND E.OT_TIME <= 0.5 
+								   AND E.GRP_CODE NOT IN ( SELECT PK FROM THR_ABWORKGRP G WHERE G.DEL_IF=0  AND  G.TCO_EODEPT_PK=4) -- 4 LA PK CUA  OFFICE   
+								   AND 	E.WORK_DT=AS_FROM;			
+					--- TAI XE KO TINH TANG CA NGAY THUONG
+					UPDATE THR_EXTRA_TIME E
+					SET E.OT_TIME = 0 
+					WHERE E.DEL_IF = 0 
+						  		   AND (E.GRP_CODE = 316 OR E.EMP_PK IN (265,282,433) ) --316 LA PK CUA NHOM DRIVER
+								   AND E.WORK_DT=AS_FROM
+								   AND E.OT_TYPE <>'HT';
+*/								   
+								    
+					
+	COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_PROCESS_OT) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Process_Ot;
+/
+CREATE OR REPLACE PROCEDURE PR_RECREATE_OT
+   ( AS_IN   IN  VARCHAR2,
+   	 AS_OUT  IN VARCHAR2,
+   	 AS_APPLY_FLAG VARCHAR2,
+     AS_WORT_TIME NUMBER,
+   	 AS_FROM IN  VARCHAR2,  -- YYYYMMDD --
+     AS_EMP_PK  IN  VARCHAR2,--GROUP --
+     AS_TM_PK IN NUMBER,
+	 AS_USER IN  VARCHAR2,  -- USER ID --
+     AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+     AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+	)
+IS
+
+AN_CNT			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+/******************************************************************************
+   NAME:       PR_RECREATE_OT
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        16-02-05     THANH     1. Created this procedure.
+  
+
+******************************************************************************/
+BEGIN
+-- Update IN, OUT TIME
+/*
+update THR_TIME_MACHINE
+set 
+       P_IN       = $8,
+       P_OUT      = $9,
+       APPLY_FLAG = $10,
+       WORT_TIME =	$14, 
+       MOD_BY     = $(loginid), 
+       MOD_DT     = SYSDATE 
+where 
+       PK = $1
+*/
+	BEGIN
+       update THR_TIME_MACHINE
+       set 
+              P_IN       = AS_IN,
+              P_OUT      = AS_OUT,
+              APPLY_FLAG = AS_APPLY_FLAG,
+              WORT_TIME =	AS_WORT_TIME, 
+              MOD_BY     = AS_USER, 
+              MOD_DT     = SYSDATE 
+       where 
+              PK = AS_TM_PK;
+	 
+	END;    
+--
+-- Delete
+   BEGIN 
+      Update THR_EXTRA_TIME e
+      set e.DEL_IF=e.pk 
+      where e.EMP_PK=AS_EMP_PK and e.WORK_DT= AS_FROM;
+   END;
+   
+--
+
+
+--CALCULATE OVER TIME (NEED THE HOLIDAY TIME CALCULATIN)
+    BEGIN
+	    SELECT COUNT(A.PK)
+		  INTO AN_CNT
+          FROM COMM.TCO_ABCALENDAR A
+         WHERE A.DEL_IF = 0
+           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+           AND A.CAR_DATE = AS_FROM;
+
+	    IF AN_CNT = 1 THEN
+		    INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+			       ,F_GET_HT(B.P_IN,B.P_OUT),F_GET_HT(B.P_IN,B.P_OUT)
+                   ,B.P_IN, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+               AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+--		       AND F_GET_HT(B.P_IN,B.P_OUT) > 0
+		       AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+		                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);
+	    ELSE
+			--ENTRY OT
+    	    INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+                   ,C.OT+F_GET_OT(C.END_TIME,B.P_OUT) AS OT_TIME, C.OT+F_GET_OT(C.END_TIME,B.P_OUT) AS B_OT_TIME
+                   ,C.END_TIME, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+               AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   AND B.P_OUT IS NOT NULL AND B.WORT_TIME >= C.WT
+			   AND TO_NUMBER(REPLACE(C.END_TIME,':',''))+100 < TO_NUMBER(REPLACE(B.P_OUT,':',''))
+               AND (F_GET_OT(C.END_TIME,B.P_OUT) > 0 OR C.OT > 0)
+    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM);
+
+			--ENTRY NT
+			INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+                   ,C.NT AS NT_TIME, C.NT AS B_NT_TIME
+                   ,C.END_TIME, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, ''
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+               AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+               AND C.NT > 0
+    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM
+								   AND D.OT_TYPE = 'NT');
+		END IF;
+	END;
+
+   
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+       NULL;
+     WHEN OTHERS THEN
+	 	  RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_RECREATE_OT) '||SQLERRM );
+		  
+       -- Consider logging the error and then re-raise
+       
+END PR_RECREATE_OT;
+/
+CREATE OR REPLACE PROCEDURE Pr_Register_Ot( 
+	   	  		  		FLAG				IN VARCHAR,
+                        P_WORK_DT IN  VARCHAR2,
+						P_OT_TIME   IN NUMBER,
+						P_EMP_PK	IN NUMBER,
+	   	  		  		P_PK IN  NUMBER,
+                        P_GRP_CODE     IN  NUMBER,
+						P_W_SHIFT	   IN NUMBER,
+						P_REMARK	   IN VARCHAR,
+						P_USER		   IN VARCHAR,
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+AN_SYS_ERROR_MSG	VARCHAR(100);
+OT_TYPE			VARCHAR(2);
+ST_LUNCH		VARCHAR(5);
+LUNCH_INT		NUMBER(5,2):=0;
+DINNER_INTERVAL			   NUMBER(5,2):=0;
+START_TIME				   VARCHAR(5);
+ET_TIME				   VARCHAR(5);
+SHIFT_END				   VARCHAR(5);
+TMP						   NUMBER(10):=0;
+GIO					   NUMBER(10):=0;
+PHUT				   NUMBER(10):=0;
+GIO_T					  VARCHAR(2);
+PHUT_T				  VARCHAR(2);
+OT					   NUMBER(5,2):=0;
+NT					   NUMBER(5,2):=0;
+NUM					   NUMBER(1):=0;
+AN_CNT				   NUMBER(1):=0;
+W_DATE				   VARCHAR(8);
+NUM_APPLY			   NUMBER(1):=0;
+CLOSE_NUM	NUMBER(1):=0; 
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+W_DATE:=SUBSTR(P_WORK_DT,7,4)||SUBSTR(P_WORK_DT,4,2)||SUBSTR(P_WORK_DT,1,2);
+
+-- xac dinh so ke toan co dong hay chua
+
+   	   SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(W_DATE,1,4)||SUBSTR(W_DATE,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+	   ELSE
+	   	   			   	SELECT COUNT(E.PK) INTO CLOSE_NUM FROM THR_EXTRA_TIME E
+							   WHERE E.DEL_IF=0 AND E.WORK_DT = W_DATE
+							   		 AND E.EMP_PK=P_EMP_PK AND E.CLOSE_FLAG='Y';
+									 IF  CLOSE_NUM>0 THEN
+	   	   			 				 	 			   RAISE_APPLICATION_ERROR(-20001,'');
+	   								ELSE
+													   SELECT COUNT(E.PK) INTO CLOSE_NUM FROM THR_ET_EXTRA_TIME E
+							   						   WHERE E.DEL_IF=0 AND E.WORK_DT = W_DATE
+							   		 				   AND E.EMP_PK=P_EMP_PK AND E.CLOSE_FLAG='Y';
+													    IF  CLOSE_NUM>0 THEN
+															   	   	 RAISE_APPLICATION_ERROR(-20001,'');
+														END IF;
+									END IF;
+	END IF;
+																	
+	   	   			   
+	   
+
+
+SELECT COUNT(A.PK) INTO NUM_APPLY FROM THR_EXTRA_TIME A
+WHERE A.DEL_IF=0 AND A.WORK_DT=W_DATE AND A.APPLY_FLAG='Y' AND A.EMP_PK=P_EMP_PK;
+IF NUM_APPLY=0 THEN -- CHUA DUOC SUA BANG TY
+					
+					IF FLAG='I' THEN
+									 SELECT COUNT(A.PK)
+											  INTO AN_CNT
+									          FROM COMM.TCO_ABCALENDAR A
+									         WHERE A.DEL_IF = 0
+									           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+									           AND A.CAR_DATE = W_DATE;
+									
+									AN_SYS_ERROR_MSG := '20';		   
+									 IF P_OT_TIME IS NOT NULL AND P_OT_TIME>0 THEN
+									 				SELECT NVL(S.START_LUNCH,0),NVL(S.LUNCH_INTERVAL,0), S.DINNER_INTERVAL,S.START_TIME,S.END_TIME INTO 
+														   					 										   ST_LUNCH,LUNCH_INT,DINNER_INTERVAL,START_TIME,SHIFT_END 
+													FROM THR_WORK_SHIFT S 
+													WHERE S.DEL_IF=0 AND S.PK=P_W_SHIFT;
+													
+											--TINH RA START TIME VA END TIME
+														AN_SYS_ERROR_MSG := '40';
+																			IF AN_CNT=0 THEN 
+																							TMP:=SUBSTR(SHIFT_END,1,2)*60+SUBSTR(SHIFT_END,4,2)+P_OT_TIME*60+DINNER_INTERVAL*60; --END TIME RA PHUT
+																							GIO:=TRUNC(TMP/60);--GIO
+																							PHUT:=MOD(TMP,60);
+																			ELSE --NGAY NGHI
+																							TMP:=SUBSTR(START_TIME,1,2)*60+SUBSTR(START_TIME,4,2)+P_OT_TIME*60; --END TIME RA PHUT
+																							IF (ST_LUNCH<>0 AND TMP>= (SUBSTR(ST_LUNCH,1,2)*60+SUBSTR(ST_LUNCH,4,2)+LUNCH_INT*60)) THEN
+																							   				TMP:=TMP+LUNCH_INT*60;
+																							END IF;
+																							GIO:=TRUNC(TMP/60);--GIO
+																							PHUT:=MOD(TMP,60);
+																			END IF;
+																			IF GIO>21 THEN --TINH THEM NT NEU SAU 21 GIO
+																			   NT:=ROUND(((GIO-21)*60 + PHUT)/60,1);
+																			END IF;
+																			IF GIO<10 THEN
+																			   		  GIO_T:='0'||GIO;
+																			ELSE
+																				GIO_T:=GIO;
+																			 END IF;
+																			
+																			IF PHUT<10 THEN
+																			   PHUT_T:='0'||PHUT;
+																			  ELSE
+																			  	  PHUT_T:=PHUT; 
+																			 END IF;
+																			ET_TIME:=GIO_T||':'||PHUT_T;
+																	
+											    IF AN_CNT>0 THEN --VAO NGAY LE
+									   	  		      	  IF P_PK IS NOT NULL AND P_PK>0 THEN --UPDATE HT
+														  	 		UPDATE THR_ET_EXTRA_TIME A
+																		 SET A.OT_TIME=P_OT_TIME
+																		 	 	  ,A.REMARK=P_REMARK
+																				  ,A.END_TIME=ET_TIME
+																		WHERE A.PK=P_PK;
+														  ELSE --INSERT
+														  
+														  AN_SYS_ERROR_MSG := '30';
+															   		    INSERT INTO THR_ET_EXTRA_TIME
+																					 (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, START_TIME, END_TIME,
+																					  OT_TIME, APPLY_FLAG, REMARK, DEL_IF, CRT_DT, CRT_BY,  W_SHIFT)
+																					  VALUES
+																					  (THR_ET_EXTRA_TIME_SEQ.NEXTVAL,'HT',P_GRP_CODE,W_DATE,P_EMP_PK,START_TIME,ET_TIME,
+																					  	P_OT_TIME,'N',P_REMARK,0,SYSDATE,P_USER,P_W_SHIFT);
+														  END IF;
+													ELSE
+											
+																			
+																--XAC DINH INSERT HAY UPDATE
+															IF P_PK IS NOT NULL AND P_PK>0 THEN --UPDATE OT
+															
+																					AN_SYS_ERROR_MSG := '40';
+																					
+																   				 UPDATE THR_ET_EXTRA_TIME A
+																				 SET A.OT_TIME=P_OT_TIME
+																				 	 	  ,A.REMARK=P_REMARK
+																						  ,A.START_TIME=SHIFT_END
+																						  ,A.END_TIME=ET_TIME
+																				WHERE A.PK=P_PK;
+																				AN_SYS_ERROR_MSG := '50';
+																				IF NT>0 THEN -- UPDATE HOAC INSERT NT
+																						   		SELECT COUNT(A.PK) INTO NUM  FROM THR_ET_EXTRA_TIME A 
+																								WHERE A.DEL_IF=0 AND A.WORK_DT=W_DATE AND A.OT_TYPE='NT' AND A.EMP_PK=P_EMP_PK;
+																								AN_SYS_ERROR_MSG := '55';
+																												IF NUM>0 THEN --UPDATE
+																												   		 UPDATE  THR_ET_EXTRA_TIME A
+																														 SET A.OT_TIME=NT
+																														 	 	 ,A.REMARK='MODIFY'
+																																 ,A.START_TIME=SHIFT_END
+																																	 ,A.END_TIME=ET_TIME
+																															WHERE A.DEL_IF=0 AND A.WORK_DT=W_DATE AND A.OT_TYPE='NT' AND A.EMP_PK=P_EMP_PK;
+																															
+																												ELSE --INSERT
+																												
+																												AN_SYS_ERROR_MSG := '60';
+																													 		 INSERT INTO THR_ET_EXTRA_TIME
+																															 (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, START_TIME, END_TIME,
+																															  OT_TIME, APPLY_FLAG, REMARK, DEL_IF, CRT_DT, CRT_BY,  W_SHIFT)
+																															  VALUES
+																															  (THR_ET_EXTRA_TIME_SEQ.NEXTVAL,'NT',P_GRP_CODE,W_DATE,P_EMP_PK,SHIFT_END,ET_TIME,
+																															  	NT,'N','MODIFY-INSERT',0,SYSDATE,P_USER,P_W_SHIFT);
+																												END IF;
+									
+																				ELSE --DELETE NEU CO' NT
+																					 		  DELETE THR_ET_EXTRA_TIME A
+																							  WHERE A.DEL_IF=0 AND A.WORK_DT=W_DATE AND A.OT_TYPE='NT' AND A.EMP_PK=P_EMP_PK;
+																				 END IF;
+																				 
+																				
+															ELSE 	--INSERT
+															AN_SYS_ERROR_MSG := '70';
+																				 		 INSERT INTO THR_ET_EXTRA_TIME
+																							 (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, START_TIME, END_TIME,
+																							  OT_TIME, APPLY_FLAG, REMARK, DEL_IF, CRT_DT, CRT_BY,  W_SHIFT)
+																							  VALUES
+																							  (THR_ET_EXTRA_TIME_SEQ.NEXTVAL,'OT',P_GRP_CODE,W_DATE,P_EMP_PK,SHIFT_END,ET_TIME,
+																							  	P_OT_TIME,'N',P_REMARK,0,SYSDATE,P_USER,P_W_SHIFT);
+																								
+																							IF NT>0 THEN --INSERT TIEP NT
+																							 		 INSERT INTO THR_ET_EXTRA_TIME
+																									 (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, START_TIME, END_TIME,
+																									  OT_TIME, APPLY_FLAG, REMARK, DEL_IF, CRT_DT, CRT_BY,  W_SHIFT)
+																									  VALUES
+																									  (THR_ET_EXTRA_TIME_SEQ.NEXTVAL,'NT',P_GRP_CODE,W_DATE,P_EMP_PK,SHIFT_END,ET_TIME,
+																									  	NT,'N',P_REMARK,0,SYSDATE,P_USER,P_W_SHIFT);
+																							END IF;
+																							
+															END IF;--LENGTH...
+													END IF; --AN_CNT
+													
+													Pr_Cal_Reg_Ot_Emp_Pk(W_DATE,P_EMP_PK,P_USER);
+										END IF; --P_OT>0
+										
+					ELSE --DELETE 
+						 		 			   		IF P_PK IS NOT NULL AND P_PK>0 THEN
+													  --RANDOM LAI GIO OUT VI LUC NAY OT=0
+													  
+													  UPDATE THR_TIME_MACHINE TM
+													  SET TM.P_OUT=(SELECT S.END_TIME FROM THR_WORK_SHIFT S WHERE S.DEL_IF=0 AND S.PK=TM.W_SHIFT)
+													  WHERE TM.DEL_IF=0 AND TM.WORK_DT=W_DATE 
+													  AND TM.EMP_PK=P_EMP_PK
+													  AND TM.EMP_PK IN(SELECT ET.EMP_PK FROM THR_ET_EXTRA_TIME ET WHERE ET.DEL_IF=0 AND ET.WORK_DT=W_DATE
+													  	  					  	   					 	AND ET.EMP_PK=P_EMP_PK GROUP BY ET.EMP_PK)
+														AND TM.EMP_PK IN(SELECT T.EMP_PK FROM THR_EXTRA_TIME T 
+														  			  			WHERE T.DEL_IF=0 
+													  	  				   			  			 AND T.WORK_DT=W_DATE AND T.EMP_PK=P_EMP_PK
+													  	  				   						 	 GROUP BY T.EMP_PK);
+												  
+													  
+													   DELETE THR_ET_EXTRA_TIME A
+													   WHERE A.EMP_PK= P_EMP_PK AND A.WORK_DT=W_DATE AND A.DEL_IF=0;
+													   
+													  -- xoa trong thr_extra_time neu co,nhung khong restore du lieu thuc -  COI NHU LA CHUA DANG KY
+													  DELETE THR_EXTRA_TIME T
+													  WHERE T.DEL_IF=0 
+													  AND T.WORK_DT=W_DATE AND T.EMP_PK=P_EMP_PK;
+													  
+													  /*-- UPDATE LAI TRANG THAI DU LIEU - CO T/C NHUNG KO DANG KY
+													  UPDATE THR_EXTRA_TIME T
+													  SET  	T.DATA_FLAG='N'
+														WHERE T.DEL_IF<>0 AND T.WORK_DT=W_DATE  AND T.EMP_PK=P_EMP_PK;
+													  
+													  */
+													  
+												 END IF;
+													 
+													 
+					END IF;
+END IF;
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS         THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+					RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_REGISTER_OT) '||SQLERRM );
+					AS_RET_NUM := -1;
+					AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+		END IF;
+END  Pr_Register_Ot;
+/
+CREATE OR REPLACE PROCEDURE Pr_Remove_Ot_Not_Reg( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+                            AS_USER IN  VARCHAR2,  -- USER ID
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_TO_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+REG_NUM				NUMBER(10):=0;
+
+CLOSE_NUM	NUMBER(1):=0; 
+BEGIN
+ 
+ SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(AS_FROM,1,4)||SUBSTR(AS_FROM,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+		END IF;
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+	
+	-- DELETE DU LIEU RAC
+	
+			   DELETE THR_EXTRA_TIME A
+			   WHERE A.DEL_IF<>0 AND A.WORK_DT=AS_FROM  AND A.DATA_FLAG <>'N'
+			   AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+									 	AND B.WORK_DT=AS_FROM GROUP BY B.EMP_PK );
+										
+
+					-- luu lai gio tang ca nhung chua dang ky
+				
+					UPDATE THR_EXTRA_TIME A
+					SET A.DEL_IF=A.PK
+							,A.DATA_FLAG='N'
+					WHERE A.DEL_IF=0 AND A.WORK_DT=AS_FROM AND A.APPLY_FLAG<>'Y'
+					AND NVL(A.OT_TIME,0)>0
+					AND A.EMP_PK NOT IN(SELECT B.EMP_PK FROM THR_ET_EXTRA_TIME B WHERE B.DEL_IF=0 
+									 	AND B.WORK_DT=AS_FROM GROUP BY B.EMP_PK );
+																		
+						
+	COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+						RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_REMOVE_OT_NOT_REG) '||SQLERRM );
+						AS_RET_NUM := -1;
+						AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+	END IF;
+END  Pr_Remove_Ot_Not_Reg;
+/
+CREATE OR REPLACE PROCEDURE PR_RESIGN_PROCESS(
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD 
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_COUNT     NUMBER(10);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+-- IL JUNG TINH TRO CAP THOI VIEC RIENG   
+BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = SUBSTR(AS_FROM_MON,1, 6)
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+
+DELETE THR_EMP_RESIGN R
+WHERE R.DEL_IF=0 AND R.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+
+
+
+INSERT INTO THR_EMP_RESIGN
+(PK, WORK_MON, TOTAL_ANN_IN_YEAR, ANN_USED, ANN_UNUSED, BASIC_SAL, ALLOW_AMT,SEVERANCE_AMT, NUM_MONTH, NUM_YEAR, ANN_AMT, EMP_PK, EMP_ID, DEPT_PK, GRP_CODE, DEL_IF, CRT_BY, CRT_DT)
+SELECT THR_EMP_RESIGN_SEQ.NEXTVAL,SUBSTR(AS_FROM_MON,1, 6),A.ANNUAL_LEAVE_DAYS_IN_YEAR,NVL(A.ANNUAL_LEAVE_DAYS,0)-NVL(B.ANNUAL_STOP,0),NVL(B.ANNUAL_STOP,0),B.BASIC_SAL
+,NVL(B.ALLOW_AMT,0)+NVL(B.TECH_AMT,0)+NVL(B.OTHER_AMT,0)+NVL(B.HARD_WORK_AMT,0)+NVL(B.SAL_ALLOW,0) AS TOTAL_ALLOW,B.SEVERANCE_AMT    
+,B.SEVERANCE_MONTH,B.SEVERANCE_YEAR,ROUND((NVL(B.BASIC_SAL,0)+NVL(B.SAL_ALLOW,0))*NVL(B.ANNUAL_STOP,0)/26,3),A.PK
+,A.EMP_ID,B.TCO_EODEPT_PK,B.THR_ABWORKGROUP_PK,0,AS_USER,SYSDATE
+ FROM THR_ABEMP A,THR_ABEMPMAS B
+ WHERE A.DEL_IF=0 AND B.DEL_IF=0 AND A.PK=B.THR_ABEMP_PK
+ AND A.EMP_STATUS='R' AND A.LEFT_DATE BETWEEN AS_FROM_MON AND AS_TO_MON;
+ 
+	
+	
+
+
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_RESIGN_PROCESS) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PR_RESIGN_PROCESS;
+/
+CREATE OR REPLACE PROCEDURE Pr_Restore_Ot( P_WORK_DT IN  VARCHAR2,  -- YYYYMMDD
+	   	  		  			P_EMP_PK IN NUMBER,
+                            AS_USER IN  VARCHAR2  -- USER ID
+                         ) IS
+						 
+AN_SYS_ERROR_MSG	VARCHAR(100);
+REG_NUM				NUMBER(10):=0;
+W_DATE				VARCHAR(8);
+NUM_APPLY			   NUMBER(1):=0;
+CLOSE_NUM	NUMBER(1):=0; 
+BEGIN
+
+	 W_DATE:=SUBSTR(P_WORK_DT,7,4)||SUBSTR(P_WORK_DT,4,2)||SUBSTR(P_WORK_DT,1,2);
+
+	 SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+		   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(W_DATE,5,2)||SUBSTR(W_DATE,1,4)
+		   AND C.CLOSE_FLAG='Y';
+		   
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+		END IF;
+
+SELECT COUNT(A.PK) INTO NUM_APPLY FROM THR_EXTRA_TIME A
+WHERE A.DEL_IF=0 AND A.WORK_DT=W_DATE AND A.APPLY_FLAG='Y' AND A.EMP_PK=P_EMP_PK;
+IF NUM_APPLY=0 THEN -- CHUA DUOC SUA BANG TAY
+AN_SYS_ERROR_MSG := '10';
+
+-- restore lai gio out			 
+			UPDATE THR_TIME_MACHINE TM
+			SET TM.P_OUT=(SELECT B.END_TIME FROM THR_EXTRA_TIME B WHERE B.DEL_IF<>0 AND B.WORK_DT=W_DATE AND 
+									 				   	 B.EMP_PK=P_EMP_PK AND B.OT_TYPE='OT'  AND B.DATA_FLAG='N')
+			WHERE TM.DEL_IF=0 AND TM.WORK_DT=W_DATE
+			AND TM.EMP_PK=P_EMP_PK AND TM.P2_OUT IS NOT NULL;
+
+
+	-- restore lai du lieu goc , xoa du lieu da dang ky
+		   DELETE THR_EXTRA_TIME A
+		   WHERE A.WORK_DT=W_DATE AND A.DEL_IF=0
+		   AND A.EMP_PK=P_EMP_PK;
+		   
+		   
+		   UPDATE THR_EXTRA_TIME A
+		   SET A.DEL_IF=0
+						 ,A.DATA_FLAG=NULL
+			WHERE A.DEL_IF<>0 AND A.WORK_DT=W_DATE
+			AND A.DATA_FLAG='N'
+			AND A.EMP_PK=P_EMP_PK;
+			
+			UPDATE THR_TIME_MACHINE TM
+			SET TM.WORT_TIME=F_Get_Wt_Nshift(TM.P_IN,TM.P_OUT,TM.W_SHIFT)
+			WHERE TM.DEL_IF=0 AND TM.WORK_DT=W_DATE AND TM.EMP_PK=P_EMP_PK;
+
+			 
+			
+
+	-- xoa luon du lieu trong bang dang ky
+	
+	   	   UPDATE THR_ET_EXTRA_TIME ET
+		   		  SET ET.DEL_IF=ET.PK
+				  	  		,ET.REMARK=AS_USER||'RESTORE'
+							,ET.MOD_DT=SYSDATE
+			WHERE ET.DEL_IF=0 AND ET.EMP_PK=P_EMP_PK AND ET.WORK_DT=W_DATE;
+			
+END IF;		    		 
+			 
+			 
+	COMMIT;
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+			RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_RESTORE_OT) '||SQLERRM );
+	END IF;
+END  Pr_Restore_Ot;
+/
+CREATE OR REPLACE PROCEDURE Pr_Sal_Calc(
+    AS_FROM_MON        IN    VARCHAR2,    -- YYYYMMDD 
+    AS_TO_MON        IN    VARCHAR2,     -- YYYYMMDD 
+    AS_USER            IN    VARCHAR2,   -- USER ID 
+    AS_RET_NUM        OUT NUMBER,      -- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR        OUT    VARCHAR2     -- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AN_SYS_ERROR_MSG        VARCHAR2(100);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_CAL_DAYS_PERMONTH    NUMBER(10);
+AV_COUNT     NUMBER(10);
+num_ht            NUMBER(10):=0;
+
+--******************************************
+  -- Modify by    : huynh truong                                            
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+    BEGIN
+        SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+        WHERE MMYYYY = SUBSTR(AS_FROM_MON,1, 6)
+          AND ID     = 'SAL'
+          AND DEL_IF = 0;
+
+            IF AV_CHECK_MON = 'Y' THEN
+                AS_RET_NUM :=  -1;
+            AS_RET_VAR :=  'already closed this month !';
+            RETURN;
+            END IF;
+
+        EXCEPTION
+         WHEN NO_DATA_FOUND THEN
+                    AS_RET_NUM :=  -1;
+            AS_RET_VAR :=  'Not Found this Month !';
+            RETURN;
+    END;
+/*    
+    --update luong VA PHU CAP cho nhan vien khi tao hop dong moi TRONG THANG   
+   UPDATE THR_ABEMPMAS a
+   SET (a.basic_sal,A.SAL_ALLOW,A.ALLOW_AMT,A.TECH_AMT,A.HARD_WORK_AMT,A.OTHER_AMT) =(SELECT M.BASIC_SALARY,M.SAL_ALLOW,M.ALLOW_AMT,M.TECH_AMT,M.HARD_WORK_AMT,M.OTHER_AMT
+                                                                                   FROM THR_LABOUR_CONTRACT M
+                                                                                           WHERE M.DEL_IF=0 AND M.ST_CONTRACT BETWEEN AS_FROM_MON AND AS_TO_MON AND M.THR_ABEMP_PK=A.THR_ABEMP_PK
+                                                                                AND TO_NUMBER(M.KIND_CONTRACT)=(SELECT MAX(TO_NUMBER(N.KIND_CONTRACT)) FROM THR_LABOUR_CONTRACT N WHERE N.DEL_IF=0 AND N.THR_ABEMP_PK=M.THR_ABEMP_PK)
+                                                                               )
+   WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK IN(SELECT M.THR_ABEMP_PK     FROM THR_LABOUR_CONTRACT M
+                                                                                           WHERE M.DEL_IF=0 AND M.ST_CONTRACT BETWEEN AS_FROM_MON AND AS_TO_MON 
+                                                                                AND TO_NUMBER(M.KIND_CONTRACT)=(SELECT MAX(TO_NUMBER(N.KIND_CONTRACT)) FROM THR_LABOUR_CONTRACT N WHERE N.DEL_IF=0 AND N.THR_ABEMP_PK=M.THR_ABEMP_PK)
+*/ --Mr Ky dong lai ngay 10/06/2008                                                                               );
+
+
+    
+    --AV_CAL_DAYS_PERMONTH:=26;
+    
+    -- TIM RA NGAY LE LA NGAY NAO TRONG THANG 
+    SELECT COUNT(C.CAR_DATE) INTO num_ht FROM COMM.TCO_ABCALENDAR C
+    WHERE C.DEL_IF = 0 
+    AND C.DAY_TYPE <>'1' 
+    AND C.HOL_TYPE IS NOT NULL 
+    AND SUBSTR(C.CAR_DATE,1,6) = SUBSTR(AS_FROM_MON,1,6);
+
+       
+AN_SYS_ERROR_MSG := '25';       
+
+
+-- XAC DINH SO NGAY LAM VIEC THUC TE TRONG THANG 
+        SELECT COUNT( *)  INTO AV_DAYS_PERMONTH FROM TCO_ABCALENDAR A WHERE A.CAR_DATE BETWEEN AS_FROM_MON AND AS_TO_MON AND A.DAY_TYPE<> 1;
+-- NGOC lAM THEM NAM 2016
+		IF(AV_DAYS_PERMONTH>26) THEN
+		
+		 	AV_DAYS_PERMONTH := 26;
+			
+		END IF ;   
+		                         
+--THEM MOI 2016
+		
+			/* TAI DAY SE TINH TIEN TRO CAP THAM NIEN CHO MOI NGUOI --
+	// MOI 6 THANG DUOC 25000 --
+	// MR MY MODIFY NGAY 05/10/2007 =
+	*/
+	-- TINH SO THANG LAM VIEC CUA MOI NGUOI --
+	UPDATE (SELECT EM.SER_MONTH,AB.JOIN_DATE FROM THR_ABEMPMAS EM, THR_ABEMP AB WHERE EM.THR_ABEMP_PK=AB.PK AND EM.DEL_IF = 0
+			AND EM.THR_ABEMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON)) A
+		   SET A.SER_MONTH = NVL(FLOOR(MONTHS_BETWEEN(TO_DATE(AS_TO_MON,'YYYYMMDD'),TO_DATE(A.JOIN_DATE,'YYYYMMDD'))),0);
+	
+	 
+	--- TINH TIEN THAM NIEN CHO MOI NGUOI --
+	UPDATE THR_ABEMPMAS EM
+		   SET em.SER_AMT = F_CAL_SERVERANCE(NVL(EM.SER_MONTH,0))
+	WHERE EM.DEL_IF = 0
+		  	
+			AND EM.THR_ABEMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON)
+			AND EM.SER_MONTH >= 6;
+			
+	--UPDATE THR_ABEMPMAS S
+		--   SET S.SER_AMT = (SELECT SA.SER_AMT FROM THR_SALARY_EMP SA WHERE SA.EMP_PK =S.THR_ABEMP_PK) 
+	--WHERE S.DEL_IF = 0
+	  		
+			--AND S.THR_ABEMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON);
+			
+			
+		
+AN_SYS_ERROR_MSG := '20';
+    DELETE THR_SALARY_EMP
+     WHERE DEL_IF = 0
+       AND WORK_MON = SUBSTR(AS_TO_MON, 1, 6);
+       
+
+        BEGIN
+    /*
+               co 2 cach tinh luong thuong su dung
+             loai 1:  basic/26* (so ngay co trong thang)
+             
+             
+    o il jung chon loai 2  
+             loai 2: basic/(so ngay co trong thang)* (so ngay co trong thang) 
+    
+    */
+     
+AN_SYS_ERROR_MSG := '26';
+
+    INSERT INTO THR_SALARY_EMP
+(
+            PK,                                                             --1 PK 
+            EMP_PK,                                          --2 EMP_PK 
+            FULL_NAME,                            -- 3  NAME    
+            WORK_MON,                              --4  MON 
+            JOIN_DT,                             ---5 JOINT_DT 
+             POSITION,                             --6  VI TRI 
+             BASIC_SAL,                            -- 7  BASIC_SAL 
+            ALLOW_AMT,                    --8   TRO CAP TRACH NHIEM    POSITION AMT     
+            WT_OFF,                        --  9   NGAY CONG HET THU VIEC 
+            WT_PRO,                        --10   NGAY CONG THU VIEC 
+            WT_OFF_AMT,       --11 TIEN CONG HET THU VIEC 
+            WT_PRO_AMT,          --12 TIEN CONG THU VIEC 
+             OT_DAY_OFF,          --13 T/C NGAY HET TVIEC 
+            OT_DAY_PRO,                  --14 T/C NGAY TVIEC 
+             OT_DAY_OFF_AMT,        --15 TIEN T/C NGAY HET TVIEC 
+               OT_DAY_PRO_AMT,        --16  TIEN T/C NGAY TVIEC 
+            OT_NIGHT_OFF,            --17   T/C CA DEM HET TVIEC 
+            OT_NIGHT_PRO,            --18   T/C CA DEM THU VIEC 
+            OT_NIGHT_OFF_AMT, -- 19 TIEN T/C CA DEM HET T VIEC 
+             OT_NIGHT_PRO_AMT,--20  TIEN T/C CA DEM T VIEC 
+             NT30_OFF,                              --21 TRO CAP NT 30% HET TV 
+             NT30_PRO,                            --22 TRO CAP NT30% TV 
+             NT30_OFF_AMT,                --23  TIEN TRO CAP NT30% HET TV 
+             NT30_PRO_AMT,                --24  TIEN TRO CAP NT30%  TV 
+             
+             NT45_OFF,                                --    25 TRO CAP NT 45% HET TV 
+            NT45_PRO ,                                -- 26 TRO CAP NT 45%  TV 
+            NT45_OFF_AMT,                    -- 27 TIEN    CAP NT 45% HET TV    
+            NT45_PRO_AMT ,                --28 TRO CAP NT 45%  TV 
+
+             NT60_OFF,                               --29  NT CUA NGAY CN, LE HET  TV 
+             NT60_PRO,                             --30  NT CUA NGAY CN, LE HET  TV 
+             NT60_OFF_AMT,                    --31  THANH TIEN     
+             NT60_PRO_AMT,                    --32  THANH TIEN 
+             
+             HT_OFF ,                                 --33   DI LAM NGAY LE HET TV 
+             HT_PRO ,                              --34  DI LAM NGAY LE TV 
+             HT_OFF_AMT,                    --35 TIEN DI LAM LE HET TV      
+             HT_PRO_AMT,                    ---- 36 TIEN DI LAM LE TV 
+             
+             ST_OFF ,                        --37  DI LAM NGAY CN TV 
+            ST_PRO,                                 --38    DI LAM NGAY CN HET TV 
+             ST_OFF_AMT,            -- 39 TIEN LAM NGAY CN HET TV 
+             ST_PRO_AMT,            -- 40  TIEN LAM NGAY CN TV 
+             
+             ABS_ALE_OFF,            -- 41  NGHI PHEP KHI DA HET TV 
+             ABS_ALE_PRO ,            --42  NGHI PHEP KHI THU VIEC 
+             
+             ABS_TMP_OFF,                 --43   NGHI THEO KE HOAC HET TV 
+             ABS_TMP_PRO,                 --44 NGHI THEO KE HOACH TV 
+             
+             ABS_WED_OFF,                        -- 45 NGHI CUOI HET TV 
+             ABS_WED_PRO,                  --46  NGHI CUOI TV 
+             
+             ABS_PT_OFF,                           --47 NGHI KHAM THAI HET TV 
+             ABS_PT_PRO,                    -- 48 NGHI KHAM THAI TV 
+             
+             ABS_FLE_OFF,                    --49 NGHI TANG HET TV 
+            ABS_FLE_PRO ,                    --50 NGHI TANG TV 
+            
+             ABS_COM_OFF,               -- 51  NGHI BU HET TV 
+             ABS_COM_PRO,               --52 NGHI BU TV 
+             
+             ABS_COM_PAY_OFF,   --53 NGHI VOI LY DO KHAC MA CONG TY TRA LUONG HET TV 
+             ABS_COM_PAY_PRO,   --54  NGHI VOI LY DO KHAC MA CONG TY TRA LUONG  TV 
+             
+             ABS_TOTAL_DAY_OFF, --55 TONG CONG NGAY NGHI CO LUONG HET TV 
+             ABS_TOTAL_DAY_PRO,-- 56  TONG NGAY CONG NGHI CO LUONG TV 
+             
+             OT_TOT_OFF_AMT , -- 57  TONG CONG GIO T/C HET TV 
+             OT_TOT_PRO_AMT , -- 58  TONG CONG GIO T/C TV 
+             
+              TRANS_DAY ,                  --59 SO NGAY TRO CAP DI LAI 
+              TRANS_AMT ,               -- 60 TIEN DI LAI 
+               
+              INDUS_DAY ,                     --61 SO NGAY TINH TIEN C/C 
+              INDUS_AMT ,                  --62 TIEN C/C 
+              
+              HOL_OFF,                             --63  SO NGAY LE HET TV 
+              HOL_PRO ,                           --64  SO NGAY LE TV 
+              
+              HOL_OFF_AMT,      --65  TIEN NGAY LE HET TV 
+              HOL_PRO_AMT,        -- 66 TIEN NGAY LE TV 
+              
+              INC_AMT ,                            --67 TIEN THUONG 
+             TECH_AMT,                      -- 68 TIEN TRO CAP KY THUAT          
+              SEVERANCE_YEAR, -- 69 THAM NIEN NEU NGHI VIEC 
+              SEVERANCE_AMT , -- 70 TIEN THAM NIEN NEU NGHI VIEC 
+              
+              ABS_CC ,                              -- 71 DUNG DE TINH CHUYEN CAN 
+              WT_CC ,                          --72 DUNG DE TINH CHUYEN CAN 
+              
+              DAYS_IN_MONTH, -- 73 SO NGAY CONG THUC TE TRONG THANG 
+              PROGRESSIVE_OT,       -- 74 LUY TIEN TC TRONG THANG 
+              LAST_PROGRESSIVE_OT, --75 LUY TIEN TANG CA THANG TRUOC 
+              PRO_SALARY ,                            --76 LUONG THU VIEC 
+               AVERAGE_SAL,                      --77 LUONG TRUNG BINH 6 THANG 
+              PIT_FINALIZE ,                           -- 78 QUYET TOAN THUE 
+              ANNUAL_LEAVE_LAST_YEAR, -- 79 PHEP NAM TON DONG CUA NAM NGOAI                   
+              HEALTH_CARD ,                            -- 80 TIEN DEN THE BAO HIEM 
+              EQUIPMENT ,                              -- 81 TIEN DEN DUNG CU LAO DONG 
+              DEPT_PK ,                                   --82 
+              GRP_CODE,                             --83  
+              PAY_TYPE,                             --84 PHUONG THUC THANH TOAN 
+              UNION_AMT,                             --85 TIEN CONG DOAN 
+              ADJ_AMT ,                                --86 HOAN TRA 
+              ADV_AMT ,                                --87 TAM UNG 
+             SOCIAL_AMT,                        -- 88 BHXH 
+            HEALTH_AMT,                        --89 BHYT 
+            ALE_PIT,                                  --90 
+            ALE_PIT_AMT, --91 
+            REMAINING_CARD_AMT,                         --92                
+            STATUS ,                                         --93        
+            ANNUAL_STOP,                        --94 
+            ANNUAL_STOP_AMT,           --  
+            ABS_SLE,   --95  XAC DINH TRUONG HOP NGHI BENH HET THU VIEC DE TINH TIEN CC 
+            DEL_IF ,                                     --95 
+            CRT_BY ,                                    --96 
+            CRT_DT,                                    --97
+            SAL_ALLOW, --98  
+            HARD_AMT,--99  
+            OTHER_AMT, -- 100 
+            EMPID_STYLE --101 --
+            ,POS_ALL-- 102 --
+            ,TRAIN_ALL -- 103 --
+            ,TREAT_ALL  -- 104 ---
+            ,EMP_ID        -- 105 -- 
+            ,DEPT_NM    -- 106 --
+            ,GROUP_NM       -- 107 --
+            ,POS_NM       -- 108 --
+            ,AL_CURR         --109 --
+            ,AL_CURR_BAL  --110 --
+            ,AL_USED      --111 --
+            ,UNEMP_INS_AMT        --112 
+            ,OT_TOT_100_PRO      --113 
+            ,OT_TOT_100_OFF      --114 
+            ,OT_TOT_100_PRO_AMT      --115 
+            ,OT_TOT_100_OFF_AMT      --116 
+            )                
+ SELECT THR_SALARY_EMP_SEQ.NEXTVAL    --1 
+             ,EMP.PK                                                                                                     --2                                                                                                  
+            ,EMP.FULL_NM                                                                    --3                                                                         
+           ,SUBSTR(AS_TO_MON, 1, 6) AS WORK_MON                        --4                        
+           ,EMP.JOIN_DATE                                                                          --5 
+           ,EMPMAS.POS_CODE                                                                    --6 
+           ,NVL(EMPMAS.BASIC_SAL,0) AS BASIC_SAL                --7 
+           ,NVL(EMPMAS.ALLOW_AMT,0)    --8
+                                       
+           ,NVL(WT2.WT_OFF,0) AS WT_OFF                                    --9 
+           ,NVL(WT1.WT_PRO,0) AS WT_PRO                                    --10 
+           , ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.SAL_ALLOW,0))*NVL(WT2.WT_OFF,0)/AV_DAYS_PERMONTH,3) AS WT_OFF_AMT--11 
+            , ROUND((NVL(EMPMAS.PROB_SALARY,0)+NVL(EMPMAS.SAL_ALLOW,0)) *NVL(WT1.WT_PRO,0)/AV_DAYS_PERMONTH,3)  AS WT_PRO_AMT--12 
+            
+            ,NVL(OTT_DAY2.OT,0)  AS OT_DAY_OFF--13 
+            ,NVL(OTT_DAY1.OT,0)  AS OT_DAY_PRO--14 
+            ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_DAY2.OT,0)*1.5/AV_DAYS_PERMONTH/8,3) AS OTT_DAY_OFF_AMT--15 
+            ,ROUND((NVL(EMPMAS.PROB_SALARY,0)+NVL(EMPMAS.SAL_ALLOW,0))*NVL(OTT_DAY1.OT,0)*1.5/AV_DAYS_PERMONTH/8,3) AS OTT_DAY_PRO_AMT--16 
+            
+            ,NVL(OTT_NIGHT2.OT,0) AS OT_NIGHT_OFF --17 
+            ,NVL(OTT_NIGHT1.OT,0) AS OT_NIGHT_PRO --18 
+             ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_NIGHT2.OT,0)*1.5/AV_DAYS_PERMONTH/8,3) AS OT_NIGHT_OFF_AMT --19 
+             ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*1.5/AV_DAYS_PERMONTH/8,3) AS OT_NIGHT_PRO_AMT --20 
+             
+             ,NVL(OTT_NIGHT2.NT30,0) AS NT30_OFF --21 
+             ,NVL(OTT_NIGHT1.NT30,0) AS NT30_PRO--22 
+             ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_NIGHT2.NT30,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT30_OFF_AMT --23 
+              ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*NVL(OTT_NIGHT1.NT30,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT30_PRO_AMT --24 
+              
+              ,NVL(OTT_DAY2.NT45,0) AS NT45_OFF                                    --25 
+              ,NVL(OTT_DAY1.NT45,0) AS NT45_PRO                                    --26 
+             ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_DAY2.NT45,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT45_OFF_AMT --27  --o il jung chi tro cap 30% cho ca dem
+              ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*NVL(OTT_DAY1.NT45,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT45_PRO_AMT --28 
+              
+              ,NVL(OTT_NIGHT2.NT60,0)+NVL(OTT_DAY2.NT60,0) AS NT60_OFF  --29 
+              ,NVL(OTT_NIGHT1.NT60,0) +NVL(OTT_DAY1.NT60,0)AS NT60_PRO  --30 
+              ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_NIGHT2.NT60,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT60_OFF_AMT --31 
+               ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*NVL(OTT_NIGHT1.NT60,0)*0.3/AV_DAYS_PERMONTH/8,3) AS NT60_PRO_AMT --32 
+               
+              ,NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0) AS HT_OFF                --33 
+                ,NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0) AS HT_PRO                --34 
+                ,CASE WHEN NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0) <= 8 THEN 
+                        ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*(NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0))*2/AV_DAYS_PERMONTH/8,3) 
+                        ELSE ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*(8*2 + (NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0)-8)*3)/AV_DAYS_PERMONTH/8,3)
+                END AS HT_OFF_AMT --35 
+               -- ,ROUND(NVL(EMPMAS.BASIC_SAL,0)*(NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0))*2/AV_CAL_DAYS_PERMONTH/8,3) AS HT_OFF_AMT --35
+                ,CASE WHEN NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0) <= 8 THEN 
+                        ROUND(NVL(EMPMAS.PROB_SALARY,0)*(NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0))*2/AV_DAYS_PERMONTH/8,3) 
+                        ELSE ROUND(NVL(EMPMAS.PROB_SALARY,0)*(8*2 + (NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0)-8)*3)/AV_DAYS_PERMONTH/8,3)
+                END AS HT_PRO_AMT --36 
+            --    ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*(NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0))*2/AV_CAL_DAYS_PERMONTH/8,3) AS HT_PRO_AMT --36
+
+              ,NVL(OTT_DAY2.ST,0)+NVL(OTT_NIGHT2.ST,0) AS ST_OFF                --37
+                ,NVL(OTT_DAY1.ST,0)+NVL(OTT_NIGHT1.ST,0) AS ST_PRO                --38
+                ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.TREAT_ALLOW,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0))*(NVL(OTT_DAY2.ST,0)+NVL(OTT_NIGHT2.ST,0))*2/AV_DAYS_PERMONTH/8,3) AS ST_OFF_AMT --39
+                ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*(NVL(OTT_DAY1.ST,0)+NVL(OTT_NIGHT1.ST,0))*2/AV_DAYS_PERMONTH/8,3) AS ST_PRO_AMT --40 
+                
+                ,NVL(ABS2.ABS_ALE,0) AS ABS_ALE_OFF --41 
+                ,NVL(ABS1.ABS_ALE,0) AS ABS_ALE_PRO --42 
+                
+                ,NVL(ABS2.ABS_TMP,0) AS ABS_TMP_OFF --43 
+                ,NVL(ABS1.ABS_TMP,0) AS ABS_TMP_PRO --44 
+           
+                   ,NVL(ABS2.ABS_WED,0) AS ABS_WED_OFF --45 
+                ,NVL(ABS1.ABS_WED,0) AS ABS_WED_PRO --46 
+            
+                   ,NVL(ABS_PT2.ABS_PT,0) AS ABS_PT_OFF --47  
+                      ,NVL(ABS_PT1.ABS_PT,0) AS ABS_PT_PRO --48 
+                
+                   ,NVL(ABS2.ABS_FLE,0) AS ABS_FLE_OFF --49 
+                ,NVL(ABS1.ABS_FLE,0) AS ABS_FLE_PRO --50 
+                
+                   ,NVL(ABS2.ABS_COM,0) AS ABS_COM_OFF --51 
+                ,NVL(ABS1.ABS_COM,0) AS ABS_COM_PRO --52 
+                
+                   ,NVL(ABS2.ABS_COM_PAY,0) AS ABS_COM_PAY_OFF --53 
+                ,NVL(ABS1.ABS_COM_PAY,0) AS ABS_COM_PAY_PRO --54 
+                
+                   ,NVL(ABS2.ABS_TOTAL_PAY,0) AS ABS_COM_TOTAL_OFF --55 
+                ,NVL(ABS1.ABS_TOTAL_PAY,0) AS ABS_COM_TOTAL_PRO --56 
+                
+                ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0))*NVL(OTT_DAY2.OT,0)*1.5/AV_DAYS_PERMONTH/8,3)    --OT_DAY_OFF   T/C CA NGAY  
+            +    ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.INDUS_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0))*NVL(OTT_NIGHT2.OT,0)*1.5/AV_DAYS_PERMONTH/8,3)  --OT_NIGHT_OFF   T/C CA DEM 
+            +   0--HT_OFF   T/C NGAY LE 
+            +   0 --ST_OFF  T/C CN 
+            --AS OT_TOT_OFF_AMT  57 
+                
+            ,     ROUND(NVL(EMPMAS.PROB_SALARY,0)*NVL(OTT_DAY1.OT,0)*1.5/AV_DAYS_PERMONTH/8,3)    
+            +    ROUND(NVL(EMPMAS.PROB_SALARY,0)*NVL(OTT_NIGHT1.OT,0)*1.5/AV_DAYS_PERMONTH/8,3)
+           +    0
+           +    0
+           --AS OT_TOT_PRO_AMT   58 
+             , 0 AS TRANS_DAYS --59 --O IL JUNG HONG XAI  
+          , NVL(EMPMAS.TRANS_ALLOW,0) AS TRANS_AMT  --60 
+          , 0 AS INDUS_DAY  --61 
+         , NVL(EMPMAS.INDUS_ALLOW,0) AS INDUS_AMT  --62 tinh ty le binh thuong
+           ,NVL(HOL.HOL_OFF,0) AS HOL_OFF   --63 
+            ,NVL(HOL.HOL_PRO,0) AS HOL_PRO  --64 
+            ,ROUND((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.SAL_ALLOW,0))*NVL(HOL.HOL_OFF,0)/AV_DAYS_PERMONTH,3)  --65 
+            ,ROUND((NVL(EMPMAS.PROB_SALARY,0)+NVL(EMPMAS.SAL_ALLOW,0))*NVL(HOL.HOL_PRO,0)/AV_DAYS_PERMONTH,3)   --66 
+
+           ,NVL(ADJ.INC_AMT,0) AS INC_AMT   --- tien thuong   --67 
+           
+          , NVL(EMPMAS.TECH_AMT,0 )  AS TECH_AMT --ky thuat  --68 
+           
+            ,0 AS SEVERANCE_YEAR --THAM NIEN   --69 
+           
+           ,0 AS SEVERANCE_AMT --TRO CAP THOI VIEC   --70 
+            
+            ,NVL(ABS_PT2.ABS_CC,0) AS ABS_CC --DIEU KIEN TINH C/C  --71 --chi tinh het thu viec 
+            
+            ,NVL(WT2.WT_CC,0) AS WT_CC  --72 chi tinh het thu viec 
+            
+            ,AV_DAYS_PERMONTH AS DAYS_IN_MONTH --SO NGAY CONG TRONG THANG  --73 
+            
+            ,NVL(OTT_DAY2.OT,0)    --OT_DAY_OFF   
+            +    NVL(OTT_NIGHT2.OT,0)  --OT_NIGHT_OFF  
+            +  NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0)--HT_OFF 
+            +  NVL(OTT_DAY2.ST,0)+NVL(OTT_NIGHT2.ST,0) --ST_OFF 
+            +  NVL(OTT_DAY1.OT,0)                       --OT_DAY_PRO 
+            +  NVL(OTT_NIGHT1.OT,0)                      --OT_NIGHT_PRO 
+           +  NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0) --HT_PRO 
+           + NVL(OTT_DAY1.ST,0)+NVL(OTT_NIGHT1.ST,0)  --ST_PRO 
+                                                                     AS PROGRESSIVE_OT  --74 
+            
+             ,DECODE(SUBSTR(AS_FROM_MON,5,2),'01',NVL(OTT_DAY2.OT,0)+NVL(OTT_NIGHT2.OT,0)+NVL(OTT_DAY2.HT,0)+NVL(OTT_NIGHT2.HT,0)+NVL(OTT_DAY2.ST,0)+NVL(OTT_NIGHT2.ST,0)+NVL(OTT_DAY1.OT,0)+NVL(OTT_NIGHT1.OT,0)+NVL(OTT_DAY1.HT,0)+NVL(OTT_NIGHT1.HT,0)+NVL(OTT_DAY1.ST,0)+NVL(OTT_NIGHT1.ST,0),LAST.LAST_PROGRESSIVE_OT) AS LAST_PROGRESSIVE_OT  -- luy tien tang ca tinh den thang truoc  75 
+            
+            ,NVL(EMPMAS.PROB_SALARY,0) AS PRO_SALARY  --76 
+            
+            ,NVL(EMPMAS.AVERAGE_SAL,0) AS AVERAGE_SAL  --77 
+            
+            ,NVL(ADJ.PIT_FINALIZE,0) AS PIT_FINALIZE --- tien quyet toan thue cuoi nam neu co  78 
+            
+             ,NVL(EMP.ANNUAL_LEAVE_LAST_YEAR,0) AS ANNUAL_LEAVE_LAST_YEAR  --79 
+             
+             ,NVL(ADJ.HEALTH_CARD,0) AS HEALTH_CARD --tien the bao hiem --80 
+             
+             ,NVL(ADJ.EQUIPMENT,0) AS EQUIPMENT --tien dung cu  --81 
+             
+            ,EMPMAS.TCO_EODEPT_PK AS DEPT_PK  --82 
+           
+           ,EMPMAS.THR_ABWORKGROUP_PK AS GRP_CODE  --83 
+               
+              ,NVL(EMPMAS.PAY_TYPE,'C') AS PAY_TYPE   --84 
+         
+           ,DECODE(EMPMAS.UNION_YN,'Y',44100,0)AS UNION_AMT --CONG DOAN 85  
+           ,NVL(ADJ.ADJ_AMT,0) AS ADJ_AMT --bu luong --87 
+          ,NVL(ADJ.ADV_AMT,0) AS ADV_AMT --ung luong  86 
+ 
+ -- ngay 14-5-2021: Long them treat_allow ( tay nghe may )
+          ,CASE WHEN ((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0)) >= 46800000) THEN
+                    DECODE(EMPMAS.SOCIAL_YN,'Y',46800000*0.08,0) --sua tu 0.06 len 0.07 nam 2012,tang len 0.08 2014
+                 ELSE DECODE(EMPMAS.SOCIAL_YN,'Y',(NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0))*0.08,0)-- sua tu 0.06 len 0.07 nam 2012, tang len 0.08 2014
+            END AS SOCIAL_AMT    
+        ,CASE WHEN ((NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0)) >= 46800000) THEN
+                    DECODE(EMPMAS.HEALTH_YN,'Y',46800000*0.015,0) 
+                 ELSE DECODE(EMPMAS.HEALTH_YN,'Y',(NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+ NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0))*0.015,0)
+            END AS HEALTH_AMT --89 
+            ,0 AS ALE_PIT --90
+            ,0 AS ALE_PIT_AMT --91
+            ,0 AS REMAINING_CARD_AMT  --92 --TIEN LAM THE AMT DUOC CHIA 2 VA TRU THEO HAI THANG TIEP 
+            ,CASE WHEN (EMP.LEFT_DATE > AS_TO_MON  OR EMP.LEFT_DATE IS NULL)  THEN 'A' ELSE EMP.EMP_STATUS  END  AS STATUS --93 
+            ,0 AS ANNUAL_STOP --o iljung tinh thoi viec rieng--NVL(EMPMAS.ANNUAL_STOP,0) --94 
+            ,0  AS ANNUAL_STOP_AMT
+            ,NVL(ABS_PT2.ABS_SLE,0) AS ABS_SLE
+            ,0 AS DEL_IF  --95 
+            ,AS_USER  --96 
+            ,SYSDATE  --97 
+            ,NVL(EMPMAS.SAL_ALLOW,0) AS SAL_ALLOW --98  
+            ,NVL(EMPMAS.HARD_WORK_AMT,0) AS HARD_AMT--99  
+            ,NVL(EMPMAS.OTHER_AMT,0) AS OTHER_AMT -- 100  
+            ,EMP.EMP_ID_STYLE AS EMPID_STYLE --101 --
+            ,NVL(EMPMAS.POS_AMT,0)                     --102 -- 
+            ,NVL(EMPMAS.TRAIN_ALLOW,0)                        -- 103--
+            ,NVL(EMPMAS.TREAT_ALLOW,0)                       --104--
+            ,EMP.EMP_ID                                           -- 105 ---
+            ,DEPT.NAME                                           -- 106 ---
+            ,GRP.NAME                                           -- 107 ---
+            ,POS.CODE_NM                                           -- 108 ---			
+            ,CASE WHEN SUBSTR(EMP.JOIN_DATE,1,4) < SUBSTR(AS_TO_MON,1,4) THEN 
+                  (MONTHS_BETWEEN(TO_DATE(AS_TO_MON,'YYYYMMDD')+1 , TO_DATE(TO_CHAR(SUBSTR(AS_TO_MON,1,4))||'0101','YYYYMMDD'))*EMP.ANNUAL_LEAVE_DAYS_IN_YEAR/12)
+             ELSE (MONTHS_BETWEEN(TO_DATE(AS_TO_MON,'YYYYMMDD') +1, TO_DATE(TO_CHAR(EMP.JOIN_DATE),'YYYYMMDD'))*EMP.ANNUAL_LEAVE_DAYS_IN_YEAR/12)    
+             END  AS AL_CURR                                  --109 --
+            ,0                                                       -- 110 --
+            ,L.AL_USED                                                       -- 111--
+            ,CASE WHEN (NVL(EMPMAS.BASIC_SAL,0) >= 88200000) THEN
+                    DECODE(EMPMAS.SOCIAL_YN,'Y',88200000*0.01,0) 
+                 ELSE DECODE(EMPMAS.SOCIAL_YN,'Y',(NVL(EMPMAS.BASIC_SAL,0)+NVL(EMPMAS.POS_AMT,0)+NVL(EMPMAS.TECH_AMT,0)+NVL(EMPMAS.SER_AMT,0)+NVL(EMPMAS.TRAIN_ALLOW,0)+NVL(EMPMAS.TREAT_ALLOW,0))*0.01,0)
+            END AS UNEMP_INS_AMT 
+            ,NVL(OTT_DAY1.OT,0) + NVL(OTT_NIGHT1.OT,0) + NVL(OTT_DAY1.HT,0) + NVL(OTT_NIGHT1.HT,0) + NVL(OTT_DAY1.ST,0) + NVL(OTT_NIGHT1.ST,0) AS OT_TOT_100_PRO      --113 
+            ,NVL(OTT_DAY2.OT,0) + NVL(OTT_NIGHT2.OT,0) + NVL(OTT_DAY2.HT,0) + NVL(OTT_NIGHT2.HT,0) + NVL(OTT_DAY2.ST,0) + NVL(OTT_NIGHT2.ST,0) AS OT_TOT_100_OFF      --114 
+            ,ROUND(NVL(EMPMAS.PROB_SALARY,0)*(NVL(OTT_DAY1.OT,0) + NVL(OTT_NIGHT1.OT,0) + NVL(OTT_DAY1.HT,0) + NVL(OTT_NIGHT1.HT,0) + NVL(OTT_DAY1.ST,0) + NVL(OTT_NIGHT1.ST,0))/AV_CAL_DAYS_PERMONTH/8,3) AS OT_TOT_100_PRO_AMT      --115 
+            ,ROUND(NVL(EMPMAS.BASIC_SAL,0)*(NVL(OTT_DAY2.OT,0) + NVL(OTT_NIGHT2.OT,0) + NVL(OTT_DAY2.HT,0) + NVL(OTT_NIGHT2.HT,0) + NVL(OTT_DAY2.ST,0) + NVL(OTT_NIGHT2.ST,0))/AV_CAL_DAYS_PERMONTH/8,3) AS OT_TOT_100_OFF_AMT      --116 
+      FROM THR_ABEMP EMP, THR_ABEMPMAS EMPMAS, THR_ANNUAL_LEAVE_EMP L
+              -- THONG TIN DEPT --
+            ,(SELECT D.PK AS PK, D.DEPT_NM AS NAME FROM TCO_EODEPT D WHERE D.DEL_IF = 0) DEPT
+            -- THONG TIN GROUP--
+            ,(SELECT G.PK AS PK, G.WORKGRP_NM AS NAME FROM THR_ABWORKGRP G WHERE G.DEL_IF = 0) GRP
+            -- THONG TIN POSITION --
+            ,(SELECT CODE, CODE_NM 
+             FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+             WHERE a.TCO_ABCODEGRP_PK = b.PK 
+                    and  a.DEL_IF = 0 
+                   and b.DEL_IF = 0 
+                   AND b.ID ='HRAB0060' 
+                   ORDER BY A.CODE_NM) POS
+            --XAC DINH WT THU VIEC 
+            ,(SELECT C.PK AS EMP_PK,ROUND(SUM(NVL(A.WORT_TIME,0)/(NVL(A.HOURS_IN_SHIFT,8))),8) AS WT_PRO  --CALCULATE PROBATION TIME --10 
+            
+                             , SUM(DECODE(NVL(A.WORT_TIME,0),NVL(A.HOURS_IN_SHIFT,8),0,NVL(A.HOURS_IN_SHIFT,8)-A.WORT_TIME)) AS WT_CC
+                           FROM THR_TIME_MACHINE A, TCO_ABCALENDAR B,THR_ABEMP C
+                          WHERE A.DEL_IF = 0 AND B.DEL_IF = 0
+                              AND C.DEL_IF=0 
+                            AND A.EMP_PK = C.PK
+                            AND A.WORK_DT = B.CAR_DATE
+                            AND A.P_IN IS NOT NULL
+                            AND A.P_OUT IS NOT NULL
+                            AND B.HOL_TYPE IS NULL         
+                            AND A.WORK_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,C.ET_PROBATION,0),1,C.ET_PROBATION,AS_TO_MON)
+                            AND C.ST_PROBATION IS NOT NULL AND C.ET_PROBATION IS NOT NULL
+                            AND C.ET_PROBATION>=AS_FROM_MON
+                            AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                            AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+                        GROUP BY C.PK)WT1
+            
+--XAC  DINH WT HET THU VIEC            
+            ,(SELECT C.PK AS EMP_PK
+                 ,ROUND(SUM(NVL(A.WORT_TIME,0)/(NVL(A.HOURS_IN_SHIFT,8))),8) AS WT_OFF  --CALCULATE OFFICIAL TIME --9 
+                       , SUM(DECODE(NVL(A.WORT_TIME,8),NVL(A.HOURS_IN_SHIFT,8),0,NVL(A.HOURS_IN_SHIFT,8)-A.WORT_TIME)) AS WT_CC
+                 , SUM(DECODE(A.LOSE_INDUS_AMT,'Y',NVL(A.HOURS_IN_SHIFT,8)-NVL(A.WORT_TIME,0),0)) AS WT_LOSE_INDUS                                       
+               FROM THR_TIME_MACHINE A, TCO_ABCALENDAR B,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF = 0
+                  AND C.DEL_IF=0 
+                AND A.EMP_PK = C.PK
+                AND A.WORK_DT = B.CAR_DATE
+                AND A.P_IN IS NOT NULL
+                AND A.P_OUT IS NOT NULL
+                AND B.HOL_TYPE IS NULL
+                AND A.WORK_DT BETWEEN DECODE(F_Check_Num(C.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(C.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+                AND C.ST_PROBATION IS NOT NULL AND C.ET_PROBATION IS NOT NULL
+                AND C.ET_PROBATION<=AS_TO_MON
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+            GROUP BY C.PK)WT2
+
+--xac  dinh ot ca ngay  thu viec 
+               ,(SELECT A.EMP_PK, SUM(DECODE(A.OT_TYPE,'OT',A.OT_TIME,0)) AS OT --14
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,0),0)) AS ST
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',0,A.OT_TIME),0)) AS HT
+                    ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',0,'HOL',0,A.OT_TIME),0)) AS NT45 --TRO CAP 45 KO TINH NGAY CN,LE 
+                       ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,'HOL',A.OT_TIME,0),0)) AS NT60 --TRO CAP 45 TINH NGAY CN,LE 
+               FROM THR_EXTRA_TIME A, TCO_ABCALENDAR B,THR_WORK_SHIFT D,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND D.DEL_IF=0 AND C.DEL_IF=0 
+                AND A.WORK_DT = B.CAR_DATE
+                AND A.W_SHIFT = D.PK
+                AND C.PK=A.EMP_PK
+                AND D.START_TIME<D.END_TIME  ---CA NGAY 
+                AND A.WORK_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,C.ET_PROBATION,0),1,C.ET_PROBATION,AS_TO_MON)
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+             GROUP BY A.EMP_PK) OTT_DAY1
+
+    --xac  dinh ot ca ngay HET thu viec        
+              ,(SELECT A.EMP_PK, SUM(DECODE(A.OT_TYPE,'OT',A.OT_TIME,0)) AS OT --13
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,0),0)) AS ST
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',0,A.OT_TIME),0)) AS HT
+                    ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',0,'HOL',0,A.OT_TIME),0)) AS NT45 --TRO CAP 45 KO TINH NGAY CN,LE 
+                       ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,'HOL',A.OT_TIME,0),0)) AS NT60 --TRO CAP 45 TINH NGAY CN,LE 
+               FROM THR_EXTRA_TIME A, TCO_ABCALENDAR B,THR_WORK_SHIFT D,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND D.DEL_IF=0 AND C.DEL_IF=0 
+                AND A.WORK_DT = B.CAR_DATE
+                AND A.W_SHIFT = D.PK
+                AND C.PK=A.EMP_PK
+                AND D.START_TIME<D.END_TIME  ---CA NGAY 
+                AND A.WORK_DT BETWEEN DECODE(F_Check_Num(C.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(C.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+             GROUP BY A.EMP_PK) OTT_DAY2
+            
+            --xac dinh ot ca DEM thu viec        
+              ,(SELECT A.EMP_PK, SUM(DECODE(A.OT_TYPE,'OT',A.OT_TIME,0)) AS OT
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,0),0)) AS ST
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',0,A.OT_TIME),0)) AS HT
+                    ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',0,'HOL',0,A.OT_TIME),0)) AS NT30 --TRO CAP 30 KO TINH NGAY CN 
+                     ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,'HOL',A.OT_TIME,0),0)) AS NT60 --TRO CAP 60 TINH CHO NGAY CN 
+               FROM THR_EXTRA_TIME A, TCO_ABCALENDAR B,THR_WORK_SHIFT D,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND D.DEL_IF=0 AND C.DEL_IF=0 
+                AND A.WORK_DT = B.CAR_DATE
+                AND A.W_SHIFT = D.PK
+                AND C.PK=A.EMP_PK
+                AND D.START_TIME>D.END_TIME  ---CA DEM 
+                AND A.WORK_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,C.ET_PROBATION,0),1,C.ET_PROBATION,AS_TO_MON)
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+             GROUP BY A.EMP_PK) OTT_NIGHT1
+            
+            --xac  dinh ot ca DEM HET thu viec
+              ,(SELECT A.EMP_PK, SUM(DECODE(A.OT_TYPE,'OT',A.OT_TIME,0)) AS OT
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,0),0)) AS ST
+                    ,SUM(DECODE(A.OT_TYPE,'HT',DECODE(B.HOL_TYPE,'SUN',0,A.OT_TIME),0)) AS HT
+                    ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',0,'HOL',0,A.OT_TIME),0)) AS NT30 --TRO CAP 30 KO TINH NGAY CN 
+                     ,SUM(DECODE(A.OT_TYPE,'NT',DECODE(B.HOL_TYPE,'SUN',A.OT_TIME,'HOL',A.OT_TIME,0),0)) AS NT60 --TRO CAP 60 TINH CHO NGAY CN 
+               FROM THR_EXTRA_TIME A, TCO_ABCALENDAR B,THR_WORK_SHIFT D,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF = 0 AND D.DEL_IF=0 AND C.DEL_IF=0 
+                AND A.WORK_DT = B.CAR_DATE
+                AND A.W_SHIFT = D.PK
+                AND C.PK=A.EMP_PK
+                AND D.START_TIME>D.END_TIME  ---CA DEM 
+                AND A.WORK_DT BETWEEN DECODE(F_Check_Num(C.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(C.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.WORK_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+             GROUP BY A.EMP_PK) OTT_NIGHT2
+
+---XAC DINH VANG HUONG LUONG  THU VIEC
+ ,(SELECT A.EMP_PK,SUM(DECODE(A.ABS_CODE,'ALE',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_ALE --nghi phep nam 
+                     , SUM(DECODE(A.ABS_CODE,'TMP',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_TMP --NGHI HET HANG 
+                  , SUM(DECODE(A.ABS_CODE,'WED',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_WED --NGHI CUOI 
+                  , SUM(DECODE(A.ABS_CODE,'FLE',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_FLE --NGHI TANG 
+                  , SUM(DECODE(A.ABS_CODE,'OFF',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_COM --NGHI BU 
+                   ,SUM(DECODE(A.ABS_CODE,'TMP',0,'ALE',0,'OFF',0,'WED',0,'FLE',0,NVL(A.ABSENT_TIME,8)/8)) AS ABS_COM_PAY  --NGHI VOI LY DO KHAC MA CTY TRA LUONG 
+                   ,SUM(NVL(A.ABSENT_TIME,8)/8) AS ABS_TOTAL_PAY  --TONG SO NGAY NGHI TRA LUONG 
+               FROM THR_EMP_ABSENT A,TCO_ABCALENDAR B,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF=0 AND C.DEL_IF=0
+              AND A.EMP_PK=C.PK AND A.ABS_DT=B.CAR_DATE
+              AND B.HOL_TYPE IS NULL AND B.CAR_DATE<>'1'
+                AND A.ABS_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,C.ET_PROBATION,0),1,C.ET_PROBATION,AS_TO_MON)
+                AND NVL(A.COM_RATE,0) <> 0
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.ABS_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+                 GROUP BY A.EMP_PK) ABS1 --nghi huong luong 
+             
+             ---XAC DINH VANG HUONG LUONG  HET THU VIEC
+ ,(SELECT A.EMP_PK,SUM(DECODE(A.ABS_CODE,'ALE',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_ALE --nghi phep nam 
+                     , SUM(DECODE(A.ABS_CODE,'TMP',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_TMP --NGHI HET HANG 
+                  , SUM(DECODE(A.ABS_CODE,'WED',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_WED --NGHI CUOI  
+                  , SUM(DECODE(A.ABS_CODE,'FLE',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_FLE --NGHI TANG 
+                  , SUM(DECODE(A.ABS_CODE,'OFF',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_COM --NGHI BU 
+                   ,SUM(DECODE(A.ABS_CODE,'TMP',0,'ALE',0,'OFF',0,'WED',0,'FLE',0,NVL(A.ABSENT_TIME,8)/8)) AS ABS_COM_PAY  --NGHI VOI LY DO KHAC MA CTY TRA LUONG 
+                     ,SUM(NVL(A.ABSENT_TIME,8)/8) AS ABS_TOTAL_PAY  --TONG SO NGAY NGHI TRA LUONG 
+               FROM THR_EMP_ABSENT A,TCO_ABCALENDAR B,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF=0 AND C.DEL_IF=0
+              AND A.EMP_PK=C.PK AND A.ABS_DT=B.CAR_DATE
+              AND B.HOL_TYPE IS NULL AND B.CAR_DATE<>'1'
+                AND A.ABS_DT BETWEEN DECODE(F_Check_Num(C.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(C.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.ABS_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+                AND NVL(A.COM_RATE,0) <> 0
+                 GROUP BY A.EMP_PK) ABS2 --nghi huong luong 
+
+--XAC DINH NGHI VOI LY DO KHAM THAI TRONG THOI GIAN THU VIEC 
+,(SELECT A.EMP_PK,SUM(DECODE(A.ABS_CODE,'PT',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_PT --KHAM THAI 
+           ,SUM(DECODE(A.ABS_CODE,'NON',NVL(A.ABSENT_TIME,8),'NOP',NVL(A.ABSENT_TIME,8),'PER',NVL(A.ABSENT_TIME,8),0))/8 AS ABS_CC                                                        
+               FROM THR_EMP_ABSENT A,TCO_ABCALENDAR B,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF=0 AND C.DEL_IF=0
+              AND A.EMP_PK=C.PK AND A.ABS_DT=B.CAR_DATE
+              AND B.HOL_TYPE IS NULL AND B.CAR_DATE<>'1'
+                AND A.ABS_DT BETWEEN AS_FROM_MON AND DECODE(F_Check_Num(AS_TO_MON,C.ET_PROBATION,0),1,C.ET_PROBATION,AS_TO_MON)
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.ABS_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+                AND NVL(A.COM_RATE,0) = 0
+                 GROUP BY A.EMP_PK) ABS_PT1 --nghi khong huong luong 
+
+--XAC DINH NGHI VOI LY DO KHAM THAI HET THOI GIAN THU VIEC 
+,(SELECT A.EMP_PK,SUM(DECODE(A.ABS_CODE,'PT',NVL(A.ABSENT_TIME,8)/8,0)) AS ABS_PT --nghi KHAM THAI 
+             ,SUM(DECODE(A.ABS_CODE,'NON',NVL(A.ABSENT_TIME,8),'NOP',NVL(A.ABSENT_TIME,8),'PER',NVL(A.ABSENT_TIME,8),0))/8 AS ABS_CC
+           ,SUM(DECODE(A.ABS_CODE,'SCH',NVL(A.ABSENT_TIME,8),'PT',NVL(A.ABSENT_TIME,8),'SLE',NVL(A.ABSENT_TIME,8),0)/8) AS ABS_SLE
+               FROM THR_EMP_ABSENT A,TCO_ABCALENDAR B,THR_ABEMP C
+              WHERE A.DEL_IF = 0 AND B.DEL_IF=0 AND C.DEL_IF=0
+              AND A.EMP_PK=C.PK AND A.ABS_DT=B.CAR_DATE
+              AND B.HOL_TYPE IS NULL AND B.CAR_DATE<>'1'
+                AND A.ABS_DT BETWEEN DECODE(F_Check_Num(C.ET_PROBATION,AS_FROM_MON,0),1,TO_CHAR(TO_DATE(C.ET_PROBATION,'yyyymmdd')+1,'yyyymmdd'),AS_FROM_MON) AND AS_TO_MON
+                AND NVL(A.COM_RATE,0) = 0
+                AND (DECODE(C.CAL_DT,NULL,C.JOIN_DATE,C.CAL_DT)  <= AS_TO_MON  OR C.JOIN_DATE IS NULL)
+                   AND (A.ABS_DT  < C.LEFT_DATE OR C.LEFT_DATE IS NULL)
+                 GROUP BY A.EMP_PK) ABS_PT2 --nghi khong huong luong 
+                 
+---KHAU TRU HOAN TRA                 
+ ,(SELECT A.EMP_PK
+                       ,SUM(DECODE(A.ADJ_TYPE,'ADV',A.ADJ_AMT,0)) AS ADV_AMT                  --MINUS TO SALARY (ung truoc) 
+                    ,SUM(DECODE(A.ADJ_TYPE,'ADV2',A.ADJ_AMT,0)) AS EQUIPMENT                  --MINUS TO SALARY (dung cu) 
+                    ,SUM(DECODE(A.ADJ_TYPE,'ADV3',A.ADJ_AMT,0)) AS HEALTH_CARD                  --MINUS TO SALARY (the bao hiem) 
+                    ,SUM(DECODE(A.ADJ_TYPE,'ADJ',A.ADJ_AMT,0)) AS ADJ_AMT    --plus to salary (return) 
+                    ,SUM(DECODE(A.ADJ_TYPE,'INC',A.ADJ_AMT,0)) AS INC_AMT      -- INCENTIVE  (thuong) 
+                    ,SUM(DECODE(A.ADJ_TYPE,'PIT',A.ADJ_AMT,0)) AS PIT_FINALIZE -- QUYET TOAN THUE 
+               FROM THR_SAL_ADJ A WHERE A.DEL_IF = 0 AND A.ADJ_DT BETWEEN AS_FROM_MON AND AS_TO_MON
+             GROUP BY A.EMP_PK) ADJ
+
+-- LUY TIEN TANG CA THANG TRUOC             
+             ,(SELECT A.EMP_PK, A.PROGRESSIVE_OT AS LAST_PROGRESSIVE_OT
+               FROM THR_SALARY_EMP A WHERE A.DEL_IF = 0 
+                       AND A.WORK_MON=F_Get_Month_Befor(AS_FROM_MON)
+             ) LAST --tang ca thang truoc va tien le con lai trong thang truoc 
+
+-- XAC DINH SO NGAY PHEP DA NGHI TRONG THANG             
+         ,(SELECT a.emp_pk,SUM(NVL(a.mon_cnt,0)) AS NUM_ALE FROM VHR_EMP_ABSENT_CNT a WHERE a.yearmon <= SUBSTR(AS_FROM_MON,1,6) AND SUBSTR(a.yearmon,1,4) = SUBSTR(AS_FROM_MON,1,4)
+                                    GROUP BY A.EMP_PK) ALE_Y --so ngay nghi phep nam trong thang 
+--HOLIDAY 
+         ,(SELECT A.EMP_PK,A.HOL_DAY_OFF AS HOL_OFF,A.HOL_DAY_PRO AS HOL_PRO FROM THR_HOLIDAY_MANAGE a WHERE a.del_if=0 AND a.WORK_MON=SUBSTR(AS_TO_MON,1, 6) 
+                   )HOL                                
+     WHERE EMP.DEL_IF = 0
+       AND EMPMAS.DEL_IF = 0
+       AND (DECODE(EMP.CAL_DT,NULL,EMP.JOIN_DATE,EMP.CAL_DT)  <= AS_TO_MON  OR EMP.JOIN_DATE IS NULL)
+       AND (EMP.LEFT_DATE  >= AS_FROM_MON OR EMP.LEFT_DATE IS NULL)
+       AND EMP.PK = EMPMAS.THR_ABEMP_PK
+       AND EMPMAS.POS_CODE = POS.CODE(+)
+       AND EMPMAS.TCO_EODEPT_PK = DEPT.PK
+       AND EMPMAS.THR_ABWORKGROUP_PK = GRP.PK
+        AND EMP.PK = WT1.EMP_PK(+)
+        AND EMP.PK = WT2.EMP_PK(+)
+            
+       AND EMP.PK = OTT_DAY1.EMP_PK(+)
+       AND EMP.PK = OTT_DAY2.EMP_PK(+)
+       
+       AND EMP.PK = OTT_NIGHT1.EMP_PK(+)
+       AND EMP.PK = OTT_NIGHT2.EMP_PK(+) 
+       
+       AND EMP.PK = ABS1.EMP_PK(+)
+       AND EMP.PK = ABS2.EMP_PK(+)
+              
+       AND EMP.PK = ABS_PT1.EMP_PK(+)
+       AND EMP.PK = ABS_PT2.EMP_PK(+)
+
+       AND EMP.PK = ADJ.EMP_PK(+)
+       AND EMP.PK=LAST.EMP_PK(+)
+       AND EMP.PK=ALE_Y.EMP_PK(+)        
+       
+       AND EMP.PK = L.THR_ABEMP_PK(+)
+       AND L.AL_YEAR(+) = SUBSTR(AS_TO_MON,1,4)
+       
+       AND EMP.PK=HOL.EMP_PK(+);     
+     
+     END;
+
+     
+     --UPDATE LAI PHEP NAM CON LAI THUC TE 
+     UPDATE THR_SALARY_EMP S
+     SET S.AL_CURR_BAL = S.AL_CURR - S.AL_USED
+     WHERE S.DEL_IF = 0
+            AND S.WORK_MON = SUBSTR(AS_TO_MON,1,6);
+COMMIT;         
+    AS_RET_NUM := 0;
+    AS_RET_VAR := 'Successful Process !';
+    EXCEPTION
+    WHEN  OTHERS                  THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+        AS_RET_NUM := -1;
+        AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Sal_Calc;
+/
+CREATE OR REPLACE PROCEDURE Pr_Sal_Calc_Special(
+	AS_EMP_PK	  IN NUMBER,
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD 
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+AV_REM					NUMBER(5):=0;
+AV_AMT					NUMBER(10):=0;
+AV_TECH					NUMBER(10):=0;
+AV_NUM					NUMBER(1):=0;
+AV_TECH2				NUMBER(10):=0;
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+-- TINH LAI CAC LOAI TRO CAP CHO NHUNG NGUOI DAC BIET
+AN_SYS_ERROR_MSG := '10';
+	SELECT COUNT(A.EMP_PK) INTO AV_NUM FROM THR_SALARY_EMP A
+	WHERE A.DEL_IF=0 AND A.WORK_MON = SUBSTR(AS_FROM_MON,1,6)
+				  AND A.EMP_PK = AS_EMP_PK;
+   IF AV_NUM>0 THEN				  
+
+			SELECT NVL(C.TECH_AMT,0) INTO AV_TECH FROM THR_ABEMPMAS C
+			WHERE C.DEL_IF=0 AND C.THR_ABEMP_PK=AS_EMP_PK;
+			
+			--AV_TECH2 : LA TIEN KT DA DUOC TINH LAN 1
+			SELECT NVL(B.TECH_AMT,0) INTO AV_TECH2 FROM THR_SALARY_EMP B
+			WHERE B.DEL_IF=0 AND B.EMP_PK=AS_EMP_PK AND B.WORK_MON=SUBSTR(AS_FROM_MON,1,6);
+			
+			
+			SELECT NVL(A.WT,0)+NVL(A.ABS_DAY,0)+NVL(A.WOW,0)+NVL(A.ABS_NDAY,0)-NVL(A.ABS_CC,0) INTO AV_REM FROM THR_SALARY_EMP A
+			WHERE A.DEL_IF=0 AND A.WORK_MON = SUBSTR(AS_FROM_MON,1,6)
+				  AND A.EMP_PK = AS_EMP_PK;
+				  
+	  	    UPDATE THR_SALARY_EMP A
+			SET A.TECH_AMT = AV_TECH/26*AV_REM
+			,A.NET_AMT=round(A.NET_AMT+((AV_TECH/26*AV_REM)-AV_TECH2),-3)
+			WHERE A.DEL_IF=0 AND A.WORK_MON = SUBSTR(AS_FROM_MON,1,6)
+			     AND A.EMP_PK = AS_EMP_PK;
+	
+	END IF;						  
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (PR_SAL_CALC) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Sal_Calc_Special;
+/
+CREATE OR REPLACE PROCEDURE Pr_Sal_Calc_Step2(
+	AS_FROM_MON		IN	VARCHAR2,	-- YYYYMMDD 
+	AS_TO_MON		IN	VARCHAR2, 	-- YYYYMMDD 
+	AS_USER			IN	VARCHAR2,   -- USER ID 
+	AS_RET_NUM		OUT NUMBER,  	-- RETURN VALUE ( NUMBER ) 
+    AS_RET_VAR		OUT	VARCHAR2 	-- RETURN VALUE ( CHARACTER ) 
+) IS
+
+AV_CHECK_MON            VARCHAR2(1);
+AV_DAYS_PERMONTH        NUMBER(10);
+AV_COUNT     NUMBER(10);
+AN_SYS_ERROR_MSG		VARCHAR2(100);
+
+
+--******************************************
+  -- Modify by    : huynh truong											
+  -- Modify date  : 24/03/2005 
+--******************************************
+
+BEGIN
+
+-- XAC DINH SO NGAY LAM VIEC THUC TE TRONG THANG 
+   	 SELECT COUNT( *)  INTO AV_DAYS_PERMONTH FROM TCO_ABCALENDAR A WHERE A.CAR_DATE BETWEEN AS_FROM_MON AND AS_TO_MON AND A.DAY_TYPE<> 1;
+	 -- NGOC lAM THEM NAM 2016
+		IF(AV_DAYS_PERMONTH>26) THEN
+		
+		 	AV_DAYS_PERMONTH := 26;
+			
+		END IF ;  									
+
+AN_SYS_ERROR_MSG := '5';
+--- UPDATE SO TIEN NGHI HUONG LUONG => LAY GIA TRI TRONG COMMON CODE
+
+---* DA CHA'C CHA'N SALARY KHONG THE NULL
+	 	BEGIN
+ 						UPDATE THR_SALARY_EMP S
+						SET S.ABS_ALE_OFF_AMT=ROUND(((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0)) /AV_DAYS_PERMONTH )*NVL(S.ABS_ALE_OFF,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='ALE'),3) --PHEP NAM HET THU VIEC
+						,S.ABS_ALE_PRO_AMT=ROUND(((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_ALE_PRO,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='ALE'),3) --PHEP NAM THU VIEC
+						,S.ABS_TMP_OFF_AMT=ROUND(((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_TMP_OFF,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='TMP'),3) --NGHI THEO KE HOACH																							    
+						,S.ABS_TMP_PRO_AMT=ROUND(((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_TMP_PRO,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='TMP'),3) 
+						,S.ABS_WED_OFF_AMT=ROUND(((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_WED_OFF,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='WED'),3) --NGHI CUOI
+						,S.ABS_WED_PRO_AMT=ROUND(((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_WED_PRO,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='WED'),3) 
+						,S.ABS_FLE_OFF_AMT=ROUND(((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_FLE_OFF,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='FLE'),3) --NGHI TANG
+						,S.ABS_FLE_PRO_AMT=ROUND(((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_FLE_PRO,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+																												 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+																												 	   AND A.CODE='FLE'),3) --NGHI TANG
+						
+						,S.ABS_COM_OFF_AMT=0
+						--,S.ABS_COM_OFF_AMT=ROUND(((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_COM_OFF,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+							--																			 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+								--																			 	   AND A.CODE='OFF'),3) --NGHI BU
+						
+						,S.ABS_COM_PRO_AMT=0
+						--,S.ABS_COM_PRO_AMT=ROUND(((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_COM_PRO,0)*(SELECT NVL(A.NUM_VALUE1,0)/100 FROM comm.TCO_ABCODE a, comm.TCO_ABCODEGRP b 
+							--																				 WHERE a.TCO_ABCODEGRP_PK = b.PK AND a.DEL_IF = 0 AND b.DEL_IF = 0 AND b.ID = 'HRAB0110'
+								--																			 	   AND A.CODE='OFF'),3) --NGHI BU
+						,S.ABS_COM_PAY_OFF_AMT=((NVL(S.BASIC_SAL,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_COM_PAY_OFF,0) --NGHI VOI LY DO KHAC MA CTY TRA LUONG 100%
+						,S.ABS_COM_PAY_PRO_AMT=((NVL(S.PRO_SALARY,0)+NVL(S.SAL_ALLOW,0))/AV_DAYS_PERMONTH)*NVL(S.ABS_COM_PAY_PRO,0)--NGHI VOI LY DO KHAC MA CTY TRA LUONG 100%
+						WHERE S.DEL_IF=0 AND S.WORK_MON=SUBSTR(AS_TO_MON,1, 6)
+						AND ( NVL(S.ABS_ALE_OFF,0)>0  OR
+							  				NVL(S.ABS_ALE_PRO,0)>0  OR
+											NVL(S.ABS_TMP_OFF,0)>0  OR
+											NVL(S.ABS_TMP_PRO,0)>0  OR
+											NVL(S.ABS_WED_PRO,0)>0  OR
+											NVL(S.ABS_WED_OFF,0)>0  OR
+											NVL(S.ABS_FLE_PRO,0)>0  OR
+											NVL(S.ABS_FLE_OFF,0)>0  OR
+											NVL(S.ABS_COM_PRO,0)>0  OR
+											NVL(S.ABS_COM_OFF,0)>0  OR
+											NVL(S.ABS_COM_PAY_PRO,0)>0  OR
+											NVL(S.ABS_COM_PAY_OFF,0)>0 
+										);		  	
+
+			UPDATE THR_SALARY_EMP S
+			SET S.ABS_TOTAL_DAY_OFF_AMT=ROUND(NVL(S.ABS_ALE_OFF_AMT,0) +
+														   			   	  	--NVL(S.ABS_TMP_OFF_AMT,0) +
+																			NVL(S.ABS_WED_OFF_AMT,0) +
+																			NVL(S.ABS_FLE_OFF_AMT,0) +
+																			NVL(S.ABS_COM_OFF_AMT,0) +
+																			NVL(S.ABS_COM_PAY_OFF_AMT,0),3)
+																	   	  	  			
+						,S.ABS_TOTAL_DAY_PRO_AMT=ROUND(NVL(S.ABS_ALE_PRO_AMT,0) +
+														   			   	  	--NVL(S.ABS_TMP_PRO_AMT,0) +
+																			NVL(S.ABS_WED_PRO_AMT,0) +
+																			NVL(S.ABS_FLE_PRO_AMT,0) +
+																			NVL(S.ABS_COM_PRO_AMT,0) +
+																			NVL(S.ABS_COM_PAY_PRO_AMT,0),3)	
+           WHERE S.DEL_IF=0 AND S.WORK_MON=SUBSTR(AS_TO_MON,1, 6)
+		   AND ( NVL(S.ABS_ALE_OFF_AMT,0)>0  OR
+							  				NVL(S.ABS_ALE_PRO_AMT,0)>0  OR
+											NVL(S.ABS_TMP_OFF_AMT,0)>0  OR
+											NVL(S.ABS_TMP_PRO_AMT,0)>0  OR
+											NVL(S.ABS_WED_OFF_AMT,0)>0  OR
+											NVL(S.ABS_WED_PRO_AMT,0)>0  OR
+											NVL(S.ABS_FLE_OFF_AMT,0)>0  OR
+											NVL(S.ABS_FLE_PRO_AMT,0)>0  OR
+											NVL(S.ABS_COM_OFF_AMT,0)>0  OR
+											NVL(S.ABS_COM_PRO_AMT,0)>0  OR
+											NVL(S.ABS_COM_PAY_OFF_AMT,0)>0  OR
+											NVL(S.ABS_COM_PAY_PRO_AMT,0)>0 
+										);		  																																				
+
+				END;
+				
+
+AN_SYS_ERROR_MSG := '50';
+
+
+-- TINH NHUNG TRO CAP LINH DONG THEO TUNG THANG 
+/*
+BEGIN
+	 
+	 UPDATE THR_SALARY_EMP A
+	 SET A.TECH_AMT=ROUND((NVL(A.WT_OFF,0)+NVL(A.WT_PRO,0)+NVL(A.ABS_TOTAL_DAY_OFF,0)+NVL(A.ABS_TOTAL_DAY_PRO,0)+NVL(A.HOL_PRO,0)+NVL(A.HOL_OFF,0))*NVL(A.TECH_AMT,0)/26,3)
+	 ,A.HARD_AMT=ROUND((NVL(A.WT_OFF,0)+NVL(A.WT_PRO,0)+NVL(A.ABS_TOTAL_DAY_OFF,0)+NVL(A.ABS_TOTAL_DAY_PRO,0)+NVL(A.HOL_PRO,0)+NVL(A.HOL_OFF,0))*NVL(A.HARD_AMT,0)/26,3)
+	 ,A.OTHER_AMT=ROUND((NVL(A.WT_OFF,0)+NVL(A.WT_PRO,0)+NVL(A.ABS_TOTAL_DAY_OFF,0)+NVL(A.ABS_TOTAL_DAY_PRO,0)+NVL(A.HOL_PRO,0)+NVL(A.HOL_OFF,0))*NVL(A.OTHER_AMT,0)/26,3)
+	 ,A.INDUS_AMT=(CASE WHEN NVL(A.WT_OFF,0)+NVL(A.WT_PRO,0)+NVL(A.ABS_TOTAL_DAY_OFF,0)+NVL(A.ABS_TOTAL_DAY_PRO,0)+NVL(A.HOL_PRO,0)+NVL(A.HOL_OFF,0)>=AV_DAYS_PERMONTH THEN 50000
+	 					ELSE 0 END)
+	 WHERE A.DEL_IF = 0
+		   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		   AND A.EMPID_STYLE='00'; --CHI TINH CHO CONG NHAN  
+		   
+		   
+		    UPDATE THR_SALARY_EMP A
+	 SET A.INDUS_AMT=0
+	 WHERE A.DEL_IF = 0
+		   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		   AND A.EMPID_STYLE='00' AND a.emp_pk IN(SELECT c.THR_ABEMP_PK FROM THR_ABEMPMAS c WHERE c.del_if=0 AND c.POS_CODE='C'); -- to truong ko co tien nay    
+	 
+END;
+*/
+
+BEGIN -- UPDATE CAC LOAI TRO CAP  CHO CONG NHAN HET THU VIEC --
+	  -- CHUA HET THU VIEC
+	  
+	  UPDATE THR_SALARY_EMP T
+	  SET T.TRAIN_ALL = 0
+	  	  ,T.POS_ALL = 0
+	  	  ,T.TECH_AMT = 0
+	  	  ,T.INDUS_AMT = 0
+	  	  ,T.TRANS_AMT = 0
+	  	  ,T.TREAT_ALL =0
+	  	  ,T.OTHER_AMT = 0
+		  ,T.SER_MONTH = 0
+		  ,T.SER_AMT = 0
+
+	  WHERE T.DEL_IF = 0
+	  		AND T.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+	  		AND T.EMP_PK IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON );
+	  
+	  
+	  -- HET THU VIEC -- 
+	  
+	  UPDATE THR_SALARY_EMP T
+	  SET T.TRAIN_ALL = T.TRAIN_ALL 
+	--  	  ,T.POS_ALL = T.POS_ALL / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_TMP_OFF,0)+NVL(T.ABS_COM_OFF,0))
+		  	  	  ,T.POS_ALL = T.POS_ALL / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_COM_OFF,0))
+--	  	  ,T.TECH_AMT = T.TECH_AMT / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_TMP_OFF,0)+NVL(T.ABS_COM_OFF,0))
+--	  	  ,T.INDUS_AMT = T.INDUS_AMT /AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_TMP_OFF,0)+NVL(T.ABS_COM_OFF,0))
+		  	  	  ,T.INDUS_AMT = T.INDUS_AMT /AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_COM_OFF,0))
+--	  	  ,T.TRANS_AMT = T.TRANS_AMT / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_TMP_OFF,0)+NVL(T.ABS_COM_OFF,0))
+		  	  	  ,T.TRANS_AMT = T.TRANS_AMT / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_COM_OFF,0))
+	  	  ,T.TREAT_ALL =T.TREAT_ALL 
+--  	  ,T.OTHER_AMT = T.OTHER_AMT / AV_DAYS_PERMONTH * (NVL(T.WT_OFF,0) + NVL(T.ABS_ALE_OFF,0) + NVL(T.ABS_FLE_OFF,0) + NVL(T.ABS_WED_OFF,0) + NVL(T.HOL_OFF,0)+NVL(T.ABS_TMP_OFF,0)+NVL(T.ABS_COM_OFF,0))
+
+	  WHERE T.DEL_IF = 0
+	  		AND T.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+	  		AND T.EMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON);
+	  
+	  
+	  
+	  -- UPDATE LAI TIEN CHUYEN CAN THEO RULE CUA SHINWOO --
+	  UPDATE THR_SALARY_EMP S
+	  		 SET S.INDUS_AMT = NVL(S.INDUS_AMT,0) * F_CAL_INDUS_AMT(S.EMP_PK,AS_FROM_MON,AS_TO_MON)
+	  WHERE S.DEL_IF = 0
+	  		AND S.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+			AND S.EMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON);
+			
+			/* TAI DAY SE TINH TIEN TRO CAP THAM NIEN CHO MOI NGUOI --
+	// MOI 6 THANG DUOC 25000 --
+	// MR MY MODIFY NGAY 05/10/2007 =
+	*/
+	-- TINH SO THANG LAM VIEC CUA MOI NGUOI --
+	UPDATE THR_SALARY_EMP S
+	  SET S.SER_MONTH = NVL(FLOOR(MONTHS_BETWEEN(TO_DATE(AS_TO_MON,'YYYYMMDD'),TO_DATE(S.JOIN_DT,'YYYYMMDD'))),0)
+	WHERE S.DEL_IF = 0
+	 	AND S.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		AND S.EMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON);
+	 
+	--- TINH TIEN THAM NIEN CHO MOI NGUOI --
+	UPDATE THR_SALARY_EMP S
+	   SET S.SER_AMT = F_CAL_SERVERANCE(NVL(S.SER_MONTH,0))
+	WHERE S.DEL_IF = 0
+			AND S.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		AND S.EMP_PK NOT IN (SELECT A.PK FROM THR_ABEMP A WHERE A.DEL_IF = 0 AND A.ET_PROBATION >= AS_TO_MON)
+		AND S.SER_MONTH >= 6;
+	
+	
+END;
+
+BEGIN -- INCOME AMOUNT 
+	  	-- TINH GIAM TRU GIA CANH 
+        UPDATE thr_salary_emp a
+           SET a.family_deduct_amt =
+                    4000000
+                  + nvl((SELECT   COUNT (f.emp_pk) * 1600000
+                         FROM thr_family f
+                        WHERE f.del_if = 0
+                          AND f.depend_yn = 'Y'
+                          AND f.start_dt <= as_to_mon
+                          AND (f.end_dt >= as_from_mon or f.end_dt is null)
+                          AND f.emp_pk = a.emp_pk
+                     GROUP BY f.emp_pk),0)
+         WHERE a.del_if = 0 AND a.work_mon = SUBSTR (as_to_mon, 1, 6);                             
+
+
+         
+		 UPDATE THR_SALARY_EMP A
+		   SET a.income_before_tax_amt = 
+		   	   			ROUND(NVL(A.WT_OFF_AMT,0)
+		   	   				+ NVL(A.WT_PRO_AMT,0)  --CONG 
+		   	   				+ NVL(A.ABS_TOTAL_DAY_OFF_AMT,0)
+							+ NVL(A.ABS_TOTAL_DAY_PRO_AMT,0)  --TONG VANG TRA LUONG
+		   		    		+ NVL(A.TRANS_AMT,0)
+							+ NVL(A.TRAIN_ALL,0)
+							+ NVL(A.INDUS_AMT,0)   --CHUYEN CAN DI LAI
+							+ NVL (a.ot_tot_100_off_amt, 0)
+                   			+ NVL (a.ot_tot_100_pro_amt, 0)
+							+ NVL (ANNUAL_STOP_AMT,0)    
+		   	   				+ NVL(A.INC_AMT,0) --THUONG 
+			   				- NVL(A.PIT_FINALIZE,0) --QUYET TOAN THUE --
+							+ NVL(A.ADJ_AMT,0) --HOAN TRA --
+							- NVL(A.ADV_AMT,0) --TAM UNG --
+			   				+ NVL(A.HOL_OFF_AMT,0)
+							+ NVL(A.HOL_PRO_AMT,0)--TIEN NGAY LE  --
+							+ NVL(A.TECH_AMT,0) --TIEN KY THUAT  --
+					--		+ NVL(A.ALLOW_AMT,0) --TIEN TRACH NHIEM  --
+							- NVL(A.UNION_AMT,0) --TIEN CONG DOAN --
+					--		+ NVL(A.HARD_AMT,0) --- TRO CAP NANG NHCC --
+							+ NVL(A.OTHER_AMT,0)--TRO CAP KHAC  --
+							+ NVL(A.POS_ALL,0)		  -- TRO CAP CHUC VU --
+					--		+ NVL(A.TREAT_ALL,0)	  -- TRO CAP DIEU TRI, DOC HAI --
+							+ NVL(A.SER_AMT,0)	  -- TRO CAP THAM NIEN --
+							+ 0,3)					  -- + 0 ==> DE CHO CODE BEAUTIFUL ==> DUNG CHUI --
+	     WHERE A.DEL_IF = 0
+		   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6);
+
+        UPDATE thr_salary_emp a
+           SET a.income_tax =
+                  f_get_tax (  NVL (a.income_before_tax_amt, 0)
+                             - NVL (a.social_amt, 0)
+                             - NVL (a.health_amt, 0)
+                             - NVL (A.UNEMP_INS_AMT,0)     -- bao hiem that nghiep 
+                             - NVL (a.family_deduct_amt, 0) -- giam tru gia canh 
+                            )
+         WHERE a.del_if = 0 AND a.work_mon = SUBSTR (as_to_mon, 1, 6);
+		 
+
+	    UPDATE THR_SALARY_EMP A
+		   SET A.INCOME_AMT = ROUND(NVL(A.WT_OFF_AMT,0)
+		   	   				+ NVL(A.WT_PRO_AMT,0)  --CONG 
+		   	   				+ NVL(A.ABS_TOTAL_DAY_OFF_AMT,0)
+							+ NVL(A.ABS_TOTAL_DAY_PRO_AMT,0)  --TONG VANG TRA LUONG
+		   		    		+ NVL(A.TRANS_AMT,0)
+							+ NVL(A.TRAIN_ALL,0)
+							+ NVL(A.INDUS_AMT,0)   --CHUYEN CAN DI LAI
+							+ NVL(A.OT_TOT_OFF_AMT,0) 
+							+ NVL(A.OT_TOT_PRO_AMT,0)  --TONG TIEN T/C KO TINH TRO CAP CA DEM
+							+ NVL(ANNUAL_STOP_AMT,0)    
+		   	   				+ NVL(A.INC_AMT,0) --THUONG 
+			   				- NVL(A.PIT_FINALIZE,0) --QUYET TOAN THUE --
+							+ NVL(A.ADJ_AMT,0) --HOAN TRA --
+							- NVL(A.ADV_AMT,0) --TAM UNG --
+			   				+ NVL(A.HOL_OFF_AMT,0)
+							+ NVL(A.HOL_PRO_AMT,0)--TIEN NGAY LE  --
+							+ NVL(A.TECH_AMT,0) --TIEN KY THUAT  --
+					--		+ NVL(A.ALLOW_AMT,0) --TIEN TRACH NHIEM  --
+							- NVL(A.UNION_AMT,0) --TIEN CONG DOAN --
+					--		+ NVL(A.HARD_AMT,0) --- TRO CAP NANG NHCC --
+							+ NVL(A.OTHER_AMT,0)--TRO CAP KHAC  --
+							+ NVL(A.POS_ALL,0)		  -- TRO CAP CHUC VU --
+							+ NVL(A.TREAT_ALL,0)	  -- TRO CAP DIEU TRI, DOC HAI --
+							+ NVL(A.SER_AMT,0)	  -- TRO CAP THAM NIEN --
+							+ 0,3)					  -- + 0 ==> DE CHO CODE BEAUTIFUL ==> DUNG CHUI --
+	     WHERE A.DEL_IF = 0
+		   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6);
+	END;
+AN_SYS_ERROR_MSG := '60';
+	
+    
+BEGIN -- GROSS , PIT -- 	  
+	  
+	  	 UPDATE THR_SALARY_EMP A  				   	  	 	 	-- UPDATE LAI TONG THU NHAP --
+		   SET A.GROSS_AMT  = ROUND(NVL(A.WT_OFF_AMT,0)
+		   	   				+ NVL(A.WT_PRO_AMT,0)  --CONG 
+		   	   				+ NVL(A.ABS_TOTAL_DAY_OFF_AMT,0)
+							+ NVL(A.ABS_TOTAL_DAY_PRO_AMT,0)  --TONG VANG TRA LUONG
+		   		    		+ NVL(A.TRANS_AMT,0)
+							+ NVL(A.TRAIN_ALL,0)
+							+ NVL(A.INDUS_AMT,0)   --CHUYEN CAN DI LAI
+							+ NVL(A.OT_TOT_OFF_AMT,0) 
+							+ NVL(A.OT_TOT_PRO_AMT,0)  --TONG TIEN T/C KO TINH TRO CAP CA DEM
+							+ NVL (ANNUAL_STOP_AMT,0)    
+		   	   				+ NVL(A.INC_AMT,0) --THUONG 	---		   		
+							+ NVL(A.ADJ_AMT,0) --HOAN TRA --					
+			   				+ NVL(A.HOL_OFF_AMT,0)
+							+ NVL(A.HOL_PRO_AMT,0)--TIEN NGAY LE  --
+							+ NVL(A.TECH_AMT,0) --TIEN KY THUAT  --
+					--		+ NVL(A.ALLOW_AMT,0) --TIEN TRACH NHIEM  --  SHINWOO KO CO KHOAN NAY --					
+					--		+ NVL(A.HARD_AMT,0) --- TRO CAP NANG NHCC --  -  SHINWOO KO CO KHOAN NAY --
+							+ NVL(A.OTHER_AMT,0)--TRO CAP KHAC  --
+							+ NVL(A.POS_ALL,0)		  -- TRO CAP CHUC VU --
+							+ NVL(A.TREAT_ALL,0)	  -- TRO CAP DIEU TRI, DOC HAI --
+							+ NVL(A.SER_AMT,0)	  -- TRO CAP THAM NIEN --	
+							+ NVL(A.ALE_PIT_AMT,0) 
+						    + NVL(A.NT30_OFF_AMT,0)
+						    + NVL(A.NT30_PRO_AMT,0)
+						    + NVL(A.NT45_OFF_AMT,0)
+						    + NVL(A.NT45_PRO_AMT,0)
+	  					    + NVL(A.NT60_PRO_AMT,0)
+						    + NVL(A.NT60_OFF_AMT,0)	   --TRO CAP CA DEM KO BI DANH THUE--
+	  					    + NVL(A.SEVERANCE_AMT,0) 		
+						    + 0,3)				
+	     WHERE A.DEL_IF = 0
+		   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6);
+	  	 
+					   UPDATE THR_SALARY_EMP A
+					   SET A.NET_AMT = ROUND( NVL(A.INCOME_AMT,0) 
+						   			  		   - NVL(A.SOCIAL_AMT,0)
+											   - NVL(A.HEALTH_AMT,0)  
+											   - NVL(A.UNEMP_INS_AMT,0)	   --BAO HIEM THAT NGHIEP 
+											--   - NVL(A.INCOME_TAX,0)	   --tam thoi xoa den thang 5 theo luat 
+						  					   + NVL(A.ALE_PIT_AMT,0) 
+											   + NVL(A.NT30_OFF_AMT,0)
+											   + NVL(A.NT30_PRO_AMT,0)
+											   + NVL(A.NT45_OFF_AMT,0)
+											   + NVL(A.NT45_PRO_AMT,0)
+						  					   + NVL(A.NT60_PRO_AMT,0)
+											   + NVL(A.NT60_OFF_AMT,0)	   --TRO CAP CA DEM KO BI DANH THUE--
+						  					   + NVL(A.SEVERANCE_AMT,0)  
+											   + 0,3) 
+					 WHERE A.DEL_IF = 0
+					   	   AND A.WORK_MON = SUBSTR(AS_TO_MON,1, 6);
+			
+END;
+	
+	-- UPDATE LUONG CUA NGUOI KO DI LAM NGAY NAO
+	
+/*	UPDATE THR_SALARY_EMP KL
+	SET KL.NET_AMT = 0
+		,KL.MOD_BY='TRUONG'
+		WHERE KL.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		AND KL.DEL_IF = 0
+		AND NVL(KL.WT_OFF,0)+NVL(KL.WT_PRO,0) = 0
+		AND NVL(KL.HOL_OFF,0)+NVL(KL.HOL_PRO,0)=0
+		AND NVL(KL.ALE_PIT_AMT,0)=0
+		AND NVL(KL.SEVERANCE_AMT,0)=0
+		AND (NVL(KL.ABS_TOTAL_DAY_OFF,0) + NVL(KL.ABS_TOTAL_DAY_PRO,0) = 0);
+	*/	
+		
+		
+	--LUU LAI LUY TIEN OT
+	UPDATE THR_SALARY_EMP KL
+	SET  KL.PROGRESSIVE_OT = ROUND(NVL(KL.PROGRESSIVE_OT,0)+NVL(KL.LAST_PROGRESSIVE_OT,0),2)
+		WHERE KL.WORK_MON = SUBSTR(AS_TO_MON,1, 6)
+		AND KL.DEL_IF = 0;
+
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, ':ERROR... OTHER (Pr_Sal_Calc_step2) Month : '|| AS_FROM_MON ||'ERRCODE : '|| AN_SYS_ERROR_MSG||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MASG : ' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Sal_Calc_Step2;
+/
+CREATE OR REPLACE PROCEDURE Pr_Sal_Close( AS_MON  IN  VARCHAR2,  -- MMYYYY
+                        AS_USER IN  VARCHAR2,  -- USER ID
+                        AS_FLAG IN  VARCHAR2,  -- 'C' : CLOSE, 'O' : OPEN
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+AV_FLAG		VARCHAR2(1) := NULL;
+AV_DT		VARCHAR2(8) := NULL;
+
+BEGIN
+	IF AS_FLAG = 'C' THEN
+		AV_FLAG := 'Y';
+		SELECT TO_CHAR(SYSDATE,'YYYYMMDD') INTO AV_DT FROM DUAL;
+	ELSE
+		AV_FLAG := 'N';
+		AV_DT := NULL;
+	END IF;
+
+	/* CLOSING TABLE */
+	UPDATE THR_TIME_MACHINE A
+	SET A.CLOSE_FLAG=AV_FLAG
+	        ,A.CLOSE_DT=AV_DT
+	       ,A.MOD_DT        = SYSDATE,
+	       A.MOD_BY        = AS_USER
+	WHERE A.DEL_IF=0 AND A.WORK_DT LIKE AS_MON||'%';
+	     
+	
+	UPDATE THR_EXTRA_TIME A
+	SET A.CLOSE_FLAG=AV_FLAG
+	        ,A.CLOSE_DT=AV_DT
+	       ,A.MOD_DT        = SYSDATE,
+	       A.MOD_BY        = AS_USER
+	WHERE A.DEL_IF=0 AND A.WORK_DT LIKE AS_MON||'%';
+	
+	
+	UPDATE THR_EMP_ABSENT A
+	SET A.CLOSE_FLAG=AV_FLAG
+	        ,A.CLOSE_DT=AV_DT
+	       ,A.MOD_DT        = SYSDATE,
+	       A.MOD_BY        = AS_USER
+	WHERE A.DEL_IF=0 AND A.ABS_DT LIKE AS_MON||'%';
+	
+	
+	UPDATE THR_ET_EXTRA_TIME A
+	SET A.CLOSE_FLAG=AV_FLAG
+	        ,A.CLOSE_DT=AV_DT
+	       ,A.MOD_DT        = SYSDATE,
+	       A.MOD_BY        = AS_USER
+	WHERE A.DEL_IF=0 AND A.WORK_DT LIKE AS_MON||'%';
+	
+	UPDATE THR_SAL_ADJ A
+	SET A.CLOSE_FLAG=AV_FLAG
+	        ,A.CLOSE_DT=AV_DT
+	       ,A.MOD_DT        = SYSDATE,
+	       A.MOD_BY        = AS_USER
+	WHERE A.DEL_IF=0 AND A.ADJ_DT LIKE AS_MON||'%';
+	
+	UPDATE THR_SALARY_EMP S
+	SET S.CLOSE_FLAG=AV_FLAG
+			,S.CLOSE_DT=AV_DT
+	       ,S.MOD_DT        = SYSDATE,
+	       S.MOD_BY        = AS_USER
+	WHERE S.DEL_IF=0 AND S.WORK_MON=AS_MON;
+	
+	
+	UPDATE THR_CLOSE
+	SET CLOSE_FLAG = AV_FLAG,
+	       CLOSE_DAY   = AV_DT,
+	       MOD_DT        = SYSDATE,
+	       MOD_BY        = AS_USER
+	WHERE MMYYYY = AS_MON
+	     AND ID = 'SAL';
+
+	COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_TIME_LOAD) '||SQLERRM );
+		ROLLBACK;
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Sal_Close;
+/
+CREATE OR REPLACE PROCEDURE PR_TIME_ATT_HIST
+( 	AS_TEMP_PK   IN  NUMBER,  -- EMPLOYEE PK
+	AS_USER       IN  VARCHAR2,  -- USER_ID
+	AS_RTN_NUM OUT NUMBER
+)
+ IS
+
+BEGIN
+
+   Insert into 	 THR_ATTENDANCE_HIST (PK,EMP_PK,WORK_DT,P_IN,P_OUT,WORK_TIME,DEL_IF,CRT_DT,CRT_BY,W_SHIFT)
+   select THR_ATTENDANCE_HIST_SEQ.nextval,EMP_PK,WORK_DT,P_IN,P_OUT,WORT_TIME,0,sysdate,AS_USER,W_SHIFT
+   from THR_TIME_MACHINE 
+   where PK=AS_TEMP_PK; 
+
+   EXCEPTION
+     WHEN NO_DATA_FOUND THEN
+		ROLLBACK;
+		AS_RTN_NUM := -1;
+     WHEN OTHERS THEN
+       -- Consider logging the error and then re-raise
+		ROLLBACK;
+		AS_RTN_NUM := -1;
+END PR_TIME_ATT_HIST;
+/
+CREATE OR REPLACE PROCEDURE Pr_Time_Load( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+                        AS_TO     IN  VARCHAR2,  -- KHONG XAI BIEN NAY
+                        AS_USER IN  VARCHAR2,  -- USER ID
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_TO_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+	BEGIN
+		SELECT COUNT(*) INTO VN_CLOSE_CHECK
+		FROM THR_CLOSE
+		WHERE ID = 'SAL'
+		  AND MMYYYY >= SUBSTR(AS_FROM,1, 6)
+		  AND MMYYYY <= SUBSTR(AS_FROM,  1, 6)
+		  AND CLOSE_FLAG = 'Y'
+		  AND DEL_IF = 0;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	              VN_CLOSE_CHECK := 0;
+
+	        IF VN_CLOSE_CHECK >= 1 THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+	END;
+AN_SYS_ERROR_MSG := '20';
+	AV_FROM_DT := AS_FROM;
+	--AV_TO_DT      := AS_TO;
+
+--GROUP MAPPING FOR NOT IN GROUP PERSON
+	/*BEGIN
+AN_SYS_ERROR_MSG := '30';	
+        INSERT INTO THR_GRP_EMP(
+	            PK, THR_ABWORKGRP_PK, START_DT, WORK_SHIFT, EMP_PK
+				, FULL_NAME, DEL_IF, CRT_DT, CRT_BY)
+         SELECT THR_GRP_EMP_SEQ.NEXTVAL, C.PK, TO_CHAR(SYSDATE,'YYYYMMDD'), C.THR_WORK_SHIFT_PK, A.PK
+		        , A.FULL_NAME, 0, SYSDATE, 'GENUWIN'
+           FROM VHR_EMP A, VCO_EODEPT B, THR_ABWORKGRP C
+          WHERE A.DEL_IF = 0
+            AND C.DEL_IF = 0
+            AND A.DEPT_PK = B.PK
+            AND B.DEPT_ID = C.WORKGRP_ID
+            AND A.DEPT_PK IS NOT NULL
+            AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_GRP_EMP D WHERE D.DEL_IF = 0);
+
+AN_SYS_ERROR_MSG := '40';
+	END;*/
+	-- DELETE DU LIEU CU DE KHONG CAN PHAI UPDATE LAI GIO IN OUT
+	/*BEGIN
+	DELETE FROM THR_TIME_MACHINE A
+    WHERE A.WORK_DT=AS_FROM
+		  AND A.APPLY_FLAG<>'Y';
+	COMMIT;
+	END;*/
+	
+AN_SYS_ERROR_MSG := '50';
+
+--INSERT(FOR NORMAL TIME WORK PERSON)
+	BEGIN
+		INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+			   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+		  FROM (
+		SELECT B.PK AS EMP_PK, C.THR_ABWORKGRP_PK AS GRP_CODE, A.TIME_DT AS WORK_DT, C.WORK_SHIFT AS W_SHIFT
+			   ,MIN(A.TIME) AS P_IN
+			   ,DECODE(F_Check_In_Out(MIN(A.TIME),MAX(A.TIME),30),0,'',MAX(A.TIME)) AS P_OUT
+		  FROM THR_TIME_TEMP A, THR_ABEMP B, THR_GRP_EMP C, THR_WORK_SHIFT H
+		 WHERE B.DEL_IF = 0
+		   AND C.DEL_IF = 0 AND H.DEL_IF = 0
+		   AND LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))
+		   AND B.PK = C.EMP_PK AND C.WORK_SHIFT = H.PK
+		   AND H.START_TIME < H.END_TIME
+		   AND C.START_DT = A.TIME_DT
+		   AND TIME_DT BETWEEN AS_FROM AND AS_FROM
+		   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF = 0 AND E.WORK_DT BETWEEN AS_FROM AND AS_FROM)
+		GROUP BY B.PK, C.THR_ABWORKGRP_PK, A.TIME_DT, C.WORK_SHIFT) WT;
+		
+	/*	UPDATE THR_TIME_MACHINE A
+           SET A.P_IN = '07:40'
+         WHERE A.DEL_IF = 0
+           AND A.WORK_DT = AS_FROM
+           AND A.W_SHIFT = 7
+           AND A.P_IN < '07:40';*/
+		
+	END;
+	
+	
+AN_SYS_ERROR_MSG := '60';
+--INSERT(FOR NIGHT TIME WORK PERSON)
+	BEGIN
+		INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+			   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+		  FROM (
+		SELECT B.PK AS EMP_PK, D.THR_ABWORKGRP_PK AS GRP_CODE, AS_FROM AS WORK_DT, F.PK AS W_SHIFT
+			   ,(SELECT MAX(A.TIME)
+		           FROM THR_TIME_TEMP A, THR_ABEMP C
+		          WHERE LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+			        AND C.DEL_IF = 0 AND B.PK = C.PK
+					AND A.TIME > '16:00'
+			        AND A.TIME_DT BETWEEN AS_FROM AND AS_FROM) AS P_IN
+	           ,(SELECT MIN(A.TIME)
+		           FROM THR_TIME_TEMP A, THR_ABEMP C
+		          WHERE LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+			        AND C.DEL_IF = 0 AND B.PK = C.PK AND A.TIME < '12:00'
+			        AND A.TIME_DT BETWEEN TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')) AS P_OUT
+		  FROM THR_ABEMP B, THR_GRP_EMP D, THR_WORK_SHIFT F
+		 WHERE B.DEL_IF = 0
+		   AND D.DEL_IF = 0 AND F.DEL_IF = 0 AND B.PK = D.EMP_PK
+		   AND D.START_DT = AS_FROM
+		   AND D.WORK_SHIFT = F.PK
+		   AND B.CARD_ID IN (SELECT H.CARD_ID FROM THR_TIME_TEMP H WHERE H.TIME_DT BETWEEN AS_FROM AND AS_FROM)
+		   AND B.PK NOT IN (SELECT G.EMP_PK FROM THR_TIME_MACHINE G WHERE G.DEL_IF = 0 AND G.WORK_DT BETWEEN AS_FROM AND AS_FROM)
+		   AND F.START_TIME > F.END_TIME) WT;
+    END;
+	COMMIT;
+	
+	
+	
+
+--UPDATE(FOR NORMAL TIME WORK PERSON)
+      BEGIN
+	  
+	  UPDATE THR_TIME_MACHINE A
+		   SET A.P_IN = (SELECT MIN(B.TIME)
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+							WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID)) AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+							  AND B.TIME < E.END_TIME AND B.TIME_DT = AS_FROM AND D.START_DT=AS_FROM)
+			   ,A.P_OUT = (SELECT DECODE(F_Check_In_Out(MIN(b.TIME),MAX(b.TIME),30),0,'',MAX(b.TIME))  
+			                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+							WHERE B.CARD_ID = C.CARD_ID AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+							  AND B.TIME_DT = AS_FROM AND D.START_DT=AS_FROM)
+			   ,CHECK_FLAG = (SELECT DECODE(MAX(B.TIME),MIN(B.TIME),'I','O')
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM)
+		 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+		   AND A.WORK_DT = AS_FROM
+		   AND A.EMP_PK = (SELECT C.PK
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM GROUP BY C.PK)
+		    AND A.W_SHIFT = (SELECT D.PK
+		                      FROM THR_WORK_SHIFT D
+							 WHERE D.DEL_IF = 0
+							   AND A.W_SHIFT = D.PK
+							   AND D.START_TIME < D.END_TIME);
+AN_SYS_ERROR_MSG := '70';
+	END;
+--UPDATE(FOR NIGHT TIME WORK PERSON)
+
+    BEGIN
+	
+	UPDATE THR_TIME_MACHINE A
+		   SET A.P_IN = (SELECT MAX(B.TIME)
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+							WHERE B.CARD_ID = C.CARD_ID AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+							  AND B.TIME_DT = AS_FROM AND D.START_DT=AS_FROM AND B.TIME>'15:00')
+			   ,A.P_OUT = (SELECT MIN(B.TIME)  
+			                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+							WHERE B.CARD_ID = C.CARD_ID AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+							  AND D.START_DT=AS_FROM AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') 
+							  )
+			   ,CHECK_FLAG = (SELECT DECODE(MAX(B.TIME),MIN(B.TIME),'I','O')
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM)
+		 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG = 'Y'
+		   AND A.WORK_DT = AS_FROM
+		   AND A.EMP_PK = (SELECT C.PK
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+							  GROUP BY C.PK)
+			AND A.W_SHIFT = (SELECT D.PK
+		                      FROM THR_WORK_SHIFT D
+							 WHERE D.DEL_IF = 0
+							   AND A.W_SHIFT = D.PK
+							   AND D.START_TIME > D.END_TIME);
+
+	/*
+		UPDATE THR_TIME_MACHINE A
+		   SET A.P_IN =(SELECT MAX(B.TIME)
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME > '16:00'
+							  AND B.TIME_DT BETWEEN AS_FROM AND AS_FROM)
+			   ,A.P_OUT = (SELECT MIN(B.TIME)
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD'))
+			   ,CHECK_FLAG = (SELECT DECODE(MAX(B.TIME),MIN(B.TIME),'I','O')
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD'))
+		 WHERE A.DEL_IF = 0
+		   AND A.WORK_DT BETWEEN AS_FROM AND AS_FROM
+		   AND A.EMP_PK = (SELECT C.PK
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') GROUP BY C.PK)
+		   AND A.W_SHIFT = (SELECT D.PK
+		                      FROM THR_WORK_SHIFT D
+							 WHERE D.DEL_IF = 0
+							   AND A.W_SHIFT = D.PK
+							   AND D.START_TIME > D.END_TIME);
+							   */
+							   
+AN_SYS_ERROR_MSG := '80';
+	END;
+	
+--UPDATE(SETTING THE WORKING TIME)
+  BEGIN
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = F_Get_Wt_Nshift(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT)
+		 WHERE C.DEL_IF = 0
+		   AND C.APPLY_FLAG<>'Y'
+		   AND C.WORK_DT = AS_FROM;
+
+AN_SYS_ERROR_MSG := '90';
+	END;
+	COMMIT;
+	
+	 BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = A.WORT_TIME + NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL
+					 -- AND A.EMP_PK = AS_EMPPK
+					  AND A.WORT_TIME <= 8 - NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK  AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+	
+	BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = 8  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.WORT_TIME >7 
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+	COMMIT;
+
+--CALCULATE OVER TIME (NEED THE HOLIDAY TIME CALCULATIN)
+    BEGIN
+	    SELECT COUNT(A.PK)
+		  INTO AN_CNT
+          FROM COMM.TCO_ABCALENDAR A
+         WHERE A.DEL_IF = 0
+           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+           AND A.CAR_DATE = AS_FROM;
+
+	    IF AN_CNT = 1 THEN
+   -- THERE IS TWO CASE 1: P_IN IS NOT NULL  NORMAL SHIFT, 2: P_IN IS NULL NIGHT SHIFT
+		   --1: INSERT FOR NORMAL SHIFT
+		   
+		   			INSERT INTO THR_EXTRA_TIME
+		                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+		                   ,OT_TIME,B_OT_TIME
+		                   ,START_TIME, END_TIME, B_END_TIME
+		                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+		            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+		                   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot_Nshift(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN) AS HT
+						   ,F_Get_Wt_Nshift(B.P_IN,B.P_OUT,C.PK)+F_Get_Ot_Nshift(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN) AS HT
+						   ,B.P_IN, B.P_OUT, B.P_OUT
+		                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+		              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C --, THR_ABEMPMAS D
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					  -- AND D.DEL_IF = 0
+		               AND C.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					   --AND A.PK = D.THR_ABEMP_PK
+		               AND B.W_SHIFT = C.PK
+		               AND B.WORK_DT = AS_FROM
+					   AND B.P_OUT IS NOT NULL
+					   AND B.P_IN IS NOT NULL
+					   AND C.NT=0
+					   --AND (F_GET_WT_NSHIFT(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NSHIFT(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN) > 0)
+		--		       AND F_GET_HT(B.P_IN,B.P_OUT) > 0
+					   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+				                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);
+						
+		
+		-- 2: INSERT FOR NIGHT SHIFT										   	   		    
+				    INSERT INTO THR_EXTRA_TIME
+		                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT,
+		                   OT_TIME,B_OT_TIME
+		                   ,START_TIME, END_TIME, B_END_TIME
+		                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+		            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+		                   ,0 AS HT
+						   ,0 AS HT
+						   ,B.P_IN, B.P_OUT, B.P_OUT
+		                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+		              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C--, THR_ABEMPMAS D
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					  -- AND D.DEL_IF = 0
+		               AND C.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					  -- AND A.PK = D.THR_ABEMP_PK
+		               AND B.W_SHIFT = C.PK
+		               AND B.WORK_DT = AS_FROM
+					   AND B.P_OUT IS NOT NULL
+					   AND B.P_IN IS NULL -- MR. TRUONG ADD. PSL ASK MR.TRUONG
+					   --AND (F_GET_WT_NSHIFT(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NSHIFT(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN) > 0)
+					   AND C.NT>0
+					   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D --> Mr truong
+				                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);--> Mr Truong
+	    ELSE
+			--ENTRY OT
+		   INSERT INTO THR_EXTRA_TIME
+		                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+		                   ,OT_TIME,B_OT_TIME
+		                   ,START_TIME, END_TIME, B_END_TIME
+		                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+		            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM,C.PK AS W_SHIFT
+		                   ,F_Get_Ot_Nshift(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN)  AS OT_TIME
+						   ,F_Get_Ot_Nshift(C.START_OT,B.P_OUT,C.PK,'N',B.P_IN)  AS B_OT_TIME
+						   ,C.START_OT, B.P_OUT, B.P_OUT
+		                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+		              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					   AND D.DEL_IF = 0
+					    --AND C.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					   AND A.PK = D.THR_ABEMP_PK
+					   AND B.W_SHIFT = C.PK
+		               AND B.WORK_DT = AS_FROM
+					   AND B.P_OUT IS NOT NULL
+					   AND B.P_IN IS NOT NULL
+					   AND TO_NUMBER(REPLACE(B.P_OUT,':')) >= TO_NUMBER(REPLACE(C.START_OT,':')) -- 4H30 BAT DAU TINH OT
+		--			   AND TO_NUMBER(REPLACE(C.END_TIME,':',''))+100 < TO_NUMBER(REPLACE(B.P_OUT,':',''))
+		    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+		    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM);
+
+			--ENTRY NT
+		BEGIN
+			INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME,W_SHIFT
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NAME,C.PK AS W_SHIFT
+                   ,B.WORT_TIME AS NT_TIME
+				   ,B.WORT_TIME AS B_NT_TIME
+                   ,C.END_TIME, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM VHR_EMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+               --AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   AND B.P_OUT IS NOT NULL
+               AND C.NT > 0
+			   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM
+								   AND D.OT_TYPE = 'NT');
+		 
+           END;
+								   
+		END IF;
+AN_SYS_ERROR_MSG := '100';
+	END;
+	
+	BEGIN
+		 -- INSERT CHO NHUNG NGUOI TAI XE VA NHUNG NGUOI KHONG QUET THE --> MR.NGUYEN REQUIRE
+		 INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT,WORT_TIME
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,B.PK,B.GRP_CODE, AS_FROM,7,'08:00', '17:00',8
+			   ,'O','Y',0,SYSDATE,AS_USER
+		  FROM  VHR_EMP B 
+		 WHERE B.DEL_IF = 0
+		   AND B.PK IN (6,1341,2412,265,1343,4758,7397,2421)
+		   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF=0 AND E.WORK_DT = AS_FROM);
+	END;
+	
+	
+--AUTO ENTRY OF ABSENCE LIST
+--AN_SYS_ERROR_MSG := '110';
+
+	
+	BEGIN
+
+			 SELECT TO_CHAR(SYSDATE,'YYYYMMDD')
+			   INTO AN_SYSDATE
+			   FROM DUAL;
+			 
+			 
+AN_SYS_ERROR_MSG := '130';
+			 IF AN_SYSDATE >= AV_FROM_DT THEN
+			 	INSERT INTO THR_EMP_ABSENT  --AUTO INSERT ABSENT LIST
+		               (PK, GRP_CODE, EMP_PK, ABS_CODE,ABSENT_TIME, ABS_DT, WORK_SHIFT
+		               , COM_PAY_FLAG, POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+	            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,NVL(B.THR_ABWORKGRP_PK,0), A.PK, 'NON',8, AS_FROM, B.WORK_SHIFT
+		               ,'N',D.POS_CODE, 0, SYSDATE, AS_USER
+	              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+	             WHERE A.DEL_IF = 0
+	               AND B.DEL_IF = 0
+				   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+	               AND A.PK = B.EMP_PK
+				   AND A.PK = D.THR_ABEMP_PK AND B.START_DT = F.CAR_DATE
+				   AND A.EMP_STATUS = 'A' AND F.HOL_TYPE IS NULL AND F.CAR_DATE = AS_FROM
+	               AND A.PK NOT IN (SELECT C.EMP_PK
+			                              FROM THR_TIME_MACHINE C
+			                             WHERE C.DEL_IF = 0
+			                               AND C.WORK_DT = AS_FROM)
+				   AND A.PK NOT IN (SELECT E.EMP_PK
+				                      FROM THR_EMP_ABSENT E
+									 WHERE E.DEL_IF = 0
+									   AND E.ABS_DT = AS_FROM);
+			 END IF;
+		
+AN_SYS_ERROR_MSG := '140';
+--UPDATING LATELY ATTENDANCE PERSON
+		UPDATE THR_EMP_ABSENT A
+           SET A.DEL_IF = PK
+   	           ,A.MOD_BY = 'LEE'
+	           ,A.MOD_DT = SYSDATE
+         WHERE A.DEL_IF = 0
+           AND A.ABS_DT = AS_FROM
+           AND A.EMP_PK IN (SELECT B.EMP_PK
+                              FROM THR_TIME_MACHINE B
+					         WHERE B.DEL_IF = 0
+					           AND B.WORK_DT = AS_FROM);
+	END;
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Time_Load;
+/
+CREATE OR REPLACE PROCEDURE PR_TIME_LOAD_FILE (AS_FILE_NAME IN VARCHAR2, -- FILE_NAME
+			     AS_USER	  IN VARCHAR2, -- USER ID
+                             AS_RET_NUM   OUT NUMBER,   -- RETURN VALUE( NUMBER )
+                             AS_RET_VAR	  OUT VARCHAR2
+)IS
+-- AS_RET_NUM	NUMBER;
+-- AS_RET_VAR	VARCHAR2(100);
+file_handle_mst   utl_file.file_type;
+text_buffer       string(4000);
+fpath         	  varchar2(40)  := 'C:\Web_Project\GenuHR\web\temp';
+fname             varchar2(100) := '';
+AV_MACHINE	THR_TIME_TEMP.MACHINE%TYPE;
+AV_CARD   	THR_TIME_TEMP.CARD_ID%TYPE;
+AN_EVENT  	THR_TIME_TEMP.EVENT_ID%TYPE;
+AV_DATE   	THR_TIME_TEMP.TIME_DT%TYPE;
+AV_TIME   	THR_TIME_TEMP.TIME%TYPE;
+AV_SEQ    	THR_TIME_TEMP.SEQ%TYPE;
+
+BEGIN
+
+
+
+     fname := rtrim(AS_FILE_NAME);
+     dbms_output.put_line('input path='    ||fpath);
+     dbms_output.put_line('input filename='||fname);
+
+
+     file_handle_mst := UTL_FILE.FOPEN(fpath, fname, 'r', 4000);
+
+
+     <<goto_end_loop>>
+     LOOP
+	BEGIN
+	     	UTL_FILE.GET_LINE(file_handle_mst,  text_buffer);
+
+	        EXCEPTION
+	        WHEN NO_DATA_FOUND THEN
+	        	EXIT;
+        END;
+        /*-------------------------------------*/
+        /* 0        1         2         3      */
+        /* 123456789012345678901234567890123   */
+	/* 02 004229 3 2003/05/28 07:17 0799   */
+        /*-------------------------------------*/
+--      	AV_MACHINE   := RTRIM(LTRIM(substr(text_buffer, 1,    2)));
+--      	AV_CARD      := RTRIM(LTRIM(substr(text_buffer, 4,    6)));
+--      	AN_EVENT     := RTRIM(LTRIM(substr(text_buffer, 11,   1)));
+--      	AV_DATE      := RTRIM(LTRIM(substr(text_buffer, 13,  10)));
+--      	AV_TIME      := RTRIM(LTRIM(substr(text_buffer, 24,   5)));
+--      	AV_SEQ       := RTRIM(LTRIM(substr(text_buffer, 30,   4)));
+
+      	AV_MACHINE   := RTRIM(LTRIM(substr(text_buffer, 1,    2)));
+      	AV_CARD      := RTRIM(LTRIM(substr(text_buffer, 4,    4)));
+      	AN_EVENT     := RTRIM(LTRIM(substr(text_buffer, 9,    1)));
+      	AV_DATE      := RTRIM(LTRIM(substr(text_buffer, 11,  10)));
+      	AV_TIME      := RTRIM(LTRIM(substr(text_buffer, 22,   5)));
+      	AV_SEQ       := RTRIM(LTRIM(substr(text_buffer, 28,   4)));
+
+	INSERT INTO THR_TIME_TEMP
+	(PK, CARD_ID, EVENT_ID, MACHINE, TIME_DT,
+	 TIME, SEQ, FLAG, CRT_DT, CRT_BY )
+	VALUES
+	(THR_TIME_TEMP_SEQ.NEXTVAL, AV_CARD, AN_EVENT, AV_MACHINE, AV_DATE,
+	 AV_TIME, AV_SEQ, 'N', SYSDATE, AS_USER
+	);
+
+     END LOOP goto_end_loop;
+
+     utl_file.fclose(file_handle_mst);
+
+     COMMIT;
+     AS_RET_NUM := 0;
+     AS_RET_VAR := 'Successful Process !';
+     EXCEPTION
+        when no_data_found then
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+     	     AS_RET_VAR := 'ERROR MSG :' || SUBSTR(SQLERRM, 1, 100);
+        when utl_file.invalid_path then
+             dbms_output.put_line('Invalid Path');
+             AS_RET_VAR := 'ERROR MSG : Invlaid Path';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_mode then
+             dbms_output.put_line('Invalid Mode');
+             AS_RET_VAR := 'ERROR MSG : Invalid Mode';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_filehandle then
+             dbms_output.put_line('Invalid Filehandle');
+             AS_RET_VAR := 'ERROR MSG : Invalid Filehandle ';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.invalid_operation then
+             dbms_output.put_line('Invalid Operation');
+             AS_RET_VAR := 'ERROR MSG : Invalid Operation';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.read_error then
+             dbms_output.put_line('Read Error');
+             AS_RET_VAR := 'ERROR MSG :Read Error ' ;
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.write_error then
+             dbms_output.put_line('Write Error');
+             AS_RET_VAR := 'ERROR MSG : Write Error ';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when utl_file.internal_error then
+             dbms_output.put_line('Internal Error');
+             AS_RET_VAR := 'ERROR MSG : Internal Error';
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+        when others then
+             dbms_output.put_line(sqlerrm);
+             AS_RET_VAR := 'ERROR MSG : ' || SUBSTR(SQLERRM, 1, 100);
+     	     ROLLBACK;
+     	     AS_RET_NUM := -1;
+END PR_TIME_LOAD_FILE;
+/
+CREATE OR REPLACE PROCEDURE Pr_Time_Load_NEW( AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+                        AS_TO      IN  VARCHAR2,  -- YYYYMMDD
+                        AS_USER    IN  VARCHAR2,  -- USER ID
+                        AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+                        AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		    VARCHAR2(10);
+AV_TO_DT		    VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		    VARCHAR2(8);
+
+
+AN_SYSDATE		    VARCHAR2(8);
+
+AN_CK_TM		    NUMBER;
+AN_CNT			    NUMBER(10) := 0;
+AN_CNT1			    NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+AV_P_OUT_TMP			VARCHAR2(5);
+AV_P_OUT_TMP2			VARCHAR2(5);
+
+
+--******************************************
+  -- Modify by    : HUYNH TRUONG  
+  -- Modify date  : 24/03/2005  
+--******************************************
+
+BEGIN
+	
+AN_SYS_ERROR_MSG := '10';
+
+
+
+	BEGIN
+		SELECT COUNT(*) INTO VN_CLOSE_CHECK
+		FROM THR_CLOSE
+		WHERE ID = 'SAL'
+		  AND MMYYYY = SUBSTR(AS_FROM,1, 6)
+		  AND CLOSE_FLAG = 'Y'
+		  AND DEL_IF = 0;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	              VN_CLOSE_CHECK := 0;
+
+	        IF VN_CLOSE_CHECK >= 1 THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+	END;
+-- PHAN QUAN TRONG
+AN_SYS_ERROR_MSG := '20';
+	AV_FROM_DT := AS_FROM;
+	AV_TO_DT      := AS_FROM;
+
+--GROUP MAPPING FOR NOT IN GROUP PERSON 
+	BEGIN
+AN_SYS_ERROR_MSG := '30';
+        INSERT INTO THR_GRP_EMP(
+	            PK, THR_ABWORKGRP_PK, START_DT, WORK_SHIFT, EMP_PK
+				, FULL_NAME, DEL_IF, CRT_DT, CRT_BY)
+         SELECT THR_GRP_EMP_SEQ.NEXTVAL, C.PK, TO_CHAR(SYSDATE,'YYYYMMDD'), C.THR_WORK_SHIFT_PK, A.PK
+		        , A.FULL_NAME, 0, SYSDATE, AS_USER
+           FROM VHR_EMP A, VCO_EODEPT B, THR_ABWORKGRP C
+          WHERE A.DEL_IF = 0
+            AND C.DEL_IF = 0
+            AND A.DEPT_PK = B.PK
+            AND B.DEPT_ID = C.WORKGRP_ID
+            AND A.DEPT_PK IS NOT NULL
+            AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_GRP_EMP D WHERE D.DEL_IF = 0);
+
+
+AN_SYS_ERROR_MSG := '40';
+
+	    UPDATE THR_ABEMPMAS C
+           SET C.THR_ABWORKGROUP_PK = (SELECT B.THR_ABWORKGRP_PK
+                                       FROM THR_ABEMP A, THR_GRP_EMP B
+                                      WHERE A.DEL_IF = 0
+                                        AND B.DEL_IF = 0 AND A.PK = B.EMP_PK AND A.PK = C.THR_ABEMP_PK
+                                        AND B.START_DT = (SELECT MAX(D.START_DT) FROM THR_GRP_EMP D
+							                               WHERE D.DEL_IF = 0 AND D.EMP_PK = A.PK))
+         WHERE C.DEL_IF = 0
+           AND C.THR_ABEMP_PK = (SELECT A.PK
+                                   FROM THR_ABEMP A, THR_GRP_EMP B
+                                  WHERE A.DEL_IF = 0
+                                    AND B.DEL_IF = 0 AND A.PK = B.EMP_PK AND A.PK = C.THR_ABEMP_PK
+                                    AND B.START_DT = (SELECT MAX(D.START_DT) FROM THR_GRP_EMP D
+							                           WHERE D.DEL_IF = 0 AND D.EMP_PK = A.PK));
+	END;
+AN_SYS_ERROR_MSG := '50';
+--INSERT(FOR NORMAL TIME WORK PERSON)
+	BEGIN
+		INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+			   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+		  FROM (
+		SELECT B.PK AS EMP_PK, C.THR_ABWORKGRP_PK AS GRP_CODE, A.TIME_DT AS WORK_DT, C.WORK_SHIFT AS W_SHIFT
+			   ,MIN(A.TIME) AS P_IN, DECODE(MAX(A.TIME),MIN(A.TIME),'',MAX(A.TIME)) AS P_OUT
+		  FROM THR_TIME_TEMP A, THR_ABEMP B, THR_GRP_EMP C, THR_WORK_SHIFT H
+		 WHERE B.DEL_IF = 0
+		   AND C.DEL_IF = 0 AND H.DEL_IF = 0
+		   AND A.CARD_ID = B.CARD_ID
+		   AND B.PK = C.EMP_PK AND C.WORK_SHIFT = H.PK
+		   AND H.START_TIME < H.END_TIME
+		   AND C.START_DT = (SELECT MAX(D.START_DT) FROM THR_GRP_EMP D WHERE D.DEL_IF=0 AND D.EMP_PK = B.PK)
+		   AND TIME_DT = AS_FROM
+		   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF=0 AND E.WORK_DT = AS_FROM)
+		   AND B.PK NOT IN (SELECT I.EMP_PK FROM THR_EMP_ABSENT I WHERE I.DEL_IF=0 AND I.ABS_DT = AS_FROM AND I.ABS_CODE <> 'NON')
+		GROUP BY B.PK, C.THR_ABWORKGRP_PK, A.TIME_DT, C.WORK_SHIFT) WT;
+	END;
+AN_SYS_ERROR_MSG := '60';
+--INSERT(FOR NIGHT TIME WORK PERSON)
+	BEGIN
+		INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+			   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+		  FROM (
+		  	   	SELECT B.PK AS EMP_PK, D.THR_ABWORKGRP_PK AS GRP_CODE, AS_FROM AS WORK_DT, F.PK AS W_SHIFT
+			   ,(SELECT MAX(A.TIME)
+		           FROM THR_TIME_TEMP A, THR_ABEMP C
+		          WHERE A.CARD_ID = C.CARD_ID
+			        AND C.DEL_IF = 0 AND B.PK = C.PK AND TO_NUMBER(SUBSTR(A.TIME,1,2)) > 12
+			        AND A.TIME_DT = AS_FROM) AS P_IN
+	           ,(SELECT MIN(A.TIME)
+		           FROM THR_TIME_TEMP A, THR_ABEMP C
+		          WHERE A.CARD_ID = C.CARD_ID
+			        AND C.DEL_IF = 0 AND B.PK = C.PK AND TO_NUMBER(SUBSTR(A.TIME,1,2)) < 12
+			        AND A.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')) AS P_OUT
+		  FROM THR_ABEMP B, THR_GRP_EMP D, THR_WORK_SHIFT F
+		 WHERE B.DEL_IF = 0
+		   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+		   AND B.PK = D.EMP_PK
+		   AND D.START_DT = (SELECT MAX(E.START_DT) FROM THR_GRP_EMP E WHERE E.DEL_IF=0 AND E.EMP_PK = B.PK)
+		   AND D.WORK_SHIFT = F.PK
+		   AND B.CARD_ID IN (SELECT H.CARD_ID FROM THR_TIME_TEMP H
+		                      WHERE H.TIME_DT||H.TIME BETWEEN AS_FROM||'12:00' AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')||'12:00'
+							    AND H.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD'))
+		   AND B.PK NOT IN (SELECT G.EMP_PK FROM THR_TIME_MACHINE G WHERE G.DEL_IF=0 AND G.WORK_DT = AS_FROM)
+		   AND B.PK NOT IN (SELECT I.EMP_PK FROM THR_EMP_ABSENT I WHERE I.DEL_IF=0 AND I.ABS_DT = AS_FROM  AND I.ABS_CODE <> 'NON')
+		   AND F.START_TIME > F.END_TIME) WT;
+	END;
+--UPDATE(FOR NORMAL TIME WORK PERSON)
+    BEGIN
+		
+		
+		UPDATE THR_TIME_MACHINE A
+		   SET A.P_IN = DECODE(A.P_IN,NULL,(SELECT MIN(B.TIME)  
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM),A.P_IN)
+			   ,A.P_OUT = DECODE(A.P_OUT,NULL,(SELECT DECODE(MIN(B.TIME),MAX(B.TIME),'',DECODE(A.P_OUT,MIN(B.TIME),'',MAX(B.TIME)))
+			                 FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM),A.P_OUT)
+			   ,CHECK_FLAG = (SELECT DECODE(MAX(B.TIME),MIN(B.TIME),'I','O')
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM)
+		 WHERE A.DEL_IF = 0
+		   AND A.WORK_DT = AS_FROM AND A.APPLY_FLAG <> 'Y'
+		   AND A.EMP_PK  = (SELECT C.PK
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM GROUP BY C.PK)
+		    AND A.W_SHIFT = (SELECT D.PK
+		                      FROM THR_WORK_SHIFT D
+							 WHERE A.W_SHIFT = D.PK
+							   AND D.DEL_IF = 0
+							   AND D.START_TIME < D.END_TIME);
+	 AN_SYS_ERROR_MSG := '70';
+END;
+--UPDATE(FOR NIGHT TIME WORK PERSON)
+    BEGIN
+		 UPDATE THR_TIME_MACHINE A
+		   SET  
+		   		A.P_IN  = DECODE(A.P_IN,NULL,(SELECT MAX(B.TIME) 
+						     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = AS_FROM),A.P_IN)			   
+				,A.P_OUT = DECODE(A.P_OUT,NULL,(SELECT MIN(B.TIME)  --(SELECT MIN(B.TIME)
+			                FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')),A.P_OUT)
+			   ,CHECK_FLAG = (SELECT DECODE(MAX(B.TIME),MIN(B.TIME),'I','O')
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD'))
+			   ,A.MOD_BY = AS_USER
+			   ,A.MOD_DT = SYSDATE
+		 WHERE A.DEL_IF = 0
+		   AND A.WORK_DT = AS_FROM AND A.APPLY_FLAG <> 'Y'
+		   AND A.EMP_PK  = (SELECT C.PK
+		                     FROM THR_TIME_TEMP B, THR_ABEMP C
+							WHERE B.CARD_ID = C.CARD_ID
+							  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+							  AND B.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') GROUP BY C.PK)
+		   AND A.W_SHIFT = (SELECT D.PK
+		                      FROM THR_WORK_SHIFT D
+							 WHERE A.W_SHIFT = D.PK
+							   AND D.DEL_IF = 0
+							   AND D.START_TIME > D.END_TIME);
+		COMMIT;
+
+
+
+AN_SYS_ERROR_MSG := '80';
+	END;
+--UPDATE(SETTING THE WORKING TIME)
+    BEGIN
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = DECODE(C.WORT_TIME,0,F_GET_WT_NEW(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT),NULL,F_GET_WT_NEW(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT),C.WORT_TIME)
+			   ,C.MOD_BY = AS_USER
+			   ,C.MOD_DT = SYSDATE
+		 WHERE C.DEL_IF = 0
+		   AND C.APPLY_FLAG <>'Y'
+		   AND C.WORK_DT = AS_FROM;
+
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = F_GET_WT_NEW(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT)
+		       ,C.MOD_BY = AS_USER
+			   ,C.MOD_DT = SYSDATE
+		 WHERE C.DEL_IF = 0
+		 	AND C.APPLY_FLAG <>'Y'
+		   AND C.WORK_DT = AS_FROM AND C.WORT_TIME < 8;
+AN_SYS_ERROR_MSG := '90';
+	END;
+--CALCULATE OVER TIME (NEED THE HOLIDAY TIME CALCULATIN)
+  BEGIN
+	    SELECT COUNT(A.PK)
+		  INTO AN_CNT
+          FROM COMM.TCO_ABCALENDAR A
+         WHERE A.DEL_IF = 0
+           AND A.HOL_TYPE IN ('SUN','HOL','NAT')
+           AND A.CAR_DATE = AS_FROM;
+
+	    IF AN_CNT = 1 THEN
+		   -- THERE IS TWO CASE 1: P_IN IS NOT NULL  NORMAL SHIFT, 2: P_IN IS NULL NIGHT SHIFT
+		   --1: INSERT FOR NORMAL SHIFT
+		   
+		   			INSERT INTO THR_EXTRA_TIME
+		                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+		                   ,OT_TIME,B_OT_TIME
+		                   ,START_TIME, END_TIME, B_END_TIME
+		                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+		            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+		                   ,F_GET_WT_NEW(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') AS HT
+						   ,F_GET_WT_NEW(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') AS HT
+						   ,B.P_IN, B.P_OUT, B.P_OUT
+		                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+		              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					   AND D.DEL_IF = 0
+		               AND C.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					   AND A.PK = D.THR_ABEMP_PK
+		               AND B.W_SHIFT = C.PK
+		               AND B.WORK_DT = AS_FROM
+					   AND B.P_OUT IS NOT NULL
+					   AND B.P_IN IS NOT NULL
+					   AND (F_GET_WT_NEW(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') > 0)
+		--		       AND F_GET_HT(B.P_IN,B.P_OUT) > 0
+					   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+				                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);
+						
+		
+		-- 2: INSERT FOR NIGHT SHIFT										   	   		    
+				    INSERT INTO THR_EXTRA_TIME
+		                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+		                   ,OT_TIME,B_OT_TIME
+		                   ,START_TIME, END_TIME, B_END_TIME
+		                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+		            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL,'HT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+		                   ,0 AS HT
+						   ,0 AS HT
+						   ,B.P_IN, B.P_OUT, B.P_OUT
+		                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+		              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+		             WHERE A.DEL_IF = 0
+		               AND B.DEL_IF = 0
+					   AND D.DEL_IF = 0
+		               AND C.DEL_IF = 0
+		               AND A.PK = B.EMP_PK
+					   AND A.PK = D.THR_ABEMP_PK
+		               AND B.W_SHIFT = C.PK
+		               AND B.WORK_DT = AS_FROM
+					   AND B.P_OUT IS NOT NULL
+					   AND B.P_IN IS NULL -- MR. TRUONG ADD. PSL ASK MR.TRUONG
+					   AND (F_GET_WT_NEW(B.P_IN,B.P_OUT,C.PK)+F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') > 0)
+					   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D --> Mr truong
+				                         WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM);--> Mr Truong
+					  
+				 
+	
+	   ELSE --normarl day
+			--ENTRY OT
+			--1: INSERT  BAO GOM NHUNG NGUOI HOP TRU` NHUNG NGUOI THAI SAN 
+    	    INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+                   ,F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') + NVL(L.OT_ALLOW_TIME,0) AS OT_TIME
+				   ,F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') + NVL(L.OT_ALLOW_TIME,0) AS B_OT_TIME
+				   ,C.START_OT, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D, THR_OT_ALLOWANCE L
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+			   AND D.DEL_IF = 0
+			   AND L.DEL_IF(+) = 0
+               --AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+			   AND A.PK = D.THR_ABEMP_PK
+			   AND A.PK = L.EMP_PK(+)
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   AND L.START_DT(+) <= AS_FROM
+			   AND L.END_DT(+)   >= AS_FROM
+			   AND B.P_OUT IS NOT NULL
+			   --AND TO_NUMBER(REPLACE(B.P_OUT,':')) >= TO_NUMBER(REPLACE(C.END_TIME,':')) -- 4H30 BAT DAU TINH OT
+--			   AND TO_NUMBER(REPLACE(C.END_TIME,':',''))+100 < TO_NUMBER(REPLACE(B.P_OUT,':',''))
+    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+				AND A.PK NOT IN (SELECT T.EMP_PK FROM THR_OT_ALLOWANCE T
+    		                     WHERE T.DEL_IF = 0 AND T.OT_ALLOW_TYPE = 'ML' AND T.START_DT<=AS_FROM AND T.END_DT >=AS_FROM);
+								 
+
+
+    	    INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+                   ,F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') + NVL(L.OT_ALLOW_TIME,0) AS OT_TIME
+				   ,F_GET_OT_NEW(C.START_OT,B.P_OUT,C.PK,'N') + NVL(L.OT_ALLOW_TIME,0) AS B_OT_TIME
+				   ,C.START_OT, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D, THR_OT_ALLOWANCE L
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+			   AND D.DEL_IF = 0
+			   AND L.DEL_IF(+) = 0
+               --AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+			   AND A.PK = D.THR_ABEMP_PK
+			   AND A.PK = L.EMP_PK(+)
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   AND L.START_DT(+) <= AS_FROM
+			   AND L.END_DT(+)   >= AS_FROM
+			   AND B.P_OUT IS NOT NULL
+			   AND TO_NUMBER(REPLACE(B.P_OUT,':')) >= TO_NUMBER(REPLACE(C.END_TIME,':')) -- 4H30 BAT DAU TINH OT
+--			   AND TO_NUMBER(REPLACE(C.END_TIME,':',''))+100 < TO_NUMBER(REPLACE(B.P_OUT,':',''))
+    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM)
+				AND A.PK IN (SELECT T.EMP_PK FROM THR_OT_ALLOWANCE T
+    		                     WHERE T.DEL_IF = 0 AND T.OT_ALLOW_TYPE = 'ML' AND T.START_DT<=AS_FROM AND T.END_DT >=AS_FROM);
+
+COMMIT;
+
+
+ 
+								 
+           /*  --UPDATE CHO NHUNG NGUOI HOP MA` KO CO' HOP
+   		  	  UPDATE THR_EXTRA_TIME O
+			  SET O.OT_TIME = 0
+			  	  ,O.B_OT_TIME = 0
+			  WHERE O.DEL_IF = 0 
+			  AND (SELECT N.WORT_TIME FROM THR_TIME_MACHINE N WHERE O.EMP_PK = N.EMP_PK AND N.WORK_DT = AS_FROM AND N.DEL_IF = 0) <3.5
+			  AND O.EMP_PK IN (SELECT T.EMP_PK FROM THR_OT_ALLOWANCE T
+    		                     WHERE T.DEL_IF = 0 AND T.OT_ALLOW_TYPE = 'MT' AND T.START_DT<=AS_FROM AND T.END_DT >=AS_FROM AND T.EMP_PK = O.EMP_PK); 
+			 */ 
+			   
+-- add OT to WT if WT < 8 DANH CHO NHUNG NGUOI THAI SAN	DI LAM DUNG GIO	 --> Truong 
+   	   	  BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = A.WORT_TIME + NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK AND D.OT_ALLOW_TYPE = 'ML' AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					 -- AND A.EMP_PK = AS_EMPPK
+					  AND A.WORT_TIME <= 8 - NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK AND D.OT_ALLOW_TYPE = 'ML' AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)
+					  AND A.P_OUT <=(SELECT B.END_TIME FROM THR_WORK_SHIFT B WHERE A.W_SHIFT = B.PK)
+					  AND TO_NUMBER(REPLACE(A.P_IN,':'))<=TO_NUMBER(REPLACE((SELECT B.START_TIME FROM THR_WORK_SHIFT B WHERE A.W_SHIFT = B.PK),':'))+10
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.OT_ALLOW_TYPE = 'ML' AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+		   END;
+COMMIT;
+-- NE'U WT CUA NGUOI THAI SAN LA 7.5H
+
+   BEGIN			
+		-- XU LY NE'U WT CUA NGUOI THAI SAN LA` 7.5
+			  	UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = 8
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  --AND A.EMP_PK = AS_EMPPK
+					  AND F_GET_WT_NEW(A.P_IN,A.P_OUT,A.W_SHIFT) = 7.5
+					  AND TO_NUMBER(REPLACE(A.P_IN,':')) <= TO_NUMBER(REPLACE((SELECT W.START_TIME FROM THR_WORK_SHIFT W WHERE W.DEL_IF = 0 AND  A.W_SHIFT = W.PK ),':')) -- + 30
+					  AND A.EMP_PK IN(SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.OT_ALLOW_TYPE = 'ML' AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+				
+				INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+            SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NM
+				   ,0.5 AS OT_TIME 
+				   ,0.5 AS B_OT_TIME 
+                   ,C.START_OT, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, AS_USER
+              FROM THR_ABEMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C, THR_ABEMPMAS D
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+			   AND D.DEL_IF = 0
+			   AND A.PK = B.EMP_PK
+			   AND A.PK = D.THR_ABEMP_PK
+			   AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   --AND A.PK = AS_EMPPK
+			   AND F_GET_WT_NEW(B.P_IN,B.P_OUT,B.W_SHIFT) = 7.5
+    		   AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.OT_TYPE = 'OT' AND D.WORK_DT = AS_FROM )
+			   AND A.PK IN(SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.OT_ALLOW_TYPE = 'ML' AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.PK);
+					  
+		COMMIT;		
+	END;
+
+
+  
+---------------------------
+			
+			--ENTRY NT
+		BEGIN
+			INSERT INTO THR_EXTRA_TIME
+                   (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, FULL_NAME
+                   ,OT_TIME,B_OT_TIME
+                   ,START_TIME, END_TIME, B_END_TIME
+                   ,REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+			SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'NT', B.GRP_CODE, B.WORK_DT, B.EMP_PK, A.FULL_NAME
+                   ,DECODE(C.NT,0,F_GET_NT_NEW(B.P_IN,B.P_OUT,B.W_SHIFT,'N'),C.NT) AS NT_TIME, DECODE(C.NT,0,F_GET_NT_NEW(B.P_IN,B.P_OUT,B.W_SHIFT,'N'),C.NT) AS B_NT_TIME
+                   ,C.END_TIME, B.P_OUT, B.P_OUT
+                   ,'Auto Entry',0,'N',SYSDATE, ''
+              FROM VHR_EMP A, THR_TIME_MACHINE B, THR_WORK_SHIFT C
+             WHERE A.DEL_IF = 0
+               AND B.DEL_IF = 0
+               --AND C.DEL_IF = 0
+               AND A.PK = B.EMP_PK
+               AND B.W_SHIFT = C.PK
+               AND B.WORK_DT = AS_FROM
+			   AND B.P_OUT IS NOT NULL
+               AND DECODE(C.NT,0,F_GET_NT_NEW(B.P_IN,B.P_OUT,B.W_SHIFT,'N'),C.NT) > 0
+			   --AND C.NT > 0
+			     AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM
+								   AND D.OT_TYPE = 'NT');
+    		   /*AND A.PK NOT IN (SELECT D.EMP_PK FROM THR_EXTRA_TIME D
+    		                     WHERE D.DEL_IF = 0 AND D.WORK_DT = AS_FROM
+								   AND D.OT_TYPE = 'NT'
+								   AND D.OT_TIME > 0); */
+								   
+								   
+		 
+AN_SYS_ERROR_MSG := '100';
+           END;
+		END IF; -- CUA CALCULATE OT
+	END;
+
+-- INSERT CHO NHUNG NGUOI TAI XE KHONG QUET THE --> MR.THUY REQUIRE
+/*INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT,WORT_TIME
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT,8
+			   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+		  FROM (
+		SELECT B.PK AS EMP_PK, C.THR_ABWORKGRP_PK AS GRP_CODE, AS_FROM AS WORK_DT, C.WORK_SHIFT AS W_SHIFT
+			   ,'06:00' AS P_IN, NULL AS P_OUT
+		  FROM  VHR_EMP B, THR_GRP_EMP C, THR_WORK_SHIFT H
+		 WHERE B.DEL_IF = 0
+		   AND C.DEL_IF = 0 AND H.DEL_IF = 0
+		    AND B.PK = C.EMP_PK AND C.WORK_SHIFT = H.PK
+		   AND H.START_TIME < H.END_TIME
+		   AND C.START_DT = (SELECT MAX(D.START_DT) FROM THR_GRP_EMP D WHERE D.DEL_IF=0 AND D.EMP_PK = B.PK)
+		   
+		   AND B.POS_CODE = '0317'
+		   AND B.PK<>943 -- TAI XE NHUNG KO TI'NH
+		   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF=0 AND E.WORK_DT = AS_FROM)
+		   AND B.PK NOT IN (SELECT I.EMP_PK FROM THR_EMP_ABSENT I WHERE I.DEL_IF=0 AND I.ABS_DT = AS_FROM AND I.ABS_CODE <> 'NON')
+		GROUP BY B.PK, C.THR_ABWORKGRP_PK, C.WORK_SHIFT) WT;
+
+*/
+COMMIT;
+-------------------------	
+	
+	
+	
+--AUTO ENTRY OF ABSENCE LIST
+AN_SYS_ERROR_MSG := '110';
+	BEGIN
+		 SELECT COUNT(*)
+		   INTO AN_CNT
+		   FROM THR_TIME_MACHINE
+		  WHERE DEL_IF = 0
+		    AND WORK_DT = AS_FROM;
+
+	     SELECT COUNT(*)
+		   INTO AN_CNT1
+		   FROM THR_EMP_ABSENT
+		  WHERE DEL_IF = 0
+		    AND ABS_DT = AS_FROM;
+
+AN_SYS_ERROR_MSG := '120';
+		-- IF AN_CNT > 600  THEN
+			 SELECT TO_CHAR(SYSDATE,'YYYYMMDD')
+			   INTO AN_SYSDATE
+			   FROM DUAL;
+
+
+
+			 IF AN_SYSDATE >= AV_FROM_DT THEN
+AN_SYS_ERROR_MSG := '130';
+	 			   --AUTO INSERT ABSENT LIST
+			 	INSERT INTO THR_EMP_ABSENT
+		               (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, WORK_SHIFT
+		               ,COM_PAY_FLAG, COM_RATE,COM_AMT,INS_PAY_FLAG,INS_RATE
+					   ,ABSENT_TIME,POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+	            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,B.THR_ABWORKGRP_PK, A.PK, 'NON', AS_FROM, B.WORK_SHIFT
+		               ,'N',0,0,'N',0
+					   ,8,D.POS_CODE, 0, SYSDATE, AS_USER
+	              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+	             WHERE A.DEL_IF = 0
+	               AND B.DEL_IF(+) = 0
+				   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+	               AND A.PK = B.EMP_PK(+)
+				   AND A.PK = D.THR_ABEMP_PK
+				   --AND A.EMP_STATUS = 'A'
+				   -- XET TRUONG HOP NGHI DE RESIGN
+				   AND (A.LEFT_DATE > AS_FROM OR A.LEFT_DATE IS NULL)
+				   AND F.HOL_TYPE IS NULL AND F.CAR_DATE = AS_FROM
+				   AND A.JOIN_DATE  <=  AS_FROM
+	               AND A.PK NOT IN (SELECT C.EMP_PK
+			                              FROM THR_TIME_MACHINE C
+			                             WHERE C.DEL_IF = 0
+			                               AND C.WORK_DT = AS_FROM)
+				   AND A.PK NOT IN (SELECT E.EMP_PK
+				                      FROM THR_EMP_ABSENT E
+									 WHERE E.DEL_IF = 0
+									   AND E.ABS_DT = AS_FROM);
+
+AN_SYS_ERROR_MSG := '140';
+				INSERT INTO THR_EMP_ABSENT
+		               (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, WORK_SHIFT
+		               ,COM_PAY_FLAG, COM_RATE,COM_AMT,INS_PAY_FLAG,INS_RATE
+					   ,ABSENT_TIME,POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+	            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,B.THR_ABWORKGRP_PK, A.PK, 'RES', AS_FROM, B.WORK_SHIFT
+		               ,'N',0,0,'N',0
+					   ,8,D.POS_CODE, 0, SYSDATE, AS_USER
+	              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+	             WHERE A.DEL_IF = 0
+	               AND B.DEL_IF(+) = 0
+				   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+	               AND A.PK = B.EMP_PK(+)
+				   AND A.PK = D.THR_ABEMP_PK
+				   --AND A.EMP_STATUS = 'A'
+				   -- XET TRUONG HOP NGHI DE RESIGN
+				   AND A.LEFT_DATE = AS_FROM
+				   AND F.HOL_TYPE IS NULL AND F.CAR_DATE = AS_FROM
+				   AND A.JOIN_DATE  <=  AS_FROM
+	               AND A.PK NOT IN (SELECT C.EMP_PK
+			                              FROM THR_TIME_MACHINE C
+			                             WHERE C.DEL_IF = 0
+			                               AND C.WORK_DT = AS_FROM)
+				   AND A.PK NOT IN (SELECT E.EMP_PK
+				                      FROM THR_EMP_ABSENT E
+									 WHERE E.DEL_IF = 0
+									   AND E.ABS_DT = AS_FROM);
+
+			 END IF;
+		--END IF;
+
+AN_SYS_ERROR_MSG := '150';
+			    UPDATE THR_EMP_ABSENT A
+           		   SET A.ABS_CODE = 'RES'
+   	                   ,A.MOD_BY  = AS_USER
+	                   ,A.MOD_DT  = SYSDATE
+                 WHERE A.DEL_IF = 0
+                   AND A.ABS_DT = AS_FROM
+                   AND A.EMP_PK IN (SELECT B.PK
+                                      FROM THR_ABEMP B
+					                 WHERE B.DEL_IF = 0
+					                   AND B.LEFT_DATE = AS_FROM
+							           AND B.EMP_STATUS='R');
+
+AN_SYS_ERROR_MSG := '160';
+--UPDATING LATELY ATTENDANCE PERSON
+		UPDATE THR_EMP_ABSENT A
+           SET A.DEL_IF = PK
+   	           ,A.MOD_BY = AS_USER
+	           ,A.MOD_DT = SYSDATE
+         WHERE A.DEL_IF = 0
+           AND A.ABS_DT = AS_FROM
+           AND A.EMP_PK IN (SELECT B.EMP_PK
+                              FROM THR_TIME_MACHINE B
+					         WHERE B.DEL_IF = 0
+					           AND B.WORK_DT = AS_FROM);
+	END;
+
+  
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Time_Load_NEW;
+/
+CREATE OR REPLACE PROCEDURE Pr_Time_Load_Wt( 
+AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+  AS_USER IN  VARCHAR2,  -- USER ID
+ AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+ AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+SAT_CNT			NUMBER(2) := 0;
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+	BEGIN
+		SELECT COUNT(*) INTO VN_CLOSE_CHECK
+		FROM THR_CLOSE
+		WHERE ID = 'SAL'
+		  AND MMYYYY >= SUBSTR(AS_FROM,1, 6)
+		  AND MMYYYY <= SUBSTR(AS_FROM,  1, 6)
+		  AND CLOSE_FLAG = 'Y'
+		  AND DEL_IF = 0;
+
+	      IF VN_CLOSE_CHECK >= 1 THEN
+	        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	      END IF;
+	END;
+
+	AV_FROM_DT := AS_FROM;
+	
+	--delete nhung truong hop sai shift
+	
+	UPDATE THR_TIME_MACHINE T
+	SET T.DEL_IF=T.PK
+		,T.REMARK='WRONG SHIFT'
+	WHERE T.DEL_IF=0 AND T.WORK_DT=AV_FROM_DT
+	AND T.W_SHIFT<>(SELECT G.WORK_SHIFT FROM THR_GRP_EMP G WHERE G.DEL_IF=0 AND G.START_DT=AV_FROM_DT
+						   AND G.EMP_PK=T.EMP_PK);
+						   
+	UPDATE THR_EXTRA_TIME T
+	SET T.DEL_IF=T.PK
+		,T.REMARK='WRONG SHIFT'
+	WHERE T.DEL_IF=0 AND T.WORK_DT=AV_FROM_DT
+	AND T.W_SHIFT<>(SELECT G.WORK_SHIFT FROM THR_GRP_EMP G WHERE G.DEL_IF=0 AND G.START_DT=AV_FROM_DT
+						   AND G.EMP_PK=T.EMP_PK);	
+					   	
+	
+--Bat dau xu ly cho ca ngay
+	
+	--INSERT(FOR NORMAL TIME WORK PERSON co 2 truong hop ra, vao trong ngay, vao ngay 1 ra ngay 1
+	-- se con thieu neu chua co gio out
+		BEGIN
+		AN_SYS_ERROR_MSG := '20';
+			INSERT INTO THR_TIME_MACHINE
+				   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+				   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY,HOURS_IN_SHIFT )
+			SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+				   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER,WT.WT
+			  FROM (
+			SELECT B.PK AS EMP_PK, C.THR_ABWORKGRP_PK AS GRP_CODE, A.TIME_DT AS WORK_DT, C.WORK_SHIFT AS W_SHIFT
+		   		   ,DECODE(F_Check_In_Out2(MIN(A.TIME),MAX(H.START_TIME),-300,300),1,MIN(A.TIME),'') AS P_IN
+				   ,DECODE(F_Check_In_Out(MAX(H.START_TIME),MAX(A.TIME),30),0,'',MAX(A.TIME)) AS P_OUT,H.WT AS WT
+			  FROM THR_TIME_TEMP A, THR_ABEMP B, THR_GRP_EMP C, THR_WORK_SHIFT H
+			 WHERE B.DEL_IF = 0
+			   AND C.DEL_IF = 0 AND H.DEL_IF = 0
+			   AND LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))
+			   AND B.PK = C.EMP_PK AND C.WORK_SHIFT = H.PK
+			   AND H.START_TIME < H.END_TIME
+			   AND C.START_DT = A.TIME_DT
+			   AND A.TIME_DT = AS_FROM
+			   AND TO_NUMBER(SUBSTR(A.TIME,1,2))*60+TO_NUMBER(SUBSTR(A.TIME,4,2))>TO_NUMBER(SUBSTR(H.START_TIME,1,2))*60+TO_NUMBER(SUBSTR(H.START_TIME,4,2))-120
+			   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF = 0 AND E.WORK_DT =  AS_FROM)
+			    AND B.PK NOT IN (SELECT F.EMP_PK  FROM THR_EMP_ABSENT F WHERE F.DEL_IF=0 AND F.ABS_DT=AS_FROM  AND F.ABS_CODE  NOT IN ( 'NON')  )
+			GROUP BY B.PK, C.THR_ABWORKGRP_PK, A.TIME_DT, C.WORK_SHIFT,H.WT ) WT;
+			
+		END;
+		
+		--update in out trong truong hop khoang cach in va out < 30 
+		UPDATE THR_TIME_MACHINE a
+		SET a.P_OUT=NULL
+		WHERE a.del_if=0 AND a.WORK_DT=AS_FROM
+		      AND a.P_IN IS NOT NULL
+			  AND a.P_OUT IS NOT NULL
+			  AND  F_Check_In_Out(a.P_IN,a.P_OUT,30) =0;
+		--
+		BEGIN 
+			-- xy ly ca ngay vao ngay 1 ra ngay 1 da co gio out
+UPDATE THR_TIME_MACHINE A
+			   SET A.P_OUT = (SELECT MAX(B.TIME)  
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE LTRIM(RTRIM(C.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID)) AND D.DEL_IF = 0 AND E.DEL_IF=0
+								 AND C.PK = D.EMP_PK  AND D.WORK_SHIFT = E.PK AND D.START_DT=AS_FROM
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK 
+								  AND TO_NUMBER(SUBSTR(B.TIME,1,2))*60+TO_NUMBER(SUBSTR(B.TIME,4,2))>=TO_NUMBER(SUBSTR(E.START_TIME,1,2))*60+TO_NUMBER(SUBSTR(E.START_TIME,4,2))+60
+								  AND B.TIME_DT = AS_FROM 
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			  AND (A.P_OUT IS NULL 
+			  	  	OR A.P2_OUT =A.P_OUT)			 
+			   AND A.P_IN IS NOT NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = AS_FROM
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME < D.END_TIME);
+		END;
+			
+		BEGIN
+		AN_SYS_ERROR_MSG := '30';
+			-- xy ly ca ngay vao ngay 1 ra ngay 2 
+		UPDATE THR_TIME_MACHINE A
+			   SET A.P_OUT = (SELECT MIN(B.TIME)  
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C--, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE LTRIM(RTRIM(C.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID)) --AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK --AND D.WORK_SHIFT = E.PK
+								  AND TO_NUMBER(SUBSTR(B.TIME,1,2))<(SELECT TO_NUMBER(SUBSTR(E.START_TIME,1,2))-2 FROM THR_WORK_SHIFT E,THR_GRP_EMP F
+								  	  																 							  WHERE E.DEL_IF=0 AND F.DEL_IF=0 AND F.WORK_SHIFT=E.PK
+																																  AND F.EMP_PK=C.PK AND F.START_DT=AS_FROM)
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  AND B.TIME IS NOT NULL 
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS NULL
+			   AND A.P_IN IS NOT NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME < D.END_TIME);
+		END;
+--ket thuc xu ly cho ca ngay
+
+
+--DELETE NEU OUT VA IN IS NULL KO CAN GIU LAI  --TRUONG 07/11/2006 
+	DELETE THR_TIME_MACHINE M
+	WHERE M.DEL_IF=0 AND M.WORK_DT=AS_FROM
+	AND M.P_IN IS NULL AND M.P_OUT IS NULL;
+	
+	
+--bat dau xu ly cho ca dem
+BEGIN
+	 --xu ly cho nhung ca binh thuong
+		AN_SYS_ERROR_MSG := '40';
+			INSERT INTO THR_TIME_MACHINE
+				   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+				   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY,HOURS_IN_SHIFT )
+			SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+				   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER,WT.WT
+			  FROM (
+SELECT B.PK AS EMP_PK, D.THR_ABWORKGRP_PK AS GRP_CODE,AS_FROM AS WORK_DT,   F.PK AS W_SHIFT
+	                ,(SELECT MIN(M.TIME)
+		              FROM THR_TIME_TEMP M
+		              WHERE LTRIM(RTRIM(M.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))
+					  AND TO_NUMBER(SUBSTR(M.TIME,1,2))*60+TO_NUMBER(SUBSTR(M.TIME,4,2))>TO_NUMBER(SUBSTR(F.START_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.START_TIME,4,2))-120
+					  AND M.TIME_DT = AS_FROM) AS P_IN  
+				   ,(SELECT MAX(A.TIME)
+				                 FROM THR_TIME_TEMP A
+								WHERE LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))  
+								  AND TO_NUMBER(SUBSTR(A.TIME,1,2))*60+TO_NUMBER(SUBSTR(A.TIME,4,2))<TO_NUMBER(SUBSTR(F.END_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.END_TIME,4,2))+300
+								  AND TO_NUMBER(SUBSTR(A.TIME,1,2))*60+TO_NUMBER(SUBSTR(A.TIME,4,2))>TO_NUMBER(SUBSTR(F.END_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.END_TIME,4,2))-300
+								  AND A.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') ) AS P_OUT,F.WT AS WT  
+			FROM THR_ABEMP B, THR_GRP_EMP D, THR_WORK_SHIFT F
+		 WHERE B.DEL_IF = 0
+		   AND D.DEL_IF = 0 AND F.DEL_IF = 0 AND B.PK = D.EMP_PK
+		   AND D.START_DT = AS_FROM
+		   AND D.WORK_SHIFT = F.PK
+		   AND B.PK NOT IN (SELECT G.EMP_PK FROM THR_TIME_MACHINE G WHERE G.DEL_IF = 0 AND G.WORK_DT= AS_FROM  )
+		   AND LTRIM(RTRIM(B.CARD_ID)) IN (SELECT DISTINCT LTRIM(RTRIM(H.CARD_ID)) 
+		                                      FROM THR_TIME_TEMP H
+											  WHERE  H.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') )
+		  AND F.START_TIME > F.END_TIME ORDER BY B.CARD_ID)WT;
+		END;
+		--xu ly cho truong hop vao ngay 1 ra ngay 1
+		BEGIN
+		AN_SYS_ERROR_MSG := '50';
+		
+		UPDATE THR_TIME_MACHINE A
+			   SET A.P_OUT = (SELECT DECODE(F_Check_In_Out(MAX(A.P_IN),MAX(B.TIME),30),0,'',MAX(B.TIME))
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID)) AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+								  AND D.START_DT=AS_FROM 
+								  AND B.TIME_DT = AS_FROM --lay trong ngay lam viec as_from
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS  NULL
+			   AND A.P_IN IS NOT NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = AS_FROM
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME > D.END_TIME);
+
+--VAO NGAY 1 RA NGAY 2 (VAN CHUA LAY DUOC GIO OUT)								   
+UPDATE THR_TIME_MACHINE A
+			   SET A.P_OUT = (SELECT MIN(B.TIME)  
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(C.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID)) 
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK 
+								  AND TO_NUMBER(SUBSTR(B.TIME,1,2))<(SELECT TO_NUMBER(SUBSTR(E.START_TIME,1,2))-2 FROM THR_WORK_SHIFT E,THR_GRP_EMP F
+								  	  																 							  WHERE E.DEL_IF=0 AND F.DEL_IF=0 AND F.WORK_SHIFT=E.PK
+																																  AND F.EMP_PK=C.PK AND F.START_DT=AS_FROM)
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  AND B.TIME IS NOT NULL 
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS  NULL
+			   AND A.P_IN IS NOT NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = AS_FROM
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME > D.END_TIME);
+								   								   
+		END;
+		--xu ly cho truong hop vao ngay 2 ra ngay 2
+		
+		BEGIN
+		AN_SYS_ERROR_MSG := '60';
+			
+		UPDATE THR_TIME_MACHINE A
+			   SET A.P_IN = (SELECT DECODE(F_Check_In_Out3(MAX(E.START_TIME),MIN(B.TIME),6),0,'',MIN(B.TIME))
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID)) AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+								  AND D.START_DT=AS_FROM 
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS NOT NULL
+			   AND A.P_IN IS  NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE LTRIM(RTRIM(B.CARD_ID)) = LTRIM(RTRIM(C.CARD_ID))
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME > D.END_TIME); 
+		END;
+--ket thuc xu ly cho ca dem	
+	  BEGIN
+	  	   --UPDATE(SETTING THE WORKING TIME)
+ 
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = F_Get_Wt_Nshift(C.P_IN,C.P_OUT,C.W_SHIFT)
+		 WHERE C.DEL_IF = 0
+		   AND C.APPLY_FLAG<>'Y'
+		   AND C.P_IN IS NOT NULL
+		   AND C.P_OUT IS NOT NULL
+		   AND C.WORK_DT = AS_FROM;
+		 
+	  END;
+	  
+	  ---tinh du cong cho nhan vien van phong chi lam nua ngay vao thu 7 
+	  
+	  BEGIN
+	  
+	  SELECT COUNT(C.CAR_DATE) INTO SAT_CNT FROM COMM.TCO_ABCALENDAR C WHERE C.DEL_IF = 0 AND C.DAY_TYPE = '7' AND C.CAR_DATE=AS_FROM;
+	  
+	  IF SAT_CNT = 1 THEN
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = 8
+		 WHERE C.DEL_IF = 0
+		   AND C.APPLY_FLAG<>'Y'
+		   AND C.P_IN IS NOT NULL
+		   AND C.P_OUT IS NOT NULL
+		   AND F_Get_Wt_Nshift(C.P_IN,C.P_OUT,C.W_SHIFT) >= 4
+		   AND C.EMP_PK IN (SELECT PK FROM THR_ABEMP WHERE DEL_IF=0 AND EMP_ID_STYLE='01')
+		   AND C.WORK_DT = AS_FROM;	  	 
+	  END IF; 
+	  
+	  END;
+
+	  	  --delete du lieu neu ko lay duoc  in va out
+		  DELETE THR_TIME_MACHINE c
+		  WHERE  C.DEL_IF = 0 AND  C.P_IN IS  NULL
+		   AND C.P_OUT IS  NULL
+		   AND C.WORK_DT = AS_FROM;
+
+BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = A.WORT_TIME + NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL
+					  AND A.WORT_TIME <= 8 - NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK  AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+	
+	BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = 8  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.WORT_TIME >7
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL 
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+--xu ly danh sach vang mat
+	 BEGIN
+	 
+	 SELECT TO_CHAR(SYSDATE,'YYYYMMDD')
+			   INTO AN_SYSDATE
+			   FROM DUAL;
+			   
+	 	  AN_SYS_ERROR_MSG := '70';
+			 IF AN_SYSDATE >= AV_FROM_DT THEN
+			 	INSERT INTO THR_EMP_ABSENT  --AUTO INSERT ABSENT LIST
+		               (PK, GRP_CODE, EMP_PK, ABS_CODE,ABSENT_TIME, ABS_DT, WORK_SHIFT
+		               , COM_PAY_FLAG, POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+	            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,NVL(B.THR_ABWORKGRP_PK,0), A.PK, 'NON',8, AS_FROM, B.WORK_SHIFT
+		               ,'N',D.POS_CODE, 0, SYSDATE, AS_USER
+	              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+	             WHERE A.DEL_IF = 0
+	               AND B.DEL_IF = 0
+				   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+	               AND A.PK = B.EMP_PK
+				   AND A.PK = D.THR_ABEMP_PK AND B.START_DT = F.CAR_DATE
+				   AND A.JOIN_DATE<=AS_FROM AND (A.LEFT_DATE> AS_FROM OR A.LEFT_DATE IS NULL)
+				   AND F.HOL_TYPE IS NULL AND F.CAR_DATE = AS_FROM
+	               AND A.PK NOT IN (SELECT C.EMP_PK
+			                              FROM THR_TIME_MACHINE C
+			                             WHERE C.DEL_IF = 0
+			                               AND C.WORK_DT = AS_FROM)
+				   AND A.PK NOT IN (SELECT E.EMP_PK
+				                      FROM THR_EMP_ABSENT E
+									 WHERE E.DEL_IF = 0
+									   AND E.ABS_DT = AS_FROM);
+			 END IF;
+		 --DELETE DU LIEU TRONG BANG VANG TRONG TRUONG HOP RESIGN TRONG NGAY LOAD
+			 UPDATE THR_EMP_ABSENT A
+			 SET A.DEL_IF=A.PK
+			 WHERE A.EMP_PK IN (SELECT B.PK FROM THR_ABEMP B WHERE B.DEL_IF=0 AND B.EMP_STATUS='R')
+			 AND A.ABS_DT >= ( SELECT B.LEFT_DATE  FROM THR_ABEMP B WHERE B.DEL_IF=0 AND B.EMP_STATUS='R' AND A.EMP_PK=B.PK);
+		
+AN_SYS_ERROR_MSG := '80';
+--UPDATING LATELY ATTENDANCE PERSON
+		UPDATE THR_EMP_ABSENT A
+           SET A.DEL_IF = PK
+   	           ,A.MOD_BY = AS_USER
+	           ,A.MOD_DT = SYSDATE
+         WHERE A.DEL_IF = 0
+           AND A.ABS_DT = AS_FROM AND A.ABS_CODE ='NON'
+           AND A.EMP_PK IN (SELECT B.EMP_PK
+                              FROM THR_TIME_MACHINE B
+					         WHERE B.DEL_IF = 0
+					           AND B.WORK_DT = AS_FROM);
+
+				
+	END;
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Time_Load_Wt;
+/
+CREATE OR REPLACE PROCEDURE Pr_Time_Load_Wt_S2( 
+AS_FROM IN  VARCHAR2,  -- YYYYMMDD
+     AS_USER IN  VARCHAR2,  -- USER ID
+ AS_RET_NUM OUT NUMBER,  -- RETURN VALUE ( NUMBER)
+ AS_RET_VAR OUT VARCHAR2 -- RETURN VALUE ( CHARACTER )
+                         ) IS
+--AS_RET_NUM		NUMBER;
+--AS_RET_VAR     		VARCHAR2(100);
+
+VN_CLOSE_CHECK		NUMBER(2) := 0;
+AV_FROM_DT		VARCHAR2(10);
+AV_FROM_TIME		VARCHAR2(8);
+AV_TO_TIME		VARCHAR2(8);
+
+AN_SYSDATE		VARCHAR2(8);
+
+AN_CK_TM		NUMBER;
+AN_CNT			NUMBER(10) := 0;
+AN_CNT1			NUMBER(10) := 0;
+AN_SYS_ERROR_MSG	VARCHAR(100);
+
+
+BEGIN
+AN_SYS_ERROR_MSG := '10';
+
+	AS_RET_NUM := -1 ;
+
+--bat dau xu ly cho ca dem
+BEGIN
+	 --xu ly cho nhung ca binh thuong
+		AN_SYS_ERROR_MSG := '40';
+			INSERT INTO THR_TIME_MACHINE
+				   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT
+				   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+			SELECT THR_TIME_MACHINE_SEQ.NEXTVAL, WT.EMP_PK, WT.GRP_CODE, WT.WORK_DT, WT.W_SHIFT, WT.P_IN, WT.P_OUT
+				   ,DECODE(WT.P_OUT,'','I','O'), 'N', 0, SYSDATE, AS_USER
+			  FROM (
+SELECT B.PK AS EMP_PK, D.THR_ABWORKGRP_PK AS GRP_CODE,AS_FROM AS WORK_DT,   F.PK AS W_SHIFT
+	                ,(SELECT MIN(M.TIME)
+		              FROM THR_TIME_TEMP M
+		              WHERE LTRIM(RTRIM(M.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))
+					  AND TO_NUMBER(SUBSTR(M.TIME,1,2))*60+TO_NUMBER(SUBSTR(M.TIME,4,2))>TO_NUMBER(SUBSTR(F.START_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.START_TIME,4,2))-120
+					  AND M.TIME_DT = AS_FROM) AS P_IN  
+				   ,(SELECT MAX(A.TIME)
+				                 FROM THR_TIME_TEMP A
+								WHERE LTRIM(RTRIM(A.CARD_ID)) = LTRIM(RTRIM(B.CARD_ID))  
+								  AND TO_NUMBER(SUBSTR(A.TIME,1,2))*60+TO_NUMBER(SUBSTR(A.TIME,4,2))<TO_NUMBER(SUBSTR(F.END_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.END_TIME,4,2))+120
+								  AND TO_NUMBER(SUBSTR(A.TIME,1,2))*60+TO_NUMBER(SUBSTR(A.TIME,4,2))>TO_NUMBER(SUBSTR(F.END_TIME,1,2))*60+TO_NUMBER(SUBSTR(F.END_TIME,4,2))-300
+								  AND A.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') ) AS P_OUT  
+			FROM THR_ABEMP B, THR_GRP_EMP D, THR_WORK_SHIFT F
+		 WHERE B.DEL_IF = 0
+		   AND D.DEL_IF = 0 AND F.DEL_IF = 0 AND B.PK = D.EMP_PK
+		   AND D.START_DT = AS_FROM
+		   AND D.WORK_SHIFT = F.PK
+		   AND B.PK NOT IN (SELECT G.EMP_PK FROM THR_TIME_MACHINE G WHERE G.DEL_IF = 0 AND G.WORK_DT= AS_FROM )
+		   AND LTRIM(RTRIM(B.CARD_ID)) IN (SELECT DISTINCT LTRIM(RTRIM(H.CARD_ID)) 
+		                                      FROM THR_TIME_TEMP H
+											  WHERE  H.TIME_DT BETWEEN AS_FROM AND TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD') )
+		  AND F.START_TIME > F.END_TIME ORDER BY B.CARD_ID)WT;
+		END;
+		--xu ly cho truong hop vao ngay 1 ra ngay 1
+		BEGIN
+		AN_SYS_ERROR_MSG := '50';
+			
+		UPDATE THR_TIME_MACHINE A
+			   SET A.P_OUT = (SELECT DECODE(F_Check_In_Out(MAX(E.START_TIME),MAX(B.TIME),30),0,'',MAX(B.TIME))
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE B.CARD_ID = C.CARD_ID AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+								  AND D.START_DT=AS_FROM 
+								  AND B.TIME_DT = AS_FROM 
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS  NULL
+			   AND A.P_IN IS NOT NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE B.CARD_ID = C.CARD_ID
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = AS_FROM
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME > D.END_TIME);
+		END;
+		--xu ly cho truong hop vao ngay 2 ra ngay 2
+		
+		BEGIN
+		AN_SYS_ERROR_MSG := '60';
+			
+		UPDATE THR_TIME_MACHINE A
+			   SET A.P_IN = (SELECT DECODE(F_Check_In_Out3(MAX(E.START_TIME),MIN(B.TIME),6),0,'',MIN(B.TIME))
+				                 FROM THR_TIME_TEMP B, THR_ABEMP C, THR_GRP_EMP D, THR_WORK_SHIFT E
+								WHERE B.CARD_ID = C.CARD_ID AND D.DEL_IF = 0 AND C.PK = D.EMP_PK
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK AND D.WORK_SHIFT = E.PK
+								  AND D.START_DT=AS_FROM 
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  
+								  )
+			 WHERE A.DEL_IF = 0 AND A.APPLY_FLAG <> 'Y'
+			   AND A.WORK_DT = AS_FROM
+			   AND A.P_OUT IS NOT NULL
+			   AND A.P_IN IS  NULL
+			   AND A.EMP_PK = (SELECT C.PK
+			                     FROM THR_TIME_TEMP B, THR_ABEMP C
+								WHERE B.CARD_ID = C.CARD_ID
+								  AND C.DEL_IF = 0 AND A.EMP_PK = C.PK
+								  AND B.TIME_DT = TO_CHAR(TO_DATE(AS_FROM,'YYYYMMDD')+1,'YYYYMMDD')
+								  GROUP BY C.PK)
+				AND A.W_SHIFT = (SELECT D.PK
+			                      FROM THR_WORK_SHIFT D
+								 WHERE D.DEL_IF = 0
+								   AND A.W_SHIFT = D.PK
+								   AND D.START_TIME > D.END_TIME); 
+		END;
+--ket thuc xu ly cho ca dem	
+	  BEGIN
+	  	   --UPDATE(SETTING THE WORKING TIME)
+ 
+		UPDATE THR_TIME_MACHINE C
+		   SET C.WORT_TIME = F_Get_Wt_Nshift(NVL(C.P_IN,C.P_OUT),NVL(C.P_OUT,C.P_IN),C.W_SHIFT)
+		 WHERE C.DEL_IF = 0
+		   AND C.APPLY_FLAG<>'Y'
+		   AND C.P_IN IS NOT NULL
+		   AND C.P_OUT IS NOT NULL
+		   AND C.WORK_DT = AS_FROM;
+	  END;
+
+COMMIT;
+
+	
+	BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = 8  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.WORT_TIME >7
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL 
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+	
+	BEGIN
+				UPDATE THR_TIME_MACHINE A -- cho nhung nguoi thai san
+				SET A.WORT_TIME = A.WORT_TIME + NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)  
+				WHERE A.DEL_IF = 0
+				      AND A.WORK_DT = AS_FROM
+					  AND A.APPLY_FLAG <>'Y'
+					  AND A.P_IN IS NOT NULL
+					  AND A.P_OUT IS NOT NULL
+					 -- AND A.EMP_PK = AS_EMPPK
+					  AND A.WORT_TIME <= 8 - NVL((SELECT D.OT_ALLOW_TIME FROM THR_OT_ALLOWANCE D WHERE D.DEL_IF = 0 AND D.EMP_PK = A.EMP_PK  AND D.START_DT<=AS_FROM AND D.END_DT >=AS_FROM),0)
+					  AND A.EMP_PK IN (SELECT C.EMP_PK FROM THR_OT_ALLOWANCE C WHERE C.DEL_IF = 0 AND C.START_DT <= AS_FROM AND C.END_DT >= AS_FROM AND C.EMP_PK = A.EMP_PK);
+	END;
+	
+BEGIN
+		 -- INSERT CHO NHUNG NGUOI TAI XE VA NHUNG NGUOI KHONG QUET THE --> MR.NGUYEN REQUIRE
+		 INSERT INTO THR_TIME_MACHINE
+			   ( PK, EMP_PK, GRP_CODE, WORK_DT, W_SHIFT, P_IN, P_OUT,WORT_TIME
+			   ,CHECK_FLAG, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY )
+		SELECT THR_TIME_MACHINE_SEQ.NEXTVAL,B.PK,B.GRP_CODE, AS_FROM,7,'08:00', '17:00',8
+			   ,'O','Y',0,SYSDATE,AS_USER
+		  FROM  VHR_EMP B 
+		 WHERE B.DEL_IF = 0
+		   AND B.PK IN (6,1341,2412,265,1343,4758,7397,2421,7411)
+		   AND B.PK NOT IN (SELECT E.EMP_PK FROM THR_TIME_MACHINE E WHERE E.DEL_IF=0 AND E.WORK_DT = AS_FROM);
+	END;
+--xu ly danh sach vang mat
+	 BEGIN
+	 
+	 SELECT TO_CHAR(SYSDATE,'YYYYMMDD')
+			   INTO AN_SYSDATE
+			   FROM DUAL;
+			   
+	 	  AN_SYS_ERROR_MSG := '70';
+			 IF AN_SYSDATE >= AV_FROM_DT THEN
+			 	INSERT INTO THR_EMP_ABSENT  --AUTO INSERT ABSENT LIST
+		               (PK, GRP_CODE, EMP_PK, ABS_CODE,ABSENT_TIME, ABS_DT, WORK_SHIFT
+		               , COM_PAY_FLAG, POS_CODE, DEL_IF, CRT_DT, CRT_BY)
+	            SELECT THR_EMP_ABSENT_SEQ.NEXTVAL,NVL(B.THR_ABWORKGRP_PK,0), A.PK, 'NON',8, AS_FROM, B.WORK_SHIFT
+		               ,'N',D.POS_CODE, 0, SYSDATE, AS_USER
+	              FROM THR_ABEMP A, THR_GRP_EMP B, THR_ABEMPMAS D, TCO_ABCALENDAR F
+	             WHERE A.DEL_IF = 0
+	               AND B.DEL_IF = 0
+				   AND D.DEL_IF = 0 AND F.DEL_IF = 0
+	               AND A.PK = B.EMP_PK
+				   AND A.PK = D.THR_ABEMP_PK AND B.START_DT = F.CAR_DATE
+				   AND A.EMP_STATUS = 'A' AND F.HOL_TYPE IS NULL AND F.CAR_DATE = AS_FROM
+	               AND A.PK NOT IN (SELECT C.EMP_PK
+			                              FROM THR_TIME_MACHINE C
+			                             WHERE C.DEL_IF = 0
+			                               AND C.WORK_DT = AS_FROM)
+				   AND A.PK NOT IN (SELECT E.EMP_PK
+				                      FROM THR_EMP_ABSENT E
+									 WHERE E.DEL_IF = 0
+									   AND E.ABS_DT = AS_FROM);
+			 END IF;
+		
+AN_SYS_ERROR_MSG := '80';
+--UPDATING LATELY ATTENDANCE PERSON
+		UPDATE THR_EMP_ABSENT A
+           SET A.DEL_IF = PK
+   	           ,A.MOD_BY = 'LEE'
+	           ,A.MOD_DT = SYSDATE
+         WHERE A.DEL_IF = 0
+           AND A.ABS_DT = AS_FROM
+           AND A.EMP_PK IN (SELECT B.EMP_PK
+                              FROM THR_TIME_MACHINE B
+					         WHERE B.DEL_IF = 0
+					           AND B.WORK_DT = AS_FROM);
+	END;
+
+COMMIT;
+	AS_RET_NUM := 0;
+	AS_RET_VAR := AN_SYS_ERROR_MSG||'Successful Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		RAISE_APPLICATION_ERROR(-20002, AN_SYS_ERROR_MSG||'ERROR..'||'. OTHER (PR_TIME_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+END  Pr_Time_Load_Wt_S2;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Absent
+(	   AS_FLAG	  			IN VARCHAR2
+ 	   ,AS_PK	  			IN THR_EMP_ABSENT.PK%TYPE
+	   ,AS_GRP_CODE 		IN THR_EMP_ABSENT.GRP_CODE%TYPE
+	   ,AS_EMP_PK			IN THR_EMP_ABSENT.EMP_PK%TYPE
+	   ,AS_POS_CODE			IN THR_EMP_ABSENT.POS_CODE%TYPE
+	   ,AS_WSHIFT			IN THR_EMP_ABSENT.WORK_SHIFT%TYPE
+	   ,AS_ABSENT_TYPE 		IN THR_EMP_ABSENT.ABS_CODE%TYPE
+	   ,AS_REMARK			IN THR_EMP_ABSENT.REMARK%TYPE
+	   ,AS_DATE		IN THR_EMP_ABSENT.START_DT%TYPE
+	   ,AS_ABS_TIME			IN THR_EMP_ABSENT.ABSENT_TIME%TYPE
+	   ,AS_FROM_DATE		IN THR_EMP_ABSENT.START_DT%TYPE
+	     ,AS_TO_DATE		IN THR_EMP_ABSENT.END_DT%TYPE
+	   ,AS_USER 			IN	VARCHAR2
+	   ,AS_RET_NUM			OUT	NUMBER
+	   ,AS_RET_VAR			OUT	VARCHAR2
+)IS
+V_ERROR				VARCHAR2(100);
+AV_BASIC_SAL		NUMBER(10):=0;
+AV_WT				NUMBER(5,2):=0.0;
+AS_ABSENT_TIME		NUMBER(5,2):=8;
+AS_COM_FLAG			VARCHAR2(1):='N';
+AS_COM_PAY_RATE		NUMBER(5,2):=0;
+AS_COM_AMOUNT		NUMBER(10,2):=0;
+AS_ABTYPE			VARCHAR2(5):='';
+AS_CHECK			NUMBER(1):=0;
+CLOSE_NUM	NUMBER(1):=0; 
+AS_COUNT_ABS NUMBER(1):=0;
+MARK_ERROR	 NUMBER(2):=0;
+COUNT_ALE	 NUMBER(2):=0;
+ALE_DAY	 NUMBER(2):=0;
+AV_ABSENT_TYPE VARCHAR2(10);
+AV_END_PROB	   VARCHAR2(8);
+BEGIN
+
+
+SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+	   WHERE C.DEL_IF=0 AND C.MMYYYY=SUBSTR(AS_DATE,1,4)||SUBSTR(AS_DATE,5,2)
+	   AND C.CLOSE_FLAG='Y';
+	   IF  CLOSE_NUM>0 THEN
+	   	   			   RAISE_APPLICATION_ERROR(-20001,'');
+	   ELSE
+						   SELECT COUNT(M.PK) INTO CLOSE_NUM FROM THR_EMP_ABSENT M
+   						   WHERE M.DEL_IF=0 AND M.ABS_DT = AS_DATE
+   		 				   AND M.EMP_PK=AS_EMP_PK AND M.CLOSE_FLAG='Y';
+						    IF  CLOSE_NUM>0 THEN
+								   	   	 RAISE_APPLICATION_ERROR(-20001,'');
+							END IF;
+						
+	END IF;
+
+   AV_ABSENT_TYPE:=AS_ABSENT_TYPE;
+   IF AV_ABSENT_TYPE='ALE' THEN 
+   
+   	  SELECT SUM(Mon_cnt) INTO COUNT_ALE
+  	  FROM   VHR_EMP_ABSENT_CNT
+      WHERE  YEARMON LIKE  SUBSTR(AS_DATE,0,4)|| '%'
+  		 	 AND EMP_PK = AS_EMP_PK;
+ 	  
+	  SELECT DECODE(EMP.ANNUAL_LEAVE_DAYS,'NULL',0,EMP.ANNUAL_LEAVE_DAYS) ,EMP.ET_PROBATION INTO ALE_DAY , AV_END_PROB
+	  FROM THR_ABEMP EMP 
+	  WHERE EMP.DEL_IF=0 
+	  		AND EMP.PK=AS_EMP_PK;
+ 	
+ 		IF (COUNT_ALE >= ALE_DAY) /*OR (AV_END_PROB>=AS_DATE) */THEN --UPDATE NGHI CO PHEP NEU HET PHEP NAM HOAC LA TRONG GIAI DOAN THU VIEC, MR MY : PHEP NAM TINH TU LUC MOI VAO --
+--		   RETURN;
+		   AV_ABSENT_TYPE:='PER'; 
+		 END IF;  
+   END IF;
+
+ --lay cac com rate tuy thuoc vao absent type
+ 	   	   SELECT NVL(a.NUM_VALUE1,0) INTO AS_COM_PAY_RATE
+		   FROM tco_abcode a,tco_abcodegrp b 
+		   WHERE a.del_if=0 AND b.del_if=0 
+		   AND b.id='HRAB0110' 
+		   AND a.TCO_ABCODEGRP_PK=b.pk 
+		   AND a.CODE = AV_ABSENT_TYPE;
+		   
+		   IF AS_ABS_TIME>0 THEN
+			   	AS_ABSENT_TIME := AS_ABS_TIME; --CO THE NGHI TMP
+		   ELSE
+				AS_ABSENT_TIME := 8; --1 CONG WT
+		   END IF;
+		   
+ 		   IF  AS_COM_PAY_RATE=0  THEN -- truong hop nghi ko tra luong
+		   	   AS_COM_FLAG :='N';
+			   AS_COM_AMOUNT:=0;
+		   ELSE -- truong hop nghi tra luong
+			   AS_COM_FLAG :='Y';
+			   SELECT NVL(A.BASIC_SAL,0) INTO AV_BASIC_SAL FROM VHR_EMP A WHERE A.DEL_IF=0 AND A.PK = AS_EMP_PK;
+			   AS_COM_AMOUNT:=ROUND(AV_BASIC_SAL*AS_ABSENT_TIME*(AS_COM_PAY_RATE/100)/(26*8),-2);   
+		   END IF;  	  
+		   
+		   -- INSERT CHO TRUONG HOP UPDATE NGAY
+			V_ERROR := '20';
+			IF AS_FLAG = 'UPDATE' THEN
+			
+								SELECT COUNT(A.PK) INTO AS_COUNT_ABS FROM THR_EMP_ABSENT A 
+								  WHERE A.DEL_IF=0 AND A.EMP_PK=AS_EMP_PK AND A.ABS_DT=AS_DATE;
+								
+								  IF  AS_COUNT_ABS>0 THEN
+								  	     SELECT A.ABS_CODE INTO AS_ABTYPE FROM THR_EMP_ABSENT A 
+										  WHERE A.DEL_IF=0 AND A.EMP_PK=AS_EMP_PK AND A.ABS_DT=AS_DATE;
+								END IF;
+								
+								   -- XAC DINH LY DO VANG
+								   V_ERROR := '10';
+								   
+								   IF (AS_COUNT_ABS>0 AND AS_ABTYPE='MLE')OR(AV_ABSENT_TYPE='MLE') THEN -- KO TINH THAI SAN
+								   	  				 	 	MARK_ERROR:=1;			 
+								   	  						RAISE_APPLICATION_ERROR(-20001,'');
+								   END IF;
+			
+							UPDATE THR_EMP_ABSENT E
+							   SET E.ABSENT_TIME = AS_ABSENT_TIME
+							   	   ,E.ABS_CODE = AV_ABSENT_TYPE
+								  -- ,E.ABS_DT = AS_DATE
+								   ,E.COM_AMT = AS_COM_AMOUNT
+								   ,E.COM_PAY_FLAG = AS_COM_FLAG
+								   ,E.COM_RATE = AS_COM_PAY_RATE
+								   ,E.REMARK=AS_REMARK
+								   ,E.MOD_BY = AS_USER
+								   ,E.MOD_DT = SYSDATE
+								WHERE E.PK = AS_PK;
+								
+			
+			
+			END IF;
+			
+			V_ERROR := '30';
+			IF AS_FLAG = 'INSERT' THEN
+			
+			   		   	 		   IF  AS_ABSENT_TYPE ='MLE' THEN -- KO TINH THAI SAN
+								   	  						MARK_ERROR:=1;			 
+								   	  						RAISE_APPLICATION_ERROR(-20001,'');
+								   END IF;
+			
+							INSERT INTO THR_EMP_ABSENT
+							       (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, START_DT, END_DT, ABSENT_TIME
+								   ,COM_PAY_FLAG, COM_RATE, COM_AMT,INS_PAY_FLAG,INS_RATE,APPLY_FLAG	   
+								   ,WORK_SHIFT, POS_CODE, REMARK, DEL_IF, CRT_DT, CRT_BY)	   
+								   SELECT THR_EMP_ABSENT_SEQ.NEXTVAL
+							      ,AS_GRP_CODE
+								  ,AS_EMP_PK
+								  ,AV_ABSENT_TYPE
+								  ,B.CAR_DATE
+								  ,AS_FROM_DATE
+								  ,AS_TO_DATE 
+								  ,AS_ABSENT_TIME
+								  ,AS_COM_FLAG
+								  ,AS_COM_PAY_RATE
+								  ,AS_COM_AMOUNT
+								  ,'N',0,NULL
+								  ,AS_WSHIFT
+								  ,AS_POS_CODE
+								  ,AS_REMARK
+								  ,0
+								  ,SYSDATE
+								  ,AS_USER
+							  FROM TCO_ABCALENDAR B
+							 WHERE B.DEL_IF = 0 
+							   AND B.DAY_TYPE <> '1'
+							   AND B.HOL_TYPE IS NULL
+							   AND B.CAR_DATE BETWEEN AS_FROM_DATE AND AS_TO_DATE
+							   AND AS_EMP_PK NOT IN(SELECT C.EMP_PK FROM THR_EMP_ABSENT C 
+							   	   			 WHERE C.DEL_IF = 0 AND C.ABS_DT = B.CAR_DATE);
+			
+			END IF;
+		
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := V_ERROR || 'Successful Process !';
+	
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		  IF MARK_ERROR=1	 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'Can not update in meternity case, pls choose next tab');
+		   			   RETURN;
+		ELSE
+					RAISE_APPLICATION_ERROR(-20002, V_ERROR ||'ERROR..'||'. OTHER (PR_UPDATE_ABSENT) '||SQLERRM );
+					AS_RET_NUM := -1;
+					AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+		END IF;
+END Pr_Update_Absent;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Absent_Detail
+(	   AS_FLAG	  			IN VARCHAR2
+	   ,AS_GRP_CODE 		IN THR_EMP_ABSENT.GRP_CODE%TYPE
+	   ,AS_EMP_PK			IN THR_EMP_ABSENT.EMP_PK%TYPE
+	   ,AS_POS_CODE			IN THR_EMP_ABSENT.POS_CODE%TYPE
+	   ,AS_WSHIFT			IN THR_EMP_ABSENT.WORK_SHIFT%TYPE
+	   ,AS_ABSENT_TYPE 		IN THR_EMP_ABSENT.ABS_CODE%TYPE
+	   ,AS_REMARK			IN THR_EMP_ABSENT.REMARK%TYPE
+	   ,AS_FROM_DATE		IN THR_EMP_ABSENT.START_DT%TYPE
+	   ,AS_TO_DATE			IN THR_EMP_ABSENT.END_DT%TYPE
+	   ,AS_USER 			IN	VARCHAR2
+	   ,AS_RET_NUM			OUT	NUMBER
+	   ,AS_RET_VAR			OUT	VARCHAR2
+)IS
+V_ERROR				VARCHAR2(100);
+AV_BASIC_SAL		NUMBER(10):=0;
+AV_WT				NUMBER(5,2):=0.0;
+AS_ABSENT_TIME		NUMBER(5,2):=8;
+AS_COM_FLAG			VARCHAR2(1):='N';
+AS_COM_PAY_RATE		NUMBER(5,2):=0;
+AS_COM_AMOUNT		NUMBER(10,2):=0;
+AS_CHECK			NUMBER(1):=0;
+AS_MAX_DT			VARCHAR2(8);
+AS_MIN_DT			VARCHAR2(8);
+CLOSE_NUM	NUMBER(10):=0; 
+AS_MER_FLAG				   NUMBER(2):=0;
+AV_DATE_FR VARCHAR2(8);
+AV_DATE_TO VARCHAR2(8);
+AV_COUNT   NUMBER(10):=0;
+BEGIN
+
+	 BEGIN 
+        
+        SELECT COUNT(A.PK) INTO AV_COUNT
+        FROM THR_EMP_ABSENT A
+        WHERE A.DEL_IF=0
+        AND A.EMP_PK = AS_EMP_PK
+        AND A.ABS_CODE='MLE'
+        GROUP BY A.START_DT, A.END_DT;
+        
+        EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+             AV_COUNT := 0;
+        
+        IF AV_COUNT > 0 THEN
+        
+            SELECT A.START_DT, A.END_DT INTO AV_DATE_FR, AV_DATE_TO
+            FROM THR_EMP_ABSENT A
+            WHERE A.DEL_IF=0
+            AND A.EMP_PK = AS_EMP_PK
+            AND A.ABS_CODE='MLE'
+            GROUP BY A.START_DT, A.END_DT;
+            
+            IF AV_DATE_FR <> AS_FROM_DATE  THEN
+            
+               SELECT COUNT(C.PK) INTO CLOSE_NUM
+               FROM THR_CLOSE C
+               WHERE C.DEL_IF=0  AND ID='SAL'
+               AND TO_NUMBER(C.MMYYYY)>=TO_NUMBER(SUBSTR(AS_FROM_DATE,1,6))
+               AND C.CLOSE_FLAG='Y';
+               
+               IF  CLOSE_NUM>0 THEN
+                         RAISE_APPLICATION_ERROR(-20001,'');
+               END IF;
+               
+            END IF;
+    
+            IF AV_DATE_TO <> AS_TO_DATE  THEN
+            
+               SELECT COUNT(C.PK) INTO CLOSE_NUM
+               FROM THR_CLOSE C
+               WHERE C.DEL_IF=0 AND ID='SAL'
+               AND TO_NUMBER(C.MMYYYY)>=TO_NUMBER(SUBSTR(AS_TO_DATE,1,6))
+               AND C.CLOSE_FLAG='Y';
+               
+               IF  CLOSE_NUM>0 THEN
+                         RAISE_APPLICATION_ERROR(-20001,'');
+               END IF;
+               
+            END IF;
+            
+        ELSE
+        
+           SELECT COUNT(C.PK) INTO CLOSE_NUM FROM THR_CLOSE C
+           WHERE C.DEL_IF=0 AND TO_NUMBER(C.MMYYYY)>=TO_NUMBER(SUBSTR(AS_FROM_DATE,1,6))
+           AND TO_NUMBER(C.MMYYYY)<=TO_NUMBER(SUBSTR(AS_TO_DATE,1,6))
+           AND C.CLOSE_FLAG='Y' AND ID='SAL';
+           
+           IF  CLOSE_NUM>0 THEN
+                  RAISE_APPLICATION_ERROR(-20001,'');
+           ELSE
+               SELECT COUNT(M.PK) INTO CLOSE_NUM FROM THR_EMP_ABSENT M
+                  WHERE M.DEL_IF=0 AND M.ABS_DT BETWEEN AS_FROM_DATE AND AS_TO_DATE
+                  AND M.EMP_PK=AS_EMP_PK AND M.CLOSE_FLAG='Y';
+               IF  CLOSE_NUM>0 THEN
+                      RAISE_APPLICATION_ERROR(-20001,'');
+                 END IF;
+          END IF;
+          
+        END IF;
+    
+    END;
+	
+	-- DELETE ABS_CODE = 'NON'    
+	
+DELETE THR_EMP_ABSENT T
+WHERE T.DEL_IF=0 AND T.ABS_CODE='NON' AND T.ABS_DT BETWEEN 	AS_FROM_DATE AND AS_TO_DATE
+AND T.EMP_PK=AS_EMP_PK;
+	
+
+ -- XAC DINH LY DO VANG
+   V_ERROR := '10';
+   -- KIEM TRA XEM CO' DI LAM HAY KO
+ --  SELECT COUNT(B.EMP_PK) INTO AS_CHECK 
+ --  FROM THR_TIME_MACHINE B WHERE B.EMP_PK = AS_EMP_PK AND B.DEL_IF = 0 AND B.WORK_DT = AS_FROM_DATE AND B.WORT_TIME>0;
+ IF AS_FLAG = 'DELETE' THEN
+ 	UPDATE THR_EMP_ABSENT T
+			SET T.DEL_IF = T.PK
+			WHERE T.DEL_IF=0 AND T.ABS_DT BETWEEN AS_FROM_DATE AND AS_TO_DATE 
+				  AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK;
+				  
+				  
+--TABLE QUAN LY THAI SAN  				  
+	UPDATE THR_MATERNITY M
+	SET M.DEL_IF=M.PK
+	,M.MOD_BY=AS_USER
+	,M.MOD_DT=SYSDATE
+	WHERE M.DEL_IF=0 AND M.START_DT=AS_FROM_DATE AND M.END_DT=AS_TO_DATE
+	AND M.EMP_PK=AS_EMP_PK;			  
+				  
+		 COMMIT;
+		 RETURN;	
+ END IF;
+   
+  	  AS_ABSENT_TIME := 8; --1 CONG WT
+	  AS_COM_FLAG :='N';
+	  AS_COM_PAY_RATE:=0;
+	  AS_COM_AMOUNT:=0;
+
+-- INSERT CHO TRUONG HOP UPDATE NGAY
+V_ERROR := '20';
+ 
+IF AS_FLAG = 'UPDATE' THEN
+   
+   
+	SELECT MAX(K.END_DT), MIN(K.START_DT) INTO AS_MAX_DT,AS_MIN_DT FROM THR_EMP_ABSENT K
+	WHERE K.DEL_IF=0 AND K.EMP_PK = AS_EMP_PK AND K.ABS_CODE = AS_ABSENT_TYPE;
+
+	BEGIN
+		
+	
+	   IF AS_MAX_DT < AS_TO_DATE THEN --- TANG NGAY LEN
+	   
+	   	  		DELETE THR_EMP_ABSENT A
+				WHERE A.DEL_IF=0 AND A.EMP_PK=AS_EMP_PK
+				AND A.ABS_DT BETWEEN AS_MAX_DT AND AS_TO_DATE;
+				
+		
+	      		INSERT INTO THR_EMP_ABSENT
+			       (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, START_DT, END_DT, ABSENT_TIME
+				   ,COM_PAY_FLAG, COM_RATE, COM_AMT,INS_PAY_FLAG,INS_RATE,APPLY_FLAG	   
+				   ,WORK_SHIFT, POS_CODE, REMARK, DEL_IF, CRT_DT, CRT_BY)	   
+				   SELECT THR_EMP_ABSENT_SEQ.NEXTVAL
+			      ,AS_GRP_CODE
+				  ,AS_EMP_PK
+				  ,AS_ABSENT_TYPE
+				  ,B.CAR_DATE
+				  ,AS_FROM_DATE
+				  ,AS_TO_DATE 
+				  ,AS_ABSENT_TIME
+				  ,AS_COM_FLAG
+				  ,AS_COM_PAY_RATE
+				  ,AS_COM_AMOUNT
+				  ,'N',0,NULL
+				  ,AS_WSHIFT
+				  ,AS_POS_CODE
+				  ,AS_REMARK
+				  ,0
+				  ,SYSDATE
+				  ,AS_USER
+			  FROM TCO_ABCALENDAR B
+			 WHERE B.DEL_IF = 0 
+			   AND B.DAY_TYPE <> '1'
+			   AND B.HOL_TYPE IS NULL
+			   AND B.CAR_DATE BETWEEN AS_MAX_DT AND AS_TO_DATE
+			   AND AS_EMP_PK NOT IN(SELECT C.EMP_PK FROM THR_EMP_ABSENT C 
+			   	   			 WHERE C.DEL_IF = 0 AND C.ABS_DT = B.CAR_DATE);
+							 
+				 --UPDATE LAI NGAY END DT  
+				  UPDATE THR_EMP_ABSENT T
+				  SET T.END_DT=AS_TO_DATE
+				  WHERE T.DEL_IF=0 AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK
+				  AND T.ABS_DT BETWEEN  AS_FROM_DATE AND AS_TO_DATE; 	
+		
+		ELSE -- GIAM NGAY XUONG  AS_MAX_DT > AS_TO_DATE
+				
+			DELETE THR_EMP_ABSENT T
+			WHERE T.DEL_IF=0 AND T.ABS_DT > AS_TO_DATE 
+				  AND T.ABS_DT <= AS_MAX_DT AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK;
+				  
+				  --UPDATE LAI NGAY END DT
+				  UPDATE THR_EMP_ABSENT T
+				  SET T.END_DT=AS_TO_DATE
+				  WHERE T.DEL_IF=0 AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK
+				  AND T.ABS_DT BETWEEN  AS_FROM_DATE AND AS_TO_DATE; 
+				  
+		END IF;
+		
+	IF AS_FROM_DATE > AS_MIN_DT THEN -- TANG NGAY BAT DAU LEN
+			DELETE THR_EMP_ABSENT T
+			WHERE T.DEL_IF=0 AND T.ABS_DT >= AS_MIN_DT AND T.ABS_DT < AS_FROM_DATE 
+				  AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK;
+				  
+				   --UPDATE LAI NGAY START DT
+				  UPDATE THR_EMP_ABSENT T
+				  SET T.START_DT=AS_FROM_DATE
+				  WHERE T.DEL_IF=0 AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK
+				  AND T.ABS_DT BETWEEN  AS_FROM_DATE AND AS_TO_DATE;  
+				  
+				  
+	ELSE -- GIAM NGAY BAT DAU XUONG   AS_FROM_DATE < AS_MIN_DT
+
+   		INSERT INTO THR_EMP_ABSENT
+			       (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, START_DT, END_DT, ABSENT_TIME
+				   ,COM_PAY_FLAG, COM_RATE, COM_AMT,INS_PAY_FLAG,INS_RATE,APPLY_FLAG	   
+				   ,WORK_SHIFT, POS_CODE, REMARK, DEL_IF, CRT_DT, CRT_BY)	   
+				   SELECT THR_EMP_ABSENT_SEQ.NEXTVAL
+			      ,AS_GRP_CODE
+				  ,AS_EMP_PK
+				  ,AS_ABSENT_TYPE
+				  ,B.CAR_DATE
+				  ,AS_FROM_DATE
+				  ,AS_TO_DATE 
+				  ,AS_ABSENT_TIME
+				  ,AS_COM_FLAG
+				  ,AS_COM_PAY_RATE
+				  ,AS_COM_AMOUNT
+				  ,'N',0,NULL
+				  ,AS_WSHIFT
+				  ,AS_POS_CODE
+				  ,AS_REMARK
+				  ,0
+				  ,SYSDATE
+				  ,AS_USER
+			  FROM TCO_ABCALENDAR B
+			 WHERE B.DEL_IF = 0 
+			   AND B.DAY_TYPE <> '1'
+			   AND B.HOL_TYPE IS NULL
+			   AND B.CAR_DATE BETWEEN AS_FROM_DATE AND AS_MIN_DT
+			   AND AS_EMP_PK NOT IN(SELECT C.EMP_PK FROM THR_EMP_ABSENT C 
+			   	   			 WHERE C.DEL_IF = 0 AND C.ABS_DT = B.CAR_DATE);
+	
+							   --UPDATE LAI NGAY START DT
+				  UPDATE THR_EMP_ABSENT T
+				  SET T.START_DT=AS_FROM_DATE
+				  WHERE T.DEL_IF=0 AND T.ABS_CODE = AS_ABSENT_TYPE AND T.EMP_PK=AS_EMP_PK
+				  AND T.ABS_DT BETWEEN  AS_FROM_DATE AND AS_TO_DATE;  
+				
+		
+		  END IF;
+	    END;
+	  
+
+	--UPDATE LAI CHO DONG NHAT DU~ LIEU
+		  UPDATE THR_EMP_ABSENT V
+		  SET V.END_DT = AS_TO_DATE
+		  	  ,V.START_DT = AS_FROM_DATE
+			  ,V.ABS_CODE = AS_ABSENT_TYPE 
+			  ,V.ABSENT_TIME = AS_ABSENT_TIME
+		  	  ,V.COM_PAY_FLAG = AS_COM_FLAG
+			  ,V.COM_RATE = AS_COM_PAY_RATE
+			  ,V.COM_AMT = AS_COM_AMOUNT
+			  ,V.INS_PAY_FLAG='N'
+			  ,V.INS_RATE = 0
+			  ,V.APPLY_FLAG = NULL
+			  ,V.APPLY_DT = TO_CHAR(SYSDATE,'YYYYMMDD')
+			  ,V.REMARK = AS_REMARK
+			  ,V.MOD_BY = AS_USER
+			  ,V.MOD_DT = SYSDATE
+		WHERE V.DEL_IF = 0  
+		  AND V.ABS_DT BETWEEN AS_FROM_DATE AND AS_TO_DATE  
+		  AND V.EMP_PK = AS_EMP_PK;
+		  
+		  
+		  
+	  --table quan ly thai san   		  
+	  UPDATE THR_MATERNITY M
+	  SET  M.START_DT=AS_FROM_DATE 
+	  ,M.END_DT=AS_TO_DATE
+	  WHERE M.DEL_IF=0 AND M.EMP_PK=AS_EMP_PK;
+				  
+		
+		  
+		  
+	V_ERROR := '30';
+	COMMIT;
+	
+END IF;
+
+IF AS_FLAG = 'INSERT' THEN
+	   		   		INSERT INTO THR_EMP_ABSENT
+			       (PK, GRP_CODE, EMP_PK, ABS_CODE, ABS_DT, START_DT, END_DT, ABSENT_TIME
+				   ,COM_PAY_FLAG, COM_RATE, COM_AMT,INS_PAY_FLAG,INS_RATE,APPLY_FLAG	   
+				   ,WORK_SHIFT, POS_CODE, REMARK, DEL_IF, CRT_DT, CRT_BY)	   
+				   SELECT THR_EMP_ABSENT_SEQ.NEXTVAL
+			      ,AS_GRP_CODE
+				  ,AS_EMP_PK
+				  ,AS_ABSENT_TYPE
+				  ,B.CAR_DATE
+				  ,AS_FROM_DATE
+				  ,AS_TO_DATE 
+				  ,AS_ABSENT_TIME
+				  ,AS_COM_FLAG
+				  ,AS_COM_PAY_RATE
+				  ,AS_COM_AMOUNT
+				  ,'N',0,NULL
+				  ,AS_WSHIFT
+				  ,AS_POS_CODE
+				  ,AS_REMARK
+				  ,0
+				  ,SYSDATE
+				  ,AS_USER
+			  FROM TCO_ABCALENDAR B
+			 WHERE B.DEL_IF = 0 
+			   AND B.DAY_TYPE <> '1'
+			 --  AND B.HOL_TYPE IS NULL
+			   AND B.CAR_DATE BETWEEN AS_FROM_DATE AND AS_TO_DATE
+			   AND AS_EMP_PK NOT IN(SELECT C.EMP_PK FROM THR_EMP_ABSENT C 
+			   	   			 WHERE C.DEL_IF = 0 AND C.ABS_DT = B.CAR_DATE);
+			
+			--TABLE QUAN LY THAI SAN  
+			SELECT COUNT(M.PK)INTO AS_MER_FLAG FROM THR_MATERNITY M WHERE M.DEL_IF=0 AND M.EMP_PK=AS_EMP_PK;
+			
+			IF	AS_MER_FLAG>0 THEN --DA CO THAI SAN RUI  THI UPDATE, CHI LUU 1 LAN THAI SAN
+				   
+				    UPDATE THR_MATERNITY M
+				  SET M.START_DT=AS_FROM_DATE 
+				  	  ,M.END_DT=AS_TO_DATE
+				  WHERE M.DEL_IF=0 AND M.EMP_PK=AS_EMP_PK;
+			ELSE --INSERT DU LIEU MOI 
+				  
+				INSERT INTO THR_MATERNITY
+				(PK, EMP_PK, GRP_CODE, START_DT, END_DT, CRT_BY, CRT_DT,  DEL_IF)
+				VALUES
+				(THR_MATERNITY_SEQ.NEXTVAL,AS_EMP_PK,AS_GRP_CODE,AS_FROM_DATE,AS_TO_DATE,AS_USER,SYSDATE,0);
+			END IF;	
+							 
+			
+			
+			
+							 
+
+END IF;
+
+   
+	
+  	
+COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := V_ERROR || 'Successful Process !';
+	
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+	IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+				RAISE_APPLICATION_ERROR(-20002, V_ERROR ||'ERROR..'||'. OTHER (PR_UPDATE_ABSENT) '||SQLERRM );
+				AS_RET_NUM := -1;
+				AS_RET_VAR := 'Error MAG :' || SUBSTR(SQLERRM, 1, 100);
+		END IF;
+END Pr_Update_Absent_Detail;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Annual_Leave
+(
+ 	   P_ANNUAL_LEAVE_LAST_YEAR			NUMBER,
+	   P_ANNUAL_LEAVE_DAYS				NUMBER,
+	   P_EMP_PK							NUMBER
+) 
+IS
+l_status						   VARCHAR2(200);
+l_seq_number					   NUMBER;		
+l_approve_flag					   NUMBER;	
+/******************************************************************************
+   NAME:       PR_UPDATE_ANNUAL_LEAVE
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/13/2006                1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_UPDATE_ANNUAL_LEAVE
+      Sysdate:         5/13/2006
+      Date and Time:   5/13/2006, 1:42:14 PM, and 5/13/2006 1:42:14 PM
+      Username:         
+     
+******************************************************************************/
+BEGIN
+   l_seq_number := '10';
+   --kiem tra xem nhan vien nay duoc approve hay chua
+--   Pr_Approve_Annual_Leave(P_EMP_PK,P_ANNUAL_LEAVE_DAYS,l_approve_flag);
+  -- IF l_approve_flag = 0 THEN
+   --	  RETURN;
+  -- END IF;
+   --update du lieu
+   UPDATE THR_ABEMP
+   SET ANNUAL_LEAVE_LAST_YEAR=P_ANNUAL_LEAVE_LAST_YEAR
+       ,ANNUAL_LEAVE_DAYS = P_ANNUAL_LEAVE_DAYS
+   WHERE PK=P_EMP_PK;
+   
+   EXCEPTION
+      WHEN OTHERS THEN
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+       
+END Pr_Update_Annual_Leave;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Basic_Sal 
+(
+ 	   P_POS_CODE			VARCHAR2,
+	   P_PRO_SAL			NUMBER,
+ 	   P_BASIC_SAL			NUMBER,
+	   P_TRAIN_ALLOW			NUMBER,
+	   P_POS_AMT			NUMBER,
+	   P_TECH_AMT			NUMBER,
+	   P_INDUS_ALLOW		NUMBER,
+	   P_TRANS_ALLOW		NUMBER,
+	   P_TREAT_ALLOW		NUMBER,
+	   P_OTHER_AMT			NUMBER,
+	   P_UNION_YN			NUMBER,
+	   P_EMP_PK				NUMBER,
+	   P_MOD_BY				VARCHAR2
+	   
+) 
+IS
+l_status						   VARCHAR2(200);
+l_seq_number					   NUMBER;		
+l_approve_flag					   NUMBER;	
+ 
+/******************************************************************************
+   NAME:       PR_UPDATE_ANNUAL_LEAVE
+   PURPOSE:    
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        5/13/2006                1. Created this procedure.
+
+   NOTES:
+
+   Automatically available Auto Replace Keywords:
+      Object Name:     PR_UPDATE_ANNUAL_LEAVE
+      Sysdate:         5/13/2006
+      Date and Time:   5/13/2006, 1:42:14 PM, and 5/13/2006 1:42:14 PM
+      Username:         
+     
+******************************************************************************/
+BEGIN
+   l_seq_number := '10';
+   --kiem tra xem nhan vien nay duoc approve hay chua
+  /* Pr_Approve_Basic_Sal(P_EMP_PK,P_BASIC_SAL,P_TECH_AMT,P_POS_CODE,l_approve_flag);
+   IF l_approve_flag = 0 THEN
+   	  RETURN;
+   END IF;*/
+   --update du lieu
+   UPDATE THR_ABEMPMAS
+   SET 
+   	   PROB_SALARY=P_PRO_SAL,
+         --  POS_CODE = P_POS_CODE,
+   	     BASIC_SAL = P_BASIC_SAL,
+		 TRAIN_ALLOW=P_TRAIN_ALLOW,
+		 POS_AMT=P_POS_AMT,
+         TECH_AMT=P_TECH_AMT,
+		 INDUS_ALLOW=P_INDUS_ALLOW,
+		 TRANS_ALLOW=P_TRANS_ALLOW,
+		 TREAT_ALLOW=P_TREAT_ALLOW,
+		 OTHER_AMT=P_OTHER_AMT,
+        UNION_YN=DECODE(P_UNION_YN,'-1','Y','N'),
+    	MOD_DT = SYSDATE,
+    	MOD_BY = P_MOD_BY
+	WHERE THR_ABEMP_PK = P_EMP_PK	;
+   EXCEPTION
+      WHEN OTHERS THEN
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+       
+END Pr_Update_Basic_Sal;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Emp_Entry
+(
+	   inPK		  IN NUMBER
+	   ,inEMP_ID  IN VARCHAR2
+	   ,inREMARK  IN VARCHAR2
+	   ,inCARD_ID IN VARCHAR2
+	   ,inFULL_NAME	 IN VARCHAR2
+	   ,inFULL_NAME_ENG	IN VARCHAR2
+	   ,inFULL_NM_N    IN VARCHAR2
+	   ,inPHOTO_PK		IN NUMBER
+	   ,inLIVING_ADDR	   IN VARCHAR2
+	   ,inPERMANENT_ADDR   IN VARCHAR2
+	   ,inSEX			   IN VARCHAR2
+	   ,inBIRTH_DATE	   IN VARCHAR2
+	   ,inPLACE_BIRTH_DATE IN VARCHAR2
+	   ,inPERSON_ID		   IN VARCHAR2
+	   ,inISSUE_DATE	   IN VARCHAR2
+	   ,inPLACE_PER_ID	   IN VARCHAR2
+	   ,inSOCIAL_NO		   IN VARCHAR2
+	   ,inSOCIAL_FDATE	   IN VARCHAR2
+	   ,inPOS_AMT		   IN NUMBER
+	   ,inSOCIAL_PLACE	   IN VARCHAR2
+	   ,inSOCIAL_FLAG	   IN VARCHAR2
+	   ,inJOIN_DT		   IN VARCHAR2
+	   ,inNATION_CODE	   IN VARCHAR2
+	   ,inGRP_CODE		   IN NUMBER
+	   ,inDEPT_PK		   IN NUMBER
+	   ,inEDU_CODE		   IN VARCHAR2
+	   ,inMARRIED		   IN VARCHAR2
+	   ,inCHILDREN_CNT	   IN NUMBER
+	   ,inHEALTH_NO		   IN VARCHAR2
+	   ,inHEALTH_FDATE	   IN VARCHAR2
+	   ,inHEALTH_TDATE	   IN VARCHAR2
+	   ,inHEALTH_PLACE	   IN VARCHAR2
+	   ,inHEALTH_FLAG	   IN VARCHAR2
+	   ,inLEFT_DT		   IN VARCHAR2
+	   ,inTEL			   IN VARCHAR2
+	   ,inETHNIC_CD		   IN VARCHAR2
+	   ,inRELIG_CD		   IN VARCHAR2
+	   ,inJOB_CODE		   IN VARCHAR2
+	   ,inPOS_CODE		   IN VARCHAR2
+	   ,inCITY_CODE		   IN VARCHAR2
+	   ,inFACT_CD		   IN VARCHAR2
+	   ,inEMP_STATUS 	   IN VARCHAR2
+	   ,inBASIC_SAL		   IN NUMBER
+	   ,inPERIOD_CONTRACT  IN VARCHAR2
+	   ,inST_CONTRACT	   IN VARCHAR2
+	   ,inET_CONTRACT	   IN VARCHAR2
+	   ,inST_PROBATION	   IN VARCHAR2
+	   ,inET_PROBATION	   IN VARCHAR2
+	   ,inSEQ_CONTRACT	   IN VARCHAR2  
+	   ,inPROB_SALARY	   IN NUMBER
+	   ,inPAY_TYPE	   	   IN VARCHAR2
+	   ,inSAL_ALLOW		   IN NUMBER
+	   ,inACCOUNT		   IN VARCHAR2
+	   ,inCARD_AMT		   IN NUMBER
+	   ,inEMP_ID_STYLE	   IN VARCHAR2
+	   ,inTECH_AMT		   IN NUMBER
+	   ,inHARD_WORK_AMT	   IN NUMBER
+	   ,inOTHER_AMT		   IN NUMBER
+	   ,inMOD_BY		   IN VARCHAR2       
+	   ,outOUT_PK		   OUT NUMBER
+	   ,outResult		   OUT NUMBER
+)
+IS
+ERROR_NUM VARCHAR2(10);
+--V_SEQ_CONTRACT NUMBER:=0;
+V_ST_CONTRACT  VARCHAR2(8) :=NULL;
+l_emp_status   VARCHAR2(10);
+l_basic_sal NUMBER(20,2);
+l_app_emp_status   VARCHAR2(10);
+l_app_basic_sal NUMBER(20,2);
+l_date_appr  VARCHAR2(8);
+l_flag  NUMBER(1);
+l_status VARCHAR2(200);
+l_temp1    VARCHAR2(3);
+l_temp2	    NUMBER(20,2);
+l_temp3		VARCHAR2(8);
+l_count NUMBER(10);
+L_SEQ_NUMBER NUMBER;
+l_count_emp NUMBER(10);
+BEGIN
+	 ERROR_NUM :='5';
+	outResult:=1;
+	 ERROR_NUM :='10';
+	UPDATE THR_ABEMP SET
+	   REMARK = inREMARK
+	 --  ,EMP_ID = inEMP_ID_STYLE ||substr(inEMP_ID, 3)
+--	   ,CARD_ID = inEMP_ID_STYLE || substr(inEMP_ID, 3)
+	   ,FULL_NM = inFULL_NAME
+	   ,FULL_LNM = inFULL_NAME_ENG
+	   ,FULL_NM_N = inFULL_NM_N
+	    ,PHOTO_PK = inPHOTO_PK
+	   ,LIVING_ADDR = inLIVING_ADDR
+	   ,ADDR = inPERMANENT_ADDR
+	   ,SEX = inSEX
+	   ,BIRTH_DATE = inBIRTH_DATE
+	   ,PLACE_BIRTH_DATE = inPLACE_BIRTH_DATE
+	   ,PERSON_ID = inPERSON_ID
+	   ,ISSUE_DATE = inISSUE_DATE
+	   ,PLACE_PER_ID = inPLACE_PER_ID
+	   ,JOIN_DATE = inJOIN_DT
+	   ,NATION = inNATION_CODE
+	   ,EDU_TYPE = inEDU_CODE
+	   ,MARRIED_YN = inMARRIED
+	   ,CHILDREN_CNT = inCHILDREN_CNT
+	   ,LEFT_DATE = inLEFT_DT
+	   ,TEL = inTEL
+	   ,ETHNIC_TYPE = inETHNIC_CD
+	   ,RELIG_TYPE = inRELIG_CD
+	   ,CITY_CODE = inCITY_CODE
+	   ,EMP_STATUS = inEMP_STATUS 
+	   ,PERIOD_CONTRACT = inPERIOD_CONTRACT
+	   ,SEQ_CONTRACT = inSEQ_CONTRACT
+	   ,ST_CONTRACT = inST_CONTRACT
+	   ,ET_CONTRACT = inET_CONTRACT
+	   ,ST_PROBATION = inST_PROBATION
+	   ,ET_PROBATION = inET_PROBATION
+	   --,PROFESSIONAL_SKILL=inPROFESSION_SKILL
+	   ,MOD_BY = inMOD_BY
+	   ,MOD_DT = SYSDATE
+	WHERE PK = inPK;
+	outResult:=2;
+	ERROR_NUM :='20';
+    UPDATE THR_ABEMPMAS  SET
+	    SOCIAL_NO = inSOCIAL_NO
+	   ,SOCIAL_FDATE = inSOCIAL_FDATE
+	   --,SOCIAL_TDATE = inSOCIAL_TDATE
+	   ,SOCIAL_PLACE = inSOCIAL_PLACE
+	   ,SOCIAL_YN = inSOCIAL_FLAG
+	  ,THR_ABWORKGROUP_PK = DECODE(inGRP_CODE,0,NULL,inGRP_CODE)
+	   ,TCO_EODEPT_PK = DECODE(inDEPT_PK,0,NULL,inDEPT_PK)
+	   ,HEALTH_NO=inHEALTH_NO
+	   ,HEALTH_FDATE=inHEALTH_FDATE
+	   ,HEALTH_TDATE=inHEALTH_TDATE
+	   ,HEALTH_PLACE=inHEALTH_PLACE
+	   ,HEALTH_YN=inHEALTH_FLAG
+	   ,JOB_CODE=inJOB_CODE
+	   ,POS_CODE=inPOS_CODE
+	   ,TCO_EOFACTORY_PK=inFACT_CD
+	   ,BASIC_SAL=inBASIC_SAL
+	    ,PROB_SALARY = inPROB_SALARY
+	   ,BANK_ACCOUNT = inACCOUNT     --CHI CHO MINH ANH TUAN UPDATE
+	   ,CARD_AMT = inCARD_AMT   
+	   ,REMAINING_CARD_AMT=DECODE(REMAINING_CARD_AMT,NULL,DECODE(inCARD_AMT,0,NULL,inCARD_AMT),REMAINING_CARD_AMT)
+	   ,PAY_TYPE = inPAY_TYPE
+	   ,SAL_ALLOW = inSAL_ALLOW
+	   ,POS_AMT = inPOS_AMT
+	   ,TECH_AMT = inTECH_AMT
+	   ,HARD_WORK_AMT = inHARD_WORK_AMT
+	   ,OTHER_AMT = inOTHER_AMT
+	   ,MOD_BY=inMOD_BY
+	   ,MOD_DT=SYSDATE
+	WHERE THR_ABEMP_PK = inPK;
+
+/*	IF inMOD_BY='tuan' THEN
+	   				   UPDATE THR_ABEMPMAS 
+					    SET			BANK_ACCOUNT = inACCOUNT--   CHI CHO MINH ANH TUAN UPDATE
+						WHERE THR_ABEMP_PK = inPK;
+	END IF;
+	
+	*/
+	outResult:=3;
+	ERROR_NUM :='30';
+	INSERT INTO THR_EMP_HIST (
+	   PK
+	   ,EMP_PK
+	   ,EMP_ID
+	   ,REMARK
+	   ,CARD_ID
+	   ,FULL_NAME
+	   ,FULL_NAME_ENG
+	   ,PHOTO_PK
+	   ,ADDR
+	   ,PER_ADDR
+	   ,SEX
+	   ,BIRTH_DT
+	   ,PLACE_BIRTH_DT
+	   ,PERSON_ID
+	   ,ISSUE_DT
+	   ,PLACE_PER_ID
+	   ,SOCIAL_NO
+	   ,SOCIAL_DT
+	   --,SOCIAL_DT_TO
+	   ,SOCIAL_PLACE
+	   ,SOCIAL_FLAG
+	   ,JOIN_DT
+	   ,NATION_CODE
+	   ,GRP_CODE
+	   ,DEPT_PK
+	   ,EDU_CODE
+	   ,MARRIED
+	   ,CHILDREN_CNT
+	   ,HEALTH_NO
+	   ,HEALTH_DT
+	   ,HEALTH_DT_TO
+	   ,HEALTH_PLACE
+	   ,HEALTH_FLAG
+	   ,LEFT_DT
+	   ,TEL
+	   ,ETHNIC_CD
+	   ,RELIG_CD
+	   ,JOB_CODE
+	   ,POS_CODE
+	   ,CITY_CODE
+	   ,FACT_CD
+	   ,STATUS
+	   ,BASIC_SAL
+	   ,PERIOD_CONTRACT
+	   ,ST_CONTRACT
+	   ,ET_CONTRACT
+	   ,ST_PROBATION
+	   ,ET_PROBATION
+	   ,SEQ_CONTRACT
+	   --,PROB_MON 
+	   ,PROB_SAL
+	   ,PAY_TYPE
+	   ,CRT_DT
+	   ,CRT_BY
+	   ,DEL_IF
+	  )
+	  VALUES
+	  (
+	   THR_EMP_HIST_SEQ.NEXTVAL
+	   ,inPK
+	   ,inEMP_ID
+	   ,inREMARK
+	   ,inCARD_ID
+	   ,inFULL_NAME
+	   ,inFULL_NAME_ENG
+	   ,inPHOTO_PK
+	   ,inLIVING_ADDR
+	   ,inPERMANENT_ADDR
+	   ,inSEX
+	   ,inBIRTH_DATE
+	   ,inPLACE_BIRTH_DATE
+	   ,inPERSON_ID
+	   ,inISSUE_DATE
+	   ,inPLACE_PER_ID
+	   ,inSOCIAL_NO
+	   ,inSOCIAL_FDATE
+	   --,inSOCIAL_TDATE
+	   ,inSOCIAL_PLACE
+	   ,inSOCIAL_FLAG
+	   ,inJOIN_DT
+	   ,inNATION_CODE
+	   ,DECODE(inGRP_CODE,0,NULL,inGRP_CODE)
+	   ,DECODE(inDEPT_PK,0,NULL,inDEPT_PK)
+	   ,inEDU_CODE
+	   ,inMARRIED
+	   ,inCHILDREN_CNT
+	   ,inHEALTH_NO
+	   ,inHEALTH_FDATE
+	   ,inHEALTH_TDATE
+	   ,inHEALTH_PLACE
+	   ,inHEALTH_FLAG
+	   ,inLEFT_DT
+	   ,inTEL
+	   ,inETHNIC_CD
+	   ,inRELIG_CD
+	   ,inJOB_CODE
+	   ,inPOS_CODE
+	   ,inCITY_CODE
+	   ,inFACT_CD
+	   ,inEMP_STATUS 
+	   ,inBASIC_SAL
+	   ,inPERIOD_CONTRACT
+	   ,inST_CONTRACT
+	   ,inET_CONTRACT
+	   ,inST_PROBATION
+	   ,inET_PROBATION
+	   ,inSEQ_CONTRACT
+	   --,inPROB_MON
+	   ,inPROB_SALARY
+	   ,inPAY_TYPE
+	   ,SYSDATE
+	   ,inMOD_BY
+	   ,0
+	   );	
+	    outResult:=5;
+	   IF inPERIOD_CONTRACT='0' THEN -- CHI UPDATE KHI VAN CON HOP DONG THU VIEC
+	   	  UPDATE THR_LABOUR_CONTRACT
+			SET
+			    CONTRACT_NO =inSEQ_CONTRACT,
+			    ST_PROBATION =inST_PROBATION,
+				ET_PROBATION =inET_PROBATION,
+				MOD_By=inMOD_BY,
+				MOD_DT=SYSDATE
+		 	WHERE thr_abemp_pk=inPK AND del_if=0 AND kind_contract=inPERIOD_CONTRACT;
+		END IF;   
+       ERROR_NUM :='40';
+	   outOUT_PK := inPK;
+	   outResult:=0;
+	   L_STATUS:='';
+---------
+EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+		ROLLBACK WORK;
+        RETURN;
+  WHEN  OTHERS  THEN
+		L_STATUS:='|LOGGED|' || SQLCODE || '|' || SQLERRM || '|' || L_STATUS || '|' || L_SEQ_NUMBER || '|'; 
+		RAISE_APPLICATION_ERROR(-20002,L_STATUS);
+
+
+END;
+/
+CREATE OR REPLACE PROCEDURE Pr_Update_Labour_Contract
+(
+  inEMP_ID			IN  THR_ABEMP.EMP_ID%TYPE 	 
+ ,inEMP_NAME 			IN  THR_ABEMP.FULL_NM%TYPE 
+ ,inJOIN_DATE	  		IN  THR_ABEMP.JOIN_DATE%TYPE
+ ,inSEQ_CONTRACT        	IN  THR_ABEMP.SEQ_CONTRACT%TYPE
+ ,inCREATE_CONTRACT			NUMBER
+ ,inOLD_PERIOD_CONTRACT     IN  THR_ABEMP.PERIOD_CONTRACT%TYPE
+ ,inPERIOD_CONTRACT     	IN  THR_ABEMP.PERIOD_CONTRACT%TYPE
+ ,inST_PROBATION		IN  THR_ABEMP.ST_PROBATION%TYPE
+ ,inET_PROBATION		IN  THR_ABEMP.ET_PROBATION%TYPE
+ ,inST_CONTRACT			IN  THR_ABEMP.ST_CONTRACT%TYPE
+ ,inET_CONTRACT			IN  THR_ABEMP.ET_CONTRACT%TYPE
+ ,inBIRTH_DATE			IN  THR_ABEMP.BIRTH_DATE%TYPE
+ ,inNATION			IN  THR_ABEMP.NATION%TYPE
+ ,inPERSON_ID			IN  THR_ABEMP.PERSON_ID%TYPE
+ ,inISSUE_DATE			IN  THR_ABEMP.ISSUE_DATE%TYPE
+ ,inPLACE_PER_ID		IN  THR_ABEMP.PLACE_PER_ID%TYPE
+ ,inBASIC_SAL			IN  THR_ABEMPMAS.BASIC_SAL%TYPE
+ ,inSALARY_AMT			IN  THR_ABEMPMAS.ALLOW_AMT%TYPE
+ ,inEMP_PK			IN  THR_ABEMP.PK%TYPE
+ ,inPOS_AMT			IN NUMBER
+ ,inTECH_AMT		IN NUMBER
+ ,inHARD_WORK_AMT	   IN NUMBER
+ ,inOTHER			   IN NUMBER
+ ,inCRT_BY			IN  THR_ABEMP.CRT_BY%TYPE
+ ,outRESULT			OUT NUMBER
+)
+
+---*****************************************************---
+  --      CREATE  BY              TRUONG HUYNH          --
+  --	  CREATE  DATE            11-MAR-2005           --
+  --      MODIFY  BY              					    --
+  --      MODIFY  DATE                    			    --
+---*****************************************************---
+
+IS
+  V_MESSAGE VARCHAR2(10):='';
+  V_OUT_APPOINT  NUMBER(10):=0;
+  V_OUT_APPOINTD NUMBER(10):=0;
+  V_OUT_RESULT	 NUMBER(1) :=0;
+  AV_EMP_HIST_SEQ NUMBER;
+  AV_JOIN_DT	  VARCHAR2(8);
+  AV_CONTRACT_NO  VARCHAR2(100);
+  AV_CORRECT_TYPE VARCHAR2(1);
+  AV_LABOUR_CONTRACT_PK NUMBER;
+  AV_NON_ABSENT NUMBER ;
+  AV_PERIOD_CONTRACT NUMBER;
+  AV_COUNT NUMBER;
+  AV_GRP_CODE NUMBER;
+  AV_TIMES 		  	NUMBER;
+  AV_ST_PROBATION	VARCHAR2(8);
+  AV_ET_PROBATION	VARCHAR2(8);
+  AV_ST_CONTRACT	VARCHAR2(8);
+  AV_ET_CONTRACT	VARCHAR2(8);
+  AV_EMP_ID_STYLE	VARCHAR2(2);		
+  AV_FLAG    NUMBER;   
+  TMP		 VARCHAR2(50); 
+
+BEGIN
+	 AV_FLAG:=0;
+	  
+	 --LAY TIMES CUA HOP DONG CU 
+	 SELECT NVL(TIMES,1)  INTO AV_TIMES   FROM THR_LABOUR_CONTRACT WHERE DEL_IF=0 AND THR_ABEMP_PK=inEMP_PK AND KIND_CONTRACT =inOLD_PERIOD_CONTRACT  ;
+	 
+	 SELECT A.EMP_ID_STYLE INTO AV_EMP_ID_STYLE FROM THR_ABEMP A WHERE A.PK=inEMP_PK AND DEL_IF=0;
+	 
+	 --SO HD THEO KIEU IL JUNG   EMP_ID/GROUPNM  
+	 -- SELECT F.EMP_ID||'/'||G.WORKGRP_NM INTO TMP FROM VHR_EMP F,THR_ABWORKGRP G WHERE F.DEL_IF=0 AND G.DEL_IF=0 AND F.GRP_CODE=G.PK AND F.PK=inEMP_PK;
+	 SELECT F.EMP_ID  INTO TMP FROM VHR_EMP F WHERE F.DEL_IF=0  AND F.PK=inEMP_PK;
+	 select  a.CODE_LNM	into AV_CONTRACT_NO from COMM.TCO_ABCODE a, COMM.TCO_ABCODEGRP b 
+	   where a.del_if=0 and b.del_if=0 and b.ID='HRAB0030' and a.TCO_ABCODEGRP_PK=b.PK and a.code=inPERIOD_CONTRACT;
+	  
+	 V_MESSAGE := '10';
+ 	 
+	IF (inCREATE_CONTRACT=0) THEN
+   	   select  a.CODE_LNM	into AV_CONTRACT_NO from COMM.TCO_ABCODE a, COMM.TCO_ABCODEGRP b 
+	   where a.del_if=0 and b.del_if=0 and b.ID='HRAB0030' and a.TCO_ABCODEGRP_PK=b.PK and a.code=inPERIOD_CONTRACT;
+	   --xu ly ngay ky hop dong khi update hop dong 
+	   IF inOLD_PERIOD_CONTRACT<>inPERIOD_CONTRACT AND inOLD_PERIOD_CONTRACT='0' THEN
+	   	    AV_ST_PROBATION :=inST_PROBATION;
+		    AV_ET_PROBATION :=inST_PROBATION;
+		  	AV_ST_CONTRACT :=inST_PROBATION;
+			SELECT DECODE(inPERIOD_CONTRACT,'3',NULL,TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_CONTRACT,'YYYYMMDD'),12)-1,'YYYYMMDD')) INTO AV_ET_CONTRACT FROM DUAL;
+	   ELSE IF inOLD_PERIOD_CONTRACT<>inPERIOD_CONTRACT AND inPERIOD_CONTRACT='0' THEN --update sang thu viec 
+	   		AV_ST_PROBATION :=inST_CONTRACT;
+		    SELECT DECODE(AV_EMP_ID_STYLE,'01',TO_CHAR(ADD_MONTHS(TO_DATE(inST_CONTRACT,'YYYYMMDD'),2)-1,'YYYYMMDD'),TO_CHAR(ADD_MONTHS(TO_DATE(inST_CONTRACT,'YYYYMMDD'),1)-1,'YYYYMMDD')) INTO AV_ET_PROBATION FROM DUAL;
+		  	AV_ST_CONTRACT :=NULL;
+			AV_ET_CONTRACT :=NULL;
+	   ELSE 
+	   		AV_ST_PROBATION :=inST_PROBATION;
+		    AV_ET_PROBATION :=inET_PROBATION;
+		  	AV_ST_CONTRACT :=inST_CONTRACT;
+			SELECT DECODE(inPERIOD_CONTRACT,'3',NULL,inET_CONTRACT)INTO AV_ET_CONTRACT FROM DUAL;
+	   END IF;
+   	   END IF;
+	  /* IF(inPERIOD_CONTRACT='0') THEN --so hop dong theo kieu il jung 
+	   				AV_CONTRACT_NO:=AV_CONTRACT_NO||'/'||SUBSTR(TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_PROBATION,'YYYYMMDD'),1),'YYYYMM'),3,4) || '/'||TMP;
+		ELSE
+					AV_CONTRACT_NO:=AV_CONTRACT_NO||'/'||SUBSTR(TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_CONTRACT,'YYYYMMDD'),1),'YYYYMM'),3,4) || '/'||TMP;
+		END IF;
+	   */
+	   AV_CONTRACT_NO:= TMP || '/' ||  AV_CONTRACT_NO	; 
+	   UPDATE THR_LABOUR_CONTRACT
+				SET
+				   kind_contract=inPERIOD_CONTRACT,
+				   CONTRACT_NO =AV_CONTRACT_NO,
+					ST_PROBATION =AV_ST_PROBATION,
+					ET_PROBATION =AV_ET_PROBATION,
+					ST_CONTRACT =AV_ST_CONTRACT,
+					ET_CONTRACT =AV_ET_CONTRACT,
+					BASIC_SALARY =inBASIC_SAL,
+					SAL_ALLOW= inSALARY_AMT,
+					ALLOW_AMT =inPOS_AMT, --PHU CAP VI TRI 
+					TECH_AMT = inTECH_AMT,
+					HARD_WORK_AMT=inHARD_WORK_AMT,
+					OTHER_AMT 	=inOTHER,				
+					MOD_By=inCRT_BY,
+					MOD_DT=SYSDATE
+			 	WHERE THR_ABEMP_PK=inEMP_PK AND kind_contract LIKE inOLD_PERIOD_CONTRACT AND del_if=0 ;
+		 AV_FLAG:=1;   
+	ELSE
+	--XU LY KHI TAO HOP DONG MOI CHO NHAN VIEN 
+	
+	   IF (inOLD_PERIOD_CONTRACT<>inPERIOD_CONTRACT AND inPERIOD_CONTRACT <>'0') THEN 
+			   IF  inOLD_PERIOD_CONTRACT='0' THEN
+			   	    AV_ST_CONTRACT := TO_CHAR(TO_DATE(inET_PROBATION,'YYYYMMDD')+1,'YYYYMMDD');
+		
+					SELECT DECODE(inPERIOD_CONTRACT,'3',NULL,TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_CONTRACT,'YYYYMMDD'),12)-1,'YYYYMMDD')) INTO AV_ET_CONTRACT FROM DUAL;
+		
+					AV_ST_PROBATION :=inST_PROBATION;
+		    		AV_ET_PROBATION :=inET_PROBATION;
+					AV_FLAG:=1;
+			   ELSE IF  (inOLD_PERIOD_CONTRACT='1' AND (inPERIOD_CONTRACT ='2' OR inPERIOD_CONTRACT ='3')) THEN
+			   		AV_ST_CONTRACT := TO_CHAR(TO_DATE(inET_CONTRACT,'YYYYMMDD')+1,'YYYYMMDD');
+					SELECT DECODE(inPERIOD_CONTRACT,'3',NULL,TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_CONTRACT,'YYYYMMDD'),12)-1,'YYYYMMDD')) INTO AV_ET_CONTRACT FROM DUAL;
+					AV_FLAG:=1;
+					AV_ST_PROBATION :=inST_PROBATION;
+		    		AV_ET_PROBATION :=inET_PROBATION;
+			   ELSE IF (inOLD_PERIOD_CONTRACT='2' AND (inPERIOD_CONTRACT ='3')) THEN
+			   		AV_ST_CONTRACT := TO_CHAR(TO_DATE(inET_CONTRACT,'YYYYMMDD')+1,'YYYYMMDD');
+					AV_ET_CONTRACT :=NULL;
+					AV_FLAG:=1;
+					AV_ST_PROBATION :=inST_PROBATION;
+		    		AV_ET_PROBATION :=inET_PROBATION;
+			    END IF;
+		   	   END IF;	   
+			   END IF;				  	 
+			   --INSERT DATA INTO LABOUR CONTRACT 
+			  SELECT THR_LABOUR_CONTRACT_SEQ.NEXTVAL INTO AV_LABOUR_CONTRACT_PK FROM DUAL;
+			  IF (inPERIOD_CONTRACT=1) THEN
+			  	 AV_NON_ABSENT:=0;
+			  ELSIF (inPERIOD_CONTRACT=0 OR inPERIOD_CONTRACT=2) THEN
+	  			     AV_NON_ABSENT:=0;
+			  ELSE 
+			  	   AV_NON_ABSENT:=0;
+			  END IF;
+			  IF AV_FLAG=1 THEN
+			  	 select  a.CODE_lNM	into AV_CONTRACT_NO from COMM.TCO_ABCODE a, COMM.TCO_ABCODEGRP b 
+	   		  	 where a.del_if=0 and b.del_if=0 and b.ID='HRAB0030' and a.TCO_ABCODEGRP_PK=b.PK and a.code=inPERIOD_CONTRACT;
+	   			 -- AV_CONTRACT_NO:=AV_CONTRACT_NO||'/'||SUBSTR(TO_CHAR(ADD_MONTHS(TO_DATE(AV_ST_CONTRACT,'YYYYMMDD'),1),'YYYYMM'),3,4) || '/' ||TMP;
+				 AV_CONTRACT_NO:= TMP || '/' ||AV_CONTRACT_NO;  	
+				 INSERT INTO THR_LABOUR_CONTRACT
+				  ( 
+					PK 		,
+					THR_ABEMP_PK   	,
+					CONTRACT_NO ,
+					ST_PROBATION ,
+					ET_PROBATION ,
+					ST_CONTRACT ,
+					ET_CONTRACT ,
+					KIND_CONTRACT ,
+					BASIC_SALARY ,
+					NON_ABSENT ,
+					TIMES,
+					SAL_ALLOW,
+					ALLOW_AMT,
+					TECH_AMT,
+					HARD_WORK_AMT,
+					OTHER_AMT, 					
+					DEL_IF ,
+					CTR_By,
+					CTR_DT	
+					) 
+				  VALUES
+				  (
+				    AV_LABOUR_CONTRACT_PK 		,
+					inEMP_PK   	,
+					AV_CONTRACT_NO ,
+					AV_ST_PROBATION ,
+					AV_ET_PROBATION ,
+					AV_ST_CONTRACT ,
+					AV_ET_CONTRACT ,
+				    inPERIOD_CONTRACT,
+					inBASIC_SAL,
+					AV_NON_ABSENT ,
+					AV_TIMES +1,
+					inSALARY_AMT,
+					inPOS_AMT, --PHU CAP VI TRI
+					inTECH_AMT,
+					inHARD_WORK_AMT,
+					inOTHER,				
+					0 ,
+					inCRT_BY,
+					SYSDATE
+				  ) ;	
+/*				   --update luong VA PHU CAP cho nhan vien khi tao hop dong moi
+				   UPDATE THR_ABEMPMAS a
+				   SET a.basic_sal =inBASIC_SAL
+				   	   ,A.SAL_ALLOW=inSALARY_AMT
+					   ,A.ALLOW_AMT= inPOS_AMT --PHU CAP VI TRI 
+					   ,A.TECH_AMT= inTECH_AMT
+					   , A.HARD_WORK_AMT= inHARD_WORK_AMT
+					  , A.OTHER_AMT= inOTHER			
+				   WHERE a.thr_abemp_pk=inEMP_PK;*/
+		   END IF;
+	   END IF;  
+	END IF;
+	IF AV_FLAG=1 THEN
+	 
+	UPDATE THR_ABEMP
+ 		SET 
+		    SEQ_CONTRACT    = AV_CONTRACT_NO,
+	        PERIOD_CONTRACT = inPERIOD_CONTRACT,
+	        ST_CONTRACT     = AV_ST_CONTRACT ,
+	        ET_CONTRACT     = AV_ET_CONTRACT ,
+			MOD_BY			= inCRT_BY,
+			MOD_DT	 		= SYSDATE
+      WHERE PK = inEMP_PK;
+	  END IF;
+--V_MESSAGE := '40';
+--PR_APPOINT('LABOUR CONTRACT',inEMP_PK,'CHANGE FROM LABOUR CONTRACT','01','CHANGE FROM LABOUR CONTRACT',inCRT_BY,V_OUT_APPOINT,V_OUT_APPOINTD,V_OUT_RESULT);
+
+V_MESSAGE := '40';
+outRESULT := 1;
+COMMIT;
+RETURN;
+
+--------------------
+     EXCEPTION
+--------------------
+         WHEN NO_DATA_FOUND THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20001,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+		 WHEN OTHERS THEN
+		 	  outRESULT:=-1;
+		  	  RAISE_APPLICATION_ERROR(-20002,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+		  	  RETURN;
+		  
+
+END;
+/
+CREATE OR REPLACE PROCEDURE PR_UPDATE_OLD_SALARY(
+	   in_EMP_PK	   IN THR_SALARY_EMP.EMP_PK%TYPE
+	   ,inWORK_MON	   IN THR_SALARY_EMP.WORK_MON%TYPE
+	   ,in_BASIC_SAL		IN	THR_SALARY_EMP.BASIC_SAL%TYPE
+	  ,in_ALLOWACNE_AMT	IN 	THR_SALARY_EMP.ALLOW_AMT%TYPE
+	  ,in_POSITION		IN THR_SALARY_EMP.POSITION%TYPE
+	  ,in_MOD_BY		IN THR_SALARY_EMP.MOD_BY%TYPE
+	  ,outResult		   OUT NUMBER
+)
+IS
+AV_MON			VARCHAR(6);
+MON_TEMP		VARCHAR(6);
+ERROR_NUM VARCHAR2(10);
+
+
+
+BEGIN
+   ERROR_NUM :='10';
+   SELECT TO_CHAR(TO_DATE(inWORK_MON, 'MM/YYYY'),'YYYYMM') INTO MON_TEMP
+	FROM DUAL;
+	
+	--SELECT TO_CHAR(SYSDATE, 'YYYYMM')INTO AV_MON
+	SELECT MAX(A.WORK_MON)INTO AV_MON
+	FROM THR_SALARY_EMP A
+	WHERE A.EMP_PK = in_EMP_PK;
+
+
+	 IF AV_MON = MON_TEMP THEN
+	
+	   UPDATE thr_abempmas
+	   		SET BASIC_SAL = in_BASIC_SAL,
+	        ALLOW_AMT= in_ALLOWACNE_AMT,
+	        POS_CODE = in_POSITION,
+	    	MOD_DT = SYSDATE,
+			MOD_BY = in_MOD_BY
+		WHERE THR_ABEMP_PK = in_EMP_PK;
+	
+		
+	END IF;
+
+	UPDATE THR_SALARY_EMP A
+	SET A.BASIC_SAL = in_BASIC_SAL
+	    ,A.ALLOW_AMT=in_ALLOWACNE_AMT
+		,A.POSITION = in_POSITION
+		,A.MOD_DT = SYSDATE
+	    ,A.MOD_BY = in_MOD_BY
+	WHERE A.EMP_PK = in_EMP_PK AND A.WORK_MON = MON_TEMP;
+
+	 
+	   
+		   outResult := 0;
+	COMMIT;
+
+RETURN;
+---------
+EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outResult  := -1;
+		raise_application_error(-20001,ERROR_NUM||'Procedure error, can not Update...');
+	ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        outResult  := -1;
+		raise_application_error(-20001,in_EMP_PK||'ORTHER ERROR, can not Update...');
+	ROLLBACK WORK;
+        RETURN;
+END PR_UPDATE_OLD_SALARY;
+/
+CREATE OR REPLACE PROCEDURE PR_UPDATE_TRUE_HIST_LABOUR
+(
+  inPK 	  		  		IN	THR_EMP_HIST.PK%TYPE
+ ,inSEQ_CONTRACT        IN  THR_EMP_HIST.SEQ_CONTRACT%TYPE
+ ,inPERIOD_CONTRACT     IN  THR_EMP_HIST.PERIOD_CONTRACT%TYPE
+ ,inST_CONTRACT			IN  THR_EMP_HIST.ST_CONTRACT%TYPE
+ ,inET_CONTRACT			IN  THR_EMP_HIST.ET_CONTRACT%TYPE
+ ,inCorrect_type		IN	THR_EMP_HIST.CORRECT_TYPE%TYPE
+ ,inCRT_BY				IN	THR_EMP_HIST.CRT_BY%TYPE
+ ,outRESULT				OUT NUMBER
+)
+
+---*****************************************************---
+  --      CREATE  BY              TRUONGHUYNH     	  --
+  --	  CREATE  DATE            28-APRIL-2005       --
+  --      MODIFY  BY              					  --
+  --      MODIFY  DATE                                --
+---*****************************************************---
+
+IS
+  V_MESSAGE VARCHAR2(10):='';
+  V_OUT_RESULT	 NUMBER(1) :=0;
+BEGIN
+V_MESSAGE := '10';
+UPDATE THR_EMP_HIST 
+SET  PERIOD_CONTRACT =inPERIOD_CONTRACT
+	   ,ST_CONTRACT =inST_CONTRACT
+	   ,ET_CONTRACT=inET_CONTRACT
+	   ,SEQ_CONTRACT=inSEQ_CONTRACT
+	   ,CRT_DT=SYSDATE
+	   ,CRT_BY=inCRT_BY
+	   ,CORRECT_TYPE=decode(inCorrect_type,'-1','Y','0','N')
+WHERE PK=inPK;
+	  
+ V_MESSAGE := '20';
+	  
+outRESULT := 1;
+COMMIT;
+RETURN;
+
+--------------------
+     EXCEPTION
+--------------------
+         WHEN NO_DATA_FOUND THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20001,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+		 WHEN OTHERS THEN
+		 	  outRESULT:=-1;
+			  RAISE_APPLICATION_ERROR(-20002,'Procedure error:  ' || V_MESSAGE || SQLERRM);
+			  ROLLBACK WORK;
+			  RETURN;
+
+END PR_UPDATE_TRUE_HIST_LABOUR;
+/
+CREATE OR REPLACE PROCEDURE PR_WT_LOAD( AS_MON  IN  VARCHAR2,   -- YYYYMM
+                      AS_USER IN  VARCHAR2,   -- User ID
+                      AS_RET_NUM OUT NUMBER,  -- Return Value ( Number )
+                      AS_RET_VAR OUT VARCHAR2 -- Return Value ( Character )
+                         ) IS
+--AS_RET_NUM	NUMBER;
+--AS_RET_VAR	VARCHAR2(100);
+AV_MON		VARCHAR2(6);
+AV_CHECK_MON	VARCHAR2(1);
+
+BEGIN
+
+
+	BEGIN
+		SELECT NVL(CLOSE_FLAG, 'N') INTO AV_CHECK_MON FROM THR_CLOSE
+		WHERE MMYYYY = AS_MON
+		  AND ID     = 'SAL'
+		  AND DEL_IF = 0;
+
+	        IF AV_CHECK_MON = 'Y' THEN
+		        	AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'already closed this month !';
+			RETURN;
+	        END IF;
+
+		EXCEPTION
+		 WHEN NO_DATA_FOUND THEN
+	                AS_RET_NUM :=  -1;
+			AS_RET_VAR :=  'Not Found this Month !';
+			RETURN;
+	END;
+
+	AV_MON := AS_MON;
+	IF AV_MON IS NULL THEN
+		SELECT TO_CHAR(SYSDATE, 'YYYYMM') INTO AV_MON
+		FROM DUAL;
+	END IF;
+
+	DELETE THR_EMP_WORK_MON
+	WHERE WORK_MON = AV_MON;
+
+
+	INSERT INTO THR_EMP_WORK_MON
+	(PK, EMP_PK, EMP_ID, GRP_CODE, FULL_NAME, FULL_NAME_ENG, F_NAME, L_NAME,
+	 WORK_MON, D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_8, D_9, D_10,
+	 D_11, D_12, D_13, D_14, D_15, D_16, D_17, D_18, D_19, D_20,
+	 D_21, D_22, D_23, D_24, D_25, D_26, D_27, D_28, D_29, D_30,
+	 D_31, TOT, DEL_IF, CRT_DT, CRT_BY
+	)
+	SELECT  THR_EMP_WORK_MON_SEQ.NEXTVAL, WORK.EMP_PK, NVL(EMP.EMP_ID,'NONE'), GRP.THR_ABWORKGRP_PK,
+	    EMP.FULL_NAME, EMP.FULL_NAME_ENG, EMP.F_NAME, EMP.L_NAME, AV_MON,
+		DECODE(A1,     0, D1,   A1  ) DAY1,
+		DECODE(A2,     0, D2,   A2  ) DAY2,
+		DECODE(A3,     0, D3,   A3  ) DAY3,
+		DECODE(A4,     0, D4,   A4  ) DAY4,
+		DECODE(A5,     0, D5,   A5  ) DAY5,
+		DECODE(A6,     0, D6,   A6  ) DAY6,
+		DECODE(A7,     0, D7,   A7  ) DAY7,
+		DECODE(A8,     0, D8,   A8  ) DAY8,
+		DECODE(A9,     0, D9,   A9  ) DAY9,
+		DECODE(A10,    0, D10,  A10  ) DAY10,
+		DECODE(A11,    0, D11,  A11  ) DAY11,
+		DECODE(A12,    0, D12,  A12  ) DAY12,
+		DECODE(A13,    0, D13,  A13  ) DAY13,
+		DECODE(A14,    0, D14,  A14  ) DAY14,
+		DECODE(A15,    0, D15,  A15  ) DAY15,
+		DECODE(A16,    0, D16,  A16  ) DAY16,
+		DECODE(A17,    0, D17,  A17  ) DAY17,
+		DECODE(A18,    0, D18,  A18  ) DAY18,
+		DECODE(A19,    0, D19,  A19  ) DAY19,
+		DECODE(A20,    0, D20,  A20  ) DAY20,
+		DECODE(A21,    0, D21,  A21  ) DAY21,
+		DECODE(A22,    0, D22,  A22  ) DAY22,
+		DECODE(A23,    0, D23,  A23  ) DAY23,
+		DECODE(A24,    0, D24,  A24  ) DAY24,
+		DECODE(A25,    0, D25,  A25  ) DAY25,
+		DECODE(A26,    0, D26,  A26  ) DAY26,
+		DECODE(A27,    0, D27,  A27  ) DAY27,
+		DECODE(A28,    0, D28,  A28  ) DAY28,
+		DECODE(A29,    0, D29,  A29  ) DAY29,
+		DECODE(A30,    0, D30,  A30  ) DAY30,
+		DECODE(A31,    0, D31,  A31  ) DAY31,
+		DECODE(A1,     0, D1,   A1  )+
+		DECODE(A2,     0, D2,   A2  )+
+		DECODE(A3,     0, D3,   A3  )+
+		DECODE(A4,     0, D4,   A4  )+
+		DECODE(A5,     0, D5,   A5  )+
+		DECODE(A6,     0, D6,   A6  )+
+		DECODE(A7,     0, D7,   A7  )+
+		DECODE(A8,     0, D8,   A8  )+
+		DECODE(A9,     0, D9,   A9  )+
+		DECODE(A10,    0, D10,  A10  )+
+		DECODE(A11,    0, D11,  A11  )+
+		DECODE(A12,    0, D12,  A12  )+
+		DECODE(A13,    0, D13,  A13  )+
+		DECODE(A14,    0, D14,  A14  )+
+		DECODE(A15,    0, D15,  A15  )+
+		DECODE(A16,    0, D16,  A16  )+
+		DECODE(A17,    0, D17,  A17  )+
+		DECODE(A18,    0, D18,  A18  )+
+		DECODE(A19,    0, D19,  A19  )+
+		DECODE(A20,    0, D20,  A20  )+
+		DECODE(A21,    0, D21,  A21  )+
+		DECODE(A22,    0, D22,  A22  )+
+		DECODE(A23,    0, D23,  A23  )+
+		DECODE(A24,    0, D24,  A24  )+
+		DECODE(A25,    0, D25,  A25  )+
+		DECODE(A26,    0, D26,  A26  )+
+		DECODE(A27,    0, D27,  A27  )+
+		DECODE(A28,    0, D28,  A28  )+
+		DECODE(A29,    0, D29,  A29  )+
+		DECODE(A30,    0, D30,  A30  )+
+		DECODE(A31,    0, D31,  A31  ),
+		0, SYSDATE, AS_USER
+	FROM (
+	SELECT EMP_PK,
+	      SUM(D1)   D1,
+	      SUM(D2)   D2,
+	      SUM(D3)	D3,
+	      SUM(D4)	D4,
+	      SUM(D5)	D5,
+	      SUM(D6)	D6,
+	      SUM(D7)	D7,
+	      SUM(D8)	D8,
+	      SUM(D9)	D9,
+	      SUM(D10)	D10,
+	      SUM(D11)	D11,
+	      SUM(D12)	D12,
+	      SUM(D13)	D13,
+	      SUM(D14)	D14,
+	      SUM(D15)	D15,
+	      SUM(D16)	D16,
+	      SUM(D17)	D17,
+	      SUM(D18)	D18,
+	      SUM(D19)	D19,
+	      SUM(D20)	D20,
+	      SUM(D21)	D21,
+	      SUM(D22)	D22,
+	      SUM(D23)	D23,
+	      SUM(D24)	D24,
+	      SUM(D25)	D25,
+	      SUM(D26)	D26,
+	      SUM(D27)	D27,
+	      SUM(D28)	D28,
+	      SUM(D29)	D29,
+	      SUM(D30)	D30,
+	      SUM(D31)	D31,
+	      SUM(A1)   A1,
+	      SUM(A2)   A2,
+	      SUM(A3)   A3,
+	      SUM(A4)   A4,
+	      SUM(A5)   A5,
+	      SUM(A6)   A6,
+	      SUM(A7)   A7,
+	      SUM(A8)   A8,
+	      SUM(A9)   A9,
+	      SUM(A10)  A10,
+	      SUM(A11)  A11,
+	      SUM(A12)  A12,
+	      SUM(A13)  A13,
+	      SUM(A14)  A14,
+	      SUM(A15)  A15,
+	      SUM(A16)  A16,
+	      SUM(A17)  A17,
+	      SUM(A18)  A18,
+	      SUM(A19)  A19,
+	      SUM(A20)  A20,
+	      SUM(A21)  A21,
+	      SUM(A22)  A22,
+	      SUM(A23)  A23,
+	      SUM(A24)  A24,
+	      SUM(A25)  A25,
+	      SUM(A26)  A26,
+	      SUM(A27)  A27,
+	      SUM(A28)  A28,
+	      SUM(A29)  A29,
+	      SUM(A30)  A30,
+	      SUM(A31)  A31
+	FROM
+	(
+	SELECT EMP_PK,
+/*	
+			sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01', ROUND(WORT_TIME/8,1), 0), 0)))) D1,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', ROUND(WORT_TIME/8,1), 0), 0)))) D2,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', ROUND(WORT_TIME/8,1), 0), 0)))) D3,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', ROUND(WORT_TIME/8,1), 0), 0)))) D4,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'05', ROUND(WORT_TIME/8,1), 0), 0)))) D5,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', ROUND(WORT_TIME/8,1), 0), 0)))) D6,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', ROUND(WORT_TIME/8,1), 0), 0)))) D7,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', ROUND(WORT_TIME/8,1), 0), 0)))) D8,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', ROUND(WORT_TIME/8,1), 0), 0)))) D9,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', ROUND(WORT_TIME/8,1), 0), 0)))) D10,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', ROUND(WORT_TIME/8,1), 0), 0)))) D11,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', ROUND(WORT_TIME/8,1), 0), 0)))) D12,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', ROUND(WORT_TIME/8,1), 0), 0)))) D13,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', ROUND(WORT_TIME/8,1), 0), 0)))) D14,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', ROUND(WORT_TIME/8,1), 0), 0)))) D15,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', ROUND(WORT_TIME/8,1), 0), 0)))) D16,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', ROUND(WORT_TIME/8,1), 0), 0)))) D17,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', ROUND(WORT_TIME/8,1), 0), 0)))) D18,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', ROUND(WORT_TIME/8,1), 0), 0)))) D19,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', ROUND(WORT_TIME/8,1), 0), 0)))) D20,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', ROUND(WORT_TIME/8,1), 0), 0)))) D21,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', ROUND(WORT_TIME/8,1), 0), 0)))) D22,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', ROUND(WORT_TIME/8,1), 0), 0)))) D23,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', ROUND(WORT_TIME/8,1), 0), 0)))) D24,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', ROUND(WORT_TIME/8,1), 0), 0)))) D25,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', ROUND(WORT_TIME/8,1), 0), 0)))) D26,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', ROUND(WORT_TIME/8,1), 0), 0)))) D27,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', ROUND(WORT_TIME/8,1), 0), 0)))) D28,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', ROUND(WORT_TIME/8,1), 0), 0)))) D29,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', ROUND(WORT_TIME/8,1), 0), 0)))) D30,
+	       sum(decode(F_Is_SunDay(WORK_DT),0,0,(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', ROUND(WORT_TIME/8,1), 0), 0)))) D31,
+*/
+	
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'01', ROUND(WORT_TIME/8,1), 0), 0)) D1,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'02', ROUND(WORT_TIME/8,1), 0), 0)) D2,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'03', ROUND(WORT_TIME/8,1), 0), 0)) D3,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', ROUND(WORT_TIME/8,1), 0), 0)) D4,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'04', ROUND(WORT_TIME/8,1), 0), 0)) D5,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'06', ROUND(WORT_TIME/8,1), 0), 0)) D6,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'07', ROUND(WORT_TIME/8,1), 0), 0)) D7,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'08', ROUND(WORT_TIME/8,1), 0), 0)) D8,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'09', ROUND(WORT_TIME/8,1), 0), 0)) D9,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'10', ROUND(WORT_TIME/8,1), 0), 0)) D10,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'11', ROUND(WORT_TIME/8,1), 0), 0)) D11,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'12', ROUND(WORT_TIME/8,1), 0), 0)) D12,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'13', ROUND(WORT_TIME/8,1), 0), 0)) D13,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'14', ROUND(WORT_TIME/8,1), 0), 0)) D14,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'15', ROUND(WORT_TIME/8,1), 0), 0)) D15,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'16', ROUND(WORT_TIME/8,1), 0), 0)) D16,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'17', ROUND(WORT_TIME/8,1), 0), 0)) D17,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'18', ROUND(WORT_TIME/8,1), 0), 0)) D18,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'19', ROUND(WORT_TIME/8,1), 0), 0)) D19,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'20', ROUND(WORT_TIME/8,1), 0), 0)) D20,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'21', ROUND(WORT_TIME/8,1), 0), 0)) D21,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'22', ROUND(WORT_TIME/8,1), 0), 0)) D22,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'23', ROUND(WORT_TIME/8,1), 0), 0)) D23,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'24', ROUND(WORT_TIME/8,1), 0), 0)) D24,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'25', ROUND(WORT_TIME/8,1), 0), 0)) D25,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'26', ROUND(WORT_TIME/8,1), 0), 0)) D26,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'27', ROUND(WORT_TIME/8,1), 0), 0)) D27,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'28', ROUND(WORT_TIME/8,1), 0), 0)) D28,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'29', ROUND(WORT_TIME/8,1), 0), 0)) D29,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'30', ROUND(WORT_TIME/8,1), 0), 0)) D30,
+	       SUM(NVL(DECODE(SUBSTR(WORK_DT,7,2),'31', ROUND(WORT_TIME/8,1), 0), 0)) D31,
+		   
+		   0 A1,
+		   0 A2,
+		   0 A3,
+		   0 A4,
+		   0 A5,
+		   0 A6,
+		   0 A7,
+		   0 A8,
+		   0 A9,
+		   0 A10,
+		   0 A11,
+		   0 A12,
+		   0 A13,
+		   0 A14,
+		   0 A15,
+		   0 A16,
+		   0 A17,
+		   0 A18,
+		   0 A19,
+		   0 A20,
+		   0 A21,
+		   0 A22,
+		   0 A23,
+		   0 A24,
+		   0 A25,
+		   0 A26,
+		   0 A27,
+		   0 A28,
+		   0 A29,
+		   0 A30,
+		   0 A31
+	FROM THR_TIME_MACHINE
+	WHERE WORK_DT LIKE  AV_MON || '%'
+	  AND DEL_IF = 0
+	  AND NVL(APPLY_FLAG, 'N') = 'N'
+	  GROUP BY  EMP_PK
+	UNION ALL
+	SELECT EMP_PK,
+	        0  D1,
+	        0  D2,
+	        0  D3,
+	        0  D4,
+	        0  D5,
+	        0  D6,
+	        0  D7,
+	        0  D8,
+	        0  D9,
+	        0  D10,
+	        0  D11,
+	        0  D12,
+	        0  D13,
+	        0  D14,
+	        0  D15,
+	        0  D16,
+	        0  D17,
+	        0  D18,
+	        0  D19,
+	        0  D20,
+	        0  D21,
+	        0  D22,
+	        0  D23,
+	        0  D24,
+	        0  D25,
+	        0  D26,
+	        0  D27,
+	        0  D28,
+	        0  D29,
+	        0  D30,
+	        0  D31,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'01', COM_RATE/100, 0), 0)) A1,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'02', COM_RATE/100, 0), 0)) A2,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'03', COM_RATE/100, 0), 0)) A3,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'04', COM_RATE/100, 0), 0)) A4,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'04', COM_RATE/100, 0), 0)) A5,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'06', COM_RATE/100, 0), 0)) A6,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'07', COM_RATE/100, 0), 0)) A7,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'08', COM_RATE/100, 0), 0)) A8,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'09', COM_RATE/100, 0), 0)) A9,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'10', COM_RATE/100, 0), 0)) A10,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'11', COM_RATE/100, 0), 0)) A11,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'12', COM_RATE/100, 0), 0)) A12,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'13', COM_RATE/100, 0), 0)) A13,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'14', COM_RATE/100, 0), 0)) A14,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'15', COM_RATE/100, 0), 0)) A15,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'16', COM_RATE/100, 0), 0)) A16,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'17', COM_RATE/100, 0), 0)) A17,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'18', COM_RATE/100, 0), 0)) A18,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'19', COM_RATE/100, 0), 0)) A19,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'20', COM_RATE/100, 0), 0)) A20,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'21', COM_RATE/100, 0), 0)) A21,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'22', COM_RATE/100, 0), 0)) A22,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'23', COM_RATE/100, 0), 0)) A23,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'24', COM_RATE/100, 0), 0)) A24,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'25', COM_RATE/100, 0), 0)) A25,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'26', COM_RATE/100, 0), 0)) A26,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'27', COM_RATE/100, 0), 0)) A27,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'28', COM_RATE/100, 0), 0)) A28,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'29', COM_RATE/100, 0), 0)) A29,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'30', COM_RATE/100, 0), 0)) A30,
+	       SUM(NVL(DECODE(SUBSTR(ABS_DT,7,2),'31', COM_RATE/100, 0), 0)) A31
+	FROM THR_EMP_ABSENT
+	WHERE ABS_DT LIKE  AV_MON || '%'
+	  AND DEL_IF = 0
+	  AND COM_PAY_FLAG = 'Y'
+	  AND NVL(APPLY_FLAG, 'N') = 'N'
+	  GROUP BY  EMP_PK
+	  )
+	GROUP BY EMP_PK
+	 ) WORK, VHR_EMP EMP, THR_GRP_EMP GRP
+	WHERE WORK.EMP_PK = EMP.PK
+	  AND WORK.EMP_PK = GRP.EMP_PK(+)
+	  AND 0 = GRP.DEL_IF(+);
+
+	COMMIT;
+
+	AS_RET_NUM := 0;
+	AS_RET_VAR := 'Success Process !';
+	EXCEPTION
+	WHEN  OTHERS                  THEN
+		ROLLBACK;
+		RAISE_APPLICATION_ERROR(-20002, 'ERROR... OTHER (PR_WT_LOAD) '||SQLERRM );
+		AS_RET_NUM := -1;
+		AS_RET_VAR := 'ERROR MSG : ' || SUBSTR(SQLERRM, 1, 100);
+END  PR_WT_LOAD;
+/
+CREATE OR REPLACE FUNCTION SF_GET_CODENAME
+(	v_GRPCODE		IN	VARCHAR,
+    v_CODE    		IN  VARCHAR  )
+
+
+  RETURN  VARCHAR2 IS l_lPK	VARCHAR2(40);
+
+BEGIN
+
+    SELECT  A.CODE_NM
+	INTO	l_lPK
+	FROM COMM.TCO_ABCODE A, COMM.TCO_ABCODEGRP G
+	WHERE A.TCO_ABCODEGRP_PK=G.PK AND G.ID = v_GRPCODE AND A.DEL_IF=0 AND A.CODE = v_CODE;
+
+    return	l_lPK;
+
+
+--============
+  EXCEPTION
+--============
+   WHEN  NO_DATA_FOUND      THEN
+        return NULL;
+   WHEN OTHERS  THEN
+        return NULL;
+END;
+/
+CREATE OR REPLACE PROCEDURE    Sp_Upd_Family (
+   p_action            VARCHAR,
+   p_pk                VARCHAR,
+   p_thr_employee_pk   VARCHAR,
+   p_full_name         VARCHAR,
+   p_relation          VARCHAR,
+   p_birth_dt          VARCHAR,
+   p_job               VARCHAR,
+   p_salary            VARCHAR,
+   p_remark            VARCHAR,
+   p_depend_yn         VARCHAR,
+   p_start_dt          VARCHAR,
+   p_end_dt            VARCHAR,
+   p_crt_by            VARCHAR
+)
+IS
+/****************************************************************NAME:       sp_work_shift
+   PURPOSE:
+
+   REVISIONS:
+   Ver        Date        Author           Description
+   ---------  ----------  ---------------  ------------------------------------
+   1.0        3/12/2008          1. Created this procedure.
+
+******************************************************************************/
+BEGIN
+   IF p_action = 'INSERT'
+   THEN
+    IF p_full_name IS NOT NULL THEN 
+      INSERT INTO THR_FAMILY
+                  (pk,emp_pk, full_name,
+                   relation, birth_dt,job,salary, remark,depend_yn,start_dt,end_dt, crt_dt, crt_by, del_if
+                  )
+           VALUES (thr_family_seq.NEXTVAL, p_thr_employee_pk, p_full_name,
+                   p_relation, p_birth_dt,p_job,p_salary, p_remark,DECODE(p_depend_yn,0,'N','Y'),p_start_dt,p_end_dt, SYSDATE, p_crt_by, 0
+                  );
+    END IF;
+   ELSIF p_action = 'UPDATE'
+   THEN
+      UPDATE THR_FAMILY
+         SET full_name = p_full_name,
+             relation = p_relation,
+             birth_dt = p_birth_dt,
+             job      = p_job,
+             salary=p_salary,
+             remark = p_remark,
+             depend_yn=DECODE(p_depend_yn,0,'N','Y'),
+             start_dt=(CASE WHEN p_depend_yn=0 THEN NULL ELSE p_start_dt END ),
+             end_dt=(CASE WHEN p_depend_yn=0 THEN NULL ELSE p_end_dt END ),
+             mod_by = p_crt_by,
+             mod_dt = SYSDATE
+       WHERE del_if = 0 AND pk = p_pk;
+    ELSE
+      UPDATE THR_FAMILY
+         SET del_if = pk,
+             mod_by = p_crt_by,
+             mod_dt = SYSDATE
+       WHERE del_if = 0 AND pk = p_pk;   
+   END IF;
+EXCEPTION
+   WHEN OTHERS
+   THEN
+      -- Consider logging the error and then re-raise
+      RAISE;
+END;
+/
+CREATE OR REPLACE FORCE VIEW TEST
+(A)
+AS 
+(select 1+1 a from dual);
+
+
+CREATE OR REPLACE PROCEDURE TEST_STP(
+      IN_MONTH		IN  VARCHAR2,
+	OUT_ERROR_RTN   OUT VARCHAR2
+)
+IS
+
+AS_MONTH_LAST_NUM		NUMBER;
+AS_WDAY					NUMBER;
+AS_COLMN_NM				VARCHAR2(100);
+AS_STRTEMP				VARCHAR2(2000);
+AS_WORKTIME_SQL			VARCHAR2(2000);
+
+BEGIN
+
+SELECT TO_NUMBER(SUBSTR(TO_CHAR(LAST_DAY(TO_DATE(IN_MONTH||'01','YYYYMMDD')),'YYYYMMDD'),7,2))
+  INTO AS_MONTH_LAST_NUM
+  FROM DUAL;
+
+FOR  AS_WDAY  IN 1 ..  AS_MONTH_LAST_NUM
+
+LOOP
+	BEGIN--WORKING TO THE AFTERNOON 
+		AS_COLMN_NM := 'W'||AS_WDAY;
+		
+		AS_STRTEMP := 'INSERT INTO THR_TIME_MACHINE';
+		AS_STRTEMP := AS_STRTEMP||' (PK, GRP_CODE, EMP_PK, WORK_DT, W_SHIFT, P_IN, P_OUT, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY, WORT_TIME)';
+		AS_STRTEMP := AS_STRTEMP||' SELECT THR_TIME_MACHINE_SEQ.NextVal,C.THR_ABWORKGRP_PK,A.PK,'||IN_MONTH||'||LPAD(';
+		AS_STRTEMP := AS_STRTEMP||AS_WDAY||' ,2,''0''), D.PK, D.START_TIME';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(7.5+B.'||AS_COLMN_NM||'*8+1)||'':''||DECODE(TRUNC(TO_NUMBER((7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8)-TRUNC(7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8))*60),0,''00'',TRUNC(TO_NUMBER((7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8)-TRUNC(7.5+B.'||AS_COLMN_NM||'*8))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,''N'', 0,SYSDATE,''SYSTEM'',B.'||AS_COLMN_NM||'*8';
+		AS_STRTEMP := AS_STRTEMP||' FROM THR_ABEMP A, TMP_CNV_SALARY_12 B, THR_GRP_EMP C, THR_WORK_SHIFT D';
+		AS_STRTEMP := AS_STRTEMP||' WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE';
+		AS_STRTEMP := AS_STRTEMP||' AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.'||AS_COLMN_NM||' > ''0.5''';
+		AS_STRTEMP := AS_STRTEMP||' AND B.'||AS_COLMN_NM||' IS NOT NULL';
+		
+--		INSERT INTO THR_TIME_MACHINE
+--	   		   (PK, GRP_CODE, EMP_PK, WORK_DT, W_SHIFT, P_IN, P_OUT, APPLY_FLAG, USE_GBN, CRT_DT, CRT_BY, WORT_TIME)
+--		SELECT C.THR_ABWORKGRP_PK,A.PK,IN_MONTH||LPAD(AS_WDAY,2,'0'), D.PK, D.START_TIME
+--			   ,TRUNC(7.5+B.AS_COLMN_NM*8+1)||':'||DECODE(TRUNC(TO_NUMBER((7.5+B.AS_COLMN_NM*8)-TRUNC(7.5+B.AS_COLMN_NM*8))*60),0,'00',TRUNC(TO_NUMBER((7.5+B.AS_COLMN_NM*8)-TRUNC(7.5+B.AS_COLMN_NM*8))*60))
+--			   ,'N', 0,SYSDATE,'SYSTEM',B.AS_COLMN_NM*8
+--		  FROM THR_ABEMP A, TMP_CNV_SALARY_11 B, THR_GRP_EMP C, THR_WORK_SHIFT D
+--		 WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE
+--		   AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.AS_COLMN_NM > '0.5'
+--		   AND B.AS_COLMN_NM IS NOT NULL;
+
+	EXECUTE IMMEDIATE AS_STRTEMP;
+	END;
+	
+	BEGIN--WORKING JUST TO THE MORNING 
+		AS_COLMN_NM := 'W'||AS_WDAY;
+		
+		AS_STRTEMP := 'INSERT INTO THR_TIME_MACHINE';
+		AS_STRTEMP := AS_STRTEMP||' (PK, GRP_CODE, EMP_PK, WORK_DT, W_SHIFT, P_IN, P_OUT, APPLY_FLAG, DEL_IF, CRT_DT, CRT_BY, WORT_TIME)';
+		AS_STRTEMP := AS_STRTEMP||' SELECT THR_TIME_MACHINE_SEQ.NextVal,C.THR_ABWORKGRP_PK,A.PK,'||IN_MONTH||'||LPAD(';
+		AS_STRTEMP := AS_STRTEMP||AS_WDAY||' ,2,''0''), D.PK, D.START_TIME';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(7.5+B.'||AS_COLMN_NM||'*8)||'':''||DECODE(TRUNC(TO_NUMBER((7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8)-TRUNC(7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8))*60),0,''00'',TRUNC(TO_NUMBER((7.5+B.';
+		AS_STRTEMP := AS_STRTEMP||AS_COLMN_NM||'*8)-TRUNC(7.5+B.'||AS_COLMN_NM||'*8))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,''N'', 0,SYSDATE,''SYSTEM'',B.'||AS_COLMN_NM||'*8';
+		AS_STRTEMP := AS_STRTEMP||' FROM THR_ABEMP A, TMP_CNV_SALARY_12 B, THR_GRP_EMP C, THR_WORK_SHIFT D';
+		AS_STRTEMP := AS_STRTEMP||' WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE';
+		AS_STRTEMP := AS_STRTEMP||' AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.'||AS_COLMN_NM||' <= ''0.5''';
+		AS_STRTEMP := AS_STRTEMP||' AND B.'||AS_COLMN_NM||' IS NOT NULL';
+		
+--		INSERT INTO THR_TIME_MACHINE
+--	   		   (PK, GRP_CODE, EMP_PK, WORK_DT, W_SHIFT, P_IN, P_OUT, APPLY_FLAG, USE_GBN, CRT_DT, CRT_BY, WORT_TIME)
+--		SELECT C.THR_ABWORKGRP_PK,A.PK,IN_MONTH||LPAD(AS_WDAY,2,'0'), D.PK, D.START_TIME
+--			   ,TRUNC(7.5+B.AS_COLMN_NM*8)||':'||DECODE(TRUNC(TO_NUMBER((7.5+B.AS_COLMN_NM*8)-TRUNC(7.5+B.AS_COLMN_NM*8))*60),0,'00',TRUNC(TO_NUMBER((7.5+B.AS_COLMN_NM*8)-TRUNC(7.5+B.AS_COLMN_NM*8))*60))
+--			   ,'N', 0,SYSDATE,'SYSTEM',B.AS_COLMN_NM*8
+--		  FROM THR_ABEMP A, TMP_CNV_SALARY_11 B, THR_GRP_EMP C, THR_WORK_SHIFT D
+--		 WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE
+--		   AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.AS_COLMN_NM <= '0.5'
+--		   AND B.AS_COLMN_NM IS NOT NULL;
+
+	EXECUTE IMMEDIATE AS_STRTEMP;
+	END;
+	
+	BEGIN--SETTING THE NORMAL OVER TIME 
+		AS_COLMN_NM := 'O'||AS_WDAY;
+		
+		AS_STRTEMP := 'INSERT INTO THR_EXTRA_TIME (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK,';
+		AS_STRTEMP := AS_STRTEMP||' FULL_NAME, OT_TIME,B_OT_TIME, START_TIME,';
+		AS_STRTEMP := AS_STRTEMP||' END_TIME, B_END_TIME , REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)';
+		AS_STRTEMP := AS_STRTEMP||' SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, ''OT'',C.THR_ABWORKGRP_PK,';
+		AS_STRTEMP := AS_STRTEMP||' '||IN_MONTH||'||LPAD('||AS_WDAY||',2,''0''), A.PK';
+		AS_STRTEMP := AS_STRTEMP||' ,A.FULL_NM, B.'||AS_COLMN_NM||', B.'||AS_COLMN_NM||',''16:30''';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(16.5+B.'||AS_COLMN_NM||')||'':''||DECODE(TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60)';
+		AS_STRTEMP := AS_STRTEMP||' ,0,''00'',TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(16.5+B.'||AS_COLMN_NM||')||'':''||DECODE(TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60)';
+		AS_STRTEMP := AS_STRTEMP||' ,0,''00'',TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,''conversion'',0,''N'',sysdate,''SYSTEM''';
+		AS_STRTEMP := AS_STRTEMP||' FROM THR_ABEMP A, TMP_CNV_SALARY_12 B, THR_GRP_EMP C, THR_WORK_SHIFT D';
+		AS_STRTEMP := AS_STRTEMP||' WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE';
+		AS_STRTEMP := AS_STRTEMP||' AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.'||AS_COLMN_NM||' IS NOT NULL';
+		AS_STRTEMP := AS_STRTEMP||' AND '||IN_MONTH||'||LPAD('||AS_WDAY||',2,''0'') NOT IN (SELECT HOL_DAY FROM THR_HOL_DAY WHERE DEL_IF = 0 AND HOL_MON = '||IN_MONTH||')';
+		
+--		INSERT INTO TS_EXTRA_TIME (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, 
+--		       FULL_NAME, OT_TIME,B_OT_TIME, START_TIME,
+--		       END_TIME, B_END_TIME , REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+--		SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT',C.THR_ABWORKGRP_PK,'200311'||LPAD(1,2,'0'), A.PK
+--			   ,A.FULL_NM, B.O1, B.O1,'16:30'
+--			   ,TRUNC(16.5+B.O1)||':'||DECODE(TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60),0,'00',TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60))
+--			   ,TRUNC(16.5+B.O1)||':'||DECODE(TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60),0,'00',TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60))
+--			   ,'conversion',0,'N',sysdate,'SYSTEM'
+--		  FROM THR_ABEMP A, TMP_CNV_SALARY_11 B, THR_GRP_EMP C, THR_WORK_SHIFT D
+--		 WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE
+--		   AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.O1 IS NOT NULL
+--		   AND '200311'||LPAD(8,2,'0') NOT IN (SELECT HOL_DAY FROM THR_HOL_DAY WHERE DEL_IF = 0 AND HOL_MON = '200311')
+
+	EXECUTE IMMEDIATE AS_STRTEMP;
+	END;
+	
+	BEGIN--SETTING THE SUNDAY OVER TIME 
+		AS_COLMN_NM := 'O'||AS_WDAY;
+		
+		AS_STRTEMP := 'INSERT INTO THR_EXTRA_TIME (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK,';
+		AS_STRTEMP := AS_STRTEMP||' FULL_NAME, OT_TIME,B_OT_TIME, START_TIME,';
+		AS_STRTEMP := AS_STRTEMP||' END_TIME, B_END_TIME , REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)';
+		AS_STRTEMP := AS_STRTEMP||' SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, ''HT'',C.THR_ABWORKGRP_PK,';
+		AS_STRTEMP := AS_STRTEMP||' '||IN_MONTH||'||LPAD('||AS_WDAY||',2,''0''), A.PK';
+		AS_STRTEMP := AS_STRTEMP||' ,A.FULL_NM, B.'||AS_COLMN_NM||', B.'||AS_COLMN_NM||',''16:30''';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(16.5+B.'||AS_COLMN_NM||')||'':''||DECODE(TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60)';
+		AS_STRTEMP := AS_STRTEMP||' ,0,''00'',TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,TRUNC(16.5+B.'||AS_COLMN_NM||')||'':''||DECODE(TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60)';
+		AS_STRTEMP := AS_STRTEMP||' ,0,''00'',TRUNC(TO_NUMBER((16.5+B.'||AS_COLMN_NM||')-TRUNC(16.5+B.'||AS_COLMN_NM||'))*60))';
+		AS_STRTEMP := AS_STRTEMP||' ,''conversion'',0,''N'',sysdate,''SYSTEM''';
+		AS_STRTEMP := AS_STRTEMP||' FROM THR_ABEMP A, TMP_CNV_SALARY_12 B, THR_GRP_EMP C, THR_WORK_SHIFT D';
+		AS_STRTEMP := AS_STRTEMP||' WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE';
+		AS_STRTEMP := AS_STRTEMP||' AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.'||AS_COLMN_NM||' IS NOT NULL';
+		AS_STRTEMP := AS_STRTEMP||' AND '||IN_MONTH||'||LPAD('||AS_WDAY||',2,''0'') IN (SELECT HOL_DAY FROM THR_HOL_DAY WHERE DEL_IF = 0 AND HOL_MON = '||IN_MONTH||' AND HOL_PRO = ''SUN'')';
+		
+--		INSERT INTO TS_EXTRA_TIME (PK, OT_TYPE, GRP_CODE, WORK_DT, EMP_PK, 
+--		       FULL_NAME, OT_TIME,B_OT_TIME, START_TIME,
+--		       END_TIME, B_END_TIME , REMARK, DEL_IF, APPLY_FLAG, CRT_DT, CRT_BY)
+--		SELECT THR_EXTRA_TIME_SEQ.NEXTVAL, 'OT',C.THR_ABWORKGRP_PK,'200311'||LPAD(1,2,'0'), A.PK
+--			   ,A.FULL_NM, B.O1, B.O1,'16:30'
+--			   ,TRUNC(16.5+B.O1)||':'||DECODE(TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60),0,'00',TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60))
+--			   ,TRUNC(16.5+B.O1)||':'||DECODE(TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60),0,'00',TRUNC(TO_NUMBER((16.5+B.O1)-TRUNC(16.5+B.O1))*60))
+--			   ,'conversion',0,'N',sysdate,'SYSTEM'
+--		  FROM THR_ABEMP A, TMP_CNV_SALARY_11 B, THR_GRP_EMP C, THR_WORK_SHIFT D
+--		 WHERE C.DEL_IF = 0 AND D.DEL_IF = 0 AND A.EMP_ID = B.NEW_CODE
+--		   AND A.PK = C.EMP_PK AND C.WORK_SHIFT = D.PK AND B.O1 IS NOT NULL
+--		   AND '200311'||LPAD(8,2,'0') IN (SELECT HOL_DAY FROM THR_HOL_DAY WHERE DEL_IF = 0 AND HOL_MON = '200311' AND HOL_PRO = 'SUN') 
+
+	EXECUTE IMMEDIATE AS_STRTEMP;
+	END;
+END LOOP;
+COMMIT;
+EXCEPTION
+     WHEN OTHERS  THEN
+	RAISE_APPLICATION_ERROR(-20002, AS_STRTEMP||' ERROR... OTHER (PR_TMP_CNV_SALARY) '||AS_WORKTIME_SQL||' '||SQLERRM );
+	OUT_ERROR_RTN := AS_STRTEMP||'Error MSG :'||'EMP_ID' || SUBSTR(SQLERRM, 1, 100);
+END;
+/
+CREATE OR REPLACE PROCEDURE Updateempmana (
+   inemppk              IN       NUMBER,
+   inemp_id             IN       VARCHAR2,
+   inremark             IN       VARCHAR2,
+   incard_id            IN       VARCHAR2,
+   infull_name          IN       VARCHAR2,
+   incontract_no        IN       VARCHAR2,
+   injoin_dt            IN       VARCHAR2,
+   inbirth_dt           IN       VARCHAR2,
+   inplace_birth_dt     IN       VARCHAR2,
+   insex                IN       VARCHAR2,
+   inmarried            IN       VARCHAR2,
+   inchildren_cnt       IN       NUMBER,
+   inaddr               IN       VARCHAR2,
+   intel                IN       VARCHAR2,
+   incity_code          IN       VARCHAR2,
+   inrelig_cd           IN       VARCHAR2,
+   inpos_code           IN       VARCHAR2,
+   injob_code           IN       VARCHAR2,
+   inethnic_cd          IN       VARCHAR2,
+   inbasic_sal          IN       NUMBER,
+   inallow_amt          IN       NUMBER,
+   inedu_code           IN       VARCHAR2,
+   inperson_id          IN       VARCHAR2,
+   inper_addr           IN       VARCHAR2,
+   inplace_per_id       IN       VARCHAR2,
+   inissue_dt           IN       VARCHAR2,
+   inurgent_contact     IN       VARCHAR2,
+   inconfirm_dt         IN       VARCHAR2,
+   incom_code           IN       VARCHAR2,
+   infact_cd            IN       VARCHAR2,
+   insocial_no          IN       VARCHAR2,
+   insocial_dt          IN       VARCHAR2,
+   insocial_dt_to       IN       VARCHAR2,
+   insocial_place       IN       VARCHAR2,
+   insocial_flag        IN       VARCHAR2,
+   inhealth_no          IN       VARCHAR2,
+   inhealth_dt          IN       VARCHAR2,
+   inhealth_dt_to       IN       VARCHAR2,
+   inhealth_place       IN       VARCHAR2,
+   inhealth_flag        IN       VARCHAR2,
+   informal_flag        IN       VARCHAR2,
+   ingrade              IN       VARCHAR2,
+   inleft_dt            IN       VARCHAR2,
+   instatus             IN       VARCHAR2,
+   indept_pk            IN       NUMBER,
+   inthr_abworkgrp_pk   IN       NUMBER,
+   inPAY_TYPE			IN 		 VARCHAR2,
+   inprob_salary		IN		 NUMBER,
+   inuserid             IN       VARCHAR2, 
+   inbank_account 		IN 		 NUMBER,
+   incard_amt  			IN 		 NUMBER ,
+   insal_allow 			IN 		 NUMBER, 
+   ortncode             OUT      VARCHAR2,
+   ortnmsg              OUT      VARCHAR2
+)
+IS
+AV_EMP_HIST_SEQ NUMBER;
+V_ERROR         VARCHAR2(10) := '0';
+V_EMP_ID        VARCHAR2(10);
+
+BEGIN
+
+V_ERROR := '10';
+SELECT THR_EMP_HIST_SEQ.NEXTVAL INTO AV_EMP_HIST_SEQ FROM DUAL;--insert to history(THR_EMP_HIST)
+
+SELECT EMP_ID INTO V_EMP_ID FROM THR_ABEMP WHERE DEL_IF=0 AND PK= inemppk;
+
+--V_ERROR := '20';
+--insert to thr_emp_hist - truonghuynh
+--	INSERT INTO THR_EMP_HIST (
+--	 PK
+--	,EMP_ID
+--	,CARD_ID
+--	,FULL_NAME
+--	,FULL_NAME_ENG
+--	,F_NAME
+--	,L_NAME
+--	,DEPT_PK
+--	,GRP_CODE
+--	,JOB_CODE
+--	,POS_CODE
+--	,BASIC_SAL
+--	,ALLOW_AMT
+--	,CERT_ALLOW_AMT
+--	,BIRTH_DT	 
+--	,PLACE_BIRTH_DT
+--	,SEX
+--	,ADDR
+--	,PER_ADDR
+--	,TEL
+--	,PER_CONTACT
+--	,NATION_CODE
+--	,JOIN_DT
+--	,EDU_CODE
+--	,LEFT_DT
+--	,CITY_CODE
+--	,PERSON_ID
+--	,ISSUE_DT
+--	,PLACE_PER_ID
+--	,MARRIED
+--	,CHILDREN_CNT
+--	,SOCIAL_NO
+--	,SOCIAL_DT
+--	,SOCIAL_FLAG
+--	,HEALTH_NO
+--	,HEALTH_DT
+--	,HEALTH_PLACE
+--	,HEALTH_FLAG
+--	,LAST_SAL
+--	,FORMAL_FLAG
+--	,CANTACT_DT
+--	,COM_CODE
+--	,PHOTO_PK
+--	,REMARK
+--	,DEL_IF
+--	,CRT_DT
+--	,CRT_BY
+--	,MOD_DT
+--	,MOD_BY
+--	,STATUS
+--	,GRADE
+--	,HEALTH_DT_TO
+--	,SOCIAL_DT_TO
+--	,FACT_CD
+--	,SOCIAL_PLACE
+--	,ETHNIC_CD
+--	,RELIG_CD
+--	,UNION_FLAG
+--	,PROB_MON
+--	,CONT_SAL
+--	,CONT_ALLOW
+--	,CONT_CER_ALLOW
+--	,PROB_SAL
+--	,ST_CONTRACT
+--	,ET_CONTRACT
+--	,ST_PROBATION
+--	,ET_PROBATION
+--	,SEQ_CONTRACT
+--	,PERIOD_CONTRACT
+--	,EMP_PK
+--	,PAY_TYPE
+--	,OT_ALLOWANCE
+--	,PROFESSIONAL_SKILL
+--	  )
+--VALUES
+--	(
+--	AV_EMP_HIST_SEQ
+--	,inemp_id
+--	,incard_id
+--	,infull_name
+--	,NULL
+--	,NULL
+--	,NULL
+--	,indept_pk
+--	,inthr_abworkgrp_pk
+--	,injob_code
+--	,inpos_code
+--	,inbasic_sal
+--	,inallow_amt
+--	,NULL
+--	,inbirth_dt	 
+--	,inplace_birth_dt
+--	,insex
+--	,inaddr
+--	,inper_addr
+--	,intel
+--	,inurgent_contact
+--	,NULL
+--	,injoin_dt
+--	,inedu_code
+--	,inleft_dt
+--	,incity_code
+--	,inperson_id
+--	,inissue_dt
+--	,inplace_per_id
+--	,DECODE(inmarried, -1, 'Y', 'N')
+--	,inchildren_cnt
+--	,insocial_no
+--	,insocial_dt
+--	,DECODE(insocial_flag, -1, 'Y', 'N')
+--	,inhealth_no
+--	,inhealth_dt
+--	,inhealth_place
+--	,DECODE(inhealth_flag, -1, 'Y', 'N')
+--	,NULL
+--	,DECODE(informal_flag, -1, 'Y', 'N')
+--	,NULL
+--	,incom_code
+--	,NULL
+--	,inremark
+--	,0
+--	,NULL
+--	,NULL
+--	,SYSDATE
+--	,inuserid
+--	,instatus
+--	,ingrade
+--	,inhealth_dt_to
+--	,insocial_dt_to
+--	,infact_cd
+--	,insocial_place
+--	,inethnic_cd
+--	,inrelig_cd
+--	,NULL
+--	,NULL
+--	,0
+--	,0
+--	,0
+--	,NULL
+--	,inconfirm_dt
+--	,NULL
+--	,NULL
+--	,NULL
+--	,incontract_no
+--	,NULL
+--	,inemppk
+--	,inPAY_TYPE
+--	,NULL
+--	,NULL
+ --  );
+--************************************
+V_ERROR := '30';   
+		IF V_EMP_ID <>  inemp_id  THEN
+		   			UPDATE THR_LABOUR_CONTRACT
+					SET CONTRACT_NO= substr(inemp_id,3,4) || SUBSTR(CONTRACT_NO,5,LENGTH(contract_no) - 3) 
+					WHERE DEL_IF=0 AND  thr_abemp_pk = inemppk;
+   		END IF;
+V_ERROR := '35';
+   UPDATE THR_ABEMP
+      SET 
+          remark = inremark,
+		--  emp_id = inemp_id,
+         -- card_id = incard_id,
+          full_nm = infull_name,
+          seq_contract = incontract_no,
+          join_date = injoin_dt,
+		  --birth_date = inbirth_dt,
+          place_birth_date = inplace_birth_dt,
+          sex = insex,
+		  --prob_salary=inprob_salary,
+          married_yn = DECODE (inmarried, -1, 'Y', 'N'),
+          children_cnt = inchildren_cnt,
+          addr = inaddr,
+          tel = intel,
+          city_code = incity_code,
+          relig_type = inrelig_cd,
+          ethnic_type = inethnic_cd,
+          edu_type = inedu_code,
+          person_id = inperson_id,
+          living_addr = inper_addr,
+          place_per_id = inplace_per_id,
+          issue_date = inissue_dt,
+          urgent_contact = inurgent_contact,
+          tco_eocompany_pk = incom_code,
+          left_date = inleft_dt,
+          emp_status = instatus,
+          mod_by = inuserid,
+          mod_dt = SYSDATE
+    WHERE pk = inemppk;
+
+V_ERROR := '40';	
+   UPDATE THR_ABEMPMAS
+      SET pos_code  = inpos_code,
+          job_code  = injob_code,
+          basic_sal = inbasic_sal,
+		  allow_amt = inallow_amt,
+          confirm_date     = inconfirm_dt,
+          tco_eofactory_pk = infact_cd,
+          social_no    = insocial_no,
+          social_fdate = insocial_dt,
+          social_tdate = insocial_dt_to,
+          social_place = insocial_place,
+		  social_yn = DECODE (insocial_flag, -1, 'Y', 'N'),
+          health_no = inhealth_no,
+          health_fdate = inhealth_dt,
+          health_tdate = inhealth_dt_to,
+          health_place = inhealth_place,
+          health_yn = DECODE (inhealth_flag, -1, 'Y', 'N'),
+          formal_yn = DECODE (informal_flag, -1, 'Y', 'N'),
+          thr_bssalgrade_pk = ingrade,
+		  prob_salary =inprob_salary,
+		  sal_allow = insal_allow,
+  --        tco_eodept_pk = indept_pk,
+    --      thr_abworkgroup_pk = inthr_abworkgrp_pk,
+		  PAY_TYPE = inPAY_TYPE,
+		--  BANK_ACCOUNT = inbank_account ,
+		  CARD_AMT = incard_amt  ,
+	   	  REMAINING_CARD_AMT=DECODE(REMAINING_CARD_AMT,NULL,DECODE(inCARD_AMT,0,NULL,inCARD_AMT),REMAINING_CARD_AMT),
+          mod_by = inuserid,
+          mod_dt = SYSDATE
+    WHERE thr_abemp_pk = inemppk;
+	
+	IF inuserid='tuan' THEN
+	   				   UPDATE THR_ABEMPMAS 
+					    SET			BANK_ACCOUNT = inbank_account   --   CHI CHO MINH ANH TUAN UPDATE 
+						WHERE thr_abemp_pk = inemppk; 
+	END IF;
+	
+	-- relationship thr_grp_emp
+--	UPDATE THR_GRP_EMP
+	--  SET 
+	  --	  THR_ABWORKGRP_PK   = inthr_abworkgrp_pk, 
+		--    REMARK='Change from employment form',
+			--mod_by = inuserid,
+           -- mod_dt = SYSDATE
+--	  WHERE DEL_IF=0 AND EMP_PK= inemppk ;
+	
+	
+EXCEPTION
+
+    WHEN  NO_DATA_FOUND  THEN
+        --outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error1, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+        --outRESULT  := -1;
+		RAISE_APPLICATION_ERROR(-20001,V_ERROR||'Procedure error2, can not Update...');
+		ROLLBACK WORK;
+        RETURN;
+END Updateempmana;
+/
+CREATE OR REPLACE PROCEDURE Update_Emp_Resign
+(
+ 	   inEMP_PK	  	  IN NUMBER
+   	   ,inRESIGN_TYPE  IN VARCHAR2
+	    ,inRESIGN_REMARK  IN VARCHAR2
+	   ,inSEVERANCE_FLAG IN VARCHAR2
+	   ,inRETURN_HEALTH	 IN VARCHAR2
+	   ,inLEFT_DT		 IN VARCHAR2
+	   ,inMOD_BY		   IN VARCHAR2	     
+	   ,outNUM		   OUT NUMBER
+	   ,outResult		   OUT VARCHAR2
+)
+IS
+  AV_SAL	NUMBER(15):=0;
+  AV_SUM_SAL NUMBER(15):=0;
+  AV_NET_AMT NUMBER(15):=0;
+  AV_FMON	VARCHAR2(6);
+  AV_TMON	VARCHAR2(6);
+  AV_MAX_MON	VARCHAR2(6);
+  AV_ST		VARCHAR2(6);
+  AV_ET		VARCHAR2(6);	
+  AV_NUM_MON NUMBER(5,2):=0;
+  AV_NUM_ALE NUMBER(5,2):=0;	
+  AV_AN_DAY  NUMBER(2):=0;
+  AV_NUM_ALE2 NUMBER(5,2):=0;
+  AV_JOIN_DT VARCHAR2(8);
+   AV_JOIN_DT2 VARCHAR2(8);	 
+  AV_LEFT_DT VARCHAR2(8); 
+  AL_LAST_YEAR	NUMBER(5,2):=0;
+  CLOSE_NUM	NUMBER(1):=0; 
+  AV_APPROVE_FLAG  NUMBER;
+BEGIN
+
+outNUM := 0;
+outResult := 'SUCCESS';
+AV_APPROVE_FLAG:=0;
+
+--o movina co 2 ngay joint date <==luu y diem nay
+
+SELECT COUNT(S.PK) INTO CLOSE_NUM FROM THR_SALARY_EMP S
+WHERE S.DEL_IF=0 AND S.WORK_MON = SUBSTR(inLEFT_DT,1,6)
+AND S.EMP_PK=inEMP_PK AND S.CLOSE_FLAG='Y';
+
+IF CLOSE_NUM>0 THEN
+   			  RAISE_APPLICATION_ERROR(-20001,'');
+END IF;			   
+	
+	--phan update 
+	UPDATE THR_ABEMPMAS A
+	SET A.RESIGN_TYPE=inRESIGN_TYPE
+		,A.RESIGN_REMARK=inRESIGN_REMARK
+		,A.SEVERANCE_FLAG = DECODE(inSEVERANCE_FLAG,'-1','Y','N')
+		,A.RETURN_HEALTH_TICKET =DECODE(inRETURN_HEALTH,'-1','Y','N')
+		,A.UNION_YN='N' --HUY THAM GIA CD
+	WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=inEMP_PK;
+	--XU LY TRO CAP THOI VIEC
+	BEGIN
+	
+		SELECT SUM(NVL(a.mon_cnt,0)) INTO AV_NUM_ALE FROM VHR_EMP_ABSENT_CNT a 
+ 		    WHERE SUBSTR(a.yearmon,1,4) = SUBSTR(inLEFT_DT,1,4) AND A.EMP_PK = inEMP_PK; 
+			
+			SELECT C.JOIN_DATE,C.CAL_DT,NVL(C.ANNUAL_LEAVE_DAYS,0),C.LEFT_DATE,NVL(C.ANNUAL_LEAVE_LAST_YEAR,0) INTO AV_JOIN_DT,AV_JOIN_DT2,AV_AN_DAY,AV_LEFT_DT,AL_LAST_YEAR FROM THR_ABEMP C
+			WHERE C.DEL_IF=0 AND C.PK = inEMP_PK;
+			
+			IF   AV_JOIN_DT2 IS NOT NULL THEN  --NEU CO NGAY THU 2 CO NGHIA LA NV CUA YUPOONG CHUYEN QUA
+				   AV_JOIN_DT:=AV_JOIN_DT2;
+			END IF;
+			
+			IF AV_JOIN_DT<=SUBSTR(inLEFT_DT,1,4)||'0101' THEN
+			   SELECT ROUND(TO_NUMBER(TO_DATE(inLEFT_DT,'yyyymmdd')-TO_DATE(SUBSTR(inLEFT_DT,1,4)||'0101','YYYYMMdd'))*AV_AN_DAY/365,2) INTO AV_NUM_ALE2 FROM DUAL;
+			ELSE
+			   SELECT ROUND(TO_NUMBER(TO_DATE(inLEFT_DT,'yyyymmdd')-TO_DATE(AV_JOIN_DT,'YYYYMMdd'))*AV_AN_DAY/365,2) INTO AV_NUM_ALE2 FROM DUAL;
+			END IF;
+			
+			BEGIN
+				UPDATE THR_ABEMPMAS A
+				SET A.ANNUAL_STOP = NVL(AV_NUM_ALE2,0)+AL_LAST_YEAR-NVL(AV_NUM_ALE,0)
+				WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=inEMP_PK AND ((NVL(AV_NUM_ALE2,0)+AL_LAST_YEAR-NVL(AV_NUM_ALE,0)) >= 1 OR (NVL(AV_NUM_ALE2,0)+AL_LAST_YEAR-NVL(AV_NUM_ALE,0)) <0); 
+			END;
+		 IF	inSEVERANCE_FLAG='-1' THEN
+		    
+		 	SELECT A.BASIC_SAL INTO AV_SAL FROM THR_ABEMPMAS A
+			WHERE A.THR_ABEMP_PK=inEMP_PK AND A.DEL_IF=0;
+			
+			SELECT MAX(A.WORK_MON) INTO AV_MAX_MON
+			FROM THR_SALARY_EMP A
+			WHERE A.DEL_IF=0 AND A.EMP_PK=inEMP_PK;
+			
+			
+				SELECT DISTINCT TO_CHAR(ADD_MONTHS(TO_DATE(SUBSTR(inLEFT_DT,1,6),'yyyymm'),-6),'YYYYMM'),TO_CHAR(ADD_MONTHS(TO_DATE(SUBSTR(inLEFT_DT,1,6),'yyyymm'),-1),'YYYYMM') INTO AV_FMON,AV_TMON
+				FROM THR_SALARY_EMP A
+				WHERE A.DEL_IF=0 AND A.EMP_PK=inEMP_PK;
+				
+				SELECT SUM(NVL(A.BASIC_SAL,0)) INTO AV_SUM_SAL
+				FROM THR_SALARY_EMP A
+				WHERE A.DEL_IF=0 AND A.EMP_PK = inEMP_PK
+					  AND A.WORK_MON BETWEEN AV_FMON AND AV_TMON;
+				
+				AV_SUM_SAL:=ROUND(AV_SUM_SAL/6,3);--LUONG TRUNG BINH 6 THANG GAN KE
+				
+			
+			--AV_SUM_SAL:=AV_SAL;--LUONG TRUNG BINH 6 THANG GAN KE   il jung lay thang hien tai tinh   
+			
+			SELECT SUBSTR(C.JOIN_DATE,1,6),SUBSTR(C.LEFT_DATE,1,6) INTO AV_ST,AV_ET   
+			FROM THR_ABEMP C
+			WHERE C.DEL_IF=0 AND C.PK=inEMP_PK;
+			
+			--LAY SO THANG LAM VIEC
+			SELECT MONTHS_BETWEEN(TO_DATE(AV_LEFT_DT,'yyyymmdd'),TO_DATE(AV_JOIN_DT,'YYYYMMDD')) INTO AV_NUM_MON FROM DUAL;
+			
+			
+			SELECT CASE 
+					 WHEN AV_NUM_MON>=12 AND AV_NUM_MON<13 THEN 
+					 		 	  ROUND(AV_SUM_SAL*0.5,3)
+					 WHEN AV_NUM_MON>=13 AND AV_NUM_MON<19 THEN
+					 	  ROUND(AV_SUM_SAL*0.75,3)
+					 WHEN AV_NUM_MON>=19 AND AV_NUM_MON<25 THEN
+					 	  ROUND(AV_SUM_SAL,3)
+					 WHEN AV_NUM_MON>=25 AND AV_NUM_MON<31 THEN
+					 	  ROUND(AV_SUM_SAL*1.25,3)
+					 WHEN AV_NUM_MON>=31 AND AV_NUM_MON<37 THEN
+					 	  ROUND(AV_SUM_SAL*1.5,3)
+					 WHEN AV_NUM_MON>=37 AND AV_NUM_MON<43 THEN
+					 	  ROUND(AV_SUM_SAL*1.75,3)
+					 WHEN AV_NUM_MON>=43 AND AV_NUM_MON<49 THEN 
+					 	  ROUND(AV_SUM_SAL*2,3)
+					 WHEN AV_NUM_MON>=49 AND AV_NUM_MON<55 THEN
+					 	  ROUND(AV_SUM_SAL*2.25,3)
+					 WHEN AV_NUM_MON>=55 AND AV_NUM_MON<61 THEN
+					 	  ROUND(AV_SUM_SAL*2.5,3) 	  
+					 WHEN AV_NUM_MON>=61 AND AV_NUM_MON<67 THEN
+					 	  ROUND(AV_SUM_SAL*2.75,3) 	  
+					 WHEN AV_NUM_MON>=67 AND AV_NUM_MON<73 THEN
+					 	  ROUND(AV_SUM_SAL*3,3) 	  
+					 WHEN AV_NUM_MON>=73 AND AV_NUM_MON<79 THEN
+					 	  ROUND(AV_SUM_SAL*3.25,3) 	  
+					 WHEN AV_NUM_MON>=79 AND AV_NUM_MON<85 THEN
+					 	  ROUND(AV_SUM_SAL*3.5,3) 	  
+					 WHEN AV_NUM_MON>=85 AND AV_NUM_MON<91 THEN
+					 	  ROUND(AV_SUM_SAL*3.75,3) 	  
+					 WHEN AV_NUM_MON>=91 AND AV_NUM_MON<97 THEN
+					 	  ROUND(AV_SUM_SAL*4,3)
+					 WHEN AV_NUM_MON>=97 AND AV_NUM_MON<103 THEN
+					 	  ROUND(AV_SUM_SAL*4.25,3) 	  
+					 WHEN AV_NUM_MON>=103 AND AV_NUM_MON<109 THEN
+					 	  ROUND(AV_SUM_SAL*4.5,3)
+					 WHEN AV_NUM_MON>=109 AND AV_NUM_MON<115 THEN
+					 	  ROUND(AV_SUM_SAL*4.75,3) 	  
+					 WHEN AV_NUM_MON>=115 AND AV_NUM_MON<121 THEN
+					 	  ROUND(AV_SUM_SAL*5,3)
+					 WHEN AV_NUM_MON>=121 AND AV_NUM_MON<127 THEN
+					 	  ROUND(AV_SUM_SAL*5.25,3) 	  
+					 WHEN AV_NUM_MON>=127 AND AV_NUM_MON<133 THEN
+					 	  ROUND(AV_SUM_SAL*5.5,3)
+					 WHEN AV_NUM_MON>=133 AND AV_NUM_MON<139 THEN
+					 	  ROUND(AV_SUM_SAL*5.75,3) 	  
+					 WHEN AV_NUM_MON>=139 AND AV_NUM_MON<145 THEN
+					 	  ROUND(AV_SUM_SAL*6,3)
+					 WHEN AV_NUM_MON>=145 AND AV_NUM_MON<151 THEN
+					 	  ROUND(AV_SUM_SAL*6.25,3) 	  
+					 ELSE
+					 	 0 -- tham thoi tinh toi 6 thang luong   
+					END
+			INTO AV_NET_AMT FROM DUAL;
+		
+			UPDATE THR_ABEMPMAS A
+			SET A.SEVERANCE_YEAR = ROUND(AV_NUM_MON/12,2)
+				,A.SEVERANCE_AMT = AV_NET_AMT
+				,A.AVERAGE_SAL = AV_SUM_SAL
+			WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=inEMP_PK;
+		ELSE
+			UPDATE THR_ABEMPMAS A
+			SET A.SEVERANCE_YEAR = 0
+				,A.SEVERANCE_AMT = 0
+			WHERE A.DEL_IF=0 AND A.THR_ABEMP_PK=inEMP_PK;
+	
+		END IF;
+			
+		 	
+	END;
+RETURN;
+---------
+EXCEPTION
+---------
+  WHEN  NO_DATA_FOUND  THEN
+        outResult  := -1;
+		RAISE_APPLICATION_ERROR(-20001,outResult||'Procedure error 1: '||SQLERRM);
+	ROLLBACK WORK;
+        RETURN;
+
+  WHEN  OTHERS  THEN
+  		IF CLOSE_NUM>0 THEN
+		   			   RAISE_APPLICATION_ERROR(-20001,'This month is close, You can not change');
+		   			   RETURN;
+		ELSE
+				RAISE_APPLICATION_ERROR(-20001,outResult||'Procedure error 2: '||SQLERRM);
+			ROLLBACK WORK;
+		        RETURN;
+		END IF;
+
+END;
+/
+CREATE OR REPLACE FORCE VIEW VHR_ABEMP
+(PK, EMP_ID, CARD_ID, FULL_NM, FULL_LNM, 
+ F_NAME, L_NAME, TCO_EODEPT_PK, THR_ABWORKGROUP_PK, JOB_CODE, 
+ POS_CODE, ADDR, LIVING_ADDR, TEL, URGENT_CONTACT, 
+ TCO_EOCOMPANY_PK, PHOTO_PK, REMARK, TCO_EOFACTORY_PK, DEPTCHIEF_YN, 
+ BANK_ACCOUNT)
+AS 
+SELECT A.PK, A.EMP_ID, A.CARD_ID, A.FULL_NM, A.FULL_LNM, A.F_NAME, A.L_NAME
+	   ,B.TCO_EODEPT_PK, B.THR_ABWORKGROUP_PK, B.JOB_CODE, B.POS_CODE
+	   ,A.ADDR,A.LIVING_ADDR, A.TEL, A.URGENT_CONTACT
+	   ,A.TCO_EOCOMPANY_PK,A.PHOTO_PK, A.REMARK, B.TCO_EOFACTORY_PK, B.DEPTCHIEF_YN,B.BANK_ACCOUNT
+  FROM THR_ABEMP A, THR_ABEMPMAS B
+ WHERE A.DEL_IF = 0
+   AND B.DEL_IF = 0
+   AND A.PK = B.THR_ABEMP_PK
+   AND NVL(A.EMP_STATUS,'A') = 'A'
+   AND TO_CHAR(SYSDATE,'YYYYMMDD') BETWEEN B.VALID_FROM AND NVL(B.VALID_TO,TO_CHAR(SYSDATE,'YYYYMMDD'));
+
+
+CREATE OR REPLACE FORCE VIEW VHR_ABEMPNAME
+(PK, EMP_ID, CARD_ID, FULL_NM, FULL_LNM, 
+ F_NAME, L_NAME, EMP_STATUS)
+AS 
+SELECT A.PK, A.EMP_ID, A.CARD_ID, A.FULL_NM, A.FULL_LNM, A.F_NAME, A.L_NAME, A.EMP_STATUS 
+  FROM THR_ABEMP A 
+ WHERE A.DEL_IF = 0;
+
+
+CREATE OR REPLACE FORCE VIEW VHR_EMP
+(PK, EMP_ID, CARD_ID, FULL_NAME, FULL_NAME_ENG, 
+ F_NAME, L_NAME, DEPT_PK, GRP_CODE, JOB_CODE, 
+ POS_CODE, SAL_ALLOW, BASIC_SAL, PROB_SALARY, ALLOW_AMT, 
+ TECH_AMT, BIRTH_DT, PLACE_BIRTH_DT, SEX, ADDR, 
+ PER_ADDR, TEL, PER_CONTACT, NATION_CODE, JOIN_DT, 
+ EDU_CODE, LEFT_DT, CITY_CODE, PERSON_ID, ISSUE_DT, 
+ PLACE_PER_ID, MARRIED, CHILDREN_CNT, SOCIAL_NO, SOCIAL_DT, 
+ SOCIAL_FLAG, HEALTH_NO, HEALTH_DT, HEALTH_PLACE, HEALTH_FLAG, 
+ LAST_SAL, FORMAL_FLAG, CANTACT_DT, COM_CODE, PHOTO_PK, 
+ REMARK, DEL_IF, CRT_DT, CRT_BY, MOD_DT, 
+ MOD_BY, STATUS, GRADE, ETHNIC_CD, RELIG_CD, 
+ HEALTH_DT_TO, SOCIAL_DT_TO, FACT_CD, SOCIAL_PLACE, UNION_FLAG, 
+ DEPTCHIEF_YN, CONTRACT_NO, BEGIN_PROB, END_PROB, BEGIN_CONTRACT, 
+ END_CONTRACT, RESIGN_TYPE, RETURN_HEALTH_TICKET, PERIOD_CONTRACT, BANK_ACCOUNT, 
+ SEVERANCE_FLAG, SEVERANCE_AMT, ANNUAL_STOP, PAY_TYPE, CAL_DT, 
+ ANNUAL_LEAVE_DAYS, EMP_ID_STYLE, HARD_WORK_AMT, OTHER_AMT, CAN_NOT_SCAN, 
+ ALE_USED)
+AS 
+SELECT A.PK, A.EMP_ID, A.CARD_ID, A.FULL_NM AS FULL_NAME, A.FULL_LNM AS FULL_NAME_ENG, A.F_NAME, A.L_NAME
+	   ,B.TCO_EODEPT_PK AS DEPT_PK, B.THR_ABWORKGROUP_PK AS GRP_CODE, B.JOB_CODE, B.POS_CODE, B.SAL_ALLOW, B.BASIC_SAL,B.PROB_SALARY AS PROB_SALARY, B.ALLOW_AMT
+	   ,B.TECH_AMT AS TECH_AMT, A.BIRTH_DATE AS BIRTH_DT, A.PLACE_BIRTH_DATE AS PLACE_BIRTH_DT, A.SEX, A.ADDR
+	   ,A.LIVING_ADDR AS PER_ADDR, A.TEL, A.URGENT_CONTACT AS PER_CONTACT, A.NATION AS NATION_CODE, A.JOIN_DATE AS JOIN_DT
+	   ,A.EDU_TYPE AS EDU_CODE, A.LEFT_DATE AS LEFT_DT, A.CITY_CODE, A.PERSON_ID, A.ISSUE_DATE AS ISSUE_DT
+	   ,A.PLACE_PER_ID, A.MARRIED_YN AS MARRIED, A.CHILDREN_CNT, B.SOCIAL_NO, B.SOCIAL_FDATE AS SOCIAL_DT
+	   ,B.SOCIAL_YN AS SOCIAL_FLAG, B.HEALTH_NO, B.HEALTH_FDATE AS HEALTH_DT, B.HEALTH_PLACE, B.HEALTH_YN AS HEALTH_FLAG
+	   ,B.LAST_SAL, B.FORMAL_YN AS FORMAL_FLAG, B.CONFIRM_DATE AS CANTACT_DT, A.TCO_EOCOMPANY_PK AS COM_CODE
+	   ,A.PHOTO_PK, A.REMARK, A.DEL_IF, A.CRT_DT, A.CRT_BY, A.MOD_DT, A.MOD_BY, A.EMP_STATUS AS STATUS
+	   ,B.THR_BSSALGRADE_PK AS GRADE, A.ETHNIC_TYPE AS ETHNIC_CD, A.RELIG_TYPE AS RELIG_CD
+	   ,B.HEALTH_TDATE AS HEALTH_DT_TO, B.SOCIAL_TDATE AS SOCIAL_DT_TO, B.TCO_EOFACTORY_PK AS FACT_CD
+	   ,B.SOCIAL_PLACE, B.UNION_YN AS UNION_FLAG, B.DEPTCHIEF_YN
+	   ,A.SEQ_CONTRACT AS CONTRACT_NO,A.ST_PROBATION AS BEGIN_PROB
+	   ,A.ET_PROBATION AS END_PROB,A.ST_CONTRACT AS BEGIN_CONTRACT,A.ET_CONTRACT AS END_CONTRACT
+	   ,B.RESIGN_TYPE AS RESIGN_TYPE, B.RETURN_HEALTH_TICKET AS RETURN_HEALTH_TICKET
+	   ,A.PERIOD_CONTRACT AS PERIOD_CONTRACT
+	   ,B.BANK_ACCOUNT AS BANK_ACCOUNT,B.SEVERANCE_FLAG AS SEVERANCE_FLAG,B.SEVERANCE_AMT AS SEVERANCE_AMT
+	   ,B.ANNUAL_STOP AS ANNUAL_STOP,B.PAY_TYPE AS PAY_TYPE,A.CAL_DT AS CAL_DT,A.ANNUAL_LEAVE_DAYS AS ANNUAL_LEAVE_DAYS,A.EMP_ID_STYLE AS EMP_ID_STYLE
+	   ,B.HARD_WORK_AMT AS HARD_WORK_AMT,B.OTHER_AMT AS OTHER_AMT, A.CAN_NOT_SCAN AS CAN_NOT_SCAN, A.ANNUAL_LEAVE_USED AS ALE_USED
+  FROM THR_ABEMP A, THR_ABEMPMAS B
+ WHERE A.DEL_IF = 0
+   AND B.DEL_IF = 0
+   AND A.PK = B.THR_ABEMP_PK
+
+WITH CHECK OPTION;
+
+
+CREATE OR REPLACE FORCE VIEW VHR_EMP_ABSENT_CNT
+(EMP_ID, EMP_PK, YEARMON, MON_CNT)
+AS 
+SELECT E.EMP_ID AS EMP_ID,E.PK AS EMP_PK,SUBSTR(ABS_DT,1,6) AS YEARMON,ROUND(SUM(NVL(ABSENT_TIME,8))/8 ,2) AS Mon_cnt
+		     FROM THR_ABEMP E,THR_EMP_ABSENT F
+			WHERE E.DEL_IF=0
+			   AND F.DEL_IF=0
+			   AND E.PK=F.EMP_PK
+			   AND F.ABS_CODE='ALE'
+ GROUP BY E.EMP_ID,E.PK,SUBSTR(ABS_DT,1,6);
+
+
+
