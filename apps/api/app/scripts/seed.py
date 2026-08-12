@@ -16,6 +16,15 @@ from app.modules.dispute import models as dispute_models  # noqa: F401
 from app.modules.payroll import models as payroll_models  # noqa: F401
 from app.modules.ai import models as ai_models  # noqa: F401
 
+# Import đủ model để create_all tạo HẾT bảng (chấm công, tích hợp, bảo hiểm,
+# nhật ký, export log…). Thiếu các model này → thiếu bảng attendance_punches…
+# khiến Tính lương / Chấm công lỗi 500 UndefinedTable.
+from app.modules.integration import models as integration_models  # noqa: F401
+from app.modules.attendance import models as attendance_models  # noqa: F401
+from app.modules.insurance import models as insurance_models  # noqa: F401
+from app.modules.audit import models as audit_models  # noqa: F401
+from app.modules.core import export_log as export_log_models  # noqa: F401
+
 
 def main() -> None:
     Base.metadata.create_all(bind=engine)
