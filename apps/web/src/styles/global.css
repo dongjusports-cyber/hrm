@@ -1487,6 +1487,8 @@ a {
 .hr-grid .hr-cell-money {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  /* .ag-cell dùng display:flex → cần justify-content để số canh phải thực sự */
+  justify-content: flex-end;
 }
 
 .hr-grid .ag-header-cell.hr-header-money .ag-header-cell-label {
