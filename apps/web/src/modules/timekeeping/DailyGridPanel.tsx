@@ -170,8 +170,6 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         });
       } else if (col === "first_in" || col === "last_out") {
         const row = e.data;
-        const inT = toIsoTime(workDate, hhmm(row.first_in) || String(e.newValue ?? ""));
-        const outT = toIsoTime(workDate, hhmm(row.last_out) || String(e.newValue ?? ""));
         if (col === "first_in" && e.newValue) {
           const fi = toIsoTime(workDate, String(e.newValue));
           const lo = toIsoTime(workDate, hhmm(row.last_out));

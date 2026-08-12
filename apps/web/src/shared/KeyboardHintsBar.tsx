@@ -30,7 +30,7 @@ export function KeyboardHintsBar() {
         "[data-hotkey-search], .hr-toolbar-search, .tk-search input, input[placeholder*='MSNV']",
       );
       el?.focus();
-      el?.select?.();
+      (el as HTMLInputElement | null)?.select?.();
     }
 
     window.addEventListener("keydown", onKey);

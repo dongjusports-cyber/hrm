@@ -156,8 +156,6 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
         <EmployeeCreateFields
           form={form}
           setForm={setForm}
-          tab="work"
-          isNew
           departments={departments}
           teams={teams}
           fieldErrors={fieldErrors}

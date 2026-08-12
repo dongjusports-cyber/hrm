@@ -66,10 +66,10 @@ export function activeTeams<T extends { is_active?: boolean }>(teams: T[]): T[] 
   return teams.filter(isOrgUnitActive);
 }
 
-export function departmentsWithActiveTeams(
-  departments: { id: string; is_active?: boolean }[],
+export function departmentsWithActiveTeams<T extends { id: string; is_active?: boolean }>(
+  departments: T[],
   teams: { department_id: string; is_active?: boolean }[],
-): typeof departments {
+): T[] {
   const activeDeptIds = new Set(
     activeTeams(teams).map((t) => t.department_id),
   );

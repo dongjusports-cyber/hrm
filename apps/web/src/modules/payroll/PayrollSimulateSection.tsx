@@ -16,7 +16,6 @@ import {
   activeTeams,
   departmentsWithActiveTeams,
   formatDepartmentLabel,
-  formatDeptTeam,
   formatTeamLabel,
 } from "../../shared/formatOrg";
 import { formatVnd, NET_DELTA_WARN_THRESHOLD } from "./payrollGridColumns";

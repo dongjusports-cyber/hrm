@@ -124,10 +124,6 @@ function eachDate(from: string, to: string): string[] {
   return out;
 }
 
-function hhmm(iso: string | null | undefined): string {
-  return cellTime(iso);
-}
-
 function fmtNum(v: unknown, digits = 2): string {
   if (v == null || v === "") return "—";
   const n = Number(v);

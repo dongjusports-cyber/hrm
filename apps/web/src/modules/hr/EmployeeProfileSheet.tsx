@@ -96,7 +96,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [emp, setEmp] = useState<Employee | null>(null);
+  const [, setEmp] = useState<Employee | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [newAllowCode, setNewAllowCode] = useState("");
   const [newAllowAmount, setNewAllowAmount] = useState("0");

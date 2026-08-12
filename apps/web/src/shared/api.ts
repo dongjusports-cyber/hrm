@@ -1111,6 +1111,7 @@ export type Department = {
   name: string;
   category: string;
   mitapro_names: string[];
+  is_active?: boolean;
 };
 
 export type Team = {
@@ -2032,6 +2033,8 @@ export type LeaveRequestRow = {
   full_name: string;
   team_code: string | null;
   department_code: string | null;
+  team_name?: string | null;
+  department_name?: string | null;
   leave_type_code: string;
   leave_type_name: string;
   from_date: string;
