@@ -34,6 +34,7 @@ import { TransferTeamModal } from "./TransferTeamModal";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
+import { disabledTitle } from "../../shared/disabledHint";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
