@@ -66,6 +66,7 @@ def run(data_dir: str, *, dry_run: bool = False) -> None:
     db = SessionLocal()
     try:
         seed_allowance_types(db)
+        db.commit()
         type_by_code = {t.code: t for t in db.query(PayComponent).all()}
         created_cnt = [0]
         updated_cnt = [0]
@@ -98,7 +99,8 @@ def run(data_dir: str, *, dry_run: bool = False) -> None:
                     )
                 )
                 created_cnt[0] += 1
-            else:
+                return
+            if row.amount != amt:
                 row.amount = amt
                 updated_cnt[0] += 1
 

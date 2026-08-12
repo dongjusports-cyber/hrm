@@ -11,6 +11,8 @@ from app.modules.core.models import User
 from app.modules.payroll import adjustments as adj_mod
 from app.modules.payroll import employee_bonuses as bonus_mod
 from app.modules.payroll import export_pay, import_allowances, publisher, service, simulate
+from app.modules.payroll.ot_external import build_ot_external_summary
+from app.modules.payroll.ot_external_schemas import OtExternalPayRowOut, OtExternalSummaryOut
 from app.modules.payroll.adjustments import AdjustmentCreate, AdjustmentOut
 from app.modules.payroll.import_allowances import (
     AllowanceAssignmentOut,
@@ -116,9 +118,63 @@ def export_payroll(
     user: PayrollUser,
     db: DbSession,
     channel: Annotated[str, Query(description="ATM | CASH | ALL")] = "ALL",
+    department_id: Annotated[
+        UUID | None, Query(description="Lọc theo bộ phận (vd Main Office)")
+    ] = None,
+    employee_code: Annotated[
+        str | None, Query(description="Lọc 1 MSNV — chỉ xuất phiếu lương nhân viên đó")
+    ] = None,
 ) -> Response:
-    """Xuất Excel chi trả theo kênh ATM/CASH — ghi audit log."""
-    data, filename = export_pay.export_payroll_channel(db, user, period, channel)
+    """Xuất bảng lương Excel theo mẫu GenusSuite — ghi audit log."""
+    data, filename = export_pay.export_payroll_channel(
+        db,
+        user,
+        period,
+        channel,
+        department_id=department_id,
+        employee_code=employee_code,
+    )
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/periods/{period}/ot-external-preview", response_model=OtExternalSummaryOut)
+def ot_external_preview(period: str, _user: PayrollUser, db: DbSession) -> OtExternalSummaryOut:
+    """Xem trước OT ngoài + tiền (22§22.8) — không ghi payslip chính."""
+    summary = build_ot_external_summary(db, period)
+    return OtExternalSummaryOut(
+        period=summary.period,
+        employee_count=summary.employee_count,
+        total_raw_hours=summary.total_raw_hours,
+        total_effective_hours=summary.total_effective_hours,
+        total_amount_vnd=summary.total_amount_vnd,
+        policy_note=summary.policy_note,
+        rows=[
+            OtExternalPayRowOut(
+                employee_code=r.employee_code,
+                full_name=r.full_name,
+                bank_account=r.bank_account,
+                raw_hours=r.raw_hours,
+                effective_hours=r.effective_hours,
+                ot_base=r.ot_base,
+                hourly_base=r.hourly_base,
+                rate=r.rate,
+                amount_vnd=r.amount_vnd,
+            )
+            for r in summary.rows
+        ],
+    )
+
+
+@router.get("/periods/{period}/export-ot-external")
+def export_ot_external_payroll(period: str, user: PayrollUser, db: DbSession) -> Response:
+    """Excel OT ngoài có tiền — chi ATM riêng, tách audit lương chính."""
+    from app.modules.payroll.ot_external import export_ot_external
+
+    data, filename = export_ot_external(db, period, user)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

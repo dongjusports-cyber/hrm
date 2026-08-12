@@ -8,7 +8,7 @@ import {
   type InsuranceRow,
   type InsuranceSummary,
 } from "../../shared/api";
-import { FamilyDependentsPage } from "../hr/FamilyDependentsPage";
+import { currentPayPeriod } from "../../shared/formatDate";
 import { InsuranceDeclarationsSection } from "./InsuranceDeclarationsSection";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -35,7 +35,7 @@ function parseTab(raw: string | null): InsuranceTab {
 export function InsurancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
-  const [period, setPeriod] = useState("2025-10");
+  const [period, setPeriod] = useState(currentPayPeriod);
   const [summary, setSummary] = useState<InsuranceSummary | null>(null);
   const [rows, setRows] = useState<InsuranceRow[]>([]);
   const [error, setError] = useState<string | null>(null);

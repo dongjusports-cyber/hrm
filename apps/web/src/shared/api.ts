@@ -102,7 +102,13 @@ export type AssignableModule = {
 
 async function readError(res: Response): Promise<string> {
   const data = await res.json().catch(() => ({}));
-  return (data as { detail?: string }).detail ?? "Trợ Lý AI: thao tác thất bại.";
+  const detail = (data as { detail?: unknown }).detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length > 0) {
+    const first = detail[0] as { msg?: string };
+    if (first?.msg) return first.msg;
+  }
+  return "Trợ Lý AI: thao tác thất bại.";
 }
 
 export type ConfigPortalTab = {
@@ -1280,6 +1286,68 @@ export async function createEmployee(body: Record<string, unknown>): Promise<Emp
   return res.json();
 }
 
+export type ValidationIssue = {
+  field: string;
+  code: string;
+  level: "error" | "warn" | "info";
+  message: string;
+  meta?: Record<string, unknown> | null;
+};
+
+export type EmployeeValidateResult = {
+  ok: boolean;
+  issues: ValidationIssue[];
+  error_count: number;
+  warn_count: number;
+  suggested_code?: string | null;
+};
+
+export async function suggestEmployeeCode(): Promise<string> {
+  const res = await apiFetch("/api/employees/suggest-code");
+  if (!res.ok) throw new Error(await readError(res));
+  const body = (await res.json()) as { suggested_code: string };
+  return body.suggested_code;
+}
+
+export async function validateEmployee(body: {
+  is_new: boolean;
+  employee_id?: string;
+  payload: Record<string, unknown>;
+}): Promise<EmployeeValidateResult> {
+  const res = await apiFetch("/api/employees/validate", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export type EmployeeRehireResult = {
+  employee: Employee;
+  rehire_mode: string;
+  message: string;
+};
+
+export async function rehireEmployee(
+  employeeId: string,
+  body: {
+    rehire_date: string;
+    rehire_mode: "fresh_start" | "continuity";
+    rehire_reason?: string;
+    team_id: string;
+    status: "active" | "probation";
+    contract_salary?: string;
+    probation_salary?: string;
+  },
+): Promise<EmployeeRehireResult> {
+  const res = await apiFetch(`/api/employees/${employeeId}/rehire`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export async function updateEmployee(id: string, body: Record<string, unknown>): Promise<Employee> {
   const res = await apiFetch(`/api/employees/${id}`, {
     method: "PUT",
@@ -1817,6 +1885,7 @@ export type TimesheetMonth = {
   late_count: number;
   early_count: number;
   ot_hours_weekday: string | number;
+  ot_hours_external?: string | number;
   ot_hours_weekend: string | number;
   ot_hours_holiday: string | number;
 };
@@ -1862,6 +1931,8 @@ export type AttendanceDay = {
   late_minutes: number;
   early_minutes: number;
   ot_minutes: number;
+  ot_on_books_minutes?: number;
+  ot_external_minutes?: number;
   ot_type?: string | null;
   punch_count: number;
   is_workday?: boolean;
@@ -1904,6 +1975,45 @@ export async function rebuildTimesheets(period: string): Promise<{
   const res = await apiFetch(
     `/api/attendance/timesheets/rebuild?period=${encodeURIComponent(period)}`,
     { method: "POST" },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+/** Xuất Excel OT ngoài (ATM riêng) — tách khỏi bảng lương audit. */
+export async function exportOtExternalExcel(period: string): Promise<Blob> {
+  const res = await apiFetch(
+    `/api/attendance/timesheets/${encodeURIComponent(period)}/export-ot-external`,
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  return res.blob();
+}
+
+export type OtExternalPreviewRow = {
+  employee_code: string;
+  full_name: string;
+  bank_account: string;
+  raw_hours: number | string;
+  effective_hours: number | string;
+  ot_base: number | string;
+  hourly_base: number | string;
+  rate: number | string;
+  amount_vnd: number | string;
+};
+
+export type OtExternalPreview = {
+  period: string;
+  employee_count: number;
+  total_raw_hours: number | string;
+  total_effective_hours: number | string;
+  total_amount_vnd: number | string;
+  policy_note: string;
+  rows: OtExternalPreviewRow[];
+};
+
+export async function fetchOtExternalPreview(period: string): Promise<OtExternalPreview> {
+  const res = await apiFetch(
+    `/api/attendance/timesheets/${encodeURIComponent(period)}/ot-external-preview`,
   );
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
@@ -2503,16 +2613,22 @@ export async function reopenPayroll(period: string): Promise<PeriodActionResult>
 export async function downloadPayrollExport(
   period: string,
   channel: "ATM" | "CASH" | "ALL" = "ALL",
+  filters: { departmentId?: string; employeeCode?: string } = {},
 ): Promise<void> {
+  const qs = new URLSearchParams({ channel });
+  if (filters.departmentId) qs.set("department_id", filters.departmentId);
+  if (filters.employeeCode) qs.set("employee_code", filters.employeeCode);
   const res = await apiFetch(
-    `/api/payroll/periods/${encodeURIComponent(period)}/export?channel=${channel}`,
+    `/api/payroll/periods/${encodeURIComponent(period)}/export?${qs.toString()}`,
   );
   if (!res.ok) throw new Error(await readError(res));
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `luong_${period}_${channel.toLowerCase()}.xlsx`;
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+)"?/.exec(cd);
+  a.download = match ? match[1] : `luong_${period}_${channel.toLowerCase()}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

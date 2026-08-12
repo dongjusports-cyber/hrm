@@ -48,6 +48,8 @@ def apply_calc_to_day_row(
     row.late_minutes = calc.late_minutes
     row.early_minutes = calc.early_minutes
     row.ot_minutes = calc.ot_minutes
+    row.ot_on_books_minutes = calc.ot_on_books_minutes
+    row.ot_external_minutes = calc.ot_external_minutes
     row.ot_type = calc.ot_type
     row.punch_count = calc.punch_count
     row.is_workday = calc.is_workday

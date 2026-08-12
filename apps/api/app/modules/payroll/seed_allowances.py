@@ -67,7 +67,7 @@ CATALOG: list[dict] = [
     {
         "code": "TOXIC",
         "name": "Độc hại",
-        "proration": "fixed",
+        "proration": "by_worked_days",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("100000"),
@@ -75,12 +75,12 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "none",
+        "proration_rule": "by_worked_days",
     },
     {
         "code": "POSITION",
         "name": "Chức vụ",
-        "proration": "fixed",
+        "proration": "by_worked_days",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("0"),
@@ -88,12 +88,12 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "none",
+        "proration_rule": "by_worked_days",
     },
     {
         "code": "PCCC",
         "name": "PCCC+HSE",
-        "proration": "fixed",
+        "proration": "by_worked_days",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("0"),
@@ -101,12 +101,12 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "none",
+        "proration_rule": "by_worked_days",
     },
     {
         "code": "TECH",
         "name": "Tay nghề may",
-        "proration": "fixed",
+        "proration": "by_worked_days",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("0"),
@@ -114,7 +114,7 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "none",
+        "proration_rule": "by_worked_days",
     },
     {
         "code": "SENIORITY",
@@ -133,7 +133,7 @@ CATALOG: list[dict] = [
     {
         "code": "OTHER",
         "name": "Khác",
-        "proration": "fixed",
+        "proration": "by_worked_days",
         "include_in_si_base": False,
         "include_in_ot_base": False,
         "default_amount": Decimal("0"),
@@ -141,7 +141,7 @@ CATALOG: list[dict] = [
         "affects_si_base": False,
         "affects_ot_base": False,
         "affects_pit": True,
-        "proration_rule": "none",
+        "proration_rule": "by_worked_days",
     },
     {
         "code": "CHILD",
@@ -470,7 +470,7 @@ def _assign(db: Session, emp: Employee, code: str, amount: Decimal | None) -> No
 
 
 def seed_fixture_allowance_assignments(db: Session) -> None:
-    """Gán TOXIC cho công nhân xưởng (direct) — fixture regression."""
+    """Gán TOXIC cho công nhân xưởng (direct) — **chỉ** fixture test (conftest), không gọi khi tính lương."""
     seed_allowance_types(db)
     toxic = db.query(PayComponent).filter(PayComponent.code == "TOXIC").one()
     emps = db.query(Employee).filter(Employee.deleted_at.is_(None)).all()

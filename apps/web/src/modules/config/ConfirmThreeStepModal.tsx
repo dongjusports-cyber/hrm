@@ -1,3 +1,5 @@
+import { useEscLayer } from "../../shared/useEscLayer";
+
 type Props = {
   open: boolean;
   step: number;
@@ -18,6 +20,8 @@ export function ConfirmThreeStepModal({
   onCancel,
   onConfirm,
 }: Props) {
+  useEscLayer(open && !busy, onCancel);
+
   if (!open) return null;
 
   const titles = ["", "Xác nhận lần 1/3", "Xác nhận lần 2/3", "Đang lưu (bước 3/3)"];

@@ -67,9 +67,9 @@ export const emptyEmployeeForm: EmployeeFormState = {
   department_code: "",
   team_id: "",
   position_title: "",
-  contract_salary: "0",
-  probation_salary: "0",
-  pay_channel: "ATM",
+  contract_salary: "",
+  probation_salary: "",
+  pay_channel: "CASH",
   status: "active",
   join_date: "",
   resign_date: "",
@@ -98,6 +98,50 @@ export const emptyEmployeeForm: EmployeeFormState = {
   tax_dependent_count: "0",
   union_fee_override: "",
 };
+
+/** Chỉ giữ chữ số khi đang gõ — không chèn dấu phẩy (tránh nhảy số / mất con trỏ). */
+export function sanitizeMoneyInput(raw: string): string {
+  return raw.replace(/[^\d]/g, "");
+}
+
+/** Số tiền hiển thị — dấu phẩy mỗi 3 chữ số (dùng khi blur hoặc đọc). */
+export function formatMoneyTyping(raw: string): string {
+  const digits = sanitizeMoneyInput(raw);
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/** Chuỗi số thuần (VND, không lẻ) gửi API / lưu DB. */
+export function digitsOnlyMoney(raw: string): string {
+  const cleaned = raw.replace(/,/g, "").replace(/\s/g, "").trim();
+  if (!cleaned) return "0";
+  // API trả "8335000.00" — không strip mọi non-digit (sẽ thành 833500000).
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return "0";
+  return String(Math.round(n));
+}
+
+/** GenusSuite / legacy → giá trị select UI. */
+export function normalizeGender(raw?: string | null): string {
+  if (!raw) return "";
+  const s = raw.trim().toLowerCase();
+  if (s === "f" || s === "female" || s === "nữ" || s === "nu") return "female";
+  if (s === "m" || s === "male" || s === "nam") return "male";
+  return raw;
+}
+
+/** Mã cũ (UNIV…) → lookup EDUCATION_LEVEL*. */
+export function normalizeEducationCode(raw?: string | null): string {
+  if (!raw) return "";
+  const u = raw.trim().toUpperCase();
+  const legacy: Record<string, string> = {
+    UNIV: "EDUCATION_LEVEL008",
+    UNIVERSITY: "EDUCATION_LEVEL008",
+    COLLEGE: "EDUCATION_LEVEL007",
+    HIGH_SCHOOL: "EDUCATION_LEVEL004",
+  };
+  return legacy[u] ?? raw;
+}
 
 export function parseEmpTab(raw: string | null, isNew: boolean): EmpTab {
   if (isNew) return "work";
@@ -159,14 +203,14 @@ export function employeeToForm(e: {
     department_code: e.department_code ?? "",
     team_id: e.team_id ?? "",
     position_title: e.position_title ?? "",
-    contract_salary: String(e.contract_salary ?? "0"),
-    probation_salary: String(e.probation_salary ?? "0"),
+    contract_salary: formatMoneyTyping(digitsOnlyMoney(String(e.contract_salary ?? "0"))),
+    probation_salary: formatMoneyTyping(digitsOnlyMoney(String(e.probation_salary ?? "0"))),
     pay_channel: e.pay_channel || "ATM",
     status: e.status || "active",
     join_date: toDateInput(e.join_date),
     resign_date: toDateInput(e.resign_date),
     contract_signed_at: toDateInput(e.contract_signed_at),
-    gender: e.gender ?? "",
+    gender: normalizeGender(e.gender),
     birth_date: toDateInput(e.birth_date),
     birth_place_code: e.birth_place_code ?? "",
     nationality_code: e.nationality_code ?? "",
@@ -174,7 +218,7 @@ export function employeeToForm(e: {
     religion_code: e.religion_code ?? "",
     marital_status: e.marital_status ?? "",
     children_count: String(e.children_count ?? 0),
-    education_code: e.education_code ?? "",
+    education_code: normalizeEducationCode(e.education_code),
     id_number: e.id_number ?? "",
     id_issue_date: toDateInput(e.id_issue_date),
     id_issue_place_code: e.id_issue_place_code ?? "",
@@ -184,11 +228,17 @@ export function employeeToForm(e: {
     si_book_no: e.si_book_no ?? "",
     phone: e.phone ?? "",
     bank_account: e.bank_account ?? "",
-    si_base_override: e.si_base_override != null ? String(e.si_base_override) : "",
+    si_base_override:
+      e.si_base_override != null
+        ? formatMoneyTyping(digitsOnlyMoney(String(e.si_base_override)))
+        : "",
     si_enrolled: e.si_enrolled !== false,
     pit_enrolled: e.pit_enrolled !== false,
     tax_dependent_count: String(e.tax_dependent_count ?? 0),
-    union_fee_override: e.union_fee_override != null ? String(e.union_fee_override) : "",
+    union_fee_override:
+      e.union_fee_override != null
+        ? formatMoneyTyping(digitsOnlyMoney(String(e.union_fee_override)))
+        : "",
   };
 }
 
@@ -197,16 +247,14 @@ export function formToPayload(form: EmployeeFormState, isNew: boolean) {
     full_name: form.full_name,
     team_id: form.team_id || undefined,
     position_title: form.position_title || undefined,
-    contract_salary: form.contract_salary,
-    probation_salary: form.probation_salary,
+    contract_salary: digitsOnlyMoney(form.contract_salary) || "0",
+    probation_salary: digitsOnlyMoney(form.probation_salary) || "0",
     pay_channel: form.pay_channel,
     status: form.status,
     join_date: form.join_date || null,
   };
-  if (isNew) return base;
-  return {
+  const extended = {
     ...base,
-    resign_date: form.resign_date || null,
     contract_signed_at: form.contract_signed_at || null,
     gender: form.gender || null,
     birth_date: form.birth_date || null,
@@ -226,10 +274,19 @@ export function formToPayload(form: EmployeeFormState, isNew: boolean) {
     si_book_no: form.si_book_no || null,
     phone: form.phone || null,
     bank_account: form.bank_account || null,
-    si_base_override: form.si_base_override.trim() ? form.si_base_override : null,
     si_enrolled: form.si_enrolled,
     pit_enrolled: form.pit_enrolled,
+  };
+  if (isNew) return extended;
+  return {
+    ...extended,
+    resign_date: form.resign_date || null,
+    si_base_override: form.si_base_override.trim()
+      ? digitsOnlyMoney(form.si_base_override)
+      : null,
     // tax_dependent_count — tính từ thân nhân, không gửi khi lưu (5.3)
-    union_fee_override: form.union_fee_override.trim() ? form.union_fee_override : null,
+    union_fee_override: form.union_fee_override.trim()
+      ? digitsOnlyMoney(form.union_fee_override)
+      : null,
   };
 }

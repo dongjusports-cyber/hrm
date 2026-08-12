@@ -251,19 +251,20 @@ def rebuild_timesheets(
         late_c = 0
         early_c = 0
         ot_w = ZERO
+        ot_ext = ZERO
         ot_we = ZERO
         ot_h = ZERO
         for d in day_rows:
-            if d.is_workday and d.punch_count > 0:
+            if d.is_workday and Decimal(d.worked_hours or 0) > 0:
                 worked += Decimal("1")
-            if d.ot_minutes > 0:
-                h = _hours(d.ot_minutes)
-                if d.ot_type == "weekend":
-                    ot_we += h
-                elif d.ot_type == "holiday":
-                    ot_h += h
-                else:
-                    ot_w += h
+            if d.ot_on_books_minutes > 0:
+                ot_w += _hours(d.ot_on_books_minutes)
+            if d.ot_external_minutes > 0:
+                ot_ext += _hours(d.ot_external_minutes)
+            elif d.ot_minutes > 0 and d.ot_type == "weekend":
+                ot_we += _hours(d.ot_minutes)
+            elif d.ot_minutes > 0 and d.ot_type == "holiday":
+                ot_h += _hours(d.ot_minutes)
 
         penalty_sum = summarize_attendance_penalties(
             _day_penalty_views(day_rows),
@@ -306,6 +307,7 @@ def rebuild_timesheets(
         row.late_count = late_c
         row.early_count = early_c
         row.ot_hours_weekday = ot_w.quantize(Q2)
+        row.ot_hours_external = ot_ext.quantize(Q2)
         row.ot_hours_weekend = ot_we.quantize(Q2)
         row.ot_hours_holiday = ot_h.quantize(Q2)
         db.flush()
@@ -347,6 +349,7 @@ def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
                 late_count=ts.late_count,
                 early_count=ts.early_count,
                 ot_hours_weekday=ts.ot_hours_weekday,
+                ot_hours_external=ts.ot_hours_external,
                 ot_hours_weekend=ts.ot_hours_weekend,
                 ot_hours_holiday=ts.ot_hours_holiday,
             )

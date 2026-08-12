@@ -16,6 +16,7 @@ from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_wor
 from app.modules.attendance.engine import VN_TZ, calculate_day, is_company_workday, to_vn
 from app.modules.attendance.models import AttendanceDay, PayPeriod
 from app.modules.attendance.schemas import AttendanceDayOut
+from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
 from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, parse_period, rebuild_timesheets
 from app.modules.audit.service import write_audit
@@ -152,7 +153,10 @@ def build_review(db: Session, period: str) -> ReviewSummary:
                         work_date=wd,
                         day_id=row.id,
                         punch_count=1,
-                        message=f"Chỉ 1 punch ngày {wd.isoformat()} — thiếu vào hoặc ra.",
+                        message=(
+                            f"Chấm lẻ ngày {wd.isoformat()} — "
+                            f"{'chỉ có giờ vào' if row.first_in and not row.last_out else 'chỉ có giờ ra' if row.last_out and not row.first_in else 'thiếu vào hoặc ra'}."
+                        ),
                     )
                 )
 
@@ -230,7 +234,7 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
 
     schedule = _load_schedule(db)
     punches = [to_vn(body.first_in), to_vn(body.last_out)]
-    calc = calculate_day(punches, body.work_date, schedule)
+    calc = calculate_day(punches, body.work_date, schedule, ot_split=load_ot_split_policy(db))
     shift_id = resolve_work_shift_id(db, emp, body.work_date)
     apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
     row.source = "manual"
@@ -275,6 +279,8 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
         late_minutes=row.late_minutes,
         early_minutes=row.early_minutes,
         ot_minutes=row.ot_minutes,
+        ot_on_books_minutes=row.ot_on_books_minutes,
+        ot_external_minutes=row.ot_external_minutes,
         ot_type=row.ot_type,
         punch_count=row.punch_count,
         is_workday=row.is_workday,

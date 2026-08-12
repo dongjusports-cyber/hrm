@@ -8,6 +8,7 @@ import {
 } from "../../shared/api";
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
 import { formatTeamLabel } from "../../shared/formatOrg";
+import { useEscLayer } from "../../shared/useEscLayer";
 
 function todayIso(): string {
   const d = new Date();
@@ -35,6 +36,8 @@ export function TransferTeamModal({
   const [preview, setPreview] = useState<TransferTeamPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEscLayer(true, onClose);
 
   function body() {
     return {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams } from "ag-grid-community";
+import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams, RowDoubleClickedEvent } from "ag-grid-community";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
@@ -32,6 +32,7 @@ import {
 } from "../../shared/agGridColumnPrefs";
 import { TransferTeamModal } from "./TransferTeamModal";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
+import { RehireSheet } from "./RehireSheet";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -135,6 +136,7 @@ export function EmployeesPage() {
   const [exporting, setExporting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Employee[]>([]);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [rehireEmp, setRehireEmp] = useState<Employee | null>(null);
   const [profileEmpId, setProfileEmpId] = useState<string | null>(null);
 
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -252,6 +254,30 @@ export function EmployeesPage() {
   const columnDefs = useMemo<ColDef<Employee>[]>(() => {
     const base: ColDef<Employee>[] = [
       {
+        colId: "view",
+        headerName: "",
+        width: 68,
+        sortable: false,
+        filter: false,
+        pinned: "left",
+        cellRenderer: (p: ICellRendererParams<Employee>) => {
+          const emp = p.data;
+          if (!emp) return null;
+          return (
+            <button
+              type="button"
+              className="tk-row-view-btn"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                openProfile(emp);
+              }}
+            >
+              Xem
+            </button>
+          );
+        },
+      },
+      {
         field: "employee_code",
         headerName: "MSNV",
         width: 106,
@@ -259,6 +285,7 @@ export function EmployeesPage() {
         pinned: "left",
         checkboxSelection: true,
         headerCheckboxSelection: true,
+        cellClass: "hr-cell-open-profile",
       },
       {
         field: "full_name",
@@ -304,6 +331,7 @@ export function EmployeesPage() {
           headerName: "Lương Tổng",
           width: 200,
           filter: false,
+          cellClass: "hr-cell-money",
           valueFormatter: (p) => formatVnd(p.value),
         },
         {
@@ -314,6 +342,32 @@ export function EmployeesPage() {
           valueFormatter: (p) => formatDateDDMMYYYY(p.value),
         },
       );
+    }
+
+    if (statusFilter === "resigned") {
+      base.push({
+        colId: "rehire",
+        headerName: "Tái tuyển",
+        width: 120,
+        sortable: false,
+        filter: false,
+        cellRenderer: (p: ICellRendererParams<Employee>) => {
+          const emp = p.data;
+          if (!emp) return null;
+          return (
+            <button
+              type="button"
+              className="btn-secondary btn-compact"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                setRehireEmp(emp);
+              }}
+            >
+              Tái tuyển
+            </button>
+          );
+        },
+      });
     }
 
     base.push(
@@ -354,17 +408,26 @@ export function EmployeesPage() {
 
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busyId, viewMode, departmentId, teamId]);
+  }, [busyId, viewMode, departmentId, teamId, statusFilter]);
 
   useEffect(() => {
     const api = gridApiRef.current;
     if (api) applySavedColumns(api);
   }, [viewMode, columnDefs, applySavedColumns]);
 
+  function openProfile(emp: Employee) {
+    if (emp.id) setProfileEmpId(emp.id);
+  }
+
   function onCellClicked(e: CellClickedEvent<Employee>) {
-    if (e.column.getColId() === "full_name" && e.data?.id) {
-      setProfileEmpId(e.data.id);
+    const colId = e.column.getColId();
+    if ((colId === "full_name" || colId === "employee_code") && e.data?.id) {
+      openProfile(e.data);
     }
+  }
+
+  function onRowDoubleClicked(e: RowDoubleClickedEvent<Employee>) {
+    if (e.data?.id) openProfile(e.data);
   }
 
   async function onImport(file: File | null) {
@@ -417,14 +480,13 @@ export function EmployeesPage() {
   return (
     <div className="hr-page">
       <div className="users-head hr-list-head">
-        <div>
+        <div className="hr-list-title-row">
           <h1>{meta.title}</h1>
-          <p className="field-hint">
-            {meta.hint} · {rows.length} người ·{" "}
-            <Link to="/m/hr">← Về Nhân Sự</Link>
+          <span className="field-hint">
+            {rows.length} NV · <Link to="/m/hr">← Nhân Sự</Link>
             {" · "}
-            <Link to="/admin/qr-code">Mã QR công nhân</Link>
-          </p>
+            <Link to="/admin/qr-code">QR công nhân</Link>
+          </span>
         </div>
       </div>
 
@@ -552,6 +614,7 @@ export function EmployeesPage() {
           suppressRowClickSelection
           overlayNoRowsTemplate="<span>Không có nhân viên trong mục này</span>"
           onCellClicked={onCellClicked}
+          onRowDoubleClicked={onRowDoubleClicked}
           onSelectionChanged={(e) => setSelectedRows(e.api.getSelectedRows())}
           onGridReady={(e: GridReadyEvent<Employee>) => {
             gridApiRef.current = e.api;
@@ -580,6 +643,19 @@ export function EmployeesPage() {
           onDone={(msg) => {
             setShowTransferModal(false);
             setSelectedRows([]);
+            setOk(msg);
+            void reload();
+          }}
+        />
+      )}
+
+      {rehireEmp && (
+        <RehireSheet
+          employee={rehireEmp}
+          teams={activeTeamList}
+          onClose={() => setRehireEmp(null)}
+          onDone={(msg) => {
+            setRehireEmp(null);
             setOk(msg);
             void reload();
           }}

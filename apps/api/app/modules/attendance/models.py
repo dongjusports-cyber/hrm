@@ -41,6 +41,8 @@ class AttendanceDay(Base):
     late_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     early_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     ot_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ot_on_books_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ot_external_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     ot_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # weekday | weekend | holiday | none
     punch_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -122,6 +124,7 @@ class TimesheetMonth(Base):
     late_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     early_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     ot_hours_weekday: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
+    ot_hours_external: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
     ot_hours_weekend: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
     ot_hours_holiday: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

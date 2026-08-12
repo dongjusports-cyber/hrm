@@ -48,14 +48,14 @@ def test_ot_5290_neo_still_holds():
     assert r.si_contribution_base == Decimal("6325000")
 
 
-def test_ot_hours_floor_30_minutes():
+def test_ot_hours_per_minute():
     policy = default_payload()
     assert quantize_ot_hours(Decimal("2.5"), policy) == Decimal("2.50")
-    assert quantize_ot_hours(Decimal("2.4"), policy) == Decimal("2.00")
-    assert quantize_ot_hours(Decimal("0.25"), policy) == Decimal("0")
+    assert quantize_ot_hours(Decimal("2.4"), policy) == Decimal("2.40")
+    assert quantize_ot_hours(Decimal("0.25"), policy) == Decimal("0.25")
 
 
-def test_ot_weekday_below_30_minutes_zero_pay():
+def test_ot_weekday_15_minutes_has_pay():
     lines = [AllowanceLine("TOXIC", "Độc hại", Decimal("100000"), Decimal("100000"), True, True)]
     r = compute_ot_pay(
         OtInput(
@@ -67,7 +67,7 @@ def test_ot_weekday_below_30_minutes_zero_pay():
             policy=default_payload(),
         )
     )
-    assert r.ot_pay == 0
+    assert r.ot_pay > 0
 
 
 def test_ot_holiday_over_8_tiered():

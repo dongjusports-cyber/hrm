@@ -37,11 +37,16 @@ from app.modules.mdm.schemas import (
     EmployeeFamilyMemberOut,
     EmployeeFamilyMemberUpdate,
     EmployeeOut,
+    EmployeeRehireOut,
+    EmployeeRehireRequest,
     EmployeeResignationCreate,
     EmployeeResignationOut,
     EmployeeResignationUpdate,
     EmployeeSalaryHistoryOut,
+    EmployeeSuggestCodeOut,
     EmployeeUpdate,
+    EmployeeValidateRequest,
+    EmployeeValidateResult,
     EmployeeViolationBoardItem,
     EmployeeViolationCreate,
     EmployeeViolationOut,
@@ -156,6 +161,24 @@ def export_employees(
     )
 
 
+@router.get("/employees/suggest-code", response_model=EmployeeSuggestCodeOut)
+def get_suggest_employee_code(_user: HrUser, db: DbSession) -> EmployeeSuggestCodeOut:
+    return EmployeeSuggestCodeOut(suggested_code=service.get_suggested_employee_code(db))
+
+
+@router.post("/employees/validate", response_model=EmployeeValidateResult)
+def post_validate_employee(
+    body: EmployeeValidateRequest, _user: HrUser, db: DbSession
+) -> EmployeeValidateResult:
+    raw = service.validate_employee_form(
+        db,
+        is_new=body.is_new,
+        employee_id=body.employee_id,
+        payload=body.payload,
+    )
+    return EmployeeValidateResult.model_validate(raw)
+
+
 @router.post("/employees", response_model=EmployeeOut, status_code=201)
 def post_employee(body: EmployeeCreate, _user: HrUser, db: DbSession) -> EmployeeOut:
     return service.create_employee(db, body)
@@ -216,6 +239,13 @@ def put_employee(
     emp_id: UUID, body: EmployeeUpdate, _user: HrUser, db: DbSession
 ) -> EmployeeOut:
     return service.update_employee(db, emp_id, body)
+
+
+@router.post("/employees/{emp_id}/rehire", response_model=EmployeeRehireOut)
+def post_rehire_employee(
+    emp_id: UUID, body: EmployeeRehireRequest, _user: HrUser, db: DbSession
+) -> EmployeeRehireOut:
+    return service.rehire_employee(db, emp_id, body)
 
 
 @router.post(

@@ -34,6 +34,42 @@ export function defaultFabPosition(
   };
 }
 
+/** Chrome toolbar + tiêu đề module — FAB không nên đè vùng lưới phía trên. */
+const GRID_TOP_CHROME = 100;
+/** FAB lệch trái quá mức này thường che cột MSNV/Họ tên/BP. */
+const GRID_LEFT_MAX = 420;
+const GRID_LEFT_VIEWPORT_RATIO = 0.45;
+
+/** FAB đè lên vùng lưới staff (trái viewport, dưới toolbar). */
+export function isFabOverGridZone(
+  pos: FabPosition,
+  viewportWidth: number,
+  viewportHeight: number,
+  fabSize = FAB_SIZE,
+): boolean {
+  const gridLeftBound = Math.min(GRID_LEFT_MAX, viewportWidth * GRID_LEFT_VIEWPORT_RATIO);
+  const cx = pos.left + fabSize / 2;
+  const cy = pos.top + fabSize / 2;
+  return (
+    cx < gridLeftBound &&
+    cy > GRID_TOP_CHROME &&
+    cy < viewportHeight - fabSize
+  );
+}
+
+/** Đẩy FAB về góc dưới-phải nếu đang che lưới. */
+export function nudgeFabFromGrid(
+  pos: FabPosition,
+  viewportWidth: number,
+  viewportHeight: number,
+  fabSize = FAB_SIZE,
+): FabPosition {
+  if (!isFabOverGridZone(pos, viewportWidth, viewportHeight, fabSize)) {
+    return clampFabPosition(pos.left, pos.top, viewportWidth, viewportHeight, fabSize);
+  }
+  return defaultFabPosition(viewportWidth, viewportHeight, fabSize);
+}
+
 export function loadFabPosition(viewportWidth?: number, viewportHeight?: number): FabPosition {
   const w = viewportWidth ?? (typeof window !== "undefined" ? window.innerWidth : 1280);
   const h = viewportHeight ?? (typeof window !== "undefined" ? window.innerHeight : 720);
@@ -47,7 +83,7 @@ export function loadFabPosition(viewportWidth?: number, viewportHeight?: number)
     if (typeof parsed.left !== "number" || typeof parsed.top !== "number") {
       return defaultFabPosition(w, h);
     }
-    return clampFabPosition(parsed.left, parsed.top, w, h);
+    return nudgeFabFromGrid({ left: parsed.left, top: parsed.top }, w, h);
   } catch {
     return defaultFabPosition(w, h);
   }
@@ -55,6 +91,14 @@ export function loadFabPosition(viewportWidth?: number, viewportHeight?: number)
 
 export function saveFabPosition(pos: FabPosition): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+}
+
+export function clearFabPosition(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export type PanelBox = { left: number; top: number; width: number; maxHeight: number };

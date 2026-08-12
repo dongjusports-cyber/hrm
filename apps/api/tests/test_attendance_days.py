@@ -36,8 +36,10 @@ def test_push_auto_builds_attendance_day(client):
     body = days.json()
     assert len(body) == 1
     assert body[0]["late_minutes"] == 1
-    assert body[0]["ot_minutes"] == 5
-    assert body[0]["ot_type"] == "weekday"
+    assert body[0]["ot_minutes"] == 0  # 17:05 < 17:15 (grace toilet — Hiến pháp ot_split)
+    assert body[0]["ot_on_books_minutes"] == 0
+    assert body[0]["ot_external_minutes"] == 0
+    assert body[0]["ot_type"] is None
     assert body[0]["punch_count"] == 2
 
 

@@ -75,6 +75,60 @@ def test_push_unknown_msnv_partial(client):
     assert "9999" in res.json()["job"]["message"]
 
 
+def test_push_patrol_guard_200_ignored(client):
+    """MSNV 200* — bảo vệ tuần: không lưu, không cảnh báo partial."""
+    res = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "2005", "punch_time": "2025-10-03T08:00:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-03T08:01:00+07:00"},
+            ]
+        },
+    )
+    assert res.status_code == 200, res.text
+    job = res.json()["job"]
+    assert job["status"] == "success"
+    assert job["records_inserted"] == 1
+    assert "2005" not in job["message"]
+    assert "bảo vệ tuần" in job["message"]
+
+    headers = _hr_headers(client)
+    ul = client.get("/api/integrations/punches/unlinked?limit=20", headers=headers).json()
+    assert "2005" not in {i["employee_code"] for i in ul["items"]}
+
+
+def test_push_naive_punch_time_treated_as_vn(client, db):
+    """Mitapro/Agent thiếu TZ — coi là giờ VN (+07), không UTC."""
+    from app.modules.integration.models import AttendancePunch
+    from app.modules.attendance.engine import to_vn
+
+    res = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-06T08:15:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-06T17:10:00"},
+            ]
+        },
+    )
+    assert res.status_code == 200, res.text
+    row = (
+        db.query(AttendancePunch)
+        .filter(
+            AttendancePunch.employee_code == "5290",
+            AttendancePunch.punch_time >= "2025-10-06",
+        )
+        .order_by(AttendancePunch.punch_time.asc())
+        .first()
+    )
+    assert row is not None
+    assert to_vn(row.punch_time).hour == 8
+    assert to_vn(row.punch_time).minute == 15
+
+
 def test_sync_now_and_status(client):
     headers = _hr_headers(client)
     sync = client.post("/api/attendance/sync-now", headers=headers)

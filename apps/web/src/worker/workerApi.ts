@@ -19,11 +19,21 @@ async function workerFetch(path: string, init: RequestInit = {}): Promise<Respon
 }
 
 export async function workerLogin(employee_code: string, password: string): Promise<WorkerUser> {
-  const res = await fetch(`${getApiBase()}/api/worker/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ employee_code, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${getApiBase()}/api/worker/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employee_code, password }),
+    });
+  } catch {
+    const host =
+      typeof window !== "undefined" ? window.location.hostname : "192.168.x.x";
+    throw new Error(
+      `Không kết nối được máy chủ. Điện thoại phải cùng WiFi với máy HR, mở http://${host}:5173/worker/login ` +
+        `(không dùng localhost). Nếu vẫn lỗi: chạy ops/open-firewall-mobile.ps1 (Admin) trên máy tính.`,
+    );
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { detail?: string }).detail ?? "Đăng nhập thất bại.");
   setWorkerAuth(data as { access_token: string; refresh_token: string; worker: WorkerUser });

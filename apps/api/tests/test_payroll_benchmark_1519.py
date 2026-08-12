@@ -121,3 +121,107 @@ def test_msnv_1519_july_2026_matches_genussuite(client, db):
     assert by_code["ATTEND"] == Decimal("623077")
     assert by_code["TRANSPORT"] == Decimal("830769")
     assert by_code["SENIORITY"] == Decimal("550000")
+
+
+def test_msnv_1519_deleted_toxic_not_reseeded_on_calculate(client, db):
+    """Thêm TOXIC → xóa hồ sơ → tính lương không được tự gán lại (1519, xưởng direct)."""
+    from app.modules.payroll.models import EmployeeAllowanceAssignment, PayComponent
+
+    emp = _ensure_employee_1519(db)
+    dept = db.query(Department).filter(Department.code == "SW1").one()
+    team = db.query(Team).filter(Team.department_id == dept.id, Team.code == "T1").one()
+    emp.team_id = team.id
+    db.commit()
+
+    headers = _hr_headers(client)
+    toxic = db.query(PayComponent).filter(PayComponent.code == "TOXIC").one()
+
+    # Xóa TOXIC fixture (nếu có) — mô phỏng HR đã xóa khỏi hồ sơ
+    for row in (
+        db.query(EmployeeAllowanceAssignment)
+        .filter(
+            EmployeeAllowanceAssignment.employee_id == emp.id,
+            EmployeeAllowanceAssignment.allowance_type_id == toxic.id,
+        )
+        .all()
+    ):
+        db.delete(row)
+    db.commit()
+
+    add = client.post(
+        "/api/payroll/allowances/assignments",
+        headers=headers,
+        json={"employee_code": "1519", "allowance_code": "TOXIC", "amount": "100000"},
+    )
+    assert add.status_code in (200, 201), add.text
+
+    assigns = client.get("/api/payroll/allowances?employee_code=1519", headers=headers).json()
+    toxic_row = next(a for a in assigns if a["allowance_code"] == "TOXIC")
+    del_res = client.delete(
+        f"/api/payroll/allowances/assignments/{toxic_row['id']}",
+        headers=headers,
+    )
+    assert del_res.status_code == 200, del_res.text
+
+    assert (
+        db.query(EmployeeAllowanceAssignment)
+        .filter(
+            EmployeeAllowanceAssignment.employee_id == emp.id,
+            EmployeeAllowanceAssignment.allowance_type_id == toxic.id,
+        )
+        .count()
+        == 0
+    )
+
+    pay = ensure_pay_period(db, "2026-07")
+    rebuild_timesheets(db, "2026-07", recalc_days=False)
+    ts = (
+        db.query(TimesheetMonth)
+        .filter(TimesheetMonth.pay_period_id == pay.id, TimesheetMonth.employee_id == emp.id)
+        .one()
+    )
+    ts.worked_days = Decimal("26")
+    ts.al_days = Decimal("1")
+    ts.ot_hours_weekday = Decimal("0")
+    db.commit()
+
+    from app.modules.payroll import service as payroll_service
+
+    original = payroll_service.rebuild_timesheets
+
+    def _rebuild_noop(db_sess, period, *, recalc_days=True):
+        ensure_pay_period(db_sess, period)
+        return type(
+            "R",
+            (),
+            {
+                "rows_upserted": 1,
+                "message": "noop",
+                "period": period,
+                "pay_period_id": pay.id,
+            },
+        )()
+
+    payroll_service.rebuild_timesheets = _rebuild_noop
+    try:
+        calc = client.post(
+            "/api/payroll/periods/2026-07/calculate",
+            headers=headers,
+        )
+    finally:
+        payroll_service.rebuild_timesheets = original
+
+    assert calc.status_code == 200, calc.text
+    row = next(p for p in calc.json()["payslips"] if p["employee_code"] == "1519")
+    by_code = {ln["code"]: Decimal(str(ln["amount"])) for ln in row["lines"]["allowances"]["items"]}
+    assert "TOXIC" not in by_code
+
+    assert (
+        db.query(EmployeeAllowanceAssignment)
+        .filter(
+            EmployeeAllowanceAssignment.employee_id == emp.id,
+            EmployeeAllowanceAssignment.allowance_type_id == toxic.id,
+        )
+        .count()
+        == 0
+    )

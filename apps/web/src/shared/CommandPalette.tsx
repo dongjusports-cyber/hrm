@@ -7,6 +7,7 @@ import {
   togglePinned,
   type PinnedScreen,
 } from "./pinnedScreens";
+import { useEscLayer } from "./useEscLayer";
 
 type CommandItem = {
   id: string;
@@ -39,13 +40,14 @@ export function CommandPalette() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [pinned, setPinned] = useState<PinnedScreen[]>(() => getPinnedScreens());
 
+  useEscLayer(open, () => setOpen(false));
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setOpen((v) => !v);
       }
-      if (e.key === "Escape") setOpen(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

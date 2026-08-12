@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   createEmployeeDocument,
@@ -32,7 +32,7 @@ import {
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { labelEmpStatus } from "../../shared/viLabels";
-import { emptyEmployeeForm, employeeToForm, formToPayload } from "./employeeFormState";
+import { digitsOnlyMoney, emptyEmployeeForm, employeeToForm, formToPayload, type EmployeeFormState } from "./employeeFormState";
 import { EmployeeExperiencePanel } from "./EmployeeExperiencePanel";
 import { EmployeeProfileCompactFields } from "./EmployeeProfileFields";
 
@@ -76,7 +76,15 @@ type Props = {
   onUpdated?: () => void;
 };
 
-/** Overlay full màn — hồ sơ gọn + 3 tab phụ (KN / vi phạm / giấy tờ). */
+type UndoSnapshot = {
+  form: EmployeeFormState;
+  allowances: AllowanceAssignment[];
+};
+
+const UNDO_MAX = 25;
+const UNDO_DEBOUNCE_MS = 450;
+
+/** Overlay full màn — hồ sơ một trang, không cuộn tab chính. */
 export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: Props) {
   const [extraTab, setExtraTab] = useState<ExtraTab | null>(null);
   const [form, setForm] = useState(emptyEmployeeForm);
@@ -108,10 +116,85 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   const [dTitle, setDTitle] = useState("");
   const [dNote, setDNote] = useState("");
   const [dFile, setDFile] = useState<File | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const undoStackRef = useRef<UndoSnapshot[]>([]);
+  const undoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipUndoPushRef = useRef(false);
+  const formRef = useRef(form);
+  const allowancesRef = useRef(allowances);
+  formRef.current = form;
+  allowancesRef.current = allowances;
+
+  const pushUndoSnapshot = useCallback(() => {
+    if (skipUndoPushRef.current) return;
+    undoStackRef.current.push({
+      form: { ...formRef.current },
+      allowances: allowancesRef.current.map((a) => ({ ...a })),
+    });
+    if (undoStackRef.current.length > UNDO_MAX) undoStackRef.current.shift();
+    setCanUndo(true);
+  }, []);
+
+  const setFormUndoable = useCallback(
+    (next: EmployeeFormState | ((prev: EmployeeFormState) => EmployeeFormState)) => {
+      if (!skipUndoPushRef.current) {
+        if (!undoDebounceRef.current) pushUndoSnapshot();
+        if (undoDebounceRef.current) clearTimeout(undoDebounceRef.current);
+        undoDebounceRef.current = setTimeout(() => {
+          undoDebounceRef.current = null;
+        }, UNDO_DEBOUNCE_MS);
+      }
+      setForm(next);
+    },
+    [pushUndoSnapshot],
+  );
+
+  const onUndoRef = useRef<() => void>(() => undefined);
+
+  function onUndo() {
+    const prev = undoStackRef.current.pop();
+    if (!prev) {
+      setCanUndo(false);
+      return;
+    }
+    skipUndoPushRef.current = true;
+    if (undoDebounceRef.current) {
+      clearTimeout(undoDebounceRef.current);
+      undoDebounceRef.current = null;
+    }
+    setForm(prev.form);
+    setAllowances(prev.allowances);
+    skipUndoPushRef.current = false;
+    setCanUndo(undoStackRef.current.length > 0);
+    setOk("Đã hoàn tác.");
+    setError(null);
+  }
+
+  onUndoRef.current = onUndo;
+
+  useEffect(() => {
+    if (!ok) return;
+    const t = window.setTimeout(() => setOk(null), 2800);
+    return () => window.clearTimeout(t);
+  }, [ok]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        onUndoRef.current();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
       setExtraTab(null);
+      undoStackRef.current = [];
+      setCanUndo(false);
       return;
     }
     void fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
@@ -119,7 +202,6 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
     void fetchAllowanceTypes()
       .then((list) => {
         setAllowTypes(list);
-        setNewAllowCode((prev) => prev || list[0]?.code || "");
       })
       .catch(() => setAllowTypes([]));
   }, [open]);
@@ -135,7 +217,10 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
         if (cancelled) return;
         setEmp(e);
         setForm(employeeToForm(e, toDateInput));
-        setAllowances(await fetchAllowanceAssignments(e.employee_code));
+        const loadedAllowances = await fetchAllowanceAssignments(e.employee_code);
+        setAllowances(loadedAllowances);
+        undoStackRef.current = [];
+        setCanUndo(false);
         setViolations(await fetchEmployeeViolations(e.id));
         setDocuments(await fetchEmployeeDocuments(e.id));
         if (e.has_photo) {
@@ -175,6 +260,8 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
       const updated = await updateEmployee(employeeId, formToPayload(form, false));
       setEmp(updated);
       setOk("Đã lưu hồ sơ.");
+      undoStackRef.current = [];
+      setCanUndo(false);
       onUpdated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu thất bại.");
@@ -237,14 +324,16 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   }
 
   async function onAddAllow() {
+    pushUndoSnapshot();
     setSaving(true);
     try {
       await upsertAllowanceAssignment({
         employee_code: form.employee_code,
         allowance_code: newAllowCode,
-        amount: newAllowAmount.trim() || "0",
+        amount: digitsOnlyMoney(newAllowAmount.trim()),
       });
       setAllowances(await fetchAllowanceAssignments(form.employee_code));
+      setNewAllowAmount("0");
       setOk(`Đã gán phụ cấp ${newAllowCode}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không gán phụ cấp.");
@@ -255,6 +344,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
 
   async function onDeleteAllow(id: string) {
     if (!window.confirm("Xóa phụ cấp này?")) return;
+    pushUndoSnapshot();
     setSaving(true);
     try {
       await deleteAllowanceAssignment(id);
@@ -332,32 +422,146 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   ];
 
   return (
-    <FullScreenSheet
-      open={open}
-      title={title}
-      hideHeader
-      inFrameScroll
-      onClose={onClose}
-    >
+    <FullScreenSheet open={open} title={title} hideHeader onClose={onClose} onBeforeClose={() => {
+      if (extraTab !== null) {
+        setExtraTab(null);
+        return true;
+      }
+      return false;
+    }}>
       <div className="fs-sheet-layout">
         {loading ? (
           <p className="field-hint fs-sheet-loading">Đang tải hồ sơ…</p>
         ) : (
-          <form id="emp-sheet-form" className="emp-sheet-form-shell" onSubmit={(ev) => void onSubmit(ev)}>
+          <form
+            id="emp-sheet-form"
+            className={`emp-sheet-form-shell${extraTab === null ? " emp-sheet-form-shell--fixed" : ""}`}
+            onSubmit={(ev) => void onSubmit(ev)}
+          >
             <div className="fs-sheet-pinned">
-              <div className="emp-sheet-identity-top">
-                <label className="field emp-sheet-msnv">
-                  <span>MSNV</span>
-                  <input value={form.employee_code} readOnly className="emp-readonly" />
-                </label>
-                <label className="field emp-sheet-name">
-                  <span>Họ tên</span>
-                  <input
-                    value={form.full_name}
-                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                    required
-                  />
-                </label>
+              <div className="emp-sheet-header">
+                <div className="emp-sheet-header-main">
+                  <div className="emp-sheet-identity-top">
+                    <label className="field emp-sheet-msnv">
+                      <span>MSNV</span>
+                      <input value={form.employee_code} readOnly className="emp-readonly" />
+                    </label>
+                    <label className="field emp-sheet-name">
+                      <span>Họ tên</span>
+                      <input
+                        value={form.full_name}
+                        onChange={(e) => setFormUndoable({ ...form, full_name: e.target.value })}
+                        required
+                      />
+                    </label>
+                  </div>
+
+                  <div className="emp-sheet-toolbar">
+                    <nav className="emp-sheet-subtabs" role="tablist" aria-label="Phần hồ sơ">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={extraTab === null}
+                        className={extraTab === null ? "emp-subtab active" : "emp-subtab"}
+                        onClick={() => setExtraTab(null)}
+                      >
+                        Hồ sơ chính
+                      </button>
+                      {extraTabs.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={extraTab === t.id}
+                          className={extraTab === t.id ? "emp-subtab active" : "emp-subtab"}
+                          onClick={() => setExtraTab(t.id)}
+                        >
+                          {t.label}
+                          {t.count ? ` (${t.count})` : ""}
+                        </button>
+                      ))}
+                      <Link
+                        to={`/m/hr/contracts?employee_id=${employeeId}`}
+                        className="emp-subtab emp-subtab-link"
+                      >
+                        Hợp đồng
+                      </Link>
+                    </nav>
+                    {extraTab === null && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-ghost-dark btn-sm"
+                          disabled={saving}
+                          onClick={() =>
+                            void printEmployeeContract(employeeId).catch((e) => setError(String(e)))
+                          }
+                        >
+                          In HĐ
+                        </button>
+                        {form.status === "probation" && (
+                          <button
+                            type="button"
+                            className="btn-ghost-dark btn-sm"
+                            disabled={saving}
+                            onClick={() =>
+                              void printEmployeeProbation(employeeId).catch((e) => setError(String(e)))
+                            }
+                          >
+                            In TV
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-ghost-dark btn-sm"
+                          disabled={saving}
+                          onClick={() =>
+                            void printEmployeeDecision(employeeId).catch((e) => setError(String(e)))
+                          }
+                        >
+                          In QĐ
+                        </button>
+                      </>
+                    )}
+                    <label className="emp-sheet-status-field">
+                      <span>Trạng thái:</span>
+                      <select
+                        value={form.status}
+                        disabled={saving}
+                        onChange={(e) => void changeStatus(e.target.value)}
+                      >
+                        {STATUS_ACTIONS.map((a) => (
+                          <option key={a.status} value={a.status}>
+                            {a.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {extraTab === null && (
+                      <button type="submit" className="btn-primary btn-sm" disabled={saving}>
+                        {saving ? "Đang lưu…" : "Lưu hồ sơ"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-ghost-dark btn-sm"
+                      disabled={saving || !canUndo}
+                      title="Hoàn tác thay đổi chưa lưu (Ctrl+Z) · Đóng: Esc hoặc bấm nền tối"
+                      onClick={() => onUndo()}
+                    >
+                      ↶ Hoàn tác
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost-dark btn-sm"
+                      disabled={saving}
+                      onClick={onClose}
+                    >
+                      × Đóng
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   className="emp-photo emp-photo-sheet"
@@ -381,103 +585,14 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
                   onChange={(e) => void onPhotoPicked(e.target.files?.[0] ?? null)}
                 />
               </div>
-
-              <div className="emp-sheet-toolbar">
-                <nav className="emp-sheet-subtabs" role="tablist" aria-label="Phần hồ sơ">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={extraTab === null}
-                    className={extraTab === null ? "emp-subtab active" : "emp-subtab"}
-                    onClick={() => setExtraTab(null)}
-                  >
-                    Hồ sơ chính
-                  </button>
-                  {extraTabs.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={extraTab === t.id}
-                      className={extraTab === t.id ? "emp-subtab active" : "emp-subtab"}
-                      onClick={() => setExtraTab(t.id)}
-                    >
-                      {t.label}
-                      {t.count ? ` (${t.count})` : ""}
-                    </button>
-                  ))}
-                  <Link
-                    to={`/m/hr/contracts?employee_id=${employeeId}`}
-                    className="emp-subtab emp-subtab-link"
-                  >
-                    Hợp đồng
-                  </Link>
-                </nav>
-                <div className="emp-sheet-toolbar-right">
-                  {extraTab === null && (
-                    <>
-                      <button
-                        type="button"
-                        className="btn-ghost-dark btn-sm"
-                        disabled={saving}
-                        onClick={() =>
-                          void printEmployeeContract(employeeId).catch((e) => setError(String(e)))
-                        }
-                      >
-                        In HĐ
-                      </button>
-                      {form.status === "probation" && (
-                        <button
-                          type="button"
-                          className="btn-ghost-dark btn-sm"
-                          disabled={saving}
-                          onClick={() =>
-                            void printEmployeeProbation(employeeId).catch((e) => setError(String(e)))
-                          }
-                        >
-                          In TV
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="btn-ghost-dark btn-sm"
-                        disabled={saving}
-                        onClick={() =>
-                          void printEmployeeDecision(employeeId).catch((e) => setError(String(e)))
-                        }
-                      >
-                        In QĐ
-                      </button>
-                    </>
-                  )}
-                  <label className="emp-sheet-status-field">
-                    <span>Trạng thái:</span>
-                    <select
-                      value={form.status}
-                      disabled={saving}
-                      onChange={(e) => void changeStatus(e.target.value)}
-                    >
-                      {STATUS_ACTIONS.map((a) => (
-                        <option key={a.status} value={a.status}>
-                          {a.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {extraTab === null && (
-                    <button type="submit" className="btn-primary btn-sm" disabled={saving}>
-                      {saving ? "Đang lưu…" : "Lưu hồ sơ"}
-                    </button>
-                  )}
-                  <button type="button" className="btn-ghost-dark btn-sm" onClick={onClose}>
-                    × Đóng
-                  </button>
-                </div>
-              </div>
-
-              {error && <p className="banner-warn fs-sheet-banner">{error}</p>}
-              {ok && <p className="banner-ok fs-sheet-banner">{ok}</p>}
             </div>
+
+            {(error || ok) && (
+              <div className="fs-sheet-toast-host" role="status" aria-live="polite">
+                {error && <p className="banner-warn fs-sheet-banner">{error}</p>}
+                {ok && <p className="banner-ok fs-sheet-banner">{ok}</p>}
+              </div>
+            )}
 
             {extraTab === "experience" ? (
               <div className="fs-sheet-scroll emp-sheet-fields-scroll">
@@ -621,61 +736,25 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
             </section>
           </div>
         ) : (
-          <div className="fs-sheet-scroll emp-sheet-fields-scroll">
+          <div className="emp-sheet-fields-fixed">
             <EmployeeProfileCompactFields
               form={form}
-              setForm={setForm}
+              setForm={setFormUndoable}
               departments={departments}
               teams={teams}
+              allowancePanel={{
+                allowances,
+                allowTypes,
+                newAllowCode,
+                setNewAllowCode,
+                newAllowAmount,
+                setNewAllowAmount,
+                saving,
+                onAdd: () => void onAddAllow(),
+                onDelete: (id) => void onDeleteAllow(id),
+                formatMoney,
+              }}
             />
-
-            <section className="emp-allow-section emp-allow-section-sheet" aria-label="Phụ cấp">
-              <h3 className="emp-allow-heading">Phụ cấp</h3>
-              <ul className="dept-list emp-allow-list emp-allow-list-compact">
-                {allowances.length === 0 && (
-                  <li className="module-placeholder">Chưa có gán phụ cấp.</li>
-                )}
-                {allowances.map((a) => (
-                  <li key={a.id}>
-                    <span>
-                      <strong>{a.allowance_name}</strong> {formatMoney(a.amount)}
-                    </span>
-                    <button
-                      type="button"
-                      className="link-btn danger"
-                      disabled={saving}
-                      onClick={() => void onDeleteAllow(a.id)}
-                    >
-                      Xóa
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="emp-allow-add emp-allow-add-row">
-                <label className="field">
-                  <span>Loại phụ cấp</span>
-                  <select value={newAllowCode} onChange={(e) => setNewAllowCode(e.target.value)}>
-                    {allowTypes.map((t) => (
-                      <option key={t.code} value={t.code}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field emp-field-money">
-                  <span>Số tiền</span>
-                  <input value={newAllowAmount} onChange={(e) => setNewAllowAmount(e.target.value)} />
-                </label>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={saving || !newAllowCode}
-                  onClick={() => void onAddAllow()}
-                >
-                  Thêm / cập nhật
-                </button>
-              </div>
-            </section>
           </div>
         )}
           </form>

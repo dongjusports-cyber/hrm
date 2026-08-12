@@ -75,6 +75,17 @@ export function WorkerLoginPage() {
             Lần đầu đăng nhập dùng mật khẩu <strong>1234</strong>, hệ thống sẽ yêu cầu đổi mật khẩu
             mới.
           </p>
+          {typeof window !== "undefined" && window.location.hostname !== "localhost" && (
+            <p className="login-hint login-hint-muted">
+              Đang mở qua <strong>{window.location.host}</strong> — đúng cho điện thoại trong LAN.
+            </p>
+          )}
+          {typeof window !== "undefined" && window.location.hostname === "localhost" && (
+            <p className="login-hint login-hint-warn">
+              Trên điện thoại không dùng <strong>localhost</strong>. Mở{" "}
+              <strong>http://192.168.1.123:5173/worker/login</strong> (IP máy HR, cùng WiFi).
+            </p>
+          )}
 
           {error && <p className="login-error">{error}</p>}
 

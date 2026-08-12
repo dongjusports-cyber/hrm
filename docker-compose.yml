@@ -47,6 +47,8 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_string}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      AGENT_TOKEN: ${AGENT_TOKEN:-change_me_agent_token}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-*}
     ports:
       - "8000:8000"
     depends_on:

@@ -2,7 +2,7 @@
 P3.3 / 4.5 — Tiền tăng ca (22§22.8).
 
 OT_base ≠ SI_base (policy ot_base_components / si_base_components).
-Làm tròn giờ OT: bậc 30 phút, làm tròn xuống, tối thiểu 30 phút.
+Làm tròn giờ OT: theo phút (hours_step_minutes=1).
 Lễ > 8h: 8 giờ × 2,0 + (giờ − 8) × 3,0.
 """
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { downloadKpiExport, fetchKpi, type KpiPeriod } from "../../shared/api";
+import { currentPayPeriod } from "../../shared/formatDate";
 
 function fmtPct(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -20,7 +21,7 @@ const CAT_VI: Record<string, string> = {
 
 /** Báo Cáo / KPI — Attendance, OT, Turnover (04§4.6). */
 export function ReportPage() {
-  const [period, setPeriod] = useState("2025-10");
+  const [period, setPeriod] = useState(currentPayPeriod);
   const [kpi, setKpi] = useState<KpiPeriod | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

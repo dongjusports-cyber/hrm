@@ -15,9 +15,11 @@ from app.modules.attendance.models import AttendanceDay
 from app.modules.attendance.schemas import AttendanceDayOut, RecalculateResult
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
+from app.modules.integration.punch_resolver import is_patrol_guard_code
 from app.modules.integration.models import AttendancePunch
 from app.modules.mdm.models import Employee
 from app.modules.policy.models import PolicyPackage
+from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.policy.seed_payload import default_payload
 
 
@@ -102,6 +104,7 @@ def recalculate_days(
 
     schedule = _load_schedule(db)
     dedupe_window = _punch_dedupe_window_seconds(db)
+    ot_split = load_ot_split_policy(db)
     # Lấy punch theo khoảng ±1 ngày để tránh lệch timezone biên
     start_dt = datetime(date_from.year, date_from.month, date_from.day, tzinfo=VN_TZ) - timedelta(days=1)
     end_dt = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=VN_TZ) + timedelta(days=1)
@@ -109,6 +112,7 @@ def recalculate_days(
     q = db.query(AttendancePunch).filter(
         AttendancePunch.punch_time >= start_dt,
         AttendancePunch.punch_time <= end_dt,
+        ~AttendancePunch.employee_code.like("200%"),
     )
     if employee_code:
         q = q.filter(AttendancePunch.employee_code == employee_code.strip())
@@ -127,6 +131,8 @@ def recalculate_days(
         if wd < date_from or wd > date_to:
             continue
         code = p.employee_code.strip()
+        if is_patrol_guard_code(code):
+            continue
         if code not in employees:
             unknown.add(code)
             continue
@@ -136,7 +142,9 @@ def recalculate_days(
     touched_emps: set[str] = set()
     for (code, wd), times in grouped.items():
         emp = employees[code]
-        calc = calculate_day(times, wd, schedule, punch_dedupe_window_seconds=dedupe_window)
+        calc = calculate_day(
+            times, wd, schedule, punch_dedupe_window_seconds=dedupe_window, ot_split=ot_split
+        )
         row = (
             db.query(AttendanceDay)
             .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == wd)
@@ -206,6 +214,8 @@ def list_days(
                 late_minutes=day.late_minutes,
                 early_minutes=day.early_minutes,
                 ot_minutes=day.ot_minutes,
+                ot_on_books_minutes=day.ot_on_books_minutes,
+                ot_external_minutes=day.ot_external_minutes,
                 ot_type=day.ot_type,
                 punch_count=day.punch_count,
                 is_workday=day.is_workday,

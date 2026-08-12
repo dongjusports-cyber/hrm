@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { setEscFallback } from "./escStack";
 
 /**
- * ESC toàn cục:
+ * Fallback ESC khi không còn overlay/tầng con:
  * - Portal / đăng nhập: bỏ qua
  * - Module Lv1 `/m/hr`: về lưới Portal `/`
  * - HR hồ sơ NV `/m/hr/employees/:id`: về lưới danh sách (mặc định Chính thức)
@@ -43,16 +44,11 @@ export function GlobalEscBack() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      if (e.defaultPrevented) return;
+    setEscFallback(() => {
       const to = escTarget(pathname);
-      if (!to) return;
-      e.preventDefault();
-      navigate(to);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+      if (to) navigate(to);
+    });
+    return () => setEscFallback(null);
   }, [navigate, pathname]);
 
   return null;

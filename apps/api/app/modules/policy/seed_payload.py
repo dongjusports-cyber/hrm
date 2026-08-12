@@ -88,6 +88,32 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
     },
 
+    "ot_split": {
+
+        "on_books_weekdays": [2, 4],
+
+        "ot_grace_minutes": 15,
+
+        "on_books_after": "17:15",
+
+        "on_books_until": "20:00",
+
+        "note": "Bấm ra sau 17h15 mới có OT; số phút OT tính từ 17h00. Th3+Th5: 17h-20h sổ; sau 20h → ngoài.",
+
+        "ot_external": {
+
+            "rate_key": "weekday",
+
+            "exclude_from_payslip": True,
+
+            "payment_channel": "ATM",
+
+            "note": "Cùng công thức 22§22.8 (ot_base) — trả theo phút, không BHXH/PIT trên payslip chính.",
+
+        },
+
+    },
+
     "ot_rates": {
 
         "weekday": 1.5,
@@ -160,7 +186,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "money_mode": "half_up",
 
-        "hours_step_minutes": 30,
+        "hours_step_minutes": 1,
 
         "hours_mode": "floor",
 

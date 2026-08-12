@@ -42,7 +42,7 @@ def test_five_taps_within_60s_become_one_check_in():
     d = date(2025, 10, 6)
     r = calculate_day(punches, d, _sched())
     assert r.first_in == base
-    assert r.last_out == base
+    assert r.last_out is None
     assert r.punch_count == 1
 
 

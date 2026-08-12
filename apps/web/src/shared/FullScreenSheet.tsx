@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useEscLayer } from "./useEscLayer";
 
 type Props = {
   open: boolean;
@@ -13,6 +14,10 @@ type Props = {
   inFrameScroll?: boolean;
   /** Ẩn thanh tiêu đề — chrome nằm trong children (hồ sơ NV). */
   hideHeader?: boolean;
+  /** Class bổ sung cho vùng body (vd. form tạo NV không cuộn). */
+  bodyClassName?: string;
+  /** Trả true nếu đã xử lý ESC (chưa đóng sheet). */
+  onBeforeClose?: () => boolean;
 };
 
 /** Cửa sổ nổi full màn hình — form tập trung, danh sách phía sau vẫn giữ ngữ cảnh. */
@@ -25,20 +30,22 @@ export function FullScreenSheet({
   actions,
   inFrameScroll = false,
   hideHeader = false,
+  bodyClassName,
+  onBeforeClose,
 }: Props) {
+  useEscLayer(open, () => {
+    if (onBeforeClose?.()) return;
+    onClose();
+  });
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -67,7 +74,11 @@ export function FullScreenSheet({
           </header>
         )}
         <div
-          className={inFrameScroll ? "fs-sheet-body fs-sheet-body-shell" : "fs-sheet-body"}
+          className={
+            inFrameScroll
+              ? `fs-sheet-body fs-sheet-body-shell${bodyClassName ? ` ${bodyClassName}` : ""}`
+              : `fs-sheet-body${bodyClassName ? ` ${bodyClassName}` : ""}`
+          }
         >
           {children}
         </div>

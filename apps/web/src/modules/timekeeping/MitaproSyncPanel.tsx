@@ -216,6 +216,7 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
           </strong>
         </span>
         <span>Lần chấm gần nhất: {fmtDt(status?.last_punch_at)}</span>
+        <span className="tk-sync-hint">MSNV 200* (bảo vệ tuần) không tính vào HRM</span>
         <button type="button" className="btn-ghost-dark" disabled={busy || loading} onClick={() => void load()}>
           Làm mới
         </button>

@@ -7,6 +7,9 @@ from typing import Sequence
 
 VN_TZ = timezone(timedelta(hours=7))
 
+# 3.2 — nhiều lần bấm trong 1 phút gom thành 1 lần (policy work_time.punch_dedupe).
+DEFAULT_DEDUPE_WINDOW_SECONDS = 60
+
 
 def to_vn(dt: datetime) -> datetime:
     if dt.tzinfo is None:
@@ -27,13 +30,13 @@ def _cluster_punches(sorted_times: list[datetime], window_seconds: int) -> list[
 def dedupe_punch_times(
     punches: Sequence[datetime],
     *,
-    window_seconds: int = 60,
+    window_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS,
 ) -> list[datetime]:
     """
     Gom các lần bấm liên tiếp trong cửa sổ window_seconds.
 
-    - Cụm đầu ngày: giữ thời điểm sớm nhất (giờ vào).
-    - Cụm cuối ngày: giữ thời điểm muộn nhất (giờ ra).
+    - Cụm đầu ngày: giữ thời điểm sớm nhất (giờ vào, vd. 07:45:20).
+    - Cụm cuối ngày: giữ thời điểm muộn nhất (giờ ra, vd. 17:00:20).
     - Một cụm duy nhất: một mốc sớm nhất (vd. 5 lần bấm lúc 07:50 → một giờ vào).
     """
     if window_seconds <= 0 or not punches:

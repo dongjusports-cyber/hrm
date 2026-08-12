@@ -49,10 +49,12 @@ from app.modules.payroll.models import (
     PayComponent,
     PayrollRun,
     Payslip,
+    PayslipComponent,
     PolicySnapshot,
 )
 from app.modules.payroll.money import D, ZERO, money_vnd
 from app.modules.payroll.payslip_detail import get_hr_payslip_detail, prev_net_by_employee
+from app.modules.payroll.period_eligibility import employee_on_payroll_period
 from app.modules.payroll.payslip_components import (
     build_component_drafts,
     list_payslip_components,
@@ -67,9 +69,29 @@ from app.modules.payroll.schemas import (
     PayslipComponentOut,
     PayslipOut,
 )
-from app.modules.payroll.seed_allowances import seed_allowance_types, seed_fixture_allowance_assignments
+from app.modules.payroll.seed_allowances import seed_allowance_types
 from app.modules.policy.models import PolicyPackage
 from app.modules.policy.seed_payload import default_payload
+
+
+def _purge_ineligible_draft_payslips(db: Session, pay: PayPeriod) -> int:
+    """Xóa phiếu nháp của NV không thuộc kỳ (vd. đã nghỉ trước kỳ)."""
+    rows = (
+        db.query(Payslip, Employee)
+        .join(Employee, Employee.id == Payslip.employee_id)
+        .filter(Payslip.pay_period_id == pay.id, Payslip.status == "draft")
+        .all()
+    )
+    removed = 0
+    for slip, emp in rows:
+        if employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            continue
+        db.query(PayslipComponent).filter(PayslipComponent.payslip_id == slip.id).delete(
+            synchronize_session=False
+        )
+        db.delete(slip)
+        removed += 1
+    return removed
 
 
 def _active_policy(db: Session) -> tuple[PolicyPackage | None, dict]:
@@ -349,6 +371,7 @@ def compute_employee_payslip(
             policy=payload,
         )
     )
+    # ot_hours_external → bảng OT ngoài (ATM), không cộng gross — xem payroll.ot_external
     other_adj, other_ded, _adj_detail = sums_for_employee(db, pay.id, emp.id)
     bonus_res = get_bonus_for_period(db, emp.id, pay.id)
     gross = money_vnd(
@@ -408,9 +431,9 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
             ),
         )
 
-    seed_fixture_allowance_assignments(db)
     rebuild_timesheets(db, period, recalc_days=True)
     pay = ensure_pay_period(db, period)
+    _purge_ineligible_draft_payslips(db, pay)
 
     pkg, payload = _active_policy(db)
     snapshot = PolicySnapshot(
@@ -446,6 +469,8 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
 
     computed = 0
     for ts, emp in timesheets:
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            continue
         slip = (
             db.query(Payslip)
             .filter(Payslip.pay_period_id == pay.id, Payslip.employee_id == emp.id)
@@ -613,6 +638,8 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
         mark_bonuses_applied(db, emp.id, pay.id)
         computed += 1
 
+    _purge_ineligible_draft_payslips(db, pay)
+
     run.employee_count = computed
     run.status = "success"
     run.finished_at = datetime.now(timezone.utc)
@@ -662,6 +689,7 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
             prev_net=prev_map.get(s.employee_id),
         )
         for s, e, t in slips
+        if employee_on_payroll_period(e, pay.date_from, pay.date_to)
     ]
 
     return CalculateResult(
@@ -698,6 +726,7 @@ def list_payslips(db: Session, period: str) -> list[PayslipOut]:
             prev_net=prev_map.get(s.employee_id),
         )
         for s, e, t in rows
+        if employee_on_payroll_period(e, pay.date_from, pay.date_to)
     ]
 
 

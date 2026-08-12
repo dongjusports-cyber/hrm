@@ -11,6 +11,7 @@ from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_wor
 from app.modules.attendance.engine import VN_TZ, calculate_day, combine_vn, to_vn
 from app.modules.attendance.models import AttendanceDay, LeaveType
 from app.modules.attendance.schemas import AttendanceDayGridOut, AttendanceDayOut
+from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
 from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets, seed_leave_types
 from app.modules.audit.service import write_audit
@@ -199,7 +200,9 @@ def patch_day_cell(
 
     if first_in is not None and last_out is not None:
         punches = [to_vn(first_in), to_vn(last_out)]
-        calc = calculate_day(punches, work_date, schedule)
+        calc = calculate_day(
+            punches, work_date, schedule, ot_split=load_ot_split_policy(db)
+        )
         shift_id = resolve_work_shift_id(db, emp, work_date)
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         row.source = "manual"
@@ -316,7 +319,9 @@ def bulk_patch_days(
                 assert first_in_time and last_out_time
                 fi = combine_vn(work_date, first_in_time)
                 lo = combine_vn(work_date, last_out_time)
-                calc = calculate_day([fi, lo], work_date, schedule)
+                calc = calculate_day(
+                    [fi, lo], work_date, schedule, ot_split=load_ot_split_policy(db)
+                )
                 shift_id = resolve_work_shift_id(db, emp, work_date)
                 apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
                 row.source = "manual"

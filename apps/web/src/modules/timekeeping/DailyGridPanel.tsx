@@ -8,11 +8,10 @@ import {
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
+import { formatTimeHHMM } from "../../shared/formatDate";
 
 function hhmm(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const m = iso.match(/T(\d{2}:\d{2})/);
-  return m ? m[1] : "";
+  return formatTimeHHMM(iso, "");
 }
 
 function toIsoTime(workDate: string, hhmmVal: string): string | null {
@@ -115,13 +114,23 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         headerName: "Công",
         width: 64,
         editable: false,
-        valueFormatter: (p) => (p.value != null ? Number(p.value).toFixed(2) : "—"),
+        valueFormatter: (p) => (p.value != null && Number(p.value) > 0 ? Number(p.value).toFixed(2) : ""),
       },
       {
         field: "ot_minutes",
-        headerName: "OT′",
-        width: 56,
+        headerName: "OT sổ",
+        width: 64,
         editable: false,
+        valueGetter: (p) => p.data?.ot_on_books_minutes ?? 0,
+        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+      },
+      {
+        colId: "ot_external",
+        headerName: "OT ngoài",
+        width: 72,
+        editable: false,
+        valueGetter: (p) => p.data?.ot_external_minutes ?? 0,
+        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
       },
       {
         field: "holiday_hours",

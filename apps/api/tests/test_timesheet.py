@@ -43,7 +43,7 @@ def test_rebuild_timesheet_from_punches(client):
     row = next(r for r in sheets.json() if r["employee_code"] == "5290")
     assert float(row["worked_days"]) == 1.0
     assert row["late_count"] == 1
-    assert float(row["ot_hours_weekday"]) == 0.08  # 5 phút
+    assert float(row["ot_hours_weekday"]) == 0.0  # 17:05 < 17:15 (ot_split grace)
 
 
 def test_manual_leave_and_ot_adjustment(client):

@@ -5,22 +5,33 @@ import {
   createPayAdjustment,
   deletePayAdjustment,
   downloadPayrollExport,
+  fetchDepartments,
+  fetchEmployees,
   fetchPayAdjustments,
   fetchPayrollPeriod,
   fetchPayslips,
+  fetchTeams,
   lockPayroll,
   publishPayroll,
   reopenPayroll,
   unlockPayroll,
+  type Department,
   type PayPeriodStatus,
   type Payslip,
   type PayslipAdjustment,
+  type Team,
 } from "../../shared/api";
 import { useAuth } from "../../shared/authStore";
+import { currentPayPeriod } from "../../shared/formatDate";
+import {
+  departmentsWithActiveTeams,
+  formatDepartmentLabel,
+} from "../../shared/formatOrg";
 import { PayrollGridSection } from "./PayrollGridSection";
 import { PayrollPayslipSection } from "./PayrollPayslipSection";
 import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
+import { useEscLayer } from "../../shared/useEscLayer";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Mở",
@@ -48,7 +59,7 @@ function loadViewMode(): PayrollViewMode {
 export function PayrollPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  const [period, setPeriod] = useState("2025-10");
+  const [period, setPeriod] = useState(currentPayPeriod);
   const [tab, setTab] = useState<PayrollTab>("grid");
   const [viewMode, setViewMode] = useState<PayrollViewMode>(loadViewMode);
   const [selected, setSelected] = useState<Payslip | null>(null);
@@ -58,7 +69,13 @@ export function PayrollPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportDeptId, setExportDeptId] = useState("");
+  const [exportEmpCode, setExportEmpCode] = useState("");
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [empDeptByCode, setEmpDeptByCode] = useState<Map<string, string>>(new Map());
   const [adjustments, setAdjustments] = useState<PayslipAdjustment[]>([]);
+  const [adjOpen, setAdjOpen] = useState(false);
   const [adjKind, setAdjKind] = useState<"addon" | "deduction">("addon");
   const [adjEmp, setAdjEmp] = useState("5290");
   const [adjReason, setAdjReason] = useState("Truy lĩnh T9");
@@ -76,6 +93,49 @@ export function PayrollPage() {
   useEffect(() => {
     localStorage.setItem(VIEW_PREFS_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    void fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
+    void fetchTeams().then(setTeams).catch(() => setTeams([]));
+    void fetchEmployees({ status: "all" })
+      .then((emps) => {
+        setEmpDeptByCode(
+          new Map(emps.map((e) => [e.employee_code, e.department_id ?? ""])),
+        );
+      })
+      .catch(() => setEmpDeptByCode(new Map()));
+  }, []);
+
+  const exportDepartmentOptions = useMemo(
+    () => departmentsWithActiveTeams(departments, teams),
+    [departments, teams],
+  );
+
+  const exportEmployeeOptions = useMemo(() => {
+    const list = [...rows].sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+    if (!exportDeptId) return list;
+    return list.filter((r) => empDeptByCode.get(r.employee_code) === exportDeptId);
+  }, [rows, exportDeptId, empDeptByCode]);
+
+  useEffect(() => {
+    if (exportEmpCode && !exportEmployeeOptions.some((r) => r.employee_code === exportEmpCode)) {
+      setExportEmpCode("");
+    }
+  }, [exportEmpCode, exportEmployeeOptions]);
+
+  const exportScopeLabel = useMemo(() => {
+    if (exportEmpCode) {
+      const row = rows.find((r) => r.employee_code === exportEmpCode);
+      return row ? `MSNV ${exportEmpCode} — ${row.full_name}` : `MSNV ${exportEmpCode}`;
+    }
+    if (exportDeptId) {
+      const dept = exportDepartmentOptions.find((d) => d.id === exportDeptId);
+      return dept ? formatDepartmentLabel(dept) : "bộ phận đã chọn";
+    }
+    return "cả công ty";
+  }, [exportEmpCode, exportDeptId, exportDepartmentOptions, rows]);
+
+  useEscLayer(adjOpen, () => setAdjOpen(false));
 
   const reload = useCallback(async () => {
     setError(null);
@@ -201,8 +261,11 @@ export function PayrollPage() {
     setExporting(true);
     setError(null);
     try {
-      await downloadPayrollExport(period, channel);
-      setOk(`Đã xuất Excel ${channel} kỳ ${period} (đã ghi nhật ký xuất).`);
+      await downloadPayrollExport(period, channel, {
+        departmentId: exportEmpCode ? undefined : exportDeptId || undefined,
+        employeeCode: exportEmpCode || undefined,
+      });
+      setOk(`Đã xuất Excel ${channel} kỳ ${period} — ${exportScopeLabel}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không xuất được file.");
     } finally {
@@ -270,20 +333,13 @@ export function PayrollPage() {
         </nav>
       </header>
       <main className="module-body payroll-main">
-        <div className="payroll-head">
-          <div>
-            <h1>Tính Lương</h1>
-            <p className="module-placeholder">{tabHint}</p>
-          </div>
-        </div>
-
         {error && <p className="banner-warn">{error}</p>}
         {ok && <p className="banner-ok">{ok}</p>}
 
-        <section className="users-form-card payroll-toolbar-card">
-          <div className="calendar-row">
+        <section className="users-form-card payroll-toolbar-card payroll-toolbar-compact">
+          <div className="calendar-row payroll-toolbar-row">
             <label className="field">
-              <span>Kỳ lương</span>
+              <span>Kỳ</span>
               <input
                 type="month"
                 value={period}
@@ -292,21 +348,19 @@ export function PayrollPage() {
               />
             </label>
             {periodMeta && (
-              <p className="field-hint" style={{ margin: 0 }}>
-                Trạng thái kỳ: <strong>{STATUS_LABEL[periodStatus] ?? periodStatus}</strong>
-                {" · "}mẫu số {periodMeta.salary_divisor}
-                {" · "}ngày chuẩn {periodMeta.official_work_days}
-              </p>
+              <span className="field-hint payroll-period-meta">
+                <strong>{STATUS_LABEL[periodStatus] ?? periodStatus}</strong>
+                {" · "}÷{periodMeta.salary_divisor}
+                {" · "}chuẩn {periodMeta.official_work_days}n
+              </span>
             )}
-          </div>
-          <div className="calendar-row">
             <button
               type="button"
               className="btn-primary"
               disabled={busy || !canCalculate}
               onClick={() => void onCalculate()}
             >
-              {busy ? "Đang xử lý…" : "1. Tính lương"}
+              {busy ? "…" : "Tính lương"}
             </button>
             <button
               type="button"
@@ -314,7 +368,7 @@ export function PayrollPage() {
               disabled={busy || !canPublish || rows.length === 0}
               onClick={() => void onPublish()}
             >
-              2. Phát hành
+              Phát hành
             </button>
             <button
               type="button"
@@ -322,7 +376,7 @@ export function PayrollPage() {
               disabled={busy || !canLock}
               onClick={() => void onLock()}
             >
-              3. Khóa kỳ
+              Khóa
             </button>
             {isAdmin && (
               <button
@@ -331,7 +385,7 @@ export function PayrollPage() {
                 disabled={busy || !canUnlock}
                 onClick={() => void onUnlock()}
               >
-                Mở khóa kỳ
+                Mở khóa
               </button>
             )}
             {isAdmin && (
@@ -341,14 +395,43 @@ export function PayrollPage() {
                 disabled={busy || !canReopen}
                 onClick={() => void onReopen()}
               >
-                Mở lại để tính
+                Mở lại
               </button>
             )}
             <button type="button" className="btn-ghost-dark" disabled={busy} onClick={() => void reload()}>
               Làm mới
             </button>
-          </div>
-          <div className="calendar-row">
+            <span className="payroll-toolbar-sep" aria-hidden />
+            <label className="field payroll-export-field">
+              <span>Xuất bộ phận</span>
+              <select
+                value={exportDeptId}
+                onChange={(e) => setExportDeptId(e.target.value)}
+                disabled={busy || exporting || !!exportEmpCode}
+              >
+                <option value="">Cả công ty</option>
+                {exportDepartmentOptions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {formatDepartmentLabel(d)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field payroll-export-field">
+              <span>Xuất 1 người</span>
+              <select
+                value={exportEmpCode}
+                onChange={(e) => setExportEmpCode(e.target.value)}
+                disabled={busy || exporting}
+              >
+                <option value="">Tất cả trong phạm vi</option>
+                {exportEmployeeOptions.map((r) => (
+                  <option key={r.id} value={r.employee_code}>
+                    {r.employee_code} — {r.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               className="btn-secondary"
@@ -363,7 +446,7 @@ export function PayrollPage() {
               disabled={busy || exporting || !canExport}
               onClick={() => void onExport("CASH")}
             >
-              Xuất tiền mặt
+              Tiền mặt
             </button>
             <button
               type="button"
@@ -371,7 +454,7 @@ export function PayrollPage() {
               disabled={busy || exporting || !canExport}
               onClick={() => void onExport("ALL")}
             >
-              {exporting ? "Đang xuất…" : "Xuất ATM + tiền mặt"}
+              {exporting ? "…" : "ATM+TM"}
             </button>
           </div>
         </section>
@@ -398,6 +481,15 @@ export function PayrollPage() {
           >
             Chạy thử
           </button>
+          <button
+            type="button"
+            className={adjOpen ? "btn-primary" : "btn-ghost-dark"}
+            onClick={() => setAdjOpen((v) => !v)}
+            title="Trả lại / truy lĩnh / tạm ứng"
+          >
+            Điều chỉnh{adjustments.length ? ` (${adjustments.length})` : ""}
+          </button>
+          <span className="field-hint payroll-tab-hint">{tabHint}</span>
         </nav>
 
         {tab === "simulate" ? (
@@ -419,6 +511,7 @@ export function PayrollPage() {
           <PayrollPayslipSection rows={rows} selected={selected} onSelect={onSelectSlip} />
         )}
 
+        {adjOpen && (
         <section className="users-form-card payroll-adj-card">
           <h2>Điều chỉnh (trả lại / truy lĩnh / tạm ứng)</h2>
           <p className="field-hint">
@@ -505,6 +598,7 @@ export function PayrollPage() {
             </table>
           )}
         </section>
+        )}
       </main>
     </div>
   );

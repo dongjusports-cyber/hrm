@@ -23,6 +23,8 @@ class AttendanceDayOut(BaseModel):
     late_minutes: int
     early_minutes: int
     ot_minutes: int
+    ot_on_books_minutes: int = 0
+    ot_external_minutes: int = 0
     ot_type: str | None
     punch_count: int
     is_workday: bool
@@ -96,6 +98,7 @@ class TimesheetMonthOut(BaseModel):
     late_count: int
     early_count: int
     ot_hours_weekday: Decimal
+    ot_hours_external: Decimal = Decimal("0")
     ot_hours_weekend: Decimal
     ot_hours_holiday: Decimal
 

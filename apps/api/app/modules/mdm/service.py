@@ -64,6 +64,8 @@ from app.modules.mdm.schemas import (
     EmployeeFamilyMemberOut,
     EmployeeFamilyMemberUpdate,
     EmployeeOut,
+    EmployeeRehireOut,
+    EmployeeRehireRequest,
     EmployeeResignationCreate,
     EmployeeResignationOut,
     EmployeeResignationUpdate,
@@ -731,9 +733,12 @@ def get_employee(db: Session, emp_id: UUID) -> EmployeeOut:
 
 
 def create_employee(db: Session, body: EmployeeCreate) -> EmployeeOut:
+    from app.modules.mdm import employee_validation as ev
+
+    issues = ev.validate_employee_create(db, body)
+    ev.raise_on_errors(issues)
+
     code = body.employee_code.strip()
-    if db.query(Employee).filter(Employee.employee_code == code).first():
-        raise HTTPException(status_code=400, detail=f"Trợ Lý AI: MSNV '{code}' đã tồn tại.")
     team = resolve_employee_team(
         db, body.team_id, body.team_code, body.department_code, required=True
     )
@@ -803,11 +808,41 @@ def create_employee(db: Session, body: EmployeeCreate) -> EmployeeOut:
     return get_employee(db, emp.id)
 
 
+def validate_employee_form(
+    db: Session,
+    *,
+    is_new: bool,
+    employee_id: UUID | None,
+    payload: dict,
+) -> dict:
+    from app.modules.mdm import employee_validation as ev
+
+    issues = ev.validate_employee_payload(
+        db, is_new=is_new, employee_id=employee_id, payload=payload
+    )
+    result = ev.validation_result(issues)
+    if is_new:
+        result["suggested_code"] = ev.suggest_employee_code(db)
+    return result
+
+
+def get_suggested_employee_code(db: Session) -> str:
+    from app.modules.mdm import employee_validation as ev
+
+    return ev.suggest_employee_code(db)
+
+
 def update_employee(db: Session, emp_id: UUID, body: EmployeeUpdate) -> EmployeeOut:
+    from app.modules.mdm import employee_validation as ev
+
     emp = db.get(Employee, emp_id)
     if emp is None or emp.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy nhân viên.")
 
+    issues = ev.validate_employee_update(db, emp_id, body)
+    ev.raise_on_errors(issues)
+
+    was_resigned = emp.status == "resigned"
     data = body.model_dump(exclude_unset=True)
     dept_code = data.pop("department_code", None)
     team_id_in = data.pop("team_id", None)
@@ -841,6 +876,8 @@ def update_employee(db: Session, emp_id: UUID, body: EmployeeUpdate) -> Employee
                 )
             val = new
         setattr(emp, key, val)
+    if data.get("status") == "resigned" and not was_resigned:
+        _finalize_resignation_on_status_change(db, emp)
     _sync_worker_on_status(db, emp)
     db.commit()
     return get_employee(db, emp_id)
@@ -1340,6 +1377,61 @@ def apply_transfer_team(db: Session, body: TransferTeamRequest, actor: User) -> 
         skipped=skipped,
         message=msg,
     )
+
+
+def team_at_date(db: Session, employee_id: UUID, as_of: date) -> Team | None:
+    """Tổ NV tại một ngày — tra employee_assignments (21§21.3, hạng mục 1.3)."""
+    row = (
+        db.query(EmployeeAssignment)
+        .options(joinedload(EmployeeAssignment.team))
+        .filter(
+            EmployeeAssignment.employee_id == employee_id,
+            EmployeeAssignment.effective_from <= as_of,
+            or_(EmployeeAssignment.effective_to.is_(None), EmployeeAssignment.effective_to >= as_of),
+        )
+        .order_by(EmployeeAssignment.effective_from.desc())
+        .first()
+    )
+    if row is not None:
+        return row.team
+    emp = db.get(Employee, employee_id)
+    if emp is not None and emp.team_id is not None:
+        return db.get(Team, emp.team_id)
+    return None
+
+
+def backfill_initial_assignments(db: Session) -> int:
+    """NV có team_id nhưng chưa có lịch sử — seed 1 dòng từ join_date (nạp GenusSuite)."""
+    count = 0
+    emps = (
+        db.query(Employee)
+        .filter(Employee.deleted_at.is_(None), Employee.team_id.isnot(None))
+        .all()
+    )
+    for emp in emps:
+        has_row = (
+            db.query(EmployeeAssignment.id)
+            .filter(EmployeeAssignment.employee_id == emp.id)
+            .limit(1)
+            .first()
+        )
+        if has_row:
+            continue
+        db.add(
+            EmployeeAssignment(
+                employee_id=emp.id,
+                team_id=emp.team_id,
+                position_code=emp.position_code,
+                job_code=emp.job_code,
+                effective_from=emp.join_date or date(2020, 1, 1),
+                effective_to=None,
+                reason_code="backfill",
+            )
+        )
+        count += 1
+    if count:
+        db.commit()
+    return count
 
 
 def list_employee_assignments(db: Session, emp_id: UUID) -> list[EmployeeAssignmentOut]:
@@ -2283,6 +2375,8 @@ def _resignation_to_out(row: EmployeeResignation, emp: Employee) -> EmployeeResi
         severance_amount=row.severance_amount,
         handover_done=row.handover_done,
         rehired_at=row.rehired_at,
+        rehire_mode=row.rehire_mode,
+        rehire_reason=row.rehire_reason,
         created_at=row.created_at,
     )
 
@@ -2330,6 +2424,7 @@ def create_resignation(
     )
     db.add(row)
     if body.finalize:
+        row.snapshot_json = _build_resignation_snapshot(db, emp)
         emp.status = "resigned"
         emp.resign_date = body.last_working_date
         _sync_worker_on_status(db, emp)
@@ -2405,6 +2500,232 @@ def delete_resignation(db: Session, emp_id: UUID, resignation_id: UUID) -> dict[
     db.delete(row)
     db.commit()
     return {"detail": "Trợ Lý AI: đã xóa lần nghỉ việc."}
+
+
+def _build_resignation_snapshot(db: Session, emp: Employee) -> dict:
+    """Lưu mốc lương/PC/join_date trước khi chốt nghỉ — phục vụ tái tuyển giữ quyền lợi."""
+    rows = (
+        db.query(EmployeeAllowanceAssignment, PayComponent)
+        .join(PayComponent, PayComponent.id == EmployeeAllowanceAssignment.allowance_type_id)
+        .filter(EmployeeAllowanceAssignment.employee_id == emp.id)
+        .order_by(PayComponent.code.asc())
+        .all()
+    )
+    return {
+        "join_date": emp.join_date.isoformat() if emp.join_date else None,
+        "contract_salary": str(emp.contract_salary or Decimal("0")),
+        "probation_salary": str(emp.probation_salary or Decimal("0")),
+        "pay_channel": emp.pay_channel,
+        "allowances": [
+            {"code": pc.code, "amount": str(asg.amount or Decimal("0"))} for asg, pc in rows
+        ],
+    }
+
+
+def _clear_employee_allowances(db: Session, employee_id: UUID) -> None:
+    db.query(EmployeeAllowanceAssignment).filter(
+        EmployeeAllowanceAssignment.employee_id == employee_id
+    ).delete(synchronize_session=False)
+
+
+def _restore_allowances_from_snapshot(db: Session, emp: Employee, snapshot: dict) -> None:
+    for item in snapshot.get("allowances") or []:
+        code = str(item.get("code") or "").strip().upper()
+        if not code:
+            continue
+        pc = (
+            db.query(PayComponent)
+            .filter(PayComponent.code == code, PayComponent.is_active.is_(True))
+            .one_or_none()
+        )
+        if pc is None:
+            continue
+        amount = D(item.get("amount") or "0")
+        row = (
+            db.query(EmployeeAllowanceAssignment)
+            .filter(
+                EmployeeAllowanceAssignment.employee_id == emp.id,
+                EmployeeAllowanceAssignment.allowance_type_id == pc.id,
+            )
+            .one_or_none()
+        )
+        if row is None:
+            row = EmployeeAllowanceAssignment(
+                employee_id=emp.id,
+                allowance_type_id=pc.id,
+                amount=amount,
+            )
+            db.add(row)
+        else:
+            row.amount = amount
+
+
+def _ensure_open_resignation_record(db: Session, emp: Employee) -> EmployeeResignation:
+    """NV «Đã nghỉ» nhưng chưa có lần nghỉ (import/legacy) — tạo hồi tố để tái tuyển."""
+
+    last = (
+        db.query(EmployeeResignation)
+        .filter(EmployeeResignation.employee_id == emp.id)
+        .order_by(EmployeeResignation.seq_no.desc())
+        .first()
+    )
+    if last is not None:
+        if last.snapshot_json is None and last.rehired_at is None:
+            last.snapshot_json = _build_resignation_snapshot(db, emp)
+        return last
+
+    lwd = emp.resign_date or date.today()
+    row = EmployeeResignation(
+        employee_id=emp.id,
+        seq_no=_next_resignation_seq(db, emp.id),
+        resign_type_code="DPR",
+        last_working_date=lwd,
+        reason="Ghi nhận hồi tố (import/legacy)",
+        snapshot_json=_build_resignation_snapshot(db, emp),
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _finalize_resignation_on_status_change(db: Session, emp: Employee) -> None:
+    """Khi HR chuyển trạng thái sang «Đã nghỉ» — ghi nhận lần nghỉ + snapshot."""
+
+    open_row = (
+        db.query(EmployeeResignation)
+        .filter(
+            EmployeeResignation.employee_id == emp.id,
+            EmployeeResignation.rehired_at.is_(None),
+        )
+        .order_by(EmployeeResignation.seq_no.desc())
+        .first()
+    )
+    if open_row is not None:
+        if open_row.snapshot_json is None:
+            open_row.snapshot_json = _build_resignation_snapshot(db, emp)
+        return
+
+    lwd = emp.resign_date or date.today()
+    db.add(
+        EmployeeResignation(
+            employee_id=emp.id,
+            seq_no=_next_resignation_seq(db, emp.id),
+            resign_type_code="DPR",
+            last_working_date=lwd,
+            reason="Ghi nhận qua hồ sơ NV",
+            snapshot_json=_build_resignation_snapshot(db, emp),
+        )
+    )
+
+
+def rehire_employee(db: Session, emp_id: UUID, body: EmployeeRehireRequest) -> EmployeeRehireOut:
+    """Tái tuyển NV đã nghỉ — fresh_start (mặc định) hoặc continuity (ưu ái)."""
+
+    emp = _get_employee_row(db, emp_id)
+    if emp.status != "resigned":
+        raise HTTPException(
+            status_code=400,
+            detail="Trợ Lý AI: chỉ tái tuyển nhân viên đang ở trạng thái «Đã nghỉ».",
+        )
+
+    last_resign = (
+        db.query(EmployeeResignation)
+        .filter(EmployeeResignation.employee_id == emp.id)
+        .order_by(EmployeeResignation.seq_no.desc())
+        .first()
+    )
+    if last_resign is None:
+        last_resign = _ensure_open_resignation_record(db, emp)
+    elif last_resign.snapshot_json is None and last_resign.rehired_at is None:
+        last_resign.snapshot_json = _build_resignation_snapshot(db, emp)
+    if last_resign.rehired_at is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Trợ Lý AI: lần nghỉ gần nhất đã được đánh dấu tái tuyển.",
+        )
+
+    team = db.get(Team, body.team_id)
+    if team is None:
+        raise HTTPException(status_code=400, detail="Trợ Lý AI: Tổ không tồn tại.")
+    today = date.today()
+    if team.effective_to is not None and team.effective_to < today:
+        raise HTTPException(status_code=400, detail=f"Trợ Lý AI: Tổ '{team.code}' không còn hiệu lực.")
+
+    mode = body.rehire_mode
+    snap = last_resign.snapshot_json or {}
+
+    if mode == "continuity":
+        reason = (body.rehire_reason or "").strip()
+        if not reason:
+            raise HTTPException(
+                status_code=400,
+                detail="Trợ Lý AI: tái tuyển giữ quyền lợi cần ghi lý do (ưu ái).",
+            )
+        if snap.get("join_date"):
+            emp.join_date = date.fromisoformat(str(snap["join_date"]))
+        emp.contract_salary = D(snap.get("contract_salary") or emp.contract_salary)
+        emp.probation_salary = D(snap.get("probation_salary") or emp.probation_salary)
+        emp.pay_channel = snap.get("pay_channel") or emp.pay_channel
+        _clear_employee_allowances(db, emp.id)
+        _restore_allowances_from_snapshot(db, emp, snap)
+        msg = f"Trợ Lý AI: tái tuyển giữ quyền lợi MSNV {emp.employee_code}."
+        last_resign.rehire_reason = reason
+    else:
+        if body.contract_salary is None or money_vnd(body.contract_salary) <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Trợ Lý AI: tái tuyển thường cần lương HĐ mới > 0.",
+            )
+        emp.join_date = body.rehire_date
+        emp.contract_salary = body.contract_salary
+        emp.probation_salary = body.probation_salary or Decimal("0")
+        _clear_employee_allowances(db, emp.id)
+        _record_salary_history(
+            db,
+            employee_id=emp.id,
+            field_code="contract_salary",
+            effective_from=body.rehire_date,
+            old_value=Decimal("0"),
+            new_value=body.contract_salary,
+            note="Tái tuyển — lương mới",
+        )
+        if money_vnd(emp.probation_salary) > 0:
+            _record_salary_history(
+                db,
+                employee_id=emp.id,
+                field_code="probation_salary",
+                effective_from=body.rehire_date,
+                old_value=Decimal("0"),
+                new_value=emp.probation_salary,
+                note="Tái tuyển — lương TV",
+            )
+        msg = f"Trợ Lý AI: tái tuyển thường MSNV {emp.employee_code} — thâm niên & phụ cấp tính lại."
+
+    emp.status = body.status
+    emp.resign_date = None
+    emp.team_id = team.id
+    last_resign.rehired_at = body.rehire_date
+    last_resign.rehire_mode = mode
+    if mode == "fresh_start":
+        last_resign.rehire_reason = None
+
+    _sync_worker_on_status(db, emp)
+    if emp.status == "probation" and emp.join_date:
+        lcf.bootstrap_first_contract(db, emp, sign_date=body.rehire_date)
+
+    write_audit(
+        db,
+        actor=None,
+        action="employee.rehire",
+        entity_type="employees",
+        entity_id=str(emp.id),
+        summary=f"Tái tuyển {emp.employee_code} mode={mode}",
+        meta={"rehire_mode": mode, "rehire_date": str(body.rehire_date)},
+        commit=False,
+    )
+    db.commit()
+    out = get_employee(db, emp.id)
+    return EmployeeRehireOut(employee=out, rehire_mode=mode, message=msg)
 
 
 # --- 5.1 employee profile subrecords ---

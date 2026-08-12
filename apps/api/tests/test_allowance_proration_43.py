@@ -49,7 +49,28 @@ def test_prorate_tet_month_20_days():
     assert amt == Decimal("600000")
 
 
-def test_compute_ale_adds_to_attend_when_worked_26():
+def test_pccc_prorate_by_worked_days():
+    """PCCC+HSE: mức tháng ÷ mẫu số × ngày hưởng (22§22.3)."""
+    types = [
+        AllowanceTypeView("PCCC", "PCCC+HSE", "by_worked_days", True, True, Decimal("0")),
+    ]
+    r = compute_allowances(
+        AllowanceInput(
+            salary_divisor=Decimal("26"),
+            worked_days=Decimal("9"),
+            late_count=0,
+            early_count=0,
+            penalty_absent_days=Decimal("0"),
+            join_date=date(2020, 1, 15),
+            as_of=date(2026, 8, 11),
+            policy=default_payload(),
+            monthly_by_code={"PCCC": Decimal("932000")},
+            types=types,
+        )
+    )
+    assert len(r.lines) == 1
+    assert r.lines[0].amount == Decimal("322615")
+
     types = [
         AllowanceTypeView("ATTEND", "Chuyên cần", "attend_penalty", False, True, Decimal("600000")),
         AllowanceTypeView("TRANSPORT", "Đi lại", "by_worked_days", False, False, Decimal("800000")),

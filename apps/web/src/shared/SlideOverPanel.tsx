@@ -1,4 +1,5 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode } from "react";
+import { useEscLayer } from "./useEscLayer";
 
 type Props = {
   open: boolean;
@@ -17,14 +18,7 @@ export function SlideOverPanel({
   onClose,
   children,
 }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscLayer(open, onClose);
 
   return (
     <>

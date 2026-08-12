@@ -1,4 +1,4 @@
-"""P5.2 — Xuất Excel ATM / CASH + audit log."""
+"""P5.2 — Xuất Excel bảng lương GenusSuite + audit log."""
 
 from decimal import Decimal
 from io import BytesIO
@@ -74,11 +74,15 @@ def test_export_atm_cash_and_audit(client, db):
     wb = load_workbook(BytesIO(atm.content))
     assert "ATM" in wb.sheetnames
     sheet = wb["ATM"]
-    headers = [c.value for c in sheet[1]]
-    assert "Số tài khoản" in headers
-    assert "Thực lãnh (VND)" in headers
-    # Có ít nhất 1 dòng dữ liệu + header
-    assert sheet.max_row >= 2
+    assert sheet.cell(row=7, column=1).value == "PAYROLL / BẢNG LƯƠNG"
+    assert sheet.cell(row=1, column=1).value == "CÔNG TY TNHH DONGJU SPORTS VIỆT NAM"
+    assert sheet.cell(row=10, column=1).value == "No"
+    assert sheet.cell(row=12, column=3).value == "MSNV"
+    assert sheet.cell(row=12, column=36).value == "Thực lãnh"
+    assert sheet.cell(row=13, column=10).value == 10
+    hdr = sheet.cell(row=12, column=1)
+    assert hdr.fill.start_color.rgb in ("00969696", "969696")
+    assert sheet.max_row >= 14
 
     cash = client.get(
         "/api/payroll/periods/2025-10/export?channel=CASH",
@@ -87,8 +91,12 @@ def test_export_atm_cash_and_audit(client, db):
     assert cash.status_code == 200
     wb_c = load_workbook(BytesIO(cash.content))
     assert "CASH" in wb_c.sheetnames
-    codes = [wb_c["CASH"].cell(r, 2).value for r in range(2, wb_c["CASH"].max_row + 1)]
-    assert "1732" in codes
+    codes = [
+        wb_c["CASH"].cell(r, 3).value
+        for r in range(12, wb_c["CASH"].max_row + 1)
+        if wb_c["CASH"].cell(r, 3).value
+    ]
+    assert 1732 in codes or "1732" in codes
 
     both = client.get(
         "/api/payroll/periods/2025-10/export?channel=ALL",
@@ -96,7 +104,7 @@ def test_export_atm_cash_and_audit(client, db):
     )
     assert both.status_code == 200
     wb_a = load_workbook(BytesIO(both.content))
-    assert set(wb_a.sheetnames) >= {"ATM", "CASH", "Tong_hop"}
+    assert set(wb_a.sheetnames) >= {"TOTAL", "ATM", "CASH"}
 
     logs = db.query(ExportLog).filter(ExportLog.kind.like("payroll_%")).all()
     assert len(logs) >= 3
@@ -109,3 +117,44 @@ def test_export_bad_channel(client, db):
         headers=_hr_headers(client),
     )
     assert res.status_code == 400
+
+
+def test_export_filter_department_and_employee(client, db):
+    _calc(client, db)
+    from app.modules.mdm.models import Department
+
+    dept = db.query(Department).filter(Department.code == "QC1").one()
+    headers = _hr_headers(client)
+
+    dept_res = client.get(
+        f"/api/payroll/periods/2025-10/export?channel=ALL&department_id={dept.id}",
+        headers=headers,
+    )
+    assert dept_res.status_code == 200, dept_res.text
+    wb_d = load_workbook(BytesIO(dept_res.content))
+    codes_d = {
+        wb_d["TOTAL"].cell(r, 3).value
+        for r in range(14, wb_d["TOTAL"].max_row)
+        if wb_d["TOTAL"].cell(r, 3).value
+    }
+    assert codes_d == {5321} or codes_d == {"5321"}
+
+    emp_res = client.get(
+        "/api/payroll/periods/2025-10/export?channel=ALL&employee_code=5290",
+        headers=headers,
+    )
+    assert emp_res.status_code == 200, emp_res.text
+    wb_e = load_workbook(BytesIO(emp_res.content))
+    codes_e = {
+        wb_e["TOTAL"].cell(r, 3).value
+        for r in range(14, wb_e["TOTAL"].max_row)
+        if wb_e["TOTAL"].cell(r, 3).value
+    }
+    assert codes_e == {5290} or codes_e == {"5290"}
+    assert "5290" in emp_res.headers.get("content-disposition", "")
+
+    missing = client.get(
+        "/api/payroll/periods/2025-10/export?channel=ALL&employee_code=999999",
+        headers=headers,
+    )
+    assert missing.status_code == 404

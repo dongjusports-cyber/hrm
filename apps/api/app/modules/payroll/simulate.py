@@ -21,6 +21,7 @@ from app.modules.payroll.schemas import (
     SimulateRowOut,
 )
 from app.modules.payroll.service import _active_policy, compute_employee_payslip
+from app.modules.payroll.period_eligibility import employee_on_payroll_period
 from app.modules.policy.models import PolicyPackage
 from app.modules.policy.seed_payload import default_payload
 
@@ -133,6 +134,8 @@ def simulate_period(db: Session, body: SimulateRequest) -> SimulateResult:
     rows_out: list[SimulateRowOut] = []
 
     for ts, emp in q.all():
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            continue
         slip = (
             db.query(Payslip)
             .filter(Payslip.pay_period_id == pay.id, Payslip.employee_id == emp.id)

@@ -23,7 +23,7 @@ def _sched(**kwargs) -> Schedule:
 
 
 def test_late_and_ot_weekday():
-    # 2025-10-01 = Wednesday
+    # 2025-10-01 = Wednesday — OT ngoài từ 17:15
     d = date(2025, 10, 1)
     punches = [
         datetime(2025, 10, 1, 8, 1, tzinfo=VN),
@@ -33,9 +33,21 @@ def test_late_and_ot_weekday():
     assert r.is_workday
     assert r.late_minutes == 1
     assert r.early_minutes == 0
-    assert r.ot_minutes == 5
-    assert r.ot_type == "weekday"
-    assert r.worked_hours == Decimal("7.9833")  # khung ca tới 17:00, không cộng OT vào công
+    assert r.ot_minutes == 0  # 17:05 < 17:15
+    assert r.ot_on_books_minutes == 0
+    assert r.ot_external_minutes == 0
+    assert r.worked_hours == Decimal("7.9833")
+
+
+def test_ot_starts_after_grace_1715():
+    d = date(2025, 10, 1)  # Wednesday
+    punches = [
+        datetime(2025, 10, 1, 8, 0, tzinfo=VN),
+        datetime(2025, 10, 1, 17, 20, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.ot_minutes == 20  # từ 17:00
+    assert r.ot_external_minutes == 20
 
 
 def test_early_leave():
@@ -77,3 +89,41 @@ def test_holiday_ot():
     r = calculate_day(punches, d, _sched(holiday_dates={d}))
     assert r.ot_type == "holiday"
     assert r.ot_minutes == 120
+
+
+def test_single_punch_out_only_records_last_out():
+    """Chỉ bấm giờ về — ghi nhận giờ ra, HR/AI rà soát thiếu vào."""
+    d = date(2026, 8, 7)  # Friday
+    punches = [datetime(2026, 8, 7, 17, 8, tzinfo=VN)]
+    r = calculate_day(punches, d, _sched())
+    assert r.punch_count == 1
+    assert r.first_in is None
+    assert r.last_out == punches[0]
+    assert r.late_minutes == 0
+    assert r.early_minutes == 0
+    assert r.ot_minutes == 0  # trước 17:15
+    assert r.worked_hours == Decimal("0")
+
+
+def test_single_punch_in_only_records_first_in():
+    d = date(2026, 8, 8)  # Saturday workday in sched
+    punches = [datetime(2026, 8, 8, 8, 5, tzinfo=VN)]
+    r = calculate_day(punches, d, _sched())
+    assert r.punch_count == 1
+    assert r.first_in == punches[0]
+    assert r.last_out is None
+    assert r.late_minutes == 5
+    assert r.ot_minutes == 0
+
+
+def test_double_tap_deduped_to_single_out():
+    d = date(2026, 8, 7)
+    punches = [
+        datetime(2026, 8, 7, 17, 8, 0, tzinfo=VN),
+        datetime(2026, 8, 7, 17, 8, 30, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.punch_count == 1
+    assert r.first_in is None
+    assert r.last_out == punches[0]
+    assert r.ot_minutes == 0

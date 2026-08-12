@@ -58,7 +58,7 @@ def test_late_at_080001():
 
 
 def test_out_at_2000_full_day_and_ot_3h():
-    """24§ nghiệm thu: ra 20:00 → công 8h + OT 180 phút."""
+    """24§ nghiệm thu: ra 20:00 (sau 17:15) → công 8h + OT 180 phút từ 17:00."""
     d = date(2025, 10, 14)  # Thứ 3
     punches = [
         datetime(2025, 10, 14, 8, 0, 0, tzinfo=VN),
@@ -67,7 +67,7 @@ def test_out_at_2000_full_day_and_ot_3h():
     r = calculate_day(punches, d, _sched())
     assert r.worked_hours == Decimal("8.0000")
     assert r.ot_minutes == 180
-    assert r.ot_type == "weekday"
+    assert r.ot_on_books_minutes == 180
     assert r.late_minutes == 0
     assert r.early_minutes == 0
 
@@ -106,3 +106,4 @@ def test_recalculate_out_2000(client):
     ).json()[0]
     assert float(day["worked_hours"]) == 8.0
     assert day["ot_minutes"] == 180
+    assert day["ot_on_books_minutes"] == 180

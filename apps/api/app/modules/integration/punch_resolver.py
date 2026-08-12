@@ -7,7 +7,23 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from sqlalchemy import not_
+
+from app.modules.integration.models import AttendancePunch
 from app.modules.mdm.models import Employee
+
+# MSNV 200* — bảo vệ đi tuần bấm máy Mitapro; không phải nhân viên HRM.
+PATROL_GUARD_CODE_PREFIX = "200"
+
+
+def is_patrol_guard_code(employee_code: str) -> bool:
+    code = employee_code.strip()
+    return bool(code) and code.startswith(PATROL_GUARD_CODE_PREFIX)
+
+
+def exclude_patrol_guard_punches(query):
+    """Loại punch bảo vệ tuần khỏi thống kê / danh sách chưa khớp."""
+    return query.filter(not_(AttendancePunch.employee_code.like(f"{PATROL_GUARD_CODE_PREFIX}%")))
 
 
 @dataclass(frozen=True)

@@ -82,7 +82,7 @@ class EmployeeBase(BaseModel):
     urgent_contact: str | None = None
     si_book_no: str | None = None
     bank_account: str | None = None
-    pay_channel: str = "ATM"
+    pay_channel: str = "CASH"
     # NV thuộc về TỔ, bộ phận suy ra qua team.department_id — không lưu department_id
     # riêng ở employees (21§21.3, dọn dẹp đợt 1). team_code không duy nhất toàn hệ thống
     # (trùng giữa các bộ phận) nên khi tạo/import bằng mã, cần kèm department_code.
@@ -129,6 +129,50 @@ class EmployeeBase(BaseModel):
 
 class EmployeeCreate(EmployeeBase):
     pass
+
+
+class ValidationIssueOut(BaseModel):
+    field: str
+    code: str
+    level: Literal["error", "warn", "info"]
+    message: str
+    meta: dict | None = None
+
+
+class EmployeeValidateRequest(BaseModel):
+    is_new: bool = True
+    employee_id: UUID | None = None
+    payload: dict
+
+
+class EmployeeValidateResult(BaseModel):
+    ok: bool
+    issues: list[ValidationIssueOut]
+    error_count: int
+    warn_count: int
+    suggested_code: str | None = None
+
+
+class EmployeeSuggestCodeOut(BaseModel):
+    suggested_code: str
+
+
+class EmployeeRehireRequest(BaseModel):
+    rehire_date: date
+    rehire_mode: Literal["fresh_start", "continuity"] = "fresh_start"
+    rehire_reason: str | None = None
+    team_id: UUID
+    status: Literal["active", "probation"] = "probation"
+    contract_salary: Decimal | None = None
+    probation_salary: Decimal | None = None
+
+    @field_validator("contract_salary", "probation_salary", mode="before")
+    @classmethod
+    def money_dec(cls, v):  # noqa: ANN001
+        if v is None or v == "":
+            return None
+        s = str(v).replace(",", "").replace(" ", "").strip()
+        return Decimal(s)
 
 
 class EmployeeUpdate(BaseModel):
@@ -245,6 +289,12 @@ class EmployeeOut(BaseModel):
     is_locked: bool = False
     failed_attempts: int = 0
     has_worker_account: bool = False
+
+
+class EmployeeRehireOut(BaseModel):
+    employee: EmployeeOut
+    rehire_mode: str
+    message: str
 
 
 class UnlockResetPasswordOut(BaseModel):
@@ -759,6 +809,8 @@ class EmployeeResignationOut(BaseModel):
     severance_amount: Decimal
     handover_done: bool
     rehired_at: date | None
+    rehire_mode: str | None = None
+    rehire_reason: str | None = None
     created_at: datetime | None = None
 
 

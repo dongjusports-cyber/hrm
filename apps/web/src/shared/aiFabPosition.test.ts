@@ -3,7 +3,9 @@ import {
   clampFabPosition,
   computePanelBox,
   defaultFabPosition,
+  isFabOverGridZone,
   loadFabPosition,
+  nudgeFabFromGrid,
 } from "./aiFabPosition";
 
 describe("clampFabPosition", () => {
@@ -22,6 +24,32 @@ describe("defaultFabPosition", () => {
 describe("loadFabPosition", () => {
   it("không có lưu → góc phải dưới", () => {
     expect(loadFabPosition(800, 600)).toEqual({ left: 732, top: 532 });
+  });
+});
+
+describe("isFabOverGridZone", () => {
+  it("FAB góc dưới phải → không che lưới", () => {
+    expect(isFabOverGridZone({ left: 732, top: 532 }, 800, 600)).toBe(false);
+  });
+
+  it("FAB giữa trái → che lưới", () => {
+    expect(isFabOverGridZone({ left: 120, top: 200 }, 800, 600)).toBe(true);
+  });
+});
+
+describe("nudgeFabFromGrid", () => {
+  it("đẩy về góc dưới phải khi đè lưới", () => {
+    expect(nudgeFabFromGrid({ left: 120, top: 200 }, 800, 600)).toEqual({
+      left: 732,
+      top: 532,
+    });
+  });
+
+  it("giữ vị trí khi không đè lưới", () => {
+    expect(nudgeFabFromGrid({ left: 700, top: 500 }, 800, 600)).toEqual({
+      left: 700,
+      top: 500,
+    });
   });
 });
 

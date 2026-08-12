@@ -1,3 +1,5 @@
+import { useEscLayer } from "./useEscLayer";
+
 type Props = {
   open: boolean;
   message: string;
@@ -5,6 +7,8 @@ type Props = {
 };
 
 export function DeniedModal({ open, message, onClose }: Props) {
+  useEscLayer(open, onClose);
+
   if (!open) return null;
 
   return (

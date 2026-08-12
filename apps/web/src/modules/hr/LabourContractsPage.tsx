@@ -42,6 +42,10 @@ export function LabourContractsPage() {
         setPanelTab("timeline");
         return true;
       }
+      if (selectedEmpId) {
+        setSelectedEmpId(null);
+        return true;
+      }
       return false;
     },
   });

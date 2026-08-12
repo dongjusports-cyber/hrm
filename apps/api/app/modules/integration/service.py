@@ -10,11 +10,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.modules.attendance.engine import VN_TZ, to_vn
 from app.modules.integration.models import AttendancePunch, SyncJob
 from app.modules.integration.punch_resolver import (
     backfill_unlinked_punches,
     build_employee_resolve_maps,
     direction_from_punch_in,
+    exclude_patrol_guard_punches,
+    is_patrol_guard_code,
     resolve_employee_id,
 )
 from app.modules.integration.schemas import (
@@ -28,6 +31,13 @@ from app.modules.integration.schemas import (
 )
 
 SYNC_STALE_HOURS = 24
+
+
+def normalize_punch_time(punch_time: datetime) -> datetime:
+    """Mitapro gửi giờ VN — naive datetime coi là +07:00, không gắn UTC."""
+    if punch_time.tzinfo is None:
+        return punch_time.replace(tzinfo=VN_TZ)
+    return punch_time
 
 
 def verify_agent_token(token: str | None) -> None:
@@ -65,14 +75,16 @@ def ingest_punches(
     known_codes = set(maps.by_code.keys())
     inserted = 0
     skipped = 0
+    patrol_ignored = 0
     linked = 0
     unknown: list[str] = []
 
     for p in body.punches:
         code = p.employee_code.strip()
-        punch_time = p.punch_time
-        if punch_time.tzinfo is None:
-            punch_time = punch_time.replace(tzinfo=timezone.utc)
+        if is_patrol_guard_code(code):
+            patrol_ignored += 1
+            continue
+        punch_time = normalize_punch_time(p.punch_time)
 
         emp_id = resolve_employee_id(maps, employee_code=code, ma_cham_cong=p.ma_cham_cong)
         if emp_id is None and code not in unknown:
@@ -120,8 +132,11 @@ def ingest_punches(
             job.status = "partial"
         else:
             job.status = "success"
+        patrol_note = ""
+        if patrol_ignored:
+            patrol_note = f" Bỏ bảo vệ tuần (200*): {patrol_ignored}."
         job.message = (
-            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{inserted}.{warn}"
+            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{inserted}.{warn}{patrol_note}"
         ).strip()
 
     db.commit()
@@ -138,12 +153,16 @@ def ingest_punches(
         from app.modules.attendance.service import recalculate_days
 
         dates = [
-            to_vn(p.punch_time if p.punch_time.tzinfo else p.punch_time.replace(tzinfo=timezone.utc)).date()
+            to_vn(normalize_punch_time(p.punch_time)).date()
             for p in body.punches
             if p.employee_code.strip() in known_codes
         ]
         if dates:
             recalculate_days(db, date_from=min(dates), date_to=max(dates))
+            from app.modules.attendance.timesheet import rebuild_timesheets
+
+            for period in {f"{d.year:04d}-{d.month:02d}" for d in dates}:
+                rebuild_timesheets(db, period, recalc_days=False)
 
     return MitaproPushResult(job=to_job_out(job), detail=f"Trợ Lý AI: {job.message}")
 
@@ -258,9 +277,11 @@ def integration_status(db: Session) -> IntegrationStatusOut:
         .order_by(SyncJob.finished_at.desc())
         .first()
     )
-    count = db.query(AttendancePunch).count()
-    unlinked = db.query(AttendancePunch).filter(AttendancePunch.employee_id.is_(None)).count()
-    last_punch_at = db.query(func.max(AttendancePunch.punch_time)).scalar()
+    count = exclude_patrol_guard_punches(db.query(AttendancePunch)).count()
+    unlinked = exclude_patrol_guard_punches(
+        db.query(AttendancePunch).filter(AttendancePunch.employee_id.is_(None))
+    ).count()
+    last_punch_at = exclude_patrol_guard_punches(db.query(func.max(AttendancePunch.punch_time))).scalar()
     configured = bool(settings.agent_token and settings.agent_token != "change_me_agent_token")
     detail = (
         "Agent đã cấu hình token."
@@ -301,7 +322,7 @@ def integration_status(db: Session) -> IntegrationStatusOut:
 
 def list_unlinked_punches(db: Session, *, limit: int = 100) -> UnlinkedPunchesOut:
     lim = max(1, min(limit, 500))
-    q = (
+    q = exclude_patrol_guard_punches(
         db.query(AttendancePunch)
         .filter(AttendancePunch.employee_id.is_(None))
         .order_by(AttendancePunch.punch_time.desc())
@@ -317,5 +338,7 @@ def list_unlinked_punches(db: Session, *, limit: int = 100) -> UnlinkedPunchesOu
 def relink_punches(db: Session) -> dict[str, int]:
     """Admin — gắn employee_id cho punch mồ côi theo MSNV hiện có."""
     n = backfill_unlinked_punches(db)
-    remaining = db.query(AttendancePunch).filter(AttendancePunch.employee_id.is_(None)).count()
+    remaining = exclude_patrol_guard_punches(
+        db.query(AttendancePunch).filter(AttendancePunch.employee_id.is_(None))
+    ).count()
     return {"updated": n, "remaining_unlinked": remaining}

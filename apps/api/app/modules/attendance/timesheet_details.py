@@ -51,11 +51,13 @@ def aggregate_month_details(
         seg = d.segment or fallback_seg
         if d.leave_code:
             add(seg, _abs_category(d.leave_code), days=Decimal("1"))
-        elif d.is_workday and d.punch_count > 0:
+        elif d.is_workday and Decimal(d.worked_hours or 0) > 0:
             add(seg, "WT", days=Decimal("1"))
 
-        if d.ot_type == "weekday" and d.ot_minutes > 0:
-            add(seg, "OT", hours=_hours(d.ot_minutes))
+        if (d.ot_on_books_minutes or 0) > 0:
+            add(seg, "OT", hours=_hours(d.ot_on_books_minutes))
+        if (d.ot_external_minutes or 0) > 0:
+            add(seg, "OT_EXT", hours=_hours(d.ot_external_minutes))
         if d.sunday_hours and d.sunday_hours > 0:
             add(seg, "ST", hours=Decimal(d.sunday_hours))
         if d.holiday_hours and d.holiday_hours > 0:

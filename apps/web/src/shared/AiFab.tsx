@@ -20,12 +20,15 @@ import {
 import { aiFabBadgeCount } from "./aiReminder";
 import {
   clampFabPosition,
+  clearFabPosition,
   computePanelBox,
   defaultFabPosition,
   loadFabPosition,
+  nudgeFabFromGrid,
   saveFabPosition,
 } from "./aiFabPosition";
 import { useAuth } from "./authStore";
+import { useEscLayer } from "./useEscLayer";
 
 type Tab = "alerts" | "chat";
 
@@ -107,14 +110,7 @@ export function AiFab() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  useEscLayer(open, () => setOpen(false));
 
   const panelBox = useMemo(
     () => computePanelBox(pos, viewport.w, viewport.h, { fabSize: FAB_SIZE }),
@@ -194,6 +190,13 @@ export function AiFab() {
     );
   }
 
+  function resetFabPosition() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    clearFabPosition();
+    setPos(defaultFabPosition(w, h));
+  }
+
   function onFabPointerUp(e: ReactPointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     const wasDrag = Boolean(drag?.moved);
@@ -204,10 +207,18 @@ export function AiFab() {
     } catch {
       /* already released */
     }
-    if (!wasDrag) {
-      setOpen((v) => !v);
-      void reload();
+    if (wasDrag) {
+      setPos((p) => nudgeFabFromGrid(p, window.innerWidth, window.innerHeight, FAB_SIZE));
+      return;
     }
+    setOpen((v) => {
+      const next = !v;
+      if (next) {
+        setPos((p) => nudgeFabFromGrid(p, window.innerWidth, window.innerHeight, FAB_SIZE));
+      }
+      return next;
+    });
+    void reload();
   }
 
   return (
@@ -336,6 +347,15 @@ export function AiFab() {
         className="ai-fab-root"
         style={{ left: pos.left, top: pos.top, right: "auto", bottom: "auto" }}
       >
+        <button
+          type="button"
+          className="ai-fab-reset"
+          aria-label="Đặt lại vị trí nút Trợ Lý AI"
+          title="Đặt lại vị trí"
+          onClick={resetFabPosition}
+        >
+          ↺
+        </button>
         <button
           type="button"
           className={`ai-fab-btn${dragging ? " is-dragging" : ""}`}

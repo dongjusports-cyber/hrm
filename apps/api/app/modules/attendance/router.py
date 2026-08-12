@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from app.core.deps import DbSession, require_module
 from app.modules.attendance import leave_requests as lr
@@ -12,6 +13,9 @@ from app.modules.attendance import review as review_mod
 from app.modules.attendance.day_grid import bulk_patch_days, list_days_grid, patch_day_cell
 from app.modules.attendance import service
 from app.modules.attendance import timesheet as ts
+from app.modules.attendance.ot_external_export import build_ot_external_export
+from app.modules.payroll.ot_external import build_ot_external_summary
+from app.modules.payroll.ot_external_schemas import OtExternalPayRowOut, OtExternalSummaryOut
 from app.modules.attendance.review import ManualDayPatch, ReviewSummary
 from app.modules.attendance.schemas import (
     AdjustmentCreate,
@@ -105,6 +109,51 @@ def timesheets_rebuild(
     period: Annotated[str, Query(description="YYYY-MM")],
 ) -> RebuildTimesheetResult:
     return ts.rebuild_timesheets(db, period, recalc_days=True)
+
+
+@router.get("/attendance/timesheets/{period}/ot-external-preview", response_model=OtExternalSummaryOut)
+def ot_external_preview_attendance(
+    period: str, _user: TimekeepingUser, db: DbSession
+) -> OtExternalSummaryOut:
+    """Xem trước OT ngoài + tiền (22§22.8) — module Chấm công."""
+    summary = build_ot_external_summary(db, period)
+    return OtExternalSummaryOut(
+        period=summary.period,
+        employee_count=summary.employee_count,
+        total_raw_hours=summary.total_raw_hours,
+        total_effective_hours=summary.total_effective_hours,
+        total_amount_vnd=summary.total_amount_vnd,
+        policy_note=summary.policy_note,
+        rows=[
+            OtExternalPayRowOut(
+                employee_code=r.employee_code,
+                full_name=r.full_name,
+                bank_account=r.bank_account,
+                raw_hours=r.raw_hours,
+                effective_hours=r.effective_hours,
+                ot_base=r.ot_base,
+                hourly_base=r.hourly_base,
+                rate=r.rate,
+                amount_vnd=r.amount_vnd,
+            )
+            for r in summary.rows
+        ],
+    )
+
+
+@router.get("/attendance/timesheets/{period}/export-ot-external")
+def export_ot_external(
+    period: str,
+    user: TimekeepingUser,
+    db: DbSession,
+) -> Response:
+    """Xuất Excel OT ngoài (ATM riêng) — tách khỏi bảng lương chính."""
+    data, filename, media = build_ot_external_export(db, period, user)
+    return Response(
+        content=data,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/attendance/adjustments", response_model=list[AdjustmentOut])

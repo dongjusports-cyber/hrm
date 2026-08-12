@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchOverview, type OverviewData } from "../../shared/api";
+import { currentPayPeriod } from "../../shared/formatDate";
 
 function fmtPct(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -14,7 +15,7 @@ function fmtVnd(v: string | number | null | undefined): string {
 
 /** Tổng Quan — card KPI + HC/OT theo bộ phận (02§2.4). */
 export function OverviewPage() {
-  const [period, setPeriod] = useState("2025-10");
+  const [period, setPeriod] = useState(currentPayPeriod);
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

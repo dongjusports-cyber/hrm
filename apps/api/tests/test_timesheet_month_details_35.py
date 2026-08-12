@@ -26,13 +26,14 @@ def _detail_map(rows: list[dict]) -> dict[tuple[str, str], dict]:
 
 
 def test_rebuild_creates_wt_and_ot_details(client):
+    # 2025-10-14 = Thứ 3 (OT trên sổ); ra 17:20 → 20p OT (sau grace 17:15)
     client.post(
         "/api/integrations/mitapro/push",
         headers=_agent_headers(),
         json={
             "punches": [
-                {"employee_code": "5290", "punch_time": "2025-10-01T08:01:00+07:00"},
-                {"employee_code": "5290", "punch_time": "2025-10-01T17:05:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-14T08:01:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-14T17:20:00+07:00"},
             ]
         },
     )
@@ -52,7 +53,7 @@ def test_rebuild_creates_wt_and_ot_details(client):
     assert ("WT", "official") in m
     assert float(m[("WT", "official")]["days"]) == 1.0
     assert ("OT", "official") in m
-    assert float(m[("OT", "official")]["hours"]) == 0.08
+    assert float(m[("OT", "official")]["hours"]) == 0.33  # 20 phút
 
 
 def test_rebuild_sunday_st_hours(client):
@@ -144,7 +145,10 @@ def test_aggregate_unit(db):
         work_date=date(2025, 10, 1),
         is_workday=True,
         punch_count=2,
+        worked_hours=Decimal("8"),
         ot_minutes=60,
+        ot_on_books_minutes=60,
+        ot_external_minutes=0,
         ot_type="weekday",
         segment="official",
         sunday_hours=Decimal("0"),

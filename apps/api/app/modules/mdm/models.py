@@ -425,6 +425,9 @@ class EmployeeResignation(Base):
     severance_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"), nullable=False)
     handover_done: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     rehired_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    snapshot_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    rehire_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    rehire_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

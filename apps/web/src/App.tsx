@@ -39,6 +39,7 @@ import { InsurancePage } from "./modules/insurance/InsurancePage";
 import { AiFab } from "./shared/AiFab";
 import { CommandPalette } from "./shared/CommandPalette";
 import { DeniedModal } from "./shared/DeniedModal";
+import { FullscreenToggle } from "./shared/FullscreenToggle";
 import { GlobalEscBack } from "./shared/GlobalEscBack";
 import { RequireAuth } from "./shared/RequireAuth";
 import { useDeniedStore } from "./shared/deniedStore";
@@ -228,6 +229,7 @@ export default function App() {
       </Routes>
       <GlobalEscBack />
       <CommandPalette />
+      <FullscreenToggle />
       <DeniedModal open={open} message={message} onClose={close} />
       <AiFab />
     </>

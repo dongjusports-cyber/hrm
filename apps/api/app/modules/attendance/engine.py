@@ -10,6 +10,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Sequence
 
+from app.modules.attendance.ot_split import OtSplitPolicy, default_ot_split_policy, split_weekday_ot_minutes
 from app.modules.attendance.punch_dedupe import dedupe_punch_times
 
 VN_TZ = timezone(timedelta(hours=7))
@@ -37,6 +38,8 @@ class DayCalcResult:
     late_minutes: int
     early_minutes: int
     ot_minutes: int
+    ot_on_books_minutes: int
+    ot_external_minutes: int
     ot_type: str | None
     punch_count: int
     is_workday: bool
@@ -63,6 +66,66 @@ def _seconds_to_minutes_up(seconds: float) -> int:
     if seconds <= 0:
         return 0
     return int((seconds + 59) // 60)
+
+
+def _assign_single_punch(
+    punch: datetime,
+    schedule: Schedule,
+    work_date: date,
+) -> tuple[datetime | None, datetime | None]:
+    """
+    Một lần bấm sau dedupe — gán vào cột vào hoặc ra (HR/AI thấy, không bỏ trống cả hai).
+
+    Từ 13:00 trở đi coi là giờ ra; sáng coi là giờ vào.
+    """
+    split = combine_vn(work_date, schedule.afternoon_start)
+    if punch >= split:
+        return None, punch
+    return punch, None
+
+
+def _calc_partial_workday(
+    *,
+    first_in: datetime | None,
+    last_out: datetime | None,
+    work_date: date,
+    schedule: Schedule,
+    split_policy: OtSplitPolicy,
+) -> tuple[int, int, int, int, int, Decimal, str | None]:
+    """Late / early / OT / worked khi thiếu vào hoặc thiếu ra."""
+    shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
+        seconds=schedule.grace_late_seconds,
+        minutes=schedule.grace_late_minutes,
+    )
+    shift_end = combine_vn(work_date, schedule.afternoon_end)
+    early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
+    ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
+
+    late = 0
+    early = 0
+    ot_on_books = 0
+    ot_external = 0
+    ot_type: str | None = None
+
+    if first_in is not None and last_out is None:
+        if first_in > shift_start:
+            late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
+        worked = Decimal("0")
+    elif last_out is not None and first_in is None:
+        if last_out < early_deadline:
+            early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
+        if last_out > ot_qualify_after:
+            ot_on_books, ot_external = split_weekday_ot_minutes(
+                last_out, work_date, shift_end, ot_qualify_after, split_policy
+            )
+            ot = ot_on_books + ot_external
+            ot_type = "weekday" if ot > 0 else None
+        worked = Decimal("0")
+    else:
+        worked = Decimal("0")
+
+    ot = ot_on_books + ot_external
+    return late, early, ot, ot_on_books, ot_external, worked, ot_type
 
 
 def _shift_worked_hours(
@@ -97,7 +160,9 @@ def calculate_day(
     schedule: Schedule,
     *,
     punch_dedupe_window_seconds: int = 60,
+    ot_split: OtSplitPolicy | None = None,
 ) -> DayCalcResult:
+    split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
     if not times:
         return DayCalcResult(
@@ -108,9 +173,42 @@ def calculate_day(
             late_minutes=0,
             early_minutes=0,
             ot_minutes=0,
+            ot_on_books_minutes=0,
+            ot_external_minutes=0,
             ot_type=None,
             punch_count=0,
             is_workday=is_company_workday(work_date, schedule),
+        )
+
+    # Một mốc sau dedupe — ghi nhận giờ vào HOẶC giờ ra (HR/AI rà soát).
+    if len(times) == 1:
+        punch = times[0]
+        workday = is_company_workday(work_date, schedule)
+        first_in, last_out = _assign_single_punch(punch, schedule, work_date)
+        late = early = ot = ot_on_books = ot_external = 0
+        ot_type: str | None = None
+        worked = Decimal("0")
+        if workday:
+            late, early, ot, ot_on_books, ot_external, worked, ot_type = _calc_partial_workday(
+                first_in=first_in,
+                last_out=last_out,
+                work_date=work_date,
+                schedule=schedule,
+                split_policy=split_policy,
+            )
+        return DayCalcResult(
+            work_date=work_date,
+            first_in=first_in,
+            last_out=last_out,
+            worked_hours=worked,
+            late_minutes=late,
+            early_minutes=early,
+            ot_minutes=ot,
+            ot_on_books_minutes=ot_on_books,
+            ot_external_minutes=ot_external,
+            ot_type=ot_type,
+            punch_count=1,
+            is_workday=workday,
         )
 
     first_in = times[0]
@@ -119,7 +217,9 @@ def calculate_day(
     late = 0
     early = 0
     ot = 0
-    ot_type: str | None = None
+    ot_on_books = 0
+    ot_external = 0
+    ot_type = None
 
     if workday:
         shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
@@ -128,19 +228,25 @@ def calculate_day(
         )
         shift_end = combine_vn(work_date, schedule.afternoon_end)
         early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
+        ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
 
         if first_in > shift_start:
             late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
         if last_out < early_deadline:
             early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
-        if last_out > shift_end:
-            ot = int((last_out - shift_end).total_seconds() // 60)
+        if last_out > ot_qualify_after:
+            ot_on_books, ot_external = split_weekday_ot_minutes(
+                last_out, work_date, shift_end, ot_qualify_after, split_policy
+            )
+            ot = ot_on_books + ot_external
             ot_type = "weekday" if ot > 0 else None
         worked = _shift_worked_hours(first_in, last_out, schedule, work_date)
     else:
         ot = int((last_out - first_in).total_seconds() // 60)
         if ot < 0:
             ot = 0
+        ot_external = ot
+        ot_on_books = 0
         ot_type = "holiday" if work_date in schedule.holiday_dates else "weekend"
         worked = Decimal("0")
 
@@ -152,6 +258,8 @@ def calculate_day(
         late_minutes=late,
         early_minutes=early,
         ot_minutes=ot,
+        ot_on_books_minutes=ot_on_books,
+        ot_external_minutes=ot_external,
         ot_type=ot_type,
         punch_count=len(times),
         is_workday=workday,
