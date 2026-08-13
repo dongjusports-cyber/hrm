@@ -2,7 +2,8 @@
 
 Hệ thống HRM cloud (Web) cho nhà máy **DONGJU Sports Việt Nam** (~500 nhân sự).
 
-> Tài liệu nghiệp vụ & luật thiết kế: thư mục [`HIEN_PHAP/`](./HIEN_PHAP/) — đọc `00_README_CHO_AI.md` trước.
+> Hiến pháp hiện hành: [`HIEN_PHAP_V2/`](./HIEN_PHAP_V2/) — đọc `00_README_V2.md` trước.  
+> Nghiệp vụ lương/công (V1 tham chiếu): [`HIEN_PHAP/`](./HIEN_PHAP/).
 
 ## Stack
 

@@ -67,7 +67,7 @@ CATALOG: list[dict] = [
     {
         "code": "TOXIC",
         "name": "Độc hại",
-        "proration": "by_worked_days",
+        "proration": "fixed",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("100000"),
@@ -75,7 +75,7 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "by_worked_days",
+        "proration_rule": "none",
     },
     {
         "code": "POSITION",
@@ -92,8 +92,8 @@ CATALOG: list[dict] = [
     },
     {
         "code": "PCCC",
-        "name": "PCCC+HSE",
-        "proration": "by_worked_days",
+        "name": "PCCC",
+        "proration": "fixed",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("0"),
@@ -101,12 +101,25 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "by_worked_days",
+        "proration_rule": "none",
+    },
+    {
+        "code": "HSE",
+        "name": "HSE",
+        "proration": "fixed",
+        "include_in_si_base": True,
+        "include_in_ot_base": True,
+        "default_amount": Decimal("50000"),
+        "kind": "earning",
+        "affects_si_base": True,
+        "affects_ot_base": True,
+        "affects_pit": True,
+        "proration_rule": "none",
     },
     {
         "code": "TECH",
         "name": "Tay nghề may",
-        "proration": "by_worked_days",
+        "proration": "fixed",
         "include_in_si_base": True,
         "include_in_ot_base": True,
         "default_amount": Decimal("0"),
@@ -114,7 +127,7 @@ CATALOG: list[dict] = [
         "affects_si_base": True,
         "affects_ot_base": True,
         "affects_pit": True,
-        "proration_rule": "by_worked_days",
+        "proration_rule": "none",
     },
     {
         "code": "SENIORITY",
@@ -133,7 +146,7 @@ CATALOG: list[dict] = [
     {
         "code": "OTHER",
         "name": "Khác",
-        "proration": "by_worked_days",
+        "proration": "fixed",
         "include_in_si_base": False,
         "include_in_ot_base": False,
         "default_amount": Decimal("0"),
@@ -141,7 +154,7 @@ CATALOG: list[dict] = [
         "affects_si_base": False,
         "affects_ot_base": False,
         "affects_pit": True,
-        "proration_rule": "by_worked_days",
+        "proration_rule": "none",
     },
     {
         "code": "CHILD",
@@ -405,10 +418,20 @@ LEAVE_PAY_COMPONENTS: list[dict] = [
 ]
 
 
+# CTY 2026-08 — trả đủ tháng nếu có gán (sync proration khi DB còn by_worked_days cũ).
+# OTHER («Khác»): HR gán phụ cấp điện thoại / khoản lẻ cố định — không tạo mã PHONE (tránh nhầm SĐT hồ sơ).
+_FULL_MONTH_CATALOG_CODES = frozenset({"PCCC", "HSE", "TOXIC", "TECH", "OTHER", "SENIORITY"})
+
+
 def seed_allowance_types(db: Session) -> None:
     for row in CATALOG:
         existing = db.query(PayComponent).filter(PayComponent.code == row["code"]).one_or_none()
         if existing:
+            if existing.name != row["name"]:
+                existing.name = row["name"]
+            if row["code"] in _FULL_MONTH_CATALOG_CODES and existing.proration == "by_worked_days":
+                existing.proration = row["proration"]
+                existing.proration_rule = row["proration_rule"]
             continue
         db.add(
             PayComponent(
@@ -446,6 +469,73 @@ def seed_allowance_types(db: Session) -> None:
             )
         )
     db.commit()
+    _drop_orphan_phone_component(db)
+
+
+def migrate_pccc_hse_assignments(db: Session) -> dict[str, list[str]]:
+    """Tách HSE khỏi PCCC — chỉ chuyển gán 50.000; 932.000 để HR tự tách 2 dòng.
+
+    Quy ước CTY 2026-08: mỗi phụ cấp một mã, HR add/xóa từng dòng trên hồ sơ.
+    """
+    from app.modules.payroll.money import D
+
+    seed_allowance_types(db)
+    pccc = db.query(PayComponent).filter(PayComponent.code == "PCCC").one()
+    hse = db.query(PayComponent).filter(PayComponent.code == "HSE").one()
+    pccc.name = "PCCC"
+
+    moved: list[str] = []
+    needs_manual: list[str] = []
+    hse_amount = Decimal("50000")
+
+    rows = (
+        db.query(EmployeeAllowanceAssignment, Employee)
+        .join(Employee, Employee.id == EmployeeAllowanceAssignment.employee_id)
+        .filter(EmployeeAllowanceAssignment.allowance_type_id == pccc.id)
+        .all()
+    )
+    for assign, emp in rows:
+        amt = D(assign.amount or 0)
+        if amt == hse_amount:
+            has_hse = (
+                db.query(EmployeeAllowanceAssignment.id)
+                .filter(
+                    EmployeeAllowanceAssignment.employee_id == emp.id,
+                    EmployeeAllowanceAssignment.allowance_type_id == hse.id,
+                )
+                .first()
+            )
+            if has_hse is None:
+                db.add(
+                    EmployeeAllowanceAssignment(
+                        employee_id=emp.id,
+                        allowance_type_id=hse.id,
+                        amount=hse_amount,
+                    )
+                )
+            db.delete(assign)
+            moved.append(emp.employee_code)
+        elif amt == Decimal("932000"):
+            needs_manual.append(emp.employee_code)
+
+    db.commit()
+    return {"moved_to_hse": moved, "needs_manual_pccc_hse_split": needs_manual}
+
+
+def _drop_orphan_phone_component(db: Session) -> None:
+    """Gỡ mã PHONE thử nghiệm — dùng OTHER (Khác) cho phụ cấp ĐT."""
+    row = db.query(PayComponent).filter(PayComponent.code == "PHONE").one_or_none()
+    if row is None:
+        return
+    used = (
+        db.query(EmployeeAllowanceAssignment.id)
+        .filter(EmployeeAllowanceAssignment.allowance_type_id == row.id)
+        .limit(1)
+        .first()
+    )
+    if used is None:
+        db.delete(row)
+        db.commit()
 
 
 def _assign(db: Session, emp: Employee, code: str, amount: Decimal | None) -> None:

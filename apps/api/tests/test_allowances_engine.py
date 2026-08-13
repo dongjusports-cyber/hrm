@@ -71,7 +71,7 @@ def test_compute_attend_transport_toxic():
     by = {x.code: x.amount for x in r.lines}
     assert by["ATTEND"] == Decimal("623077")
     assert by["TRANSPORT"] == Decimal("830769")
-    assert by["TOXIC"] == Decimal("103846")
+    assert by["TOXIC"] == Decimal("100000")
     assert r.attend_keep_percent == 100
     assert r.allowance_total == by["ATTEND"] + by["TRANSPORT"] + by["TOXIC"]
 

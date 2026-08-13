@@ -1,5 +1,5 @@
 # Tài liệu
 
-Hiến pháp phần mềm (nguồn sự thật): [`../HIEN_PHAP/`](../HIEN_PHAP/)
+Hiến pháp hiện hành (UAT + UI V2): [`../HIEN_PHAP_V2/`](../HIEN_PHAP_V2/) — bắt đầu từ `00_README_V2.md`.
 
-Bắt đầu từ `HIEN_PHAP/00_README_CHO_AI.md`.
+Nghiệp vụ lương/công (V1): [`../HIEN_PHAP/`](../HIEN_PHAP/) — `03`, `20`–`24`. Báo cáo phiên cũ: `_ARCHIVE/`.

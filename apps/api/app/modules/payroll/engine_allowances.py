@@ -13,6 +13,10 @@ from typing import Any
 from app.modules.payroll.allowance_proration import compute_numerator_days, prorate_allowance
 from app.modules.payroll.money import D, ZERO, money_vnd
 
+# Quy định CTY 2026-08: có gán trên hồ sơ → trả đủ tháng (không ÷ ngày công).
+# OTHER («Khác»): phụ cấp ĐT và khoản lẻ — HR tự nhập số tiền từng người.
+FULL_MONTH_IF_ASSIGNED = frozenset({"PCCC", "HSE", "TOXIC", "TECH", "OTHER"})
+
 
 @dataclass(frozen=True)
 class AllowanceTypeView:
@@ -302,7 +306,7 @@ def compute_allowances(inp: AllowanceInput) -> AllowanceResult:
         m = D(monthly)
         if m <= 0:
             continue
-        if t.proration == "by_worked_days":
+        if t.proration == "by_worked_days" and code not in FULL_MONTH_IF_ASSIGNED:
             amt = money_vnd(prorate_allowance(m, divisor, numerator))
         else:
             amt = money_vnd(m)

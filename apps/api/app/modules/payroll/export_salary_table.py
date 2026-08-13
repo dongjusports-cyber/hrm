@@ -484,7 +484,11 @@ def _build_data_row(
     row[16] = _num(ts.rem_days)
     row[17] = _num(slip.wd_salary)
     for code, col in ALLOW_COLS.items():
-        row[col] = _num(allow.get(code, ZERO))
+        if code == "PCCC":
+            # Cột Genus «PCCC+HSE» — xuất tổng 2 mã riêng trên phiếu lương
+            row[col] = _num(allow.get("PCCC", ZERO) + allow.get("HSE", ZERO))
+        else:
+            row[col] = _num(allow.get(code, ZERO))
     row[26] = _num(slip.allowance_total)
     row[27] = _num(ts.ot_hours_weekday)
     row[28] = _num(slip.ot_pay)
