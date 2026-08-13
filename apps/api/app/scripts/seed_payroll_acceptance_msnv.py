@@ -26,9 +26,30 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.modules.attendance.models import TimesheetMonth, TimesheetMonthDetail
+from app.modules.attendance.models import (
+    AttendanceDay,
+    TimesheetAdjustment,
+    TimesheetMonth,
+    TimesheetMonthDetail,
+)
 from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets, seed_leave_types
-from app.modules.mdm.models import Department, Employee, EmployeeResignation, Team
+from app.modules.dispute.models import Dispute
+from app.modules.insurance.models import InsuranceDeclaration
+from app.modules.mdm.models import (
+    Department,
+    Employee,
+    EmployeeAssignment,
+    EmployeeDocument,
+    EmployeeEducation,
+    EmployeeExperience,
+    EmployeeFamilyMember,
+    EmployeeHealthCheck,
+    EmployeeResignation,
+    EmployeeSalaryHistory,
+    EmployeeViolation,
+    LabourContract,
+    Team,
+)
 from app.modules.mdm.schemas import EmployeeCreate, EmployeeRehireRequest, EmployeeResignationCreate
 from app.modules.mdm.service import (
     create_employee,
@@ -36,14 +57,75 @@ from app.modules.mdm.service import (
     get_or_create_department_by_code,
     rehire_employee,
 )
-from app.modules.payroll.models import PayComponent, Payslip, PayslipComponent
+from app.modules.payroll.models import (
+    EmployeeAllowanceAssignment,
+    Payslip,
+    PayslipAdjustment,
+    PayslipComponent,
+)
 from app.modules.payroll.period_eligibility import employee_on_payroll_period
 from app.modules.payroll.seed_allowances import seed_allowance_types
 from app.modules.payroll.service import calculate_period
+from app.modules.policy.models import PolicyPackage
 from app.modules.policy.service import seed_default_package
 
 BENCHMARK_1519_NET = Decimal("9682398")
+BENCHMARK_POLICY_FIELDS = {
+    "attendance_bonus_monthly": 600_000,
+    "transport_monthly_default": 800_000,
+}
 FIXTURE_CODES = frozenset({"1519", "1604", "1718"})
+
+
+def _ensure_benchmark_policy(db: Session) -> str | None:
+    """Policy active phải khớp GenusSuite benchmark 1519 (600k chuyên cần, 800k đi lại)."""
+    pkg = (
+        db.query(PolicyPackage)
+        .filter(PolicyPackage.is_active.is_(True))
+        .order_by(PolicyPackage.effective_from.desc())
+        .first()
+    )
+    if pkg is None:
+        seed_default_package(db)
+        pkg = (
+            db.query(PolicyPackage)
+            .filter(PolicyPackage.is_active.is_(True))
+            .order_by(PolicyPackage.effective_from.desc())
+            .first()
+        )
+    if pkg is None:
+        return "Không có policy active"
+    payload = dict(pkg.payload or {})
+    changed: list[str] = []
+    for key, target in BENCHMARK_POLICY_FIELDS.items():
+        if payload.get(key) != target:
+            payload[key] = target
+            changed.append(f"{key}→{target:,}".replace(",", "."))
+    if not changed:
+        return None
+    pkg.payload = payload
+    db.commit()
+    return ", ".join(changed)
+
+
+def _ensure_period_calculable(db: Session, period: str) -> None:
+    """Mở lại kỳ published/locked trên DB thật để seed có thể tính lương."""
+    pay = ensure_pay_period(db, period)
+    if pay.status not in ("published", "locked"):
+        return
+    for slip in db.query(Payslip).filter(Payslip.pay_period_id == pay.id).all():
+        if slip.status == "confirmed":
+            continue
+        slip.status = "draft"
+        slip.confirmed_at = None
+        slip.confirm_deadline = None
+    pay.status = "calculating"
+    db.commit()
+
+
+def _calculate_period_seed(db: Session, period: str):
+    _ensure_period_calculable(db, period)
+    return calculate_period(db, period)
 
 
 @dataclass
@@ -69,12 +151,21 @@ def _get_team(db: Session, dept_code: str, team_code: str = "T1") -> Team:
 
 
 def _purge_employee_payroll_data(db: Session, emp_id: UUID) -> None:
+    db.query(Dispute).filter(Dispute.employee_id == emp_id).delete(synchronize_session=False)
+
     slip_ids = [r[0] for r in db.query(Payslip.id).filter(Payslip.employee_id == emp_id).all()]
     if slip_ids:
         db.query(PayslipComponent).filter(PayslipComponent.payslip_id.in_(slip_ids)).delete(
             synchronize_session=False
         )
         db.query(Payslip).filter(Payslip.id.in_(slip_ids)).delete(synchronize_session=False)
+
+    db.query(PayslipAdjustment).filter(PayslipAdjustment.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeAllowanceAssignment).filter(
+        EmployeeAllowanceAssignment.employee_id == emp_id
+    ).delete(synchronize_session=False)
 
     ts_ids = [
         r[0]
@@ -88,7 +179,44 @@ def _purge_employee_payroll_data(db: Session, emp_id: UUID) -> None:
             synchronize_session=False
         )
 
+    db.query(TimesheetAdjustment).filter(TimesheetAdjustment.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(AttendanceDay).filter(AttendanceDay.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+
     db.query(EmployeeResignation).filter(EmployeeResignation.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeAssignment).filter(EmployeeAssignment.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeSalaryHistory).filter(EmployeeSalaryHistory.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(LabourContract).filter(LabourContract.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeViolation).filter(EmployeeViolation.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeDocument).filter(EmployeeDocument.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeFamilyMember).filter(EmployeeFamilyMember.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeEducation).filter(EmployeeEducation.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeExperience).filter(EmployeeExperience.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(EmployeeHealthCheck).filter(EmployeeHealthCheck.employee_id == emp_id).delete(
+        synchronize_session=False
+    )
+    db.query(InsuranceDeclaration).filter(InsuranceDeclaration.employee_id == emp_id).delete(
         synchronize_session=False
     )
 
@@ -215,8 +343,12 @@ def seed_1519(db: Session, *, reset: bool, dry_run: bool) -> list[SeedReport]:
         db.commit()
         reports.append(SeedReport(code, "updated", "Đồng bộ hồ sơ benchmark"))
 
+    policy_note = _ensure_benchmark_policy(db)
+    if policy_note:
+        reports.append(SeedReport(code, "policy", f"Chỉnh policy: {policy_note}"))
+
     _set_timesheet_july_1519(db, emp)
-    calc = calculate_period(db, "2026-07")
+    calc = _calculate_period_seed(db, "2026-07")
     row = next((p for p in calc.payslips if p.employee_code == code), None)
     if row is None:
         reports.append(SeedReport(code, "calculate", "Không có phiếu kỳ 07/2026", ok=False))
@@ -306,8 +438,8 @@ def seed_1604(db: Session, *, reset: bool, dry_run: bool) -> list[SeedReport]:
     )
     reports.append(SeedReport(code, "rehire", "Tái tuyển fresh_start 01/07, lương 6.200.000"))
 
-    calculate_period(db, "2026-06")
-    calculate_period(db, "2026-07")
+    _calculate_period_seed(db, "2026-06")
+    _calculate_period_seed(db, "2026-07")
 
     create_resignation(
         db,
@@ -336,7 +468,7 @@ def seed_1604(db: Session, *, reset: bool, dry_run: bool) -> list[SeedReport]:
         )
     )
 
-    calc_aug = calculate_period(db, "2026-08")
+    calc_aug = _calculate_period_seed(db, "2026-08")
     has_aug = any(p.employee_code == code for p in calc_aug.payslips)
     stale = (
         db.query(Payslip)
@@ -394,7 +526,7 @@ def seed_1718(db: Session, *, reset: bool, dry_run: bool) -> list[SeedReport]:
 
     ensure_pay_period(db, "2026-08")
     rebuild_timesheets(db, "2026-08", recalc_days=False)
-    calc1 = calculate_period(db, "2026-08")
+    calc1 = _calculate_period_seed(db, "2026-08")
     had_slip = any(p.employee_code == code for p in calc1.payslips)
     reports.append(
         SeedReport(code, "precalc", f"Tính 08/2026 lần 1: {'có' if had_slip else 'không'} phiếu")
@@ -423,7 +555,7 @@ def seed_1718(db: Session, *, reset: bool, dry_run: bool) -> list[SeedReport]:
         )
     )
 
-    calc2 = calculate_period(db, "2026-08")
+    calc2 = _calculate_period_seed(db, "2026-08")
     has_slip = any(p.employee_code == code for p in calc2.payslips)
     stale = (
         db.query(Payslip)
