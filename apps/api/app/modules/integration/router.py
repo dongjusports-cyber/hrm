@@ -3,10 +3,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
 from app.core.deps import AdminUser, CurrentUser, DbSession, require_module
 from app.modules.integration import service
+from app.modules.integration.post_ingest import run_post_ingest_recalc
 from app.modules.integration.schemas import (
     IntegrationStatusOut,
     MitaproErrorReport,
@@ -38,10 +39,30 @@ def _agent_token(
 def mitapro_push(
     body: MitaproPushRequest,
     db: DbSession,
+    background_tasks: BackgroundTasks,
     token: Annotated[str | None, Depends(_agent_token)] = None,
 ) -> MitaproPushResult:
     service.verify_agent_token(token)
-    return service.ingest_punches(db, body, trigger="agent")
+
+    def schedule_recalc(job_id, date_from, date_to, partial, base_message):
+        if get_settings().sync_recalc_inline:
+            return
+        background_tasks.add_task(
+            run_post_ingest_recalc,
+            job_id,
+            date_from=date_from,
+            date_to=date_to,
+            partial=partial,
+            base_message=base_message,
+        )
+
+    return service.ingest_punches(
+        db,
+        body,
+        trigger="agent",
+        claimed_job_id=body.claimed_job_id,
+        on_recalc_scheduled=schedule_recalc,
+    )
 
 
 @router.post("/integrations/mitapro/error", response_model=SyncJobOut)

@@ -23,7 +23,7 @@ class AgentSettings(BaseSettings):
         "Driver={ODBC Driver 17 for SQL Server};"
         "Server=.\\SQLEXPRESS;Database=MITACOSQL;Trusted_Connection=yes;TrustServerCertificate=yes;"
     )
-    sync_interval_minutes: int = 15
+    sync_interval_minutes: int = 2
     sync_overlap_minutes: int = 30
     sync_lookback_days: int = 3
     dj_agent_mock_sql: bool = False

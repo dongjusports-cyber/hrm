@@ -5,6 +5,7 @@ import {
   bulkPatchAttendanceDays,
   fetchAttendanceDaysGrid,
   patchAttendanceDayCell,
+  type AttendanceDay,
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
@@ -23,6 +24,30 @@ function hhmm(iso: string | null | undefined): string {
 function toIsoTime(workDate: string, hhmmVal: string): string | null {
   if (!hhmmVal || !/^\d{2}:\d{2}$/.test(hhmmVal)) return null;
   return `${workDate}T${hhmmVal}:00+07:00`;
+}
+
+function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): AttendanceDayGridRow {
+  const late = day.late_minutes ?? 0;
+  const early = day.early_minutes ?? 0;
+  const punches = day.punch_count ?? 0;
+  const leaveCode = (day as AttendanceDayGridRow).leave_code;
+  let row_flag: AttendanceDayGridRow["row_flag"] = "ok";
+  if (late > 0 && early > 0) row_flag = "both";
+  else if (late > 0) row_flag = "late";
+  else if (early > 0) row_flag = "early";
+  else if (punches > 0 && punches % 2 === 1) row_flag = "odd";
+  else if (day.is_workday && punches === 0 && !leaveCode) row_flag = "missing";
+  const needs_action =
+    late > 0 ||
+    early > 0 ||
+    (punches > 0 && punches % 2 === 1) ||
+    Boolean(day.is_workday && punches === 0 && !leaveCode);
+  return {
+    ...row,
+    ...day,
+    needs_action,
+    row_flag,
+  };
 }
 
 export type DailyGridSummary = {
@@ -122,7 +147,9 @@ export function DailyGridPanel({
   }, [filteredRows]);
 
   useEffect(() => {
-    onSummaryChange?.(summary);
+    if (!onSummaryChange) return;
+    const timer = window.setTimeout(() => onSummaryChange(summary), 120);
+    return () => window.clearTimeout(timer);
   }, [summary, onSummaryChange]);
 
   const cols = useMemo<ColDef<AttendanceDayGridRow>[]>(
@@ -269,13 +296,13 @@ export function DailyGridPanel({
     const code = e.data.employee_code;
     const col = e.colDef.field ?? e.colDef.colId;
     try {
+      let patchBody: Parameters<typeof patchAttendanceDayCell>[0] = {
+        employee_code: code,
+        work_date: workDate,
+      };
       if (col === "leave_code" || col === "note") {
-        await patchAttendanceDayCell({
-          employee_code: code,
-          work_date: workDate,
-          leave_code: col === "leave_code" ? String(e.newValue ?? "") : undefined,
-          note: col === "note" ? String(e.newValue ?? "") : undefined,
-        });
+        if (col === "leave_code") patchBody.leave_code = String(e.newValue ?? "");
+        if (col === "note") patchBody.note = String(e.newValue ?? "");
       } else if (col === "first_in" || col === "last_out") {
         const row = e.data;
         const edited = String(e.newValue ?? "").trim();
@@ -293,17 +320,16 @@ export function DailyGridPanel({
         if (!inStr || !outStr) return;
         const fi = toIsoTime(workDate, inStr);
         const lo = toIsoTime(workDate, outStr);
-        if (fi && lo) {
-          await patchAttendanceDayCell({
-            employee_code: code,
-            work_date: workDate,
-            first_in: fi,
-            last_out: lo,
-          });
-        }
+        if (!fi || !lo) return;
+        patchBody = { ...patchBody, first_in: fi, last_out: lo };
+      } else {
+        return;
       }
+      const day = await patchAttendanceDayCell(patchBody);
+      const merged = applyDayToGridRow(e.data, day);
+      setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
+      gridApi?.applyTransaction({ update: [merged] });
       setToast(`Đã lưu ${code}`);
-      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu ô thất bại.");
       await load();

@@ -5,11 +5,17 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
+from app.modules.attendance.day_enrich import (
+    apply_calc_to_day_row,
+    build_shift_cache,
+    resolve_work_shift_id,
+)
 from app.modules.attendance.engine import VN_TZ, Schedule, calculate_day, to_vn
 from app.modules.attendance.models import AttendanceDay
 from app.modules.attendance.schemas import AttendanceDayOut, RecalculateResult
@@ -140,22 +146,38 @@ def recalculate_days(
 
     upserted = 0
     touched_emps: set[str] = set()
+    emp_ids = [e.id for e in employees.values()]
+    day_map: dict[tuple[UUID, date], AttendanceDay] = {}
+    if emp_ids:
+        for row in db.query(AttendanceDay).filter(
+            AttendanceDay.work_date >= date_from,
+            AttendanceDay.work_date <= date_to,
+            AttendanceDay.employee_id.in_(emp_ids),
+        ):
+            day_map[(row.employee_id, row.work_date)] = row
+
+    work_dates = {wd for _, wd in grouped.keys()}
+    team_ids = {e.team_id for e in employees.values() if e.team_id is not None}
+    shift_cache = build_shift_cache(db, team_ids, work_dates)
+
+    from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE
+
     for (code, wd), times in grouped.items():
         emp = employees[code]
         calc = calculate_day(
             times, wd, schedule, punch_dedupe_window_seconds=dedupe_window, ot_split=ot_split
         )
-        row = (
-            db.query(AttendanceDay)
-            .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == wd)
-            .one_or_none()
-        )
+        row = day_map.get((emp.id, wd))
         if row is not None and row.is_locked:
             continue
         if row is None:
             row = AttendanceDay(employee_id=emp.id, work_date=wd)
             db.add(row)
-        shift_id = resolve_work_shift_id(db, emp, wd)
+            day_map[(emp.id, wd)] = row
+        if emp.team_id is None:
+            shift_id = ADMIN_SHIFT_CODE
+        else:
+            shift_id = shift_cache.get((emp.team_id, wd), ADMIN_SHIFT_CODE)
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         upserted += 1
         touched_emps.add(code)

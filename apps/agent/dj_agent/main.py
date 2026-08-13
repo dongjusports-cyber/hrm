@@ -77,8 +77,9 @@ def main(argv: list[str] | None = None) -> int:
             logging.getLogger("dj_agent").info("Đã xử lý %s pending job", n)
             return 0
         if args.once or settings.sync_interval_minutes <= 0:
-            process_pending(settings, source, pusher)
-            run_once(settings, source, pusher, reason="once")
+            pending_done = process_pending(settings, source, pusher)
+            if pending_done == 0:
+                run_once(settings, source, pusher, reason="once")
             return 0
         run_forever(settings, source, pusher)
         return 0
@@ -88,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         logging.getLogger("dj_agent").error("%s", exc)
         return 1
+    finally:
+        pusher.close()
 
 
 if __name__ == "__main__":

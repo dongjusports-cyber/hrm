@@ -5,13 +5,15 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
+from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.engine import DayCalcResult
-from app.modules.attendance.models import AttendanceDay
-from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE
+from app.modules.attendance.models import AttendanceDay, TeamShiftSchedule
+from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE, assign_default_shift_to_teams
 from app.modules.attendance.shifts_service import get_effective_shift
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Employee, Team
 
 Q2 = Decimal("0.01")
 
@@ -19,6 +21,41 @@ Q2 = Decimal("0.01")
 def resolve_segment(employee: Employee) -> str:
     """22§22.4 — probation | official."""
     return "probation" if employee.status == "probation" else "official"
+
+
+def build_shift_cache(
+    db: Session,
+    team_ids: set[UUID],
+    work_dates: set[date],
+) -> dict[tuple[UUID, date], str]:
+    """Prefetch ca làm việc — tránh N+1 get_effective_shift trong recalc."""
+    if not team_ids or not work_dates:
+        return {}
+    assign_default_shift_to_teams(db)
+    teams = {t.id: t for t in db.query(Team).filter(Team.id.in_(team_ids)).all()}
+    overrides = (
+        db.query(TeamShiftSchedule)
+        .filter(
+            TeamShiftSchedule.team_id.in_(team_ids),
+            TeamShiftSchedule.work_date.in_(work_dates),
+        )
+        .all()
+    )
+    override_map = {(o.team_id, o.work_date): o.work_shift_id for o in overrides}
+    cache: dict[tuple[UUID, date], str] = {}
+    for team_id in team_ids:
+        team = teams.get(team_id)
+        if team is None:
+            continue
+        for wd in work_dates:
+            key = (team_id, wd)
+            if key in override_map:
+                cache[key] = override_map[key]
+            elif team.default_shift_id:
+                cache[key] = team.default_shift_id
+            else:
+                cache[key] = ADMIN_SHIFT_CODE
+    return cache
 
 
 def resolve_work_shift_id(db: Session, employee: Employee, work_date: date) -> str:

@@ -22,10 +22,10 @@ function sleep(ms: number) {
 function estimatePercent(status: string, elapsedMs: number, queueAhead: number): number {
   if (status === "success" || status === "partial") return 100;
   if (status === "error") return 100;
-  if (status === "running") return Math.min(92, 48 + Math.floor(elapsedMs / 2000));
+  if (status === "running") return Math.min(95, 52 + Math.floor(elapsedMs / 1500));
   if (status === "requested") {
-    const base = 10 + Math.min(28, queueAhead * 6);
-    return Math.min(45, base + Math.floor(elapsedMs / 4000));
+    const base = 12 + Math.min(30, queueAhead * 6);
+    return Math.min(48, base + Math.floor(elapsedMs / 3000));
   }
   return 8;
 }
@@ -49,11 +49,6 @@ function resultMessage(job: SyncJob): { ok: boolean; message: string } {
   };
 }
 
-async function findJob(jobId: string): Promise<SyncJob | null> {
-  const { items } = await fetchSyncJobs(15);
-  return items.find((j) => j.id === jobId) ?? null;
-}
-
 function queueAheadCount(items: SyncJob[], jobId: string, jobStartedAt: string | null): number {
   if (!jobStartedAt) return 0;
   const mine = new Date(jobStartedAt).getTime();
@@ -69,13 +64,13 @@ function progressMessage(
   anyRunning: boolean,
 ): string {
   if (anyRunning) {
-    return "Agent đang đồng bộ dữ liệu Mitapro…";
+    return "Agent đang đồng bộ và tính lại công…";
   }
   if (status === "requested" && queueAhead > 0) {
-    return `Đang chờ Agent (${queueAhead} yêu cầu trước bạn). Agent poll mỗi ~15 phút — giữ cửa sổ mở.`;
+    return `Đang chờ Agent (${queueAhead} yêu cầu trước bạn). Agent poll mỗi ~2 phút.`;
   }
   if (status === "requested") {
-    return "Đang chờ máy nhà máy nhận lệnh… (Agent poll mỗi ~15 phút)";
+    return "Đang chờ máy nhà máy nhận lệnh… (Agent poll mỗi ~2 phút)";
   }
   if (status === "running") {
     return "Máy đồng bộ đang tải chấm công…";
@@ -99,10 +94,18 @@ export async function runSyncWithProgress(
 
   const requested = await createJob();
   const jobId = requested.id;
+  let poll = 0;
 
   while (Date.now() - started < timeoutMs) {
-    const [{ items }, st] = await Promise.all([fetchSyncJobs(20), fetchIntegrationStatus()]);
-    const job = (await findJob(jobId)) ?? items.find((j) => j.id === jobId) ?? requested;
+    const itemsPromise = fetchSyncJobs(20);
+    const statusPromise = poll % 2 === 0 ? fetchIntegrationStatus() : null;
+    const [{ items }, st] = await Promise.all([
+      itemsPromise,
+      statusPromise ?? Promise.resolve(null),
+    ]);
+    poll += 1;
+
+    const job = items.find((j) => j.id === jobId) ?? requested;
     const status = job.status;
     const queueAhead = queueAheadCount(items, jobId, job.started_at);
     const anyRunning = items.some((j) => j.status === "running");
@@ -117,18 +120,18 @@ export async function runSyncWithProgress(
 
     onProgress({ active: true, percent, message, ok: null });
 
-    const last = st.last_job;
+    const last = st?.last_job;
     if (last && last.id === jobId && TERMINAL.has(last.status)) {
       const result = resultMessage(last);
       onProgress({ active: true, percent: 100, message: result.message, ok: result.ok });
       return result;
     }
 
-    await sleep(2500);
+    await sleep(2000);
   }
 
   const fail =
-    "Hết thời gian chờ (10 phút) — Agent chưa xử lý xong. Kiểm tra Agent trên máy Mitapro đang chạy và SYNC_INTERVAL_MINUTES (nên ≤2 khi test).";
+    "Hết thời gian chờ (10 phút) — Agent chưa xử lý xong. Kiểm tra Agent trên máy Mitapro (SYNC_INTERVAL_MINUTES nên ≤2).";
   onProgress({ active: true, percent: 100, message: fail, ok: false });
   return { ok: false, message: fail };
 }

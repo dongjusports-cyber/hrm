@@ -174,6 +174,7 @@ function buildCalendar(
 export function TimekeepingPage() {
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
+  const [gridSearch, setGridSearch] = useState("");
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [pay, setPay] = useState<PayPeriod | null>(null);
   const [rows, setRows] = useState<TimesheetMonth[]>([]);
@@ -209,6 +210,13 @@ export function TimekeepingPage() {
   );
   const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
+  const timesheetRowsRef = useRef(rows);
+  timesheetRowsRef.current = rows;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setGridSearch(q.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [q]);
 
   const loadEmpDays = useCallback(
     async (code: string, dateFrom: string, dateTo: string) => {
@@ -307,10 +315,10 @@ export function TimekeepingPage() {
 
   const pickFromDaily = useCallback(
     (gridRow: AttendanceDayGridRow) => {
-      const match = rows.find((r) => r.employee_code === gridRow.employee_code);
+      const match = timesheetRowsRef.current.find((r) => r.employee_code === gridRow.employee_code);
       if (match) pickEmployee(match);
     },
-    [rows, pickEmployee],
+    [pickEmployee],
   );
 
   const onDailySummaryChange = useCallback((summary: DailyGridSummary) => {
@@ -888,7 +896,7 @@ export function TimekeepingPage() {
               workDate={gridDate}
               periodLocked={pay.status === "locked"}
               leaves={leaves}
-              searchQuery={q}
+              searchQuery={gridSearch}
               departmentId={departmentId}
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}
@@ -904,7 +912,7 @@ export function TimekeepingPage() {
                   columnDefs={columnDefs}
                   localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}
-                  animateRows
+                  animateRows={false}
                   suppressHorizontalScroll
                   onRowClicked={onRowClicked}
                   onGridReady={(e) => {
