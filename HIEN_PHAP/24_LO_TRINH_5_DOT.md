@@ -159,4 +159,29 @@ quyết định của Chủ khi thấy số đã khớp đủ lâu.
 
 ---
 
-*Hết bộ V2. Quay lại `20_HIEN_PHAP_V2_QUY_TRINH.md` khi bắt đầu phiên mới.*
+# ĐỢT 6 — TỰ ĐỘNG HÓA VẬN HÀNH
+
+> **Sau v1.0** (trừ **6.1** có thể làm sớm khi bật job lương ở Đợt 4). Chi tiết: **`26_TU_DONG_HOA_VAN_HANH.md`**.
+
+**Mục tiêu:** HR mở **Operations Hub** — sửa ngoại lệ + bấm cổng; máy lo sync → công → lương nháp.
+
+| Mã | Hạng mục | Nội dung |
+|----|----------|----------|
+| **6.1** | Worker ARQ/RQ | Job `calculate_period`, export lớn; API trả `job_id` + progress (**trong v1.0** nếu Đợt 4 cần) |
+| **6.2** | `ops_exceptions` + detector | Rule phát hiện ca lỗi, Δ lương, punch mồ côi → ghi exception |
+| **6.3** | Operations Hub UI | Gom todo + exception + alert; link màn đã lọc (23§23.8, 24§5.7) |
+| **6.4** | Cron hằng ngày | Sync + tính công ngày (02:00 seed); rollup cuối tháng |
+| **6.5** | `leave_auto_rules` + auto-duyệt | Đơn phép trong ngưỡng → approved + gán mã lên bảng công |
+| **6.6** | Pipeline tháng | Ngày 1: accrual phép + lương nháp; todo Δ; không bắt HR bấm Tính lương |
+| **6.7** | Cổng A2 (tuỳ chọn) | Auto chốt công / auto publish khi 0 exception — **chỉ sau 2 kỳ khớp GenusSuite** |
+
+### Nghiệm thu đợt 6
+
+- [ ] Tiêu chí **26§26.7** (7 mục) — copy nguyên câu khi báo cáo phiên
+- [ ] HR pilot 1 kỳ: thời gian thao tác giảm so với v1.0 (Chủ ghi nhận, không cần số cứng)
+
+**Thứ tự:** 6.1 → 6.2 → 6.3 → 6.4 → 6.5 → 6.6 → 6.7 (6.7 cuối cùng, có thể bỏ qua).
+
+---
+
+*Hết bộ V2 (20–26). Quay lại `20_HIEN_PHAP_V2_QUY_TRINH.md` khi bắt đầu phiên mới.*

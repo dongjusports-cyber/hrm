@@ -27,5 +27,6 @@
 
 1. Checklist Go-live 10§ trên máy công ty  
 2. (Tuỳ chọn) Nâng UI Modern — phiên riêng, không đụng engine lương  
+3. **Đợt 6 — Tự động hóa vận hành** — `26_TU_DONG_HOA_VAN_HANH.md` + `24§Đợt 6`  
 
-*File này chỉ định nghĩa phạm vi — không thay thế 20–24.*
+*File này chỉ định nghĩa phạm vi — không thay thế 20–26.*

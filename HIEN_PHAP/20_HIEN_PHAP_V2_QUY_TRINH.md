@@ -21,6 +21,7 @@ giải mã 70 bảng và 148 thủ tục PL/SQL của phần mềm cũ.
 | 22 | `22_QUY_TAC_NGHIEP_VU.md` | Phiên đụng lương hoặc chấm công |
 | 23 | `23_UI_MAN_HINH.md` | Phiên đụng giao diện |
 | 24 | `24_LO_TRINH_5_DOT.md` | Đầu mỗi đợt, để biết phạm vi và tiêu chí nghiệm thu |
+| **26** | `26_TU_DONG_HOA_VAN_HANH.md` | Phiên đụng job nền, Hub HR, auto-duyệt, pipeline tháng |
 
 **Luật ưu tiên khi mâu thuẫn** (cao → thấp):
 
@@ -39,6 +40,8 @@ runbook vận hành, quy ước báo cáo phiên.
 
 - Stack: **FastAPI + SQLAlchemy + PostgreSQL + Alembic**, **React Vite + AG-Grid + TypeScript**,
   Docker Compose, Agent Windows đọc Mitapro.
+- Job nền: **Redis + ARQ hoặc RQ** cho tính lương / export / cron (11§) — **không** coi là message
+  broker nặng; chi tiết pipeline ở file **26**.
 - Mọi tiền tệ dùng **Decimal**, không dùng float.
 - Mọi thông báo lỗi UI và API bằng **tiếng Việt**.
 - **Không hard-code** thông số nghiệp vụ (tiền, %, hệ số, ngày, ngưỡng).
@@ -185,6 +188,19 @@ Công thức đầy đủ ở file 22.
 | Cột vào/ra trong bảng `CheckInOut` của Mitapro | Đợt 3 | Chạy `SELECT TOP 5 * FROM CheckInOut` trên SQL Server máy Mitapro |
 | Chọn Tailwind hay giữ CSS thuần | Đợt 3 | Lập trình viên tự quyết; kích thước trong file 23 đều ghi bằng pixel nên không ảnh hưởng thiết kế |
 | Mẫu in hợp đồng, quyết định, thẻ chấm công | Đợt 5 | Xin mẫu Word hiện hành của phòng HR |
+| Pipeline tự động hóa đầy đủ (A2 publish/lock) | **Sau v1.0** | Xem file **26** · code **24§Đợt 6** |
+
+---
+
+## 20.9 Tự động hóa vận hành (tóm tắt)
+
+HR mục tiêu **chỉ xử lý ngoại lệ và cổng duyệt** — phần còn lại chạy nền theo file **26**:
+
+- **L0/L1:** sync, tính công, lương nháp, todo (0 token AI)
+- **L2/A3:** chốt công, phát hành lương, xuất BHXH — 1 click
+- **H:** policy tiền, khiếu nại, kỷ luật — không auto
+
+Triển khai **sau đóng v1.0**, trừ hạng mục 24§6.x ghi “trong v1.0”.
 
 ---
 

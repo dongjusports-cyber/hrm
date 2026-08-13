@@ -417,6 +417,19 @@ nếu sau này cần chia theo tháng thì đổi rất rẻ.
 | Đã có, giữ nguyên | 31 |
 | Mở rộng thêm cột | 8 |
 | Tạo mới | 28 |
+| Tạo mới (Đợt 6 — file 26) | 3 |
+
+---
+
+## 21.9 NHÓM TỰ ĐỘNG HÓA (Đợt 6)
+
+> Chi tiết pipeline và ma trận A0–H: **`26_TU_DONG_HOA_VAN_HANH.md`**. Chỉ tạo khi làm 24§6.x.
+
+| Bảng | Vai trò |
+|------|---------|
+| `ops_exceptions` | Hàng đợi ngoại lệ — ca lỗi, Δ lương, punch mồ côi |
+| `automation_schedules` | Lịch cron (giờ chạy job — không lưu thuật toán) |
+| `leave_auto_rules` | Ngưỡng auto-duyệt đơn phép |
 
 ---
 

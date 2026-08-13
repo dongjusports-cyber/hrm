@@ -13,7 +13,7 @@ Bộ 00–15 dưới đây là hiến pháp **dựng phần mềm từ số khô
 chạy được với 26 màn hình, 31 bảng, 22 migration.
 
 **Việc đang làm bây giờ là NÂNG CẤP DJ HRM lên đủ nghiệp vụ thay thế GenusSuite.**
-Bộ tài liệu cho việc đó là **20–24**, dựng từ việc giải mã 70 bảng và 148 thủ tục PL/SQL của
+Bộ tài liệu cho việc đó là **20–26**, dựng từ việc giải mã 70 bảng và 148 thủ tục PL/SQL của
 phần mềm cũ trong `HIEN_PHAP/GenuSuite HRM/`.
 
 | # | File | Khi nào đọc |
@@ -23,6 +23,7 @@ phần mềm cũ trong `HIEN_PHAP/GenuSuite HRM/`.
 | 22 | `22_QUY_TAC_NGHIEP_VU.md` | Phiên đụng lương hoặc chấm công |
 | 23 | `23_UI_MAN_HINH.md` | Phiên đụng giao diện |
 | 24 | `24_LO_TRINH_5_DOT.md` | Đầu mỗi đợt |
+| **26** | `26_TU_DONG_HOA_VAN_HANH.md` | Job nền, Operations Hub, auto-duyệt, pipeline tháng |
 
 **Bàn giao phiên & báo cáo (đọc trước khi code phiên mới):**
 
@@ -35,6 +36,7 @@ phần mềm cũ trong `HIEN_PHAP/GenuSuite HRM/`.
 
 **Luật ưu tiên khi V1 và V2 mâu thuẫn: V2 thắng.** Bộ V1 vẫn còn hiệu lực ở phần V2 không nhắc
 tới — stack công nghệ (06), bảo mật và backup (12), runbook vận hành (15), mẫu báo cáo phiên (08).
+Tự động hóa vận hành: file **26** (sau v1.0, trừ 24§6.1).
 
 ---
 
