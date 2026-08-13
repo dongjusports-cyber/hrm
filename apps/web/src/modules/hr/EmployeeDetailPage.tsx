@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { type HrNavState } from "../../shared/hrNavState";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
@@ -10,6 +10,12 @@ export function EmployeeDetailPage() {
   const isNew = empId === "new";
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialExtraTab =
+    tabParam === "violations" || tabParam === "documents" || tabParam === "experience"
+      ? tabParam
+      : null;
   const listBack =
     (location.state as HrNavState | null)?.hrListBack ??
     (isNew ? "/m/hr" : "/m/hr/lists/active");
@@ -30,6 +36,7 @@ export function EmployeeDetailPage() {
     <EmployeeProfileSheet
       employeeId={empId}
       open
+      initialExtraTab={initialExtraTab}
       onClose={() => navigate(listBack)}
     />
   );

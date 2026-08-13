@@ -86,7 +86,8 @@ export function PayrollPage() {
 
   const periodStatus = periodMeta?.status ?? "open";
   const canCalculate = periodStatus === "open" || periodStatus === "calculating";
-  const canPublish = periodStatus !== "locked" && rows.length > 0;
+  const canPublish =
+    (periodStatus === "open" || periodStatus === "calculating") && rows.length > 0;
   const canLock = periodStatus === "published";
   const canUnlock = isAdmin && periodStatus === "locked";
   const canReopen = isAdmin && (periodStatus === "published" || periodStatus === "locked");
@@ -279,16 +280,34 @@ export function PayrollPage() {
   async function onAdjSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canAdjust) return;
+    const code = adjEmp.trim();
+    if (!code) {
+      setError("Nhập MSNV cần điều chỉnh.");
+      return;
+    }
+    if (!rows.some((r) => r.employee_code === code)) {
+      setError(`MSNV ${code} không có trong bảng lương kỳ ${period}.`);
+      return;
+    }
+    const amountRaw = adjAmount.trim().replace(/\./g, "").replace(/,/g, "");
+    if (!/^\d+$/.test(amountRaw) || Number(amountRaw) <= 0) {
+      setError("Số tiền điều chỉnh phải là số nguyên dương (VND).");
+      return;
+    }
+    if (!adjReason.trim()) {
+      setError("Nhập lý do điều chỉnh.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setOk(null);
     try {
       await createPayAdjustment({
         period,
-        employee_code: adjEmp.trim(),
+        employee_code: code,
         kind: adjKind,
         reason: adjReason.trim(),
-        amount: adjAmount,
+        amount: amountRaw,
       });
       setOk("Đã lưu điều chỉnh. Bấm Tính lương lại để áp vào phiếu.");
       await reload();
@@ -373,7 +392,11 @@ export function PayrollPage() {
               disabled={busy || !canPublish || rows.length === 0}
               title={disabledTitle(
                 !canPublish || rows.length === 0,
-                rows.length === 0 ? "Chưa có phiếu lương" : "Kỳ đã khóa",
+                rows.length === 0
+                  ? "Chưa có phiếu lương"
+                  : periodStatus === "published" || periodStatus === "locked"
+                    ? "Kỳ đã phát hành hoặc đã khóa"
+                    : "Chỉ phát hành khi kỳ đang mở / đã tính",
               )}
               onClick={() => void onPublish()}
             >

@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   createResignation,
+  fetchEmployee,
   fetchEmployees,
   fetchResignationPreview,
   type Employee,
@@ -21,6 +22,8 @@ const RESIGN_TYPES = [
 /** Nhân Sự → Thủ tục thôi việc — wizard 3 bước (5.4). */
 export function ResignationWizardPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectEmpId = searchParams.get("employee_id") ?? "";
   const [step, setStep] = useState(1);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [empQ, setEmpQ] = useState("");
@@ -36,12 +39,34 @@ export function ResignationWizardPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void fetchEmployees({ status: "active" })
-      .then(setEmployees)
-      .catch((e: unknown) => {
+    void (async () => {
+      try {
+        const [active, probation] = await Promise.all([
+          fetchEmployees({ status: "active" }),
+          fetchEmployees({ status: "probation" }),
+        ]);
+        const merged = [...active];
+        for (const e of probation) {
+          if (!merged.some((x) => x.id === e.id)) merged.push(e);
+        }
+        if (preselectEmpId) {
+          try {
+            const picked = await fetchEmployee(preselectEmpId);
+            if (!merged.some((x) => x.id === picked.id) && picked.status !== "resigned") {
+              merged.unshift(picked);
+            }
+            setEmpId(picked.id);
+            setEmpQ(picked.employee_code);
+          } catch {
+            /* preselect không hợp lệ — bỏ qua */
+          }
+        }
+        setEmployees(merged);
+      } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Không tải nhân viên.");
-      });
-  }, []);
+      }
+    })();
+  }, [preselectEmpId]);
 
   const filteredEmployees = useMemo(() => {
     const needle = empQ.trim().toLowerCase();

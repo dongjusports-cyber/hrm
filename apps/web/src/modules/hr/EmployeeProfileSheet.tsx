@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   createEmployeeDocument,
   createEmployeeViolation,
@@ -22,6 +22,7 @@ import {
   updateEmployee,
   uploadEmployeePhoto,
   upsertAllowanceAssignment,
+  validateEmployee,
   type AllowanceAssignment,
   type AllowanceType,
   type Department,
@@ -74,6 +75,7 @@ function formatMoney(v: unknown): string {
 type Props = {
   employeeId: string;
   open: boolean;
+  initialExtraTab?: ExtraTab | null;
   onClose: () => void;
   onUpdated?: () => void;
 };
@@ -87,7 +89,14 @@ const UNDO_MAX = 25;
 const UNDO_DEBOUNCE_MS = 450;
 
 /** Overlay full màn — hồ sơ một trang, không cuộn tab chính. */
-export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: Props) {
+export function EmployeeProfileSheet({
+  employeeId,
+  open,
+  initialExtraTab = null,
+  onClose,
+  onUpdated,
+}: Props) {
+  const navigate = useNavigate();
   const [extraTab, setExtraTab] = useState<ExtraTab | null>(null);
   const [form, setForm] = useState(emptyEmployeeForm);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -224,6 +233,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setExtraTab(initialExtraTab ?? null);
     void (async () => {
       try {
         const e = await fetchEmployee(employeeId);
@@ -256,7 +266,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
     return () => {
       cancelled = true;
     };
-  }, [open, employeeId]);
+  }, [open, employeeId, initialExtraTab]);
 
   useEffect(() => {
     return () => {
@@ -270,7 +280,25 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
     setOk(null);
     setSaving(true);
     try {
-      const updated = await updateEmployee(employeeId, formToPayload(form, false));
+      const payload = formToPayload(form, false);
+      const validation = await validateEmployee({
+        is_new: false,
+        employee_id: employeeId,
+        payload,
+      });
+      const errors = validation.issues.filter((i) => i.level === "error");
+      if (errors.length > 0) {
+        setError(errors[0].message);
+        return;
+      }
+      const warns = validation.issues.filter((i) => i.level === "warn");
+      if (
+        warns.length > 0 &&
+        !window.confirm(`${warns[0].message}\n\nVẫn lưu hồ sơ?`)
+      ) {
+        return;
+      }
+      const updated = await updateEmployee(employeeId, payload);
       setEmp(updated);
       setOk("Đã lưu hồ sơ.");
       undoStackRef.current = [];
@@ -308,18 +336,25 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
 
   async function changeStatus(next: string) {
     if (form.status === next) return;
+    if (next === "resigned") {
+      if (
+        !window.confirm(
+          `Thôi việc phải qua thủ tục 3 bước (trợ cấp, phép tồn, khóa tài khoản).\n\nMở wizard thôi việc cho ${form.full_name || form.employee_code}?`,
+        )
+      ) {
+        return;
+      }
+      onClose();
+      navigate(`/m/hr/resignation?employee_id=${encodeURIComponent(employeeId)}`);
+      return;
+    }
     const label = labelEmpStatus(next);
     if (!window.confirm(`Chuyển ${form.full_name || form.employee_code} sang «${label}»?`)) return;
-    let resignDate = form.resign_date;
-    if (next === "resigned" && !resignDate) {
-      const t = new Date();
-      resignDate = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-    }
     setSaving(true);
     try {
       const updated = await updateEmployee(employeeId, {
         status: next,
-        resign_date: next === "resigned" ? resignDate || null : null,
+        resign_date: null,
       });
       setEmp(updated);
       setForm((prev) => ({
