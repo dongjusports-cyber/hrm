@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { fetchAiSettings, updateAiSettings, type AiSettings } from "../../shared/api";
+import { ConfigTabNav } from "./ConfigTabNav";
 
 /** Cấu Hình → AI Gemini (05§5.2) — key mã hóa at-rest / env. */
 export function AiSettingsPage() {
   const [settings, setSettings] = useState<AiSettings | null>(null);
   const [enabled, setEnabled] = useState(true);
-  const [modelName, setModelName] = useState("gemini-2.0-flash");
+  const [modelName, setModelName] = useState("gemini-3-flash-preview");
   const [maxDay, setMaxDay] = useState(20);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [apiKey, setApiKey] = useState("");
@@ -70,6 +71,7 @@ export function AiSettingsPage() {
 
   return (
     <div className="config-section-page">
+      <ConfigTabNav />
       <p className="field-hint">
         <Link to="/m/config">← Cấu Hình</Link>
       </p>
@@ -95,10 +97,15 @@ export function AiSettingsPage() {
           <label>
             Mô hình AI
             <select value={modelName} onChange={(e) => setModelName(e.target.value)}>
-              <option value="gemini-2.0-flash">gemini-2.0-flash (rẻ hơn)</option>
-              <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-              <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+              <option value="gemini-3-flash-preview">gemini-3-flash-preview (khuyến nghị)</option>
+              <option value="gemini-flash-latest">gemini-flash-latest</option>
+              <option value="gemini-pro-latest">gemini-pro-latest</option>
             </select>
+            {modelName.startsWith("gemini-2.") && (
+              <span className="field-hint" style={{ color: "#b45309" }}>
+                Model 2.x đã ngừng — chọn 3-flash-preview rồi Lưu.
+              </span>
+            )}
           </label>
           <label>
             Tối đa câu / người dùng / ngày

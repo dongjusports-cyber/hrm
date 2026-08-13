@@ -2,12 +2,14 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   createEmployee,
   fetchDepartments,
+  fetchPositions,
   fetchTeams,
   suggestEmployeeCode,
   uploadEmployeePhoto,
   validateEmployee,
   type Department,
   type Employee,
+  type Position,
   type Team,
   type ValidationIssue,
 } from "../../shared/api";
@@ -26,6 +28,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
   const [form, setForm] = useState(emptyEmployeeForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [saving, setSaving] = useState(false);
@@ -53,6 +56,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
     });
     void fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
     void fetchTeams().then(setTeams).catch(() => setTeams([]));
+    void fetchPositions().then(setPositions).catch(() => setPositions([]));
     void suggestEmployeeCode()
       .then((code) => setForm((f) => ({ ...f, employee_code: code })))
       .catch(() => undefined);
@@ -158,6 +162,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
           setForm={setForm}
           departments={departments}
           teams={teams}
+          positions={positions}
           fieldErrors={fieldErrors}
           photoPreview={photoPreview}
           onPhotoPick={onPhotoPick}

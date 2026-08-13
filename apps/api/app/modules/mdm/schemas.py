@@ -22,6 +22,18 @@ class DepartmentUpdate(BaseModel):
     mitapro_names: list[str] | None = None
 
 
+class PositionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    code: str
+    name: str
+    name_local: str | None = None
+    level: int | None = None
+    is_management: bool
+    sort_order: int
+    is_active: bool
+
+
 class DepartmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -89,6 +101,7 @@ class EmployeeBase(BaseModel):
     team_id: UUID | None = None
     team_code: str | None = None
     department_code: str | None = None  # đi kèm team_code để phân giải khi mã tổ trùng
+    position_code: str | None = None
     position_title: str | None = None
     join_date: date | None = None
     contract_signed_at: date | None = None
@@ -198,6 +211,7 @@ class EmployeeUpdate(BaseModel):
     team_id: UUID | None = None
     team_code: str | None = None
     department_code: str | None = None
+    position_code: str | None = None
     position_title: str | None = None
     join_date: date | None = None
     contract_signed_at: date | None = None
@@ -260,6 +274,7 @@ class EmployeeOut(BaseModel):
     team_id: UUID | None = None
     team_code: str | None = None
     team_name: str | None = None
+    position_code: str | None = None
     position_title: str | None
     join_date: date | None
     contract_signed_at: date | None

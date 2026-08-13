@@ -28,6 +28,7 @@ export type EmployeeFormState = {
   full_name: string;
   department_code: string;
   team_id: string;
+  position_code: string;
   position_title: string;
   contract_salary: string;
   probation_salary: string;
@@ -66,6 +67,7 @@ export const emptyEmployeeForm: EmployeeFormState = {
   full_name: "",
   department_code: "",
   team_id: "",
+  position_code: "",
   position_title: "",
   contract_salary: "",
   probation_salary: "",
@@ -109,6 +111,13 @@ export function formatMoneyTyping(raw: string): string {
   const digits = sanitizeMoneyInput(raw);
   if (!digits) return "";
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+/** Mức phụ cấp mặc định từ danh mục — hiển thị có dấu phẩy; rỗng nếu = 0. */
+export function formatAllowanceDefaultAmount(raw: string | number | null | undefined): string {
+  const n = Number(String(raw ?? "").replace(/,/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return formatMoneyTyping(String(Math.round(n)));
 }
 
 /** Chuỗi số thuần (VND, không lẻ) gửi API / lưu DB. */
@@ -165,6 +174,7 @@ export function employeeToForm(e: {
   full_name: string;
   department_code?: string | null;
   team_id?: string | null;
+  position_code?: string | null;
   position_title?: string | null;
   contract_salary?: string | number;
   probation_salary?: string | number;
@@ -202,6 +212,7 @@ export function employeeToForm(e: {
     full_name: e.full_name,
     department_code: e.department_code ?? "",
     team_id: e.team_id ?? "",
+    position_code: e.position_code ?? "",
     position_title: e.position_title ?? "",
     contract_salary: formatMoneyTyping(digitsOnlyMoney(String(e.contract_salary ?? "0"))),
     probation_salary: formatMoneyTyping(digitsOnlyMoney(String(e.probation_salary ?? "0"))),
@@ -246,6 +257,7 @@ export function formToPayload(form: EmployeeFormState, isNew: boolean) {
   const base = {
     full_name: form.full_name,
     team_id: form.team_id || undefined,
+    position_code: form.position_code || undefined,
     position_title: form.position_title || undefined,
     contract_salary: digitsOnlyMoney(form.contract_salary) || "0",
     probation_salary: digitsOnlyMoney(form.probation_salary) || "0",

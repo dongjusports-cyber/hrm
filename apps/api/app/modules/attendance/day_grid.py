@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,39 @@ from app.modules.core.models import User
 from app.modules.mdm.models import Department, Employee, Team
 
 ACTIVE_EMP = ("active", "probation")
+
+
+def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
+    return AttendanceDayOut(
+        id=day.id,
+        employee_id=day.employee_id,
+        employee_code=emp.employee_code,
+        full_name=emp.full_name,
+        work_date=day.work_date,
+        first_in=day.first_in,
+        last_out=day.last_out,
+        worked_hours=day.worked_hours,
+        late_minutes=day.late_minutes,
+        early_minutes=day.early_minutes,
+        ot_minutes=day.ot_minutes,
+        ot_on_books_minutes=day.ot_on_books_minutes,
+        ot_external_minutes=day.ot_external_minutes,
+        ot_type=day.ot_type,
+        punch_count=day.punch_count,
+        is_workday=day.is_workday,
+        work_shift_id=day.work_shift_id,
+        leave_code=day.leave_code,
+        source=day.source,
+        night_hours=day.night_hours,
+        sunday_hours=day.sunday_hours,
+        holiday_hours=day.holiday_hours,
+        ot_night_hours=day.ot_night_hours,
+        segment=day.segment,
+        is_locked=day.is_locked,
+        note=day.note,
+        edited_by_user_id=day.edited_by_user_id,
+        edited_at=day.edited_at,
+    )
 
 
 def _needs_action(day: AttendanceDay | None, work_date: date, schedule) -> bool:
@@ -60,6 +95,7 @@ def list_days_grid(
     work_date: date,
     *,
     needs_action_only: bool = False,
+    department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
     schedule = _load_schedule(db)
     period = f"{work_date.year:04d}-{work_date.month:02d}"
@@ -82,6 +118,8 @@ def list_days_grid(
 
     out: list[AttendanceDayGridOut] = []
     for emp, team, dept in employees:
+        if department_id is not None and (dept is None or dept.id != department_id):
+            continue
         day = by_emp.get(emp.id)
         needs = _needs_action(day, work_date, schedule)
         if needs_action_only and not needs:
@@ -104,21 +142,22 @@ def list_days_grid(
                     punch_count=0,
                     is_workday=True,
                     team_code=team.code if team else None,
+                    team_name=team.name if team else None,
                     department_code=dept.code if dept else None,
+                    department_name=dept.name if dept else None,
                     needs_action=needs,
                     row_flag=_row_flag(None, work_date, schedule),
                 )
             )
         else:
-            listed = list_days(db, work_date, work_date, emp.employee_code)
-            row_out = listed[0] if listed else None
-            if row_out is None:
-                continue
+            row_out = _day_to_out(day, emp)
             out.append(
                 AttendanceDayGridOut(
                     **row_out.model_dump(),
                     team_code=team.code if team else None,
+                    team_name=team.name if team else None,
                     department_code=dept.code if dept else None,
+                    department_name=dept.name if dept else None,
                     needs_action=needs,
                     row_flag=_row_flag(day, work_date, schedule),
                 )

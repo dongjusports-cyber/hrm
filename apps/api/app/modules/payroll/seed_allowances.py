@@ -10,6 +10,24 @@ from sqlalchemy.orm import Session
 from app.modules.mdm.models import Department, Employee
 from app.modules.payroll.models import EmployeeAllowanceAssignment, PayComponent
 
+# Mức HĐ chuẩn CTY 2026 — khớp policy (attendance_bonus_monthly / transport_monthly_default).
+ATTEND_MONTHLY_DEFAULT = Decimal("600000")
+TRANSPORT_MONTHLY_DEFAULT = Decimal("800000")
+LEGACY_ATTEND_AMOUNTS = frozenset({Decimal("230000")})
+LEGACY_TRANSPORT_AMOUNTS = frozenset({Decimal("760000")})
+
+
+def normalize_legacy_allowance_amount(code: str, amount: Decimal | None) -> Decimal | None:
+    """230.000 / 760.000 (Genus cũ) → 600.000 / 800.000 khi trích xuất hoặc migrate."""
+    if amount is None:
+        return None
+    amt = Decimal(str(amount))
+    if code == "ATTEND" and amt in LEGACY_ATTEND_AMOUNTS:
+        return ATTEND_MONTHLY_DEFAULT
+    if code == "TRANSPORT" and amt in LEGACY_TRANSPORT_AMOUNTS:
+        return TRANSPORT_MONTHLY_DEFAULT
+    return amt
+
 SENIORITY_RULES = {
     "tiers": [
         {"min_months": 6, "max_months": 120, "base": 25000, "per_6_months": 25000},
@@ -44,7 +62,7 @@ CATALOG: list[dict] = [
         "proration": "attend_penalty",
         "include_in_si_base": False,
         "include_in_ot_base": True,
-        "default_amount": Decimal("230000"),
+        "default_amount": ATTEND_MONTHLY_DEFAULT,
         "kind": "earning",
         "affects_si_base": False,
         "affects_ot_base": True,
@@ -57,7 +75,7 @@ CATALOG: list[dict] = [
         "proration": "by_worked_days",
         "include_in_si_base": False,
         "include_in_ot_base": False,
-        "default_amount": Decimal("760000"),
+        "default_amount": TRANSPORT_MONTHLY_DEFAULT,
         "kind": "earning",
         "affects_si_base": False,
         "affects_ot_base": False,
@@ -429,6 +447,8 @@ def seed_allowance_types(db: Session) -> None:
         if existing:
             if existing.name != row["name"]:
                 existing.name = row["name"]
+            if existing.default_amount != row["default_amount"]:
+                existing.default_amount = row["default_amount"]
             if row["code"] in _FULL_MONTH_CATALOG_CODES and existing.proration == "by_worked_days":
                 existing.proration = row["proration"]
                 existing.proration_rule = row["proration_rule"]
@@ -470,6 +490,34 @@ def seed_allowance_types(db: Session) -> None:
         )
     db.commit()
     _drop_orphan_phone_component(db)
+
+
+def migrate_attend_transport_defaults(db: Session) -> dict[str, int]:
+    """Cập nhật catalog + gán NV còn mức Genus cũ (230k / 760k) → 600k / 800k."""
+    seed_allowance_types(db)
+    updated_catalog = 0
+    updated_assignments = 0
+    for code, target, legacy in (
+        ("ATTEND", ATTEND_MONTHLY_DEFAULT, LEGACY_ATTEND_AMOUNTS),
+        ("TRANSPORT", TRANSPORT_MONTHLY_DEFAULT, LEGACY_TRANSPORT_AMOUNTS),
+    ):
+        comp = db.query(PayComponent).filter(PayComponent.code == code).one_or_none()
+        if comp is None:
+            continue
+        if comp.default_amount != target:
+            comp.default_amount = target
+            updated_catalog += 1
+        rows = (
+            db.query(EmployeeAllowanceAssignment)
+            .filter(EmployeeAllowanceAssignment.allowance_type_id == comp.id)
+            .all()
+        )
+        for row in rows:
+            if row.amount in legacy:
+                row.amount = target
+                updated_assignments += 1
+    db.commit()
+    return {"catalog": updated_catalog, "assignments": updated_assignments}
 
 
 def migrate_pccc_hse_assignments(db: Session) -> dict[str, list[str]]:

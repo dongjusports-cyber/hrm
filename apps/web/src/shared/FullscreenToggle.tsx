@@ -3,8 +3,7 @@ import { useAuth } from "./authStore";
 import { useFullscreen } from "./useFullscreen";
 
 /**
- * Nút thử nghiệm — toàn màn hình trình duyệt (ẩn thanh Chrome).
- * Chỉ hiện Portal staff; Worker app dùng PWA cài riêng.
+ * Nút Full — phóng to trình duyệt. Chỉ «Thoát» mới thoát; ESC = quay tab.
  */
 export function FullscreenToggle() {
   const { accessToken } = useAuth();
@@ -26,16 +25,16 @@ export function FullscreenToggle() {
       onClick={() => void toggle()}
       title={
         active
-          ? "Thoát toàn màn hình (Esc hoặc F11)"
-          : "Toàn màn hình — ẩn thanh Chrome (thử nghiệm)"
+          ? "Thoát phóng to — bấm nút này (Esc dùng để quay tab)"
+          : "Full — phóng to toàn màn hình (ẩn thanh Chrome)"
       }
       aria-pressed={active}
-      aria-label={active ? "Thoát toàn màn hình" : "Bật toàn màn hình"}
+      aria-label={active ? "Thoát phóng to" : "Phóng to toàn màn hình"}
     >
       <span className="fullscreen-toggle-icon" aria-hidden>
         {active ? "⤢" : "⛶"}
       </span>
-      <span className="fullscreen-toggle-label">{active ? "Thoát" : "Toàn màn"}</span>
+      <span className="fullscreen-toggle-label">{active ? "Thoát" : "Full"}</span>
     </button>
   );
 }

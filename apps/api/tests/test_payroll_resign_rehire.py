@@ -151,3 +151,8 @@ def test_resigned_before_period_not_recalculated_with_negative_net(client, db):
     listed = client.get("/api/payroll/payslips?period=2026-08", headers=headers)
     assert listed.status_code == 200
     assert code not in {p["employee_code"] for p in listed.json()}
+
+    rebuild_timesheets(db, "2026-08", recalc_days=False)
+    ts = client.get("/api/attendance/timesheets?period=2026-08", headers=headers)
+    assert ts.status_code == 200
+    assert code not in {r["employee_code"] for r in ts.json()}

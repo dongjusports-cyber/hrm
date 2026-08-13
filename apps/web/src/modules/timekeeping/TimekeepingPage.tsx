@@ -1,63 +1,51 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef, RowClickedEvent } from "ag-grid-community";
-import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
+import type { ColDef, GridApi, RowClickedEvent } from "ag-grid-community";
 import {
-  createAdjustment,
-  deleteAdjustment,
-  fetchAdjustments,
-  fetchAttendanceAnomalies,
   fetchAttendanceDays,
-  fetchAttendanceReview,
+  fetchDepartments,
   fetchIntegrationStatus,
   fetchLeaveTypes,
   fetchPayPeriod,
   fetchTimesheets,
   patchAttendanceDayManual,
   rebuildTimesheets,
-  requestSyncNow,
   type AttendanceDay,
-  type AttendanceReview,
-  type AttendanceReviewIssue,
+  type AttendanceDayGridRow,
+  type Department,
   type IntegrationStatus,
   type LeaveType,
   type PayPeriod,
-  type TimesheetAdjustment,
   type TimesheetMonth,
 } from "../../shared/api";
-import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod } from "../../shared/formatDate";
+import { formatDepartmentLabel } from "../../shared/formatOrg";
+import { AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
+import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
+import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
-import { LeaveApprovalPanel } from "./LeaveApprovalPanel";
-import { DailyGridPanel } from "./DailyGridPanel";
+import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
+import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
+import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 
-ModuleRegistry.registerModules([AllCommunityModule]);
-
-type MainView = "timesheet" | "daily" | "review" | "leave" | "late" | "adjust" | "sync";
+type MainView = "daily" | "monthly";
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
-  timesheet: "Bảng tổng hợp công tháng — một dòng một NV.",
-  daily: "Bảng cả xưởng theo một ngày — dán Excel, gán nghỉ hàng loạt.",
-  review: "Danh sách cảnh báo thiếu chấm — bấm dòng để sửa.",
-  leave: "Duyệt đơn nghỉ công nhân gửi qua Worker.",
-  late: "Danh sách đi trễ / về sớm trong kỳ.",
-  adjust: "Ghi nghỉ phép hoặc OT cả tháng cho một MSNV.",
-  sync: "Đồng bộ Mitapro / punch.",
+  daily: "Kiểm và sửa công cả xưởng theo một ngày — bấm tiêu đề Vào/Ra để xếp thiếu chấm.",
+  monthly: "Tổng hợp công cả tháng — một dòng một nhân viên.",
 };
 
 const TK_HEADER_TIPS = {
-  al: "Nghỉ phép năm (Annual Leave)",
-  rem: "Nghỉ REM / nghỉ còn lại theo mã",
-  otBooks: "OT trên sổ lương — T3/T5, 17:00–20:00 (bấm ra sau 17:15)",
-  otExt: "OT trả ATM riêng — sau 20:00 hoặc ngày khác T3/T5",
+  al: "Nghỉ phép năm",
+  rem: "Nghỉ theo mã REM",
+  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00",
+  otExt: "Tăng ca trả riêng — sau 20:00 hoặc ngày khác T3/T5",
 } as const;
 
 type CalendarRow = {
@@ -190,9 +178,8 @@ export function TimekeepingPage() {
   const [pay, setPay] = useState<PayPeriod | null>(null);
   const [rows, setRows] = useState<TimesheetMonth[]>([]);
   const [leaves, setLeaves] = useState<LeaveType[]>([]);
-  const [adjustments, setAdjustments] = useState<TimesheetAdjustment[]>([]);
-  const [anomalies, setAnomalies] = useState<AttendanceDay[]>([]);
-  const [review, setReview] = useState<AttendanceReview | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
   const [selected, setSelected] = useState<TimesheetMonth | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [empDays, setEmpDays] = useState<AttendanceDay[]>([]);
@@ -201,25 +188,27 @@ export function TimekeepingPage() {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [kind, setKind] = useState<"leave" | "ot">("leave");
-  const [empCode, setEmpCode] = useState("");
-  const [leaveCode, setLeaveCode] = useState("ALE");
-  const [days, setDays] = useState("1");
-  const [otType, setOtType] = useState("weekday");
-  const [otHours, setOtHours] = useState("2");
-  const [note, setNote] = useState("");
-
   const [fixEmp, setFixEmp] = useState("");
   const [fixDate, setFixDate] = useState(`${defaultPeriod()}-01`);
   const [fixIn, setFixIn] = useState("08:00");
   const [fixOut, setFixOut] = useState("17:00");
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
-  const [gridDate, setGridDate] = useState(`${defaultPeriod()}-01`);
-  const [mainView, setMainView] = useState<MainView>("timesheet");
+  const [gridDate, setGridDate] = useState(() => {
+    const p = defaultPeriod();
+    const today = todayIsoDateVN();
+    return today.slice(0, 7) === p ? today : payPeriodStartDate(p);
+  });
+  const [dailyGridRefresh, setDailyGridRefresh] = useState(0);
+  const [mainView, setMainView] = useState<MainView>("daily");
   const [otExternalOpen, setOtExternalOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [dailySummary, setDailySummary] = useState<DailyGridSummary>({ total: 0, needsAction: 0 });
+  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
   const [gridApi, setGridApi] = useState<{ ensureIndexVisible: (i: number) => void } | null>(
     null,
   );
+  const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
+  const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
 
   const loadEmpDays = useCallback(
     async (code: string, dateFrom: string, dateTo: string) => {
@@ -244,33 +233,45 @@ export function TimekeepingPage() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [st, pp, sheets, lt, adj, rev] = await Promise.all([
+      const [st, pp, sheets, lt] = await Promise.all([
         fetchIntegrationStatus(),
         fetchPayPeriod(period),
         fetchTimesheets(period),
         fetchLeaveTypes(),
-        fetchAdjustments(period),
-        fetchAttendanceReview(period),
       ]);
       setStatus(st);
       setPay(pp);
       setGridDate((prev) => {
         if (prev >= pp.date_from && prev <= pp.date_to) return prev;
+        const today = todayIsoDateVN();
+        if (today >= pp.date_from && today <= pp.date_to) return today;
         return pp.date_from;
       });
       setRows(sheets);
       setLeaves(lt);
-      setAdjustments(adj);
-      setReview(rev);
-      setLeaveCode((prev) => (lt.some((x) => x.code === prev) ? prev : lt[0]?.code ?? prev));
-      const anomaliesRows = await fetchAttendanceAnomalies(pp.date_from, pp.date_to);
-      setAnomalies(anomaliesRows);
+      void fetchDepartments()
+        .then((depts) => setDepartments(depts.filter((d) => d.is_active !== false)))
+        .catch(() => {});
       setSelected((prev) => {
         if (!prev) return null;
         return sheets.find((s) => s.id === prev.id) ?? null;
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải được Chấm Công.");
+    }
+  }, [period]);
+
+  const refreshAfterSync = useCallback(async () => {
+    try {
+      const [st, sheets] = await Promise.all([
+        fetchIntegrationStatus(),
+        fetchTimesheets(period),
+      ]);
+      setStatus(st);
+      setRows(sheets);
+      setDailyGridRefresh((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không cập nhật sau đồng bộ.");
     }
   }, [period]);
 
@@ -296,11 +297,25 @@ export function TimekeepingPage() {
     );
   }, [rows, q]);
 
-  const empAdjustments = useMemo(() => {
-    const code = (selected?.employee_code || empCode).trim();
-    if (!code) return adjustments.slice(0, 20);
-    return adjustments.filter((a) => a.employee_code === code);
-  }, [adjustments, selected, empCode]);
+  const pickEmployee = useCallback((row: TimesheetMonth) => {
+    setSelected(row);
+    setFixEmp(row.employee_code);
+    setDetailOpen(true);
+    setOk(null);
+    setError(null);
+  }, []);
+
+  const pickFromDaily = useCallback(
+    (gridRow: AttendanceDayGridRow) => {
+      const match = rows.find((r) => r.employee_code === gridRow.employee_code);
+      if (match) pickEmployee(match);
+    },
+    [rows, pickEmployee],
+  );
+
+  const onDailySummaryChange = useCallback((summary: DailyGridSummary) => {
+    setDailySummary(summary);
+  }, []);
 
   const calendar = useMemo(() => {
     if (!pay || !selected) return [];
@@ -313,16 +328,6 @@ export function TimekeepingPage() {
     const punched = calendar.filter((d) => d.hasData).length;
     return { lateDays, earlyDays, punched, total: calendar.length };
   }, [calendar]);
-
-  const pickEmployee = useCallback((row: TimesheetMonth) => {
-    setSelected(row);
-    setEmpCode(row.employee_code);
-    setFixEmp(row.employee_code);
-    setMainView("timesheet");
-    setDetailOpen(true);
-    setOk(null);
-    setError(null);
-  }, []);
 
   const clearSelection = useCallback(() => {
     setDetailOpen(false);
@@ -368,11 +373,7 @@ export function TimekeepingPage() {
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!q.trim()) {
-      setError("Nhập MSNV hoặc họ tên rồi bấm Lọc / Xem công.");
-      return;
-    }
-    applySearchSelect();
+    if (mainView === "monthly") applySearchSelect();
   }
 
   const columnDefs = useMemo<ColDef<TimesheetMonth>[]>(
@@ -416,16 +417,16 @@ export function TimekeepingPage() {
       },
       {
         field: "al_days",
-        headerName: "AL",
-        width: 52,
+        headerName: "Phép năm",
+        width: 72,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.al,
         valueFormatter: (p) => fmtNum(p.value, 1),
       },
       {
         field: "rem_days",
-        headerName: "REM",
-        width: 56,
+        headerName: "Nghỉ REM",
+        width: 72,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.rem,
         valueFormatter: (p) => fmtNum(p.value, 1),
@@ -434,16 +435,16 @@ export function TimekeepingPage() {
       { field: "early_count", headerName: "Sớm", width: 52, filter: false },
       {
         field: "ot_hours_weekday",
-        headerName: "OT sổ",
-        width: 64,
+        headerName: "Tăng ca sổ",
+        width: 76,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.otBooks,
         valueFormatter: (p) => fmtNum(p.value, 1),
       },
       {
         field: "ot_hours_external",
-        headerName: "OT ngoài",
-        width: 72,
+        headerName: "Tăng ca ngoài",
+        width: 88,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.otExt,
         valueFormatter: (p) => {
@@ -455,12 +456,17 @@ export function TimekeepingPage() {
     [pickEmployee],
   );
 
+  useEffect(() => {
+    const api = monthlyGridApiRef.current;
+    if (api) monthlyColPrefs.restore(api);
+  }, [columnDefs, monthlyColPrefs]);
+
   function onRowClicked(e: RowClickedEvent<TimesheetMonth>) {
     if (e.data) pickEmployee(e.data);
   }
 
   function pickDay(row: CalendarRow) {
-    setFixEmp(selected?.employee_code ?? empCode);
+    setFixEmp(selected?.employee_code ?? fixEmp);
     setFixDate(row.work_date);
     if (row.firstIn) setFixIn(row.firstIn);
     if (row.lastOut) setFixOut(row.lastOut);
@@ -471,14 +477,22 @@ export function TimekeepingPage() {
     setBusy(true);
     setError(null);
     setOk(null);
+    setSyncProgress({ active: true, percent: 0, message: "Bắt đầu đồng bộ…", ok: null });
     try {
-      const job = await requestSyncNow();
-      setOk(job.message);
-      await reload();
+      const result = await runSyncWithProgress(setSyncProgress);
+      if (result.ok) {
+        setOk(result.message);
+      } else {
+        setError(result.message);
+      }
+      await refreshAfterSync();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không yêu cầu đồng bộ được.");
+      const msg = e instanceof Error ? e.message : "Không yêu cầu đồng bộ được.";
+      setError(msg);
+      setSyncProgress({ active: true, percent: 100, message: msg, ok: false });
     } finally {
       setBusy(false);
+      window.setTimeout(() => setSyncProgress(null), 6000);
     }
   }
 
@@ -506,59 +520,6 @@ export function TimekeepingPage() {
   function onOtExternalExported(message: string) {
     setOk(message);
     setOtExternalOpen(false);
-  }
-
-  async function onAdjust(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setOk(null);
-    try {
-      const body =
-        kind === "leave"
-          ? {
-              period,
-              employee_code: empCode.trim(),
-              kind: "leave",
-              leave_code: leaveCode,
-              days,
-              note,
-            }
-          : {
-              period,
-              employee_code: empCode.trim(),
-              kind: "ot",
-              ot_type: otType,
-              ot_hours: otHours,
-              note,
-            };
-      const created = await createAdjustment(body);
-      setOk(
-        kind === "leave"
-          ? `Đã ghi nghỉ ${created.leave_code} cho ${created.employee_code}.`
-          : `Đã ghi OT ${created.ot_hours}h cho ${created.employee_code}.`,
-      );
-      setNote("");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không lưu điều chỉnh được.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDeleteAdj(id: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await deleteAdjustment(id);
-      setOk("Đã xóa điều chỉnh.");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không xóa được.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function onManualDay(e: FormEvent) {
@@ -611,8 +572,8 @@ export function TimekeepingPage() {
                   <th>Giờ</th>
                   <th>Trễ</th>
                   <th>Sớm</th>
-                  <th title="OT lên bảng lương chính (Th3/Th5, trước 20h)">OT sổ</th>
-                  <th title="OT trả ATM riêng">OT ngoài</th>
+                  <th title="Tăng ca trên sổ lương chính (Th3/Th5, trước 20h)">Tăng ca sổ</th>
+                  <th title="Tăng ca trả riêng">Tăng ca ngoài</th>
                   <th title="Cảnh báo">!</th>
                 </tr>
               </thead>
@@ -717,264 +678,6 @@ export function TimekeepingPage() {
     );
   }
 
-  function renderWorkspaceView() {
-    return (
-      <>
-        {mainView === "daily" && pay && (
-          <div className="users-form-card tk-panel tk-panel-wide">
-            <label className="field">
-              <span>Ngày công</span>
-              <input
-                type="date"
-                value={gridDate}
-                min={pay.date_from}
-                max={pay.date_to}
-                onChange={(e) => setGridDate(e.target.value)}
-              />
-            </label>
-            <DailyGridPanel
-              workDate={gridDate}
-              periodLocked={pay.status === "locked"}
-              leaves={leaves}
-              onChanged={() => void reload()}
-            />
-          </div>
-        )}
-
-        {mainView === "adjust" && (
-          <div className="users-form-card tk-panel">
-            {selected ? (
-              <div className="tk-selected tk-selected-prominent">
-                <strong>
-                  {selected.employee_code} · {selected.full_name}
-                </strong>
-                <span>
-                  Công {selected.worked_days} · AL {selected.al_days} · OT{" "}
-                  {selected.ot_hours_weekday}
-                </span>
-              </div>
-            ) : (
-              <p className="module-placeholder">
-                Chọn nhân viên trên bảng tháng (bấm <strong>Xem</strong>) hoặc nhập MSNV bên dưới.
-              </p>
-            )}
-
-            <form onSubmit={(e) => void onAdjust(e)}>
-              <label className="field">
-                <span>MSNV</span>
-                <input
-                  value={empCode}
-                  onChange={(e) => setEmpCode(e.target.value)}
-                  list="tk-emp-codes"
-                  required
-                  placeholder="VD 5290"
-                />
-                <datalist id="tk-emp-codes">
-                  {filtered.slice(0, 50).map((r) => (
-                    <option key={r.id} value={r.employee_code}>
-                      {r.full_name}
-                    </option>
-                  ))}
-                </datalist>
-              </label>
-              <label className="field">
-                <span>Loại</span>
-                <select
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value as "leave" | "ot")}
-                >
-                  <option value="leave">Nghỉ phép</option>
-                  <option value="ot">Giờ OT</option>
-                </select>
-              </label>
-              {kind === "leave" ? (
-                <>
-                  <label className="field">
-                    <span>Mã nghỉ</span>
-                    <select
-                      value={leaveCode}
-                      onChange={(e) => setLeaveCode(e.target.value)}
-                    >
-                      {leaves.map((l) => (
-                        <option key={l.code} value={l.code}>
-                          {l.code} — {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Số ngày</span>
-                    <input value={days} onChange={(e) => setDays(e.target.value)} required />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label className="field">
-                    <span>Loại OT</span>
-                    <select value={otType} onChange={(e) => setOtType(e.target.value)}>
-                      <option value="weekday">Ngày thường</option>
-                      <option value="weekend">Cuối tuần</option>
-                      <option value="holiday">Lễ</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Số giờ</span>
-                    <input
-                      value={otHours}
-                      onChange={(e) => setOtHours(e.target.value)}
-                      required
-                    />
-                  </label>
-                </>
-              )}
-              <label className="field">
-                <span>Ghi chú</span>
-                <input value={note} onChange={(e) => setNote(e.target.value)} />
-              </label>
-              <button type="submit" className="btn-primary" disabled={busy}>
-                Lưu điều chỉnh
-              </button>
-            </form>
-
-            {empAdjustments.length > 0 && (
-              <ul className="tk-adj-list">
-                {empAdjustments.map((a) => (
-                  <li key={a.id}>
-                    <span>
-                      {a.employee_code}:{" "}
-                      {a.kind === "leave"
-                        ? `${a.leave_code} ${a.days}n`
-                        : `OT ${a.ot_hours}h`}
-                    </span>
-                    <button
-                      type="button"
-                      className="link-btn danger"
-                      disabled={busy}
-                      onClick={() => void onDeleteAdj(a.id)}
-                    >
-                      Xóa
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {mainView === "review" && (
-          <div className="users-form-card tk-panel tk-panel-wide">
-            <p className="field-hint">
-              Thiếu / lẻ lần chấm. Tổng: <strong>{review?.issue_count ?? 0}</strong>
-            </p>
-            <form onSubmit={(e) => void onManualDay(e)}>
-              <label className="field">
-                <span>MSNV</span>
-                <input value={fixEmp} onChange={(e) => setFixEmp(e.target.value)} required />
-              </label>
-              <label className="field">
-                <span>Ngày</span>
-                <input
-                  type="date"
-                  value={fixDate}
-                  onChange={(e) => setFixDate(e.target.value)}
-                  required
-                />
-              </label>
-              <div className="tk-time-row">
-                <label className="field">
-                  <span>Vào</span>
-                  <input
-                    type="time"
-                    value={fixIn}
-                    onChange={(e) => setFixIn(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Ra</span>
-                  <input
-                    type="time"
-                    value={fixOut}
-                    onChange={(e) => setFixOut(e.target.value)}
-                    required
-                  />
-                </label>
-              </div>
-              <button type="submit" className="btn-primary" disabled={busy}>
-                Lưu giờ tay
-              </button>
-            </form>
-            <div className="tk-issue-scroll">
-              {(review?.issues ?? []).slice(0, 40).map((iss: AttendanceReviewIssue, idx) => (
-                <button
-                  key={`${iss.employee_code}-${iss.work_date ?? "x"}-${idx}`}
-                  type="button"
-                  className="tk-issue"
-                  onClick={() => {
-                    setFixEmp(iss.employee_code);
-                    if (iss.work_date) setFixDate(iss.work_date);
-                    setEmpCode(iss.employee_code);
-                    const row = rows.find((r) => r.employee_code === iss.employee_code);
-                    if (row) pickEmployee(row);
-                  }}
-                >
-                  <strong>{iss.employee_code}</strong> {iss.work_date ? formatDateDDMMYYYY(iss.work_date) : ""} — {iss.message}
-                </button>
-              ))}
-              {!review?.issues.length && (
-                <p className="module-placeholder">Không có cảnh báo kỳ này.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {mainView === "leave" && (
-          <div className="users-form-card tk-panel tk-panel-wide">
-            <LeaveApprovalPanel />
-          </div>
-        )}
-
-        {mainView === "late" && (
-          <div className="users-form-card tk-panel tk-panel-wide">
-            <div className="tk-issue-scroll">
-              {anomalies.length === 0 ? (
-                <p className="module-placeholder">Không có trễ/sớm trong kỳ.</p>
-              ) : (
-                anomalies
-                  .filter((d) => {
-                    const needle = q.trim().toLowerCase();
-                    if (!needle) return true;
-                    return (
-                      d.employee_code.toLowerCase().includes(needle) ||
-                      (d.full_name ?? "").toLowerCase().includes(needle)
-                    );
-                  })
-                  .slice(0, 60)
-                  .map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      className="tk-issue"
-                      onClick={() => {
-                        setEmpCode(d.employee_code);
-                        setFixEmp(d.employee_code);
-                        setFixDate(d.work_date);
-                        const row = rows.find((r) => r.employee_code === d.employee_code);
-                        if (row) pickEmployee(row);
-                      }}
-                    >
-                      <strong>{d.employee_code}</strong> {formatDateDDMMYYYY(d.work_date)} — trễ {d.late_minutes}′ /
-                      sớm {d.early_minutes}′
-                    </button>
-                  ))
-              )}
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
-
   return (
     <div className="module-page tk-page">
       <header className="module-header">
@@ -997,8 +700,33 @@ export function TimekeepingPage() {
             Kỳ
             <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
+          {mainView === "daily" && pay ? (
+            <label className="period-picker period-picker-compact">
+              Ngày công
+              <input
+                type="date"
+                value={gridDate}
+                min={pay.date_from}
+                max={pay.date_to}
+                onChange={(e) => setGridDate(e.target.value)}
+              />
+            </label>
+          ) : null}
+          {mainView === "daily" ? (
+            <label className="period-picker period-picker-compact">
+              Bộ phận
+              <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">Tất cả</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {formatDepartmentLabel(d)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="tk-search tk-search-compact">
-            <span className="sr-only">Tìm MSNV / họ tên</span>
+            <span className="sr-only">Tìm MSNV hoặc họ tên</span>
             <input
               placeholder="MSNV hoặc họ tên…"
               data-hotkey-search
@@ -1006,18 +734,17 @@ export function TimekeepingPage() {
               onChange={(e) => setQ(e.target.value)}
             />
           </label>
-          <button type="submit" className="btn-ghost-dark btn-compact">
-            Lọc
-          </button>
-          <button
-            type="button"
-            className="btn-primary btn-compact"
-            disabled={busy || !q.trim()}
-            title={disabledTitle(!q.trim(), "Nhập MSNV hoặc họ tên trước")}
-            onClick={() => applySearchSelect()}
-          >
-            Xem công
-          </button>
+          {mainView === "monthly" ? (
+            <button
+              type="button"
+              className="btn-ghost-dark btn-compact"
+              disabled={busy || !q.trim()}
+              title={disabledTitle(!q.trim(), "Nhập MSNV hoặc họ tên trước")}
+              onClick={() => applySearchSelect()}
+            >
+              Xem tháng
+            </button>
+          ) : null}
           {q.trim() ? (
             <button
               type="button"
@@ -1032,110 +759,162 @@ export function TimekeepingPage() {
           ) : null}
           <button
             type="button"
+            className="btn-primary btn-compact"
+            disabled={busy}
+            onClick={() => void onSyncNow()}
+          >
+            Đồng bộ
+          </button>
+          <button
+            type="button"
             className="btn-ghost-dark btn-compact"
             disabled={busy}
-            onClick={() => void reload()}
+            onClick={() => {
+              void reload();
+              setDailyGridRefresh((n) => n + 1);
+            }}
           >
             Làm mới
           </button>
           <ToolbarMoreMenu disabled={busy}>
-            <button type="button" className="toolbar-more-item" onClick={() => void onSyncNow()}>
-              Đồng bộ công
-            </button>
             <button type="button" className="toolbar-more-item" onClick={() => void onRebuild()}>
               Tổng hợp công
+            </button>
+            <button type="button" className="toolbar-more-item" onClick={() => setSyncOpen(true)}>
+              Nhật ký đồng bộ
             </button>
             <button
               type="button"
               className="toolbar-more-item"
-              title="Xem bảng OT trả ATM riêng trước khi xuất Excel"
+              title="Xem và xuất tăng ca trả riêng"
               onClick={() => void onOpenOtExternal()}
             >
-              OT ngoài
+              Tăng ca ngoài
             </button>
           </ToolbarMoreMenu>
         </form>
 
+        {syncProgress?.active ? (
+          <div
+            className={`tk-sync-progress${syncProgress.ok === false ? " is-fail" : syncProgress.ok ? " is-ok" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
+            <div className="tk-sync-progress-head">
+              <span>{syncProgress.message}</span>
+              <strong>{syncProgress.percent}%</strong>
+            </div>
+            <div className="tk-sync-progress-track" aria-hidden>
+              <div className="tk-sync-progress-bar" style={{ width: `${syncProgress.percent}%` }} />
+            </div>
+          </div>
+        ) : null}
+
         <div className="tk-status-bar" aria-live="polite">
           <span className="tk-meta">
             {pay ? (
-              <>
-                {filtered.length}/{rows.length} NV · mẫu số {pay.salary_divisor} ·{" "}
-                <strong>{labelPeriodStatus(pay.status)}</strong>
-              </>
+              mainView === "daily" ? (
+                <>
+                  {dailySummary.total} nhân viên ·{" "}
+                  <strong className={dailySummary.needsAction ? "tk-warn" : "tk-ok"}>
+                    {dailySummary.needsAction} cần xử lý
+                  </strong>
+                  {" · "}
+                  mẫu số {pay.salary_divisor} · <strong>{labelPeriodStatus(pay.status)}</strong>
+                </>
+              ) : (
+                <>
+                  {filtered.length}/{rows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
+                  <strong>{labelPeriodStatus(pay.status)}</strong>
+                </>
+              )
             ) : (
               "Đang tải…"
             )}
           </span>
-          {mainView === "timesheet" && (
-            <span className="tk-status-sync" title={status?.detail ?? "Cấu hình Agent: Cấu Hình (Admin)"}>
-              Đồng bộ:{" "}
-              <strong className={agentOk ? "tk-ok" : "tk-warn"}>
-                {last ? labelJobStatus(last.status) : "chưa có"}
-              </strong>
-              {last ? ` · +${last.records_inserted}/trùng ${last.records_skipped}` : ""}
-              {status ? ` · ${status.punch_count} lần chấm` : ""}
-            </span>
-          )}
+          <span className="tk-status-sync" title={status?.detail ?? "Cấu hình máy đồng bộ trong Cấu Hình"}>
+            Đồng bộ:{" "}
+            <strong className={agentOk ? "tk-ok" : "tk-warn"}>
+              {last ? labelJobStatus(last.status) : "chưa có"}
+            </strong>
+            {last ? ` · thêm ${last.records_inserted}/trùng ${last.records_skipped}` : ""}
+            {status ? ` · ${status.punch_count} lần chấm` : ""}
+          </span>
         </div>
 
-        <div className="tk-view-tabs" role="tablist">
-          {(
-            [
-              ["timesheet", "Tổng hợp"],
-              ["daily", "Bảng ngày"],
-              ["review", `Rà soát${review?.issue_count ? ` (${review.issue_count})` : ""}`],
-              ["leave", "Duyệt phép"],
-              ["late", "Trễ/sớm"],
-              ["adjust", "Điều chỉnh"],
-              ["sync", "Đồng bộ"],
-            ] as const
-          ).map(([view, label]) => (
-            <button
-              key={view}
-              type="button"
-              role="tab"
-              title={MAIN_VIEW_HINT[view]}
-              className={mainView === view ? "is-on" : ""}
-              onClick={() => setMainView(view)}
-            >
-              {label}
-            </button>
-          ))}
-          {selected && mainView === "timesheet" && !detailOpen && (
+        <div className="tk-view-head">
+          <div className="tk-view-tabs" role="tablist">
+            {(
+              [
+                ["daily", "Kiểm theo ngày"],
+                ["monthly", "Tổng hợp tháng"],
+              ] as const
+            ).map(([view, label]) => (
+              <button
+                key={view}
+                type="button"
+                role="tab"
+                title={MAIN_VIEW_HINT[view]}
+                className={mainView === view ? "is-on" : ""}
+                onClick={() => setMainView(view)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {selected && mainView === "monthly" && !detailOpen && (
             <div className="tk-active-emp tk-active-emp--inline">
               <strong>
                 {selected.employee_code} · {selected.full_name}
               </strong>
               <span className="tk-active-stats">
-                Công {selected.worked_days} · AL {selected.al_days} · trễ {selected.late_count}
+                Công {selected.worked_days} · phép {selected.al_days} · trễ {selected.late_count}
               </span>
-              <button type="button" className="btn-primary btn-sm" onClick={() => setDetailOpen(true)}>
-                Chi tiết ngày
-              </button>
-              <button type="button" className="btn-ghost-dark btn-sm" onClick={clearSelection}>
-                Bỏ
-              </button>
+              <div className="tk-active-actions">
+                <button type="button" className="btn-primary btn-sm" onClick={() => setDetailOpen(true)}>
+                  Chi tiết ngày
+                </button>
+                <button type="button" className="btn-ghost-dark btn-sm" onClick={clearSelection}>
+                  Bỏ
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {mainView === "sync" ? (
-          <MitaproSyncPanel period={period} onChanged={() => void reload()} />
-        ) : mainView === "timesheet" ? (
+        {mainView === "daily" && pay ? (
+          <div className="tk-stack tk-stack-panel">
+            <DailyGridPanel
+              workDate={gridDate}
+              periodLocked={pay.status === "locked"}
+              leaves={leaves}
+              searchQuery={q}
+              departmentId={departmentId}
+              refreshToken={dailyGridRefresh}
+              onSummaryChange={onDailySummaryChange}
+              onPickEmployee={pickFromDaily}
+            />
+          </div>
+        ) : (
           <div className="tk-stack">
             <section className="tk-grid-section tk-grid-primary">
               <div className="tk-grid-wrap ag-theme-quartz">
                 <AgGridReact<TimesheetMonth>
                   rowData={filtered}
                   columnDefs={columnDefs}
+                  localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}
                   animateRows
                   suppressHorizontalScroll
                   onRowClicked={onRowClicked}
-                  onGridReady={(e) => setGridApi(e.api)}
-                  onGridSizeChanged={(e) => e.api.sizeColumnsToFit()}
-                  onFirstDataRendered={(e) => e.api.sizeColumnsToFit()}
+                  onGridReady={(e) => {
+                    monthlyGridApiRef.current = e.api;
+                    setGridApi(e.api);
+                    if (!monthlyColPrefs.restore(e.api)) {
+                      e.api.sizeColumnsToFit();
+                    }
+                  }}
+                  {...monthlyColPrefs.handlers}
                   getRowClass={(p) =>
                     p.data?.id === selected?.id ? "hr-row-selected" : undefined
                   }
@@ -1143,14 +922,12 @@ export function TimekeepingPage() {
                     sortable: true,
                     resizable: true,
                     filter: false,
-                    suppressHeaderMenuButton: true,
+                    suppressHeaderMenuButton: false,
                   }}
                 />
               </div>
             </section>
           </div>
-        ) : (
-          <div className="tk-workspace-full">{renderWorkspaceView()}</div>
         )}
       </main>
 
@@ -1163,7 +940,7 @@ export function TimekeepingPage() {
         }
         subtitle={
           selected
-            ? `Kỳ ${period} · công ${selected.worked_days} · AL ${selected.al_days} · REM ${selected.rem_days} · trễ ${selected.late_count} · sớm ${selected.early_count} · OT ${selected.ot_hours_weekday}h`
+            ? `Kỳ ${period} · công ${selected.worked_days} · phép ${selected.al_days} · nghỉ REM ${selected.rem_days} · trễ ${selected.late_count} · sớm ${selected.early_count} · tăng ca ${selected.ot_hours_weekday} giờ`
             : undefined
         }
         onClose={closeDetail}
@@ -1171,6 +948,15 @@ export function TimekeepingPage() {
         bodyClassName="fs-sheet-body-shell"
       >
         {renderEmployeeDaysDetail()}
+      </FullScreenSheet>
+
+      <FullScreenSheet
+        open={syncOpen}
+        title="Nhật ký đồng bộ chấm công"
+        onClose={() => setSyncOpen(false)}
+        bodyClassName="fs-sheet-body-shell"
+      >
+        <MitaproSyncPanel period={period} onChanged={() => void refreshAfterSync()} />
       </FullScreenSheet>
 
       <OtExternalPreviewSheet

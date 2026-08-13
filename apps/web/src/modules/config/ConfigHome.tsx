@@ -32,6 +32,11 @@ const ADMIN_TILES = [
     name: "Nhật ký",
     description: "Audit · policy · sync_jobs hợp nhất",
   },
+  {
+    key: "ai",
+    name: "AI Gemini",
+    description: "Model Gemini · API key · hạn mức hỏi/ngày",
+  },
 ];
 
 /** Cấu Hình Lv2 — 6 tab Quản trị theo 23§23.4 (5.6). */
@@ -42,9 +47,9 @@ export function ConfigHome() {
     <div className="config-home">
       <ConfigTabNav />
       <h1>Quản trị hệ thống</h1>
-      <p className="module-placeholder">Chọn một trong 6 tab Admin (chỉ Admin).</p>
+      <p className="module-placeholder">Chọn tab Admin (chỉ tài khoản Admin).</p>
 
-      <div className="config-grid" aria-label="Quản trị — 6 màn">
+      <div className="config-grid" aria-label="Quản trị — tab Admin">
         {ADMIN_TILES.map((section) => (
           <button
             key={section.key}

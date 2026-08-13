@@ -34,7 +34,7 @@ class AiRuntimeSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    model_name: Mapped[str] = mapped_column(String(80), default="gemini-2.0-flash", nullable=False)
+    model_name: Mapped[str] = mapped_column(String(80), default="gemini-3-flash-preview", nullable=False)
     max_queries_per_day: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     max_output_tokens: Mapped[int] = mapped_column(Integer, default=1024, nullable=False)
     api_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -39,6 +39,7 @@ from app.modules.payroll.attendance_penalty import (
     summarize_attendance_penalties,
 )
 from app.modules.payroll.money import D
+from app.modules.payroll.period_eligibility import employee_on_payroll_period
 
 ZERO = Decimal("0")
 Q2 = Decimal("0.01")
@@ -184,12 +185,31 @@ def _hours(minutes: int) -> Decimal:
     return (Decimal(minutes) / Decimal(60)).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
+def _purge_ineligible_timesheets(db: Session, pay: PayPeriod) -> int:
+    """Xóa dòng công tháng của NV nghỉ trước kỳ (vd. seed 1718)."""
+    rows = (
+        db.query(TimesheetMonth, Employee)
+        .join(Employee, Employee.id == TimesheetMonth.employee_id)
+        .filter(TimesheetMonth.pay_period_id == pay.id)
+        .all()
+    )
+    removed = 0
+    for ts, emp in rows:
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            db.delete(ts)
+            removed += 1
+    if removed:
+        db.commit()
+    return removed
+
+
 def rebuild_timesheets(
     db: Session, period: str, *, recalc_days: bool = True
 ) -> RebuildTimesheetResult:
     pay = ensure_pay_period(db, period)
     _assert_open(pay)
     seed_leave_types(db)
+    _purge_ineligible_timesheets(db, pay)
 
     if recalc_days:
         from app.modules.attendance.service import recalculate_days
@@ -229,6 +249,8 @@ def rebuild_timesheets(
     upserted = 0
     for emp_id, emp in emp_map.items():
         if emp.deleted_at is not None:
+            continue
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
             continue
         day_rows = by_emp_days.get(emp_id, [])
         adj_rows = by_emp_adj.get(emp_id, [])
@@ -335,6 +357,8 @@ def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
     )
     out: list[TimesheetMonthOut] = []
     for ts, emp in rows:
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            continue
         out.append(
             TimesheetMonthOut(
                 id=ts.id,
@@ -375,6 +399,8 @@ def list_timesheet_details(
     out: list[TimesheetMonthDetailOut] = []
     period_str = f"{pay.year:04d}-{pay.month:02d}"
     for detail, ts, emp in q.all():
+        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+            continue
         out.append(
             TimesheetMonthDetailOut(
                 id=detail.id,

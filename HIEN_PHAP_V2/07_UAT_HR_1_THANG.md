@@ -22,9 +22,10 @@
 
 1. **Chấm Công** → kỳ pilot (vd. **08/2026**)
 2. Tab **Đồng bộ** → «Đồng bộ ngay» · kiểm tra nhật ký
-3. Tab **Tổng hợp / Bảng ngày** → rà MSNV mẫu
-4. Duyệt phép / điều chỉnh nếu cần
-5. HR ký: «Bảng công kỳ X OK / chưa OK»
+3. Tab **Tổng hợp / Bảng ngày** → rà MSNV mẫu  
+4. Sửa công: xem **`08_HUONG_DAN_CONG_EXCEL.md`** (sửa web / dán Excel 1 ngày)  
+5. Duyệt phép / điều chỉnh nếu cần  
+6. HR ký: «Bảng công kỳ X OK / chưa OK»
 
 ---
 

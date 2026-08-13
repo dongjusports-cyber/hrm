@@ -18,6 +18,9 @@
   --tile-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
   --radius: 18px;
   --font: "Be Vietnam Pro", "Segoe UI", sans-serif;
+  /* Layout — 1920×1080 chuẩn HR; màn khác flex/auto-fill */
+  --layout-vh: 100dvh;
+  --grid-min-h: 220px;
 }
 
 *,
@@ -557,8 +560,8 @@ a {
 /* ——— Module Lv2 ——— */
 
 .module-page {
-  min-height: 100vh;
-  height: 100vh;
+  min-height: var(--layout-vh);
+  height: var(--layout-vh);
   background: var(--surface);
   display: flex;
   flex-direction: column;
@@ -1476,23 +1479,11 @@ a {
   color: var(--accent-deep, #0c4a6e);
   font-weight: 600;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration: none;
 }
 
 .hr-grid .hr-cell-open-profile {
   cursor: pointer;
-}
-
-.hr-grid .hr-cell-money {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  /* .ag-cell dùng display:flex → cần justify-content để số canh phải thực sự */
-  justify-content: flex-end;
-}
-
-.hr-grid .ag-header-cell.hr-header-money .ag-header-cell-label {
-  justify-content: flex-end;
 }
 
 .hr-grid .hr-cell-name-link:hover {
@@ -2128,11 +2119,13 @@ a {
 
 .module-body-wide {
   max-width: 1400px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Nhân Sự shell ổn định — tránh đổi height/overflow khi đổi ô */
 .hr-shell {
-  height: 100vh;
+  height: var(--layout-vh);
   overflow: hidden;
 }
 
@@ -2569,24 +2562,23 @@ a {
   margin-bottom: 0;
 }
 
-.hr-grid .ag-header-cell,
-.hr-grid .ag-cell {
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-.hr-grid .ag-cell {
-  display: flex;
-  align-items: center;
-  line-height: 1.35;
-  font-size: 0.875rem;
-}
-
 .hr-grid .ag-cell.hr-cell-org {
-  align-items: center;
-  line-height: 1.3;
   white-space: normal;
   word-break: break-word;
+}
+
+.hr-grid .ag-cell.hr-cell-money {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-grid .ag-header-cell.hr-header-money .ag-header-cell-label {
+  justify-content: flex-end;
+}
+
+.hr-grid .ag-cell.hr-cell-money .ag-cell-wrapper {
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .hr-split {
@@ -2602,10 +2594,19 @@ a {
   margin-bottom: 0;
 }
 
+.hr-grid-main.ag-theme-quartz .ag-root-wrapper,
+.tk-grid-wrap.ag-theme-quartz .ag-root-wrapper {
+  height: 100%;
+}
+
 .hr-grid-list {
-  flex: 1;
-  min-height: 200px;
-  height: auto !important;
+  flex: 1 1 0;
+  min-height: 240px;
+}
+
+.hr-grid-list.ag-theme-quartz .ag-root-wrapper,
+.hr-grid-wrap.ag-theme-quartz .ag-root-wrapper {
+  height: 100%;
 }
 
 .emp-allow-add {
@@ -2857,12 +2858,46 @@ a {
   }
 }
 
-/* ——— Chấm Công: toolbar + lưới + panel, hạn chế scroll trang ——— */
+/* ——— Chấm Công: toolbar + lưới fill viewport ——— */
 .tk-page .tk-main {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
   min-height: 0;
+  overflow: hidden;
+  padding: 8px 14px 10px;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tk-page .tk-toolbar,
+.tk-page .tk-status-bar,
+.tk-page .tk-view-head,
+.tk-page .tk-sync-progress,
+.tk-page .banner-warn,
+.tk-page .banner-ok {
+  flex-shrink: 0;
+}
+
+.tk-page .tk-stack,
+.tk-page .tk-stack-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tk-page .tk-grid-primary {
+  flex: 1;
+  min-height: 0;
+}
+
+.tk-page .tk-grid-primary .tk-grid-wrap {
+  flex: 1;
+  min-height: var(--grid-min-h);
+  height: auto;
 }
 
 .tk-toolbar {
@@ -2928,10 +2963,20 @@ a {
   border: 1px solid #93c5fd;
 }
 
+.tk-view-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 0.4rem;
+  flex-shrink: 0;
+}
+
 .tk-active-emp--inline {
-  margin-left: auto;
-  padding: 4px 8px;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 6px 10px;
   background: #eff6ff;
   border-radius: 8px;
   border: 1px solid #bfdbfe;
@@ -2945,6 +2990,10 @@ a {
   display: inline;
   margin: 0;
   font-size: 0.78rem;
+}
+
+.tk-active-emp--inline .tk-active-actions {
+  margin-left: auto;
 }
 
 .tk-active-emp strong {
@@ -2981,12 +3030,11 @@ a {
   min-height: 0;
 }
 
-.tk-stack-panel .tk-grid-primary .tk-grid-wrap {
-  height: min(52vh, 500px);
-}
-
+.tk-stack-panel .tk-grid-primary .tk-grid-wrap,
 .tk-stack:not(.tk-stack-panel) .tk-grid-primary .tk-grid-wrap {
-  height: min(78vh, 740px);
+  flex: 1;
+  min-height: var(--grid-min-h);
+  height: auto;
 }
 
 .tk-emp-sheet {
@@ -3261,18 +3309,8 @@ a {
   background: #fff;
 }
 
-.tk-grid-wrap .ag-header-cell,
-.tk-grid-wrap .ag-cell {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
 .tk-grid-wrap .ag-header-cell-label {
   font-size: 0.82rem;
-}
-
-.tk-grid-wrap .ag-cell {
-  font-size: 0.85rem;
 }
 
 .tk-side {
@@ -3448,6 +3486,59 @@ a {
   color: #cbd5e1;
 }
 
+.tk-cell-time {
+  padding: 2px 4px;
+  vertical-align: middle;
+}
+
+.tk-inline-time,
+.tk-time-input24 {
+  width: 100%;
+  max-width: 4.5rem;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  letter-spacing: 0.02em;
+  color: inherit;
+  background: transparent;
+}
+
+.tk-inline-time:hover:not(:disabled),
+.tk-time-input24:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background: #fff;
+}
+
+.tk-inline-time:focus,
+.tk-time-input24:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.tk-inline-time:disabled,
+.tk-time-input24:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tk-inline-time::placeholder,
+.tk-time-input24::placeholder {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+}
+
+.tk-day-row.is-pick .tk-inline-time:not(:disabled),
+.tk-day-row.is-pick .tk-time-input24:not(:disabled) {
+  border-color: #93c5fd;
+  background: #fff;
+}
+
 .tk-odd-hint {
   display: inline-block;
   margin-right: 6px;
@@ -3611,11 +3702,17 @@ a {
 .ag-row.tk-grid-flag-early,
 .ag-row.tk-grid-flag-both,
 .ag-row.tk-grid-flag-odd,
-.ag-row.tk-grid-flag-missing {
+.ag-row.tk-grid-flag-missing,
+.ag-row.tk-grid-flag-late .ag-cell,
+.ag-row.tk-grid-flag-early .ag-cell,
+.ag-row.tk-grid-flag-both .ag-cell,
+.ag-row.tk-grid-flag-odd .ag-cell,
+.ag-row.tk-grid-flag-missing .ag-cell {
   background-color: #fff7ed !important;
 }
 
-.ag-row.tk-grid-flag-locked {
+.ag-row.tk-grid-flag-locked,
+.ag-row.tk-grid-flag-locked .ag-cell {
   background-color: #f1f5f9 !important;
 }
 
@@ -3640,6 +3737,146 @@ a {
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.5rem;
+}
+
+.hr-grid-wrap {
+  flex: 1 1 0;
+  min-height: 320px;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.tk-daily-grid-wrap {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 320px;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.tk-daily-grid-wrap.ag-theme-quartz .ag-root-wrapper {
+  height: 100%;
+}
+
+.tk-daily-grid-wrap .tk-daily-loading {
+  padding: 1rem;
+}
+
+.tk-daily-refresh-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2rem;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+.tk-daily-toast-host {
+  position: absolute;
+  z-index: 20;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.tk-daily-toast-host .fs-sheet-banner {
+  pointer-events: auto;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
+  animation: fs-sheet-toast-in 0.18s ease-out;
+}
+
+.tk-cell-pick-name {
+  cursor: pointer;
+  color: var(--accent-deep, #0c4a6e);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tk-sync-progress {
+  margin: 0 0 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.tk-sync-progress.is-ok {
+  border-color: #86efac;
+  background: #ecfdf5;
+}
+
+.tk-sync-progress.is-fail {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.tk-sync-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.88rem;
+  margin-bottom: 0.35rem;
+}
+
+.tk-sync-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  overflow: hidden;
+}
+
+.tk-sync-progress.is-ok .tk-sync-progress-track {
+  background: #bbf7d0;
+}
+
+.tk-sync-progress.is-fail .tk-sync-progress-track {
+  background: #fecaca;
+}
+
+.tk-sync-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  transition: width 0.35s ease;
+}
+
+.tk-sync-progress.is-ok .tk-sync-progress-bar {
+  background: linear-gradient(90deg, #16a34a, #22c55e);
+}
+
+.tk-sync-progress.is-fail .tk-sync-progress-bar {
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+.tk-stack-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.tk-daily-grid {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tk-daily-toolbar,
+.tk-bulk-bar {
+  flex-shrink: 0;
 }
 
 .tk-skipped-list {
@@ -3678,7 +3915,7 @@ a {
 .tk-view-tabs {
   display: flex;
   gap: 0.35rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0;
   align-items: center;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -4435,13 +4672,16 @@ a {
 }
 
 .payroll-grid-fill {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 240px;
-  height: auto !important;
+}
+
+.payroll-grid-fill.ag-theme-quartz .ag-root-wrapper {
+  height: 100%;
 }
 
 .payroll-shell {
-  height: 100vh;
+  height: var(--layout-vh);
   overflow: hidden;
 }
 
@@ -4456,6 +4696,49 @@ a {
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.payroll-main > .payroll-toolbar-card,
+.payroll-main > .payroll-tabs,
+.payroll-main > .banner-warn,
+.payroll-main > .banner-ok,
+.payroll-main > .payroll-adj-card {
+  flex-shrink: 0;
+}
+
+.payroll-main > .payroll-grid-card,
+.payroll-main > .payroll-payslip-split,
+.payroll-main > .payroll-simulate-split {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.payroll-simulate-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 0;
+  min-height: 0;
+}
+
+@media (max-width: 960px) {
+  .payroll-simulate-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.payroll-simulate-result {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.payroll-simulate-result .payroll-grid-tall {
+  flex: 1;
+  min-height: var(--grid-min-h);
 }
 
 .payroll-head h1 {
@@ -4611,8 +4894,9 @@ a {
 }
 
 .payroll-grid-tall {
-  height: min(480px, calc(100vh - 280px));
-  min-height: 320px;
+  flex: 1;
+  min-height: var(--grid-min-h);
+  height: auto !important;
 }
 
 .payroll-tabs {
@@ -4710,7 +4994,8 @@ a {
   display: grid;
   grid-template-columns: minmax(240px, 300px) 1fr;
   gap: 16px;
-  min-height: min(640px, calc(100vh - 280px));
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 960px) {
@@ -4726,7 +5011,8 @@ a {
   border-radius: 10px;
   background: var(--surface, #fff);
   overflow: hidden;
-  max-height: min(640px, calc(100vh - 280px));
+  min-height: 0;
+  max-height: none;
 }
 
 .payroll-payslip-list-head {
@@ -4881,20 +5167,6 @@ a {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-.payroll-simulate-split {
-  display: grid;
-  grid-template-columns: minmax(280px, 340px) 1fr;
-  gap: 16px;
-  align-items: start;
-  margin-top: 0;
-}
-
-@media (max-width: 960px) {
-  .payroll-simulate-split {
-    grid-template-columns: 1fr;
-  }
 }
 
 .payroll-simulate-form h2,
@@ -5662,7 +5934,78 @@ a {
   margin: 0;
 }
 
-/* Toàn màn hình trình duyệt — thử nghiệm Portal staff */
+/* Desktop Full HD — máy HR chuẩn 1920×1080 */
+@media (min-width: 1600px) and (min-height: 900px) {
+  :root {
+    --grid-min-h: 360px;
+  }
+
+  .portal-page.portal-titan {
+    padding: 24px 48px 36px;
+  }
+
+  .portal-titan .portal-header,
+  .portal-titan .portal-bento,
+  .portal-titan .portal-creator,
+  .portal-titan .portal-loading,
+  .portal-titan .banner-warn {
+    max-width: 1840px;
+  }
+
+  .portal-grid {
+    gap: 20px;
+  }
+
+  .portal-tile {
+    min-height: 128px;
+    padding: 20px 18px 16px;
+  }
+
+  .module-body-wide,
+  .tk-page .tk-main,
+  .payroll-main,
+  .hr-shell-body {
+    padding-inline: 20px;
+    max-width: none;
+  }
+
+  .kpi-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .tk-page .tk-main {
+    padding: 10px 20px 12px;
+  }
+
+  .payroll-main {
+    padding: 10px 20px 12px;
+  }
+
+  .hr-shell-body {
+    padding: 12px 20px 14px;
+  }
+}
+
+/* Toàn màn hình app — ESC không thoát; chỉ nút «Thoát» */
+html.app-fullscreen,
+html.app-fullscreen body {
+  overflow: hidden;
+}
+
+html.app-fullscreen #root {
+  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html.app-fullscreen .portal-page,
+html.app-fullscreen .module-page {
+  min-height: 100dvh;
+  height: 100dvh;
+}
+
+/* Nút bật/tắt — thử nghiệm Portal staff */
 .fullscreen-toggle-btn {
   position: fixed;
   top: 10px;

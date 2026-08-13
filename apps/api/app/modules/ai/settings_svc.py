@@ -11,11 +11,28 @@ from app.modules.ai.provider import resolve_api_key
 from app.modules.ai.schemas import AiSettingsOut, AiSettingsUpdate
 
 
+_DEPRECATED_GEMINI_MODELS = frozenset(
+    {
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-2.5-flash-lite",
+    }
+)
+_DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview"
+
+
 def ensure_settings(db: Session) -> AiRuntimeSettings:
     row = db.get(AiRuntimeSettings, 1)
     if row is None:
-        row = AiRuntimeSettings(id=1)
+        row = AiRuntimeSettings(id=1, model_name=_DEFAULT_GEMINI_MODEL)
         db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row
+    if row.model_name in _DEPRECATED_GEMINI_MODELS:
+        row.model_name = _DEFAULT_GEMINI_MODEL
         db.commit()
         db.refresh(row)
     return row

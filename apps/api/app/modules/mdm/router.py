@@ -58,6 +58,7 @@ from app.modules.mdm.schemas import (
     LabourContractRenewRequest,
     LabourContractUpdate,
     LookupValueOut,
+    PositionOut,
     ResignationPreviewOut,
     TaxDependentsOut,
     TeamOut,
@@ -103,6 +104,16 @@ def get_teams(
 ) -> list[TeamOut]:
     """Danh mục Tổ cho bộ lọc 'Bộ phận › Tổ' của lưới nhân sự (hạng mục 1.4)."""
     return service.list_teams(db, active_only=active_only)
+
+
+@router.get("/positions", response_model=list[PositionOut])
+def get_positions(
+    _user: HrUser,
+    db: DbSession,
+    active_only: bool = Query(default=True),
+) -> list[PositionOut]:
+    """Danh mục chức vụ — chọn trong hồ sơ nhân viên."""
+    return service.list_positions(db, active_only=active_only)
 
 
 @router.get("/lookup-values", response_model=list[LookupValueOut])

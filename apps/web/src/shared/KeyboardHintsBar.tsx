@@ -8,7 +8,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-/** Thanh phím tắt §23.2 — góc dưới trái, không che FAB AI. */
+/** Phím tắt toàn cục (không hiển thị thanh — xem HIEN_PHAP/PHIM_TAT_HR.md). */
 export function KeyboardHintsBar() {
   const { accessToken } = useAuth();
   const location = useLocation();
@@ -37,22 +37,5 @@ export function KeyboardHintsBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, [accessToken, onWorker, onLogin]);
 
-  if (!accessToken || onWorker || onLogin) return null;
-
-  return (
-    <footer className="kbd-hints-bar" aria-label="Phím tắt">
-      <span>
-        <kbd>/</kbd> Tìm
-      </span>
-      <span>
-        <kbd>Ctrl+K</kbd> Lệnh
-      </span>
-      <span>
-        <kbd>Esc</kbd> Đóng
-      </span>
-      <span className="kbd-hints-muted">
-        <kbd>F2</kbd> Sửa ô (lưới)
-      </span>
-    </footer>
-  );
+  return null;
 }

@@ -235,8 +235,14 @@ def attendance_days_grid(
     db: DbSession,
     work_date: Annotated[date, Query(alias="date")],
     needs_action_only: bool = False,
+    department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
-    return list_days_grid(db, work_date, needs_action_only=needs_action_only)
+    return list_days_grid(
+        db,
+        work_date,
+        needs_action_only=needs_action_only,
+        department_id=department_id,
+    )
 
 
 @router.patch("/attendance/days/cell", response_model=AttendanceDayOut)

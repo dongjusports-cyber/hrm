@@ -344,6 +344,7 @@ def employee_to_out(
         team_id=emp.team_id,
         team_code=team.code if team else None,
         team_name=team.name if team else None,
+        position_code=emp.position_code,
         position_title=emp.position_title,
         seniority_label=_seniority_label(emp.join_date, emp.resign_date),
         contract_type_label=_contract_type_label_for_employee(emp, active_contract_type),
@@ -372,6 +373,15 @@ def employee_to_out(
 def list_departments(db: Session) -> list[DepartmentOut]:
     rows = db.query(Department).order_by(Department.code.asc()).all()
     return [DepartmentOut.model_validate(r) for r in rows]
+
+
+def list_positions(db: Session, *, active_only: bool = True) -> list["PositionOut"]:
+    from app.modules.mdm.schemas import PositionOut
+
+    q = db.query(Position).order_by(Position.sort_order.asc(), Position.code.asc())
+    if active_only:
+        q = q.filter(Position.is_active.is_(True))
+    return [PositionOut.model_validate(r) for r in q.all()]
 
 
 def create_department(db: Session, body: DepartmentCreate) -> DepartmentOut:
@@ -742,6 +752,15 @@ def create_employee(db: Session, body: EmployeeCreate) -> EmployeeOut:
     team = resolve_employee_team(
         db, body.team_id, body.team_code, body.department_code, required=True
     )
+    position_code = body.position_code
+    position_title = body.position_title
+    if position_code:
+        pos = db.get(Position, position_code)
+        if pos is None:
+            raise HTTPException(
+                status_code=400, detail=f"Trợ Lý AI: không tìm thấy chức vụ '{position_code}'."
+            )
+        position_title = pos.name
 
     emp = Employee(
         employee_code=code,
@@ -765,7 +784,8 @@ def create_employee(db: Session, body: EmployeeCreate) -> EmployeeOut:
         bank_account=body.bank_account,
         pay_channel=body.pay_channel,
         team_id=team.id if team else None,
-        position_title=body.position_title,
+        position_code=position_code,
+        position_title=position_title,
         join_date=body.join_date,
         contract_signed_at=body.contract_signed_at,
         probation_salary=body.probation_salary or Decimal("0"),
@@ -847,11 +867,24 @@ def update_employee(db: Session, emp_id: UUID, body: EmployeeUpdate) -> Employee
     dept_code = data.pop("department_code", None)
     team_id_in = data.pop("team_id", None)
     team_code_in = data.pop("team_code", None)
+    position_code_in = data.pop("position_code", None)
     # Giảm trừ gia cảnh tính từ employee_family_members — không sửa tay (21§21.3).
     data.pop("tax_dependent_count", None)
     if team_id_in is not None or team_code_in is not None:
         team = resolve_employee_team(db, team_id_in, team_code_in, dept_code, required=True)
         emp.team_id = team.id if team else emp.team_id
+    if position_code_in is not None:
+        if position_code_in == "":
+            emp.position_code = None
+        else:
+            pos = db.get(Position, position_code_in)
+            if pos is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trợ Lý AI: không tìm thấy chức vụ '{position_code_in}'.",
+                )
+            emp.position_code = position_code_in
+            emp.position_title = pos.name
     for key, val in data.items():
         if key == "pay_channel" and val is not None:
             val = str(val).upper()

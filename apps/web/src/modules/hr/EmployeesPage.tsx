@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams, RowDoubleClickedEvent } from "ag-grid-community";
-import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
 import {
   downloadEmployeesExport,
   fetchDepartments,
@@ -35,8 +32,6 @@ import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
-
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 type StatusFilter = "active" | "probation" | "resigned" | "maternity" | "all";
 type ViewMode = "compact" | "full";
@@ -74,7 +69,7 @@ const FULL_COLUMNS = [
 ];
 
 const VIEW_PREFS_KEY = "hr_employees_view_prefs";
-const COLUMN_STATE_PREFIX = "hr_employees_column_state";
+const COLUMN_STATE_PREFIX = "hr_employees_column_state_v4";
 
 function columnStateKey(viewMode: ViewMode): string {
   return `${COLUMN_STATE_PREFIX}_${viewMode}`;
@@ -108,12 +103,6 @@ function saveViewPrefs(prefs: ViewPrefs) {
 function parseFilter(raw: string | undefined): StatusFilter {
   if (raw && raw in FILTER_META) return raw as StatusFilter;
   return "all";
-}
-
-function accountBadgeClass(status: string | undefined): string {
-  if (status === "locked") return "acct-badge acct-badge-locked";
-  if (status === "resigned") return "acct-badge acct-badge-resigned";
-  return "acct-badge acct-badge-active";
 }
 
 function formatVnd(v: string | number | null | undefined): string {
@@ -256,37 +245,24 @@ export function EmployeesPage() {
   const columnDefs = useMemo<ColDef<Employee>[]>(() => {
     const base: ColDef<Employee>[] = [
       {
-        colId: "view",
+        colId: "sel",
         headerName: "",
-        width: 68,
-        sortable: false,
-        filter: false,
+        width: 44,
         pinned: "left",
-        cellRenderer: (p: ICellRendererParams<Employee>) => {
-          const emp = p.data;
-          if (!emp) return null;
-          return (
-            <button
-              type="button"
-              className="tk-row-view-btn"
-              onClick={(ev) => {
-                ev.stopPropagation();
-                openProfile(emp);
-              }}
-            >
-              Xem
-            </button>
-          );
-        },
+        checkboxSelection: true,
+        headerCheckboxSelection: true,
+        sortable: false,
+        resizable: false,
+        suppressHeaderMenuButton: true,
+        cellClass: "tk-grid-sel-cell",
+        headerClass: "tk-grid-sel-header",
       },
       {
         field: "employee_code",
         headerName: "MSNV",
-        width: 106,
+        width: 88,
         filter: false,
         pinned: "left",
-        checkboxSelection: true,
-        headerCheckboxSelection: true,
         cellClass: "hr-cell-open-profile",
       },
       {
@@ -372,43 +348,29 @@ export function EmployeesPage() {
       });
     }
 
-    base.push(
-      {
-        colId: "account_status",
-        headerName: "Tài khoản",
-        minWidth: 130,
-        width: 130,
-        filter: false,
-        cellRenderer: (p: ICellRendererParams<Employee>) => {
-          const label = p.data?.account_status_label || "Hoạt động";
-          const st = p.data?.account_status || "active";
-          return <span className={accountBadgeClass(st)}>{label}</span>;
-        },
+    base.push({
+      colId: "unlock",
+      headerName: "Bảo mật",
+      minWidth: 160,
+      width: 160,
+      sortable: false,
+      filter: false,
+      cellRenderer: (p: ICellRendererParams<Employee>) => {
+        const emp = p.data;
+        if (!emp) return null;
+        const resigned = emp.account_status === "resigned" || emp.status === "resigned";
+        return (
+          <button
+            type="button"
+            className="btn-unlock-reset"
+            disabled={resigned || busyId === emp.id}
+            onClick={(ev) => void onUnlockReset(emp, ev)}
+          >
+            {busyId === emp.id ? "Đang xử lý…" : "Reset Mật Khẩu"}
+          </button>
+        );
       },
-      {
-        colId: "unlock",
-        headerName: "Bảo mật",
-        minWidth: 160,
-        width: 160,
-        sortable: false,
-        filter: false,
-        cellRenderer: (p: ICellRendererParams<Employee>) => {
-          const emp = p.data;
-          if (!emp) return null;
-          const resigned = emp.account_status === "resigned" || emp.status === "resigned";
-          return (
-            <button
-              type="button"
-              className="btn-unlock-reset"
-              disabled={resigned || busyId === emp.id}
-              onClick={(ev) => void onUnlockReset(emp, ev)}
-            >
-              {busyId === emp.id ? "Đang xử lý…" : "Reset Mật Khẩu"}
-            </button>
-          );
-        },
-      },
-    );
+    });
 
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -33,6 +33,7 @@
 | **05** | `05_CHECKLIST_MERGE_SAU_V1.md` | Sau HR ký nghiệm thu |
 | **06** | `06_QUY_TAC_CHO_AI.md` | Mọi phiên Cursor |
 | **07** | `07_UAT_HR_1_THANG.md` | HR test chấm công + lương |
+| **08** | `08_HUONG_DAN_CONG_EXCEL.md` | HR: lấy · sửa · dán công (Excel) |
 
 ---
 

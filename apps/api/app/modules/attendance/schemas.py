@@ -201,7 +201,9 @@ class AdjustmentOut(BaseModel):
 class AttendanceDayGridOut(AttendanceDayOut):
     id: UUID | None = None
     team_code: str | None = None
+    team_name: str | None = None
     department_code: str | None = None
+    department_name: str | None = None
     needs_action: bool = False
     row_flag: str = "ok"
 

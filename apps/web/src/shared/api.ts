@@ -1153,6 +1153,7 @@ export type Employee = {
   team_id: string | null;
   team_code: string | null;
   team_name: string | null;
+  position_code: string | null;
   position_title: string | null;
   join_date: string | null;
   contract_signed_at: string | null;
@@ -1224,6 +1225,22 @@ export async function deleteDepartment(id: string): Promise<void> {
 
 export async function fetchTeams(): Promise<Team[]> {
   const res = await apiFetch("/api/teams");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export type Position = {
+  code: string;
+  name: string;
+  name_local: string | null;
+  level: number | null;
+  is_management: boolean;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export async function fetchPositions(): Promise<Position[]> {
+  const res = await apiFetch("/api/positions?active_only=true");
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
@@ -2082,7 +2099,9 @@ export async function bulkDecideLeaveRequests(body: {
 
 export type AttendanceDayGridRow = AttendanceDay & {
   team_code: string | null;
+  team_name: string | null;
   department_code: string | null;
+  department_name: string | null;
   needs_action: boolean;
   row_flag: string;
   work_shift_id?: string | null;
@@ -2095,9 +2114,11 @@ export type AttendanceDayGridRow = AttendanceDay & {
 export async function fetchAttendanceDaysGrid(params: {
   date: string;
   needs_action_only?: boolean;
+  department_id?: string;
 }): Promise<AttendanceDayGridRow[]> {
   const qs = new URLSearchParams({ date: params.date });
   if (params.needs_action_only) qs.set("needs_action_only", "true");
+  if (params.department_id) qs.set("department_id", params.department_id);
   const res = await apiFetch(`/api/attendance/days/grid?${qs}`);
   if (!res.ok) throw new Error(await readError(res));
   return res.json();

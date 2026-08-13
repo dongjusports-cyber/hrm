@@ -84,6 +84,39 @@ def _assign_single_punch(
     return punch, None
 
 
+def _resolve_in_out_from_times(
+    times: list[datetime],
+    schedule: Schedule,
+    work_date: date,
+) -> tuple[datetime | None, datetime | None]:
+    """
+    Gán giờ vào / ra sau dedupe.
+
+    - Trước giờ vào ca: mọi lần bấm = thử vào (giữ sớm nhất).
+    - Từ giờ vào ca đến trước nghỉ trưa (morning_end): vẫn coi là vào, không coi mốc sau là ra.
+    - Từ nghỉ trưa trở đi: mốc muộn nhất = ra (nhiều lần bấm chiều gom một).
+    """
+    shift_start = combine_vn(work_date, schedule.morning_start)
+    depart_after = combine_vn(work_date, schedule.morning_end)
+
+    pre_shift = [t for t in times if t < shift_start]
+    rest = [t for t in times if t >= shift_start]
+
+    first_in = min(pre_shift) if pre_shift else None
+
+    arrivals = [t for t in rest if t < depart_after]
+    departures = [t for t in rest if t >= depart_after]
+
+    if arrivals:
+        first_in = min(arrivals) if first_in is None else min(first_in, min(arrivals))
+
+    if not departures:
+        return first_in, None
+
+    last_out = departures[-1]
+    return first_in, last_out
+
+
 def _calc_partial_workday(
     *,
     first_in: datetime | None,
@@ -211,8 +244,7 @@ def calculate_day(
             is_workday=workday,
         )
 
-    first_in = times[0]
-    last_out = times[-1]
+    first_in, last_out = _resolve_in_out_from_times(times, schedule, work_date)
     workday = is_company_workday(work_date, schedule)
     late = 0
     early = 0
@@ -222,27 +254,39 @@ def calculate_day(
     ot_type = None
 
     if workday:
-        shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
-            seconds=schedule.grace_late_seconds,
-            minutes=schedule.grace_late_minutes,
-        )
-        shift_end = combine_vn(work_date, schedule.afternoon_end)
-        early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
-        ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
-
-        if first_in > shift_start:
-            late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
-        if last_out < early_deadline:
-            early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
-        if last_out > ot_qualify_after:
-            ot_on_books, ot_external = split_weekday_ot_minutes(
-                last_out, work_date, shift_end, ot_qualify_after, split_policy
+        if first_in is not None and last_out is not None:
+            shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
+                seconds=schedule.grace_late_seconds,
+                minutes=schedule.grace_late_minutes,
             )
-            ot = ot_on_books + ot_external
-            ot_type = "weekday" if ot > 0 else None
-        worked = _shift_worked_hours(first_in, last_out, schedule, work_date)
+            shift_end = combine_vn(work_date, schedule.afternoon_end)
+            early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
+            ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
+
+            if first_in > shift_start:
+                late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
+            if last_out < early_deadline:
+                early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
+            if last_out > ot_qualify_after:
+                ot_on_books, ot_external = split_weekday_ot_minutes(
+                    last_out, work_date, shift_end, ot_qualify_after, split_policy
+                )
+                ot = ot_on_books + ot_external
+                ot_type = "weekday" if ot > 0 else None
+            worked = _shift_worked_hours(first_in, last_out, schedule, work_date)
+        else:
+            late, early, ot, ot_on_books, ot_external, worked, ot_type = _calc_partial_workday(
+                first_in=first_in,
+                last_out=last_out,
+                work_date=work_date,
+                schedule=schedule,
+                split_policy=split_policy,
+            )
     else:
-        ot = int((last_out - first_in).total_seconds() // 60)
+        if first_in is not None and last_out is not None:
+            ot = int((last_out - first_in).total_seconds() // 60)
+        else:
+            ot = 0
         if ot < 0:
             ot = 0
         ot_external = ot

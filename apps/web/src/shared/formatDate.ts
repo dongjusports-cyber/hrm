@@ -56,6 +56,11 @@ export function payPeriodStartDate(period: string): string {
   return `${y}-${m}-01`;
 }
 
+/** Hôm nay theo giờ VN — YYYY-MM-DD (chọn ngày mặc định trên lưới chấm công). */
+export function todayIsoDateVN(ref: Date = new Date()): string {
+  return ref.toLocaleDateString("en-CA", { timeZone: VN_TZ });
+}
+
 /** HH:mm theo giờ VN — giờ vào/ra chấm công (ISO UTC → 07:48). */
 export function formatTimeHHMM(v: string | Date | null | undefined, empty = "—"): string {
   if (v === null || v === undefined || v === "") return empty;

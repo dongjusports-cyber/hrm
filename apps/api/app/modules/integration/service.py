@@ -54,6 +54,11 @@ def to_job_out(job: SyncJob) -> SyncJobOut:
     return SyncJobOut.model_validate(job)
 
 
+def _is_mock_punch(ma_cham_cong: str | None) -> bool:
+    """Agent --mock tạo MaChamCong MOCK-FP-* — không nạp vào HRM."""
+    return bool(ma_cham_cong and str(ma_cham_cong).strip().upper().startswith("MOCK-FP-"))
+
+
 def ingest_punches(
     db: Session, body: MitaproPushRequest, *, trigger: str = "agent"
 ) -> MitaproPushResult:
@@ -75,6 +80,7 @@ def ingest_punches(
     known_codes = set(maps.by_code.keys())
     inserted = 0
     skipped = 0
+    mock_ignored = 0
     patrol_ignored = 0
     linked = 0
     unknown: list[str] = []
@@ -83,6 +89,9 @@ def ingest_punches(
         code = p.employee_code.strip()
         if is_patrol_guard_code(code):
             patrol_ignored += 1
+            continue
+        if _is_mock_punch(p.ma_cham_cong):
+            mock_ignored += 1
             continue
         punch_time = normalize_punch_time(p.punch_time)
 
@@ -135,8 +144,11 @@ def ingest_punches(
         patrol_note = ""
         if patrol_ignored:
             patrol_note = f" Bỏ bảo vệ tuần (200*): {patrol_ignored}."
+        mock_note = ""
+        if mock_ignored:
+            mock_note = f" Bỏ dữ liệu mock Agent: {mock_ignored}."
         job.message = (
-            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{inserted}.{warn}{patrol_note}"
+            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{inserted}.{warn}{patrol_note}{mock_note}"
         ).strip()
 
     db.commit()

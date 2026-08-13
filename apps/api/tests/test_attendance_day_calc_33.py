@@ -82,6 +82,43 @@ def test_early_one_second_before_shift_end():
     assert r.early_minutes == 1
 
 
+def test_two_pre_shift_taps_not_checkout():
+    """Hai lần bấm trước 08:00 — chỉ giữ giờ vào sớm nhất, không coi lần sau là ra."""
+    d = date(2026, 8, 13)
+    punches = [
+        datetime(2026, 8, 13, 6, 58, 45, tzinfo=VN),
+        datetime(2026, 8, 13, 7, 18, 59, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out is None
+    assert r.worked_hours == Decimal("0")
+    assert r.punch_count == 2
+
+
+def test_pre_shift_plus_shift_start_not_checkout():
+    """07:54 + 08:00 — cả hai là vào, không ghi 08:00 là ra."""
+    d = date(2026, 8, 13)
+    punches = [
+        datetime(2026, 8, 13, 7, 54, 56, tzinfo=VN),
+        datetime(2026, 8, 13, 8, 0, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out is None
+
+
+def test_morning_in_and_early_leave_after_noon_break():
+    d = date(2025, 10, 17)
+    punches = [
+        datetime(2025, 10, 17, 8, 0, 0, tzinfo=VN),
+        datetime(2025, 10, 17, 12, 30, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out == punches[1]
+
+
 def test_recalculate_out_2000(client):
     client.post(
         "/api/integrations/mitapro/push",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { CellValueChangedEvent, ColDef, GridApi } from "ag-grid-community";
 import {
@@ -8,7 +8,13 @@ import {
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
+import { AG_GRID_LOCALE_VI, compareHhmmEmptyFirst } from "../../shared/agGridVi";
+import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
+import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
+import { formatLeaveLabel, leaveTypesForPicker } from "../../shared/formatLeave";
+import { formatOrgName } from "../../shared/formatOrg";
+import { TimeInput24 } from "../../shared/TimeInput24";
 
 function hhmm(iso: string | null | undefined): string {
   return formatTimeHHMM(iso, "");
@@ -19,25 +25,55 @@ function toIsoTime(workDate: string, hhmmVal: string): string | null {
   return `${workDate}T${hhmmVal}:00+07:00`;
 }
 
+export type DailyGridSummary = {
+  total: number;
+  needsAction: number;
+};
+
 type Props = {
   workDate: string;
   periodLocked: boolean;
   leaves: LeaveType[];
-  onChanged?: () => void;
+  searchQuery?: string;
+  departmentId?: string;
+  /** Tăng sau đồng bộ / làm mới từ toolbar — ép tải lại lưới ngày. */
+  refreshToken?: number;
+  onSummaryChange?: (summary: DailyGridSummary) => void;
+  onPickEmployee?: (row: AttendanceDayGridRow) => void;
 };
 
-export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Props) {
+function applyDefaultSort(api: GridApi<AttendanceDayGridRow>) {
+  api.applyColumnState({
+    state: [{ colId: "first_in", sort: "asc", sortIndex: 0 }],
+    defaultState: { sort: null },
+  });
+}
+
+export function DailyGridPanel({
+  workDate,
+  periodLocked,
+  leaves,
+  searchQuery = "",
+  departmentId = "",
+  refreshToken = 0,
+  onSummaryChange,
+  onPickEmployee,
+}: Props) {
   const [rows, setRows] = useState<AttendanceDayGridRow[]>([]);
   const [needsOnly, setNeedsOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi<AttendanceDayGridRow> | null>(null);
+  const didInitialSortRef = useRef(false);
   const [bulkLeave, setBulkLeave] = useState("ALE");
   const [bulkIn, setBulkIn] = useState("08:00");
   const [bulkOut, setBulkOut] = useState("17:00");
   const [skipped, setSkipped] = useState<{ employee_code: string | null; reason: string }[]>([]);
+
+  const pickerLeaves = useMemo(() => leaveTypesForPicker(leaves), [leaves]);
+  const colPrefs = useMemo(() => createAgGridColumnPrefs(TK_DAILY_GRID_COLS), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,6 +82,7 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
       const list = await fetchAttendanceDaysGrid({
         date: workDate,
         needs_action_only: needsOnly,
+        department_id: departmentId || undefined,
       });
       setRows(list);
     } catch (e) {
@@ -53,81 +90,146 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
     } finally {
       setLoading(false);
     }
-  }, [workDate, needsOnly]);
+  }, [workDate, needsOnly, departmentId, refreshToken]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const initialLoading = loading && rows.length === 0;
+  const refreshing = loading && rows.length > 0;
+
+  const filteredRows = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter(
+      (r) =>
+        r.employee_code.toLowerCase().includes(needle) ||
+        (r.full_name ?? "").toLowerCase().includes(needle),
+    );
+  }, [rows, searchQuery]);
+
+  const summary = useMemo((): DailyGridSummary => {
+    const total = filteredRows.length;
+    const needsAction = filteredRows.filter((r) => r.needs_action).length;
+    return { total, needsAction };
+  }, [filteredRows]);
+
+  useEffect(() => {
+    onSummaryChange?.(summary);
+  }, [summary, onSummaryChange]);
+
   const cols = useMemo<ColDef<AttendanceDayGridRow>[]>(
     () => [
       {
-        field: "employee_code",
-        headerName: "MSNV",
-        width: 82,
+        colId: "sel",
+        headerName: "",
+        width: 44,
         pinned: "left",
         checkboxSelection: true,
         headerCheckboxSelection: true,
+        sortable: false,
+        resizable: false,
+        suppressHeaderMenuButton: true,
         editable: false,
+        cellClass: "tk-grid-sel-cell",
+        headerClass: "tk-grid-sel-header",
       },
-      { field: "full_name", headerName: "Họ tên", flex: 1, minWidth: 120, editable: false },
       {
-        field: "team_code",
-        headerName: "Tổ",
+        field: "employee_code",
+        headerName: "MSNV",
         width: 72,
+        pinned: "left",
         editable: false,
-        valueFormatter: (p) => p.value ?? "—",
       },
       {
-        field: "work_shift_id",
-        headerName: "Ca",
-        width: 64,
+        field: "full_name",
+        headerName: "Họ tên",
+        flex: 1,
+        minWidth: 120,
         editable: false,
-        valueFormatter: (p) => p.value ?? "—",
+        cellClass: onPickEmployee ? "tk-cell-pick-name" : undefined,
+      },
+      {
+        colId: "department_name",
+        headerName: "Bộ phận",
+        width: 108,
+        editable: false,
+        valueGetter: (p) =>
+          formatOrgName(p.data?.department_name) ||
+          formatOrgName(p.data?.department_code) ||
+          "",
+      },
+      {
+        colId: "team_name",
+        headerName: "Tổ",
+        width: 96,
+        editable: false,
+        valueGetter: (p) =>
+          formatOrgName(p.data?.team_name) || formatOrgName(p.data?.team_code) || "",
       },
       {
         colId: "first_in",
         headerName: "Vào",
-        width: 72,
+        width: 76,
         editable: !periodLocked,
+        sort: "asc",
+        sortIndex: 0,
+        comparator: compareHhmmEmptyFirst,
+        headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
+        cellClass: "tk-cell-time-center",
+        headerClass: "tk-header-time-center",
         valueGetter: (p) => hhmm(p.data?.first_in),
         valueSetter: (p) => {
           if (!p.data) return false;
           (p.data as AttendanceDayGridRow & { _edit_in?: string })._edit_in = p.newValue;
           return true;
         },
+        cellEditor: "agTextCellEditor",
       },
       {
         colId: "last_out",
         headerName: "Ra",
-        width: 72,
+        width: 76,
         editable: !periodLocked,
+        comparator: compareHhmmEmptyFirst,
+        headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
+        cellClass: "tk-cell-time-center",
+        headerClass: "tk-header-time-center",
         valueGetter: (p) => hhmm(p.data?.last_out),
         valueSetter: (p) => {
           if (!p.data) return false;
           (p.data as AttendanceDayGridRow & { _edit_out?: string })._edit_out = p.newValue;
           return true;
         },
+        cellEditor: "agTextCellEditor",
       },
       {
         field: "worked_hours",
         headerName: "Công",
         width: 64,
         editable: false,
-        valueFormatter: (p) => (p.value != null && Number(p.value) > 0 ? Number(p.value).toFixed(2) : ""),
+        valueFormatter: (p) =>
+          p.value != null && Number(p.value) > 0 ? Number(p.value).toFixed(2) : "",
       },
       {
         field: "ot_minutes",
-        headerName: "OT sổ",
-        width: 64,
+        headerName: "Tăng ca sổ",
+        width: 76,
         editable: false,
         valueGetter: (p) => p.data?.ot_on_books_minutes ?? 0,
         valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
       },
       {
         colId: "ot_external",
-        headerName: "OT ngoài",
-        width: 72,
+        headerName: "Tăng ca ngoài",
+        width: 88,
         editable: false,
         valueGetter: (p) => p.data?.ot_external_minutes ?? 0,
         valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
@@ -137,13 +239,14 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         headerName: "Lễ",
         width: 52,
         editable: false,
-        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : "—"),
+        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
       },
       {
         field: "leave_code",
-        headerName: "Mã nghỉ",
-        width: 80,
+        headerName: "Nghỉ",
+        width: 120,
         editable: !periodLocked,
+        valueFormatter: (p) => formatLeaveLabel(p.value as string | null, leaves),
       },
       {
         field: "note",
@@ -153,8 +256,13 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         editable: !periodLocked,
       },
     ],
-    [periodLocked],
+    [periodLocked, onPickEmployee, leaves],
   );
+
+  function sortMissingFirst() {
+    if (!gridApi) return;
+    applyDefaultSort(gridApi);
+  }
 
   async function onCellChanged(e: CellValueChangedEvent<AttendanceDayGridRow>) {
     if (periodLocked || !e.data) return;
@@ -170,33 +278,32 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         });
       } else if (col === "first_in" || col === "last_out") {
         const row = e.data;
-        if (col === "first_in" && e.newValue) {
-          const fi = toIsoTime(workDate, String(e.newValue));
-          const lo = toIsoTime(workDate, hhmm(row.last_out));
-          if (fi && lo) {
-            await patchAttendanceDayCell({
-              employee_code: code,
-              work_date: workDate,
-              first_in: fi,
-              last_out: lo,
-            });
-          }
-        } else if (col === "last_out" && e.newValue) {
-          const fi = toIsoTime(workDate, hhmm(row.first_in));
-          const lo = toIsoTime(workDate, String(e.newValue));
-          if (fi && lo) {
-            await patchAttendanceDayCell({
-              employee_code: code,
-              work_date: workDate,
-              first_in: fi,
-              last_out: lo,
-            });
-          }
+        const edited = String(e.newValue ?? "").trim();
+        if (!edited) return;
+        const inStr =
+          col === "first_in"
+            ? edited
+            : hhmm(row.first_in) ||
+              String((row as AttendanceDayGridRow & { _edit_in?: string })._edit_in ?? "").trim();
+        const outStr =
+          col === "last_out"
+            ? edited
+            : hhmm(row.last_out) ||
+              String((row as AttendanceDayGridRow & { _edit_out?: string })._edit_out ?? "").trim();
+        if (!inStr || !outStr) return;
+        const fi = toIsoTime(workDate, inStr);
+        const lo = toIsoTime(workDate, outStr);
+        if (fi && lo) {
+          await patchAttendanceDayCell({
+            employee_code: code,
+            work_date: workDate,
+            first_in: fi,
+            last_out: lo,
+          });
         }
       }
-      setOk(`Đã lưu ${code}`);
+      setToast(`Đã lưu ${code}`);
       await load();
-      onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu ô thất bại.");
       await load();
@@ -215,7 +322,7 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
     }
     setBusy(true);
     setError(null);
-    setOk(null);
+    setToast(null);
     setSkipped([]);
     try {
       const body: Parameters<typeof bulkPatchAttendanceDays>[0] = {
@@ -230,11 +337,10 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
         body.last_out_time = bulkOut;
       }
       const res = await bulkPatchAttendanceDays(body);
-      setOk(res.message);
+      setToast(res.message);
       if (res.skipped.length) setSkipped(res.skipped);
       if (!preview) {
         await load();
-        onChanged?.();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Thao tác hàng loạt thất bại.");
@@ -272,11 +378,10 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
             last_out: lo,
           });
         }
-        setOk(`Đã dán ${lines.length} dòng (MSNV · Vào · Ra).`);
+        setToast(`Đã dán ${lines.length} dòng (MSNV · Vào · Ra).`);
         await load();
-        onChanged?.();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Dán Excel thất bại.");
+        setError(err instanceof Error ? err.message : "Dán từ bảng tính thất bại.");
       } finally {
         setBusy(false);
       }
@@ -292,33 +397,30 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
             checked={needsOnly}
             onChange={(e) => setNeedsOnly(e.target.checked)}
           />
-          Chỉ hiện cần xử lý
+          Chỉ người cần xử lý
         </label>
-        <span className="field-hint">
-          F2 / Enter sửa ô · Dán khối Excel: MSNV [tab] Vào [tab] Ra
-        </span>
+        <button type="button" className="btn-ghost-dark btn-sm" disabled={!gridApi} onClick={sortMissingFirst}>
+          Xếp thiếu chấm lên đầu
+        </button>
         {periodLocked && <span className="form-error">Kỳ đã khóa — chỉ xem.</span>}
       </div>
 
       {!periodLocked && (
         <div className="tk-bulk-bar">
           <select value={bulkLeave} onChange={(e) => setBulkLeave(e.target.value)}>
-            {leaves.map((l) => (
+            {pickerLeaves.map((l) => (
               <option key={l.code} value={l.code}>
-                {l.code}
+                {l.name}
               </option>
             ))}
           </select>
-          <button type="button" disabled={busy} onClick={() => void runBulk("set_leave", true)}>
-            Xem trước gán nghỉ
-          </button>
           <button type="button" disabled={busy} onClick={() => void runBulk("set_leave", false)}>
-            Gán nghỉ
+            Gán nghỉ đã chọn
           </button>
-          <input type="time" value={bulkIn} onChange={(e) => setBulkIn(e.target.value)} />
-          <input type="time" value={bulkOut} onChange={(e) => setBulkOut(e.target.value)} />
+          <TimeInput24 value={bulkIn} onChange={setBulkIn} aria-label="Giờ vào hàng loạt" />
+          <TimeInput24 value={bulkOut} onChange={setBulkOut} aria-label="Giờ ra hàng loạt" />
           <button type="button" disabled={busy} onClick={() => void runBulk("set_times", false)}>
-            Đặt giờ Vào/Ra
+            Đặt giờ đã chọn
           </button>
           <button type="button" disabled={busy} onClick={() => void runBulk("clear_note", false)}>
             Xóa ghi chú
@@ -327,7 +429,6 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
       )}
 
       {error && <p className="form-error">{error}</p>}
-      {ok && <p className="form-ok">{ok}</p>}
       {skipped.length > 0 && (
         <ul className="tk-skipped-list">
           {skipped.map((s, i) => (
@@ -339,8 +440,7 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
       )}
 
       <div
-        className="ag-theme-quartz hr-grid-wrap"
-        style={{ height: 420, marginTop: "0.5rem" }}
+        className="ag-theme-quartz tk-daily-grid-wrap"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === "F2" && gridApi) {
@@ -349,23 +449,60 @@ export function DailyGridPanel({ workDate, periodLocked, leaves, onChanged }: Pr
           }
         }}
       >
-        {loading ? (
-          <p className="field-hint">Đang tải…</p>
+        {initialLoading ? (
+          <p className="field-hint tk-daily-loading">Đang tải…</p>
         ) : (
-          <AgGridReact
-            rowData={rows}
-            columnDefs={cols}
-            rowSelection="multiple"
-            suppressRowClickSelection
-            onGridReady={(p) => setGridApi(p.api)}
-            onCellValueChanged={(e) => void onCellChanged(e)}
-            getRowClass={(p) => {
-              const f = p.data?.row_flag;
-              if (f && f !== "ok" && f !== "off") return `tk-grid-flag-${f}`;
-              return undefined;
-            }}
-            defaultColDef={{ sortable: true, resizable: true, filter: false }}
-          />
+          <>
+            <AgGridReact
+              rowData={filteredRows}
+              columnDefs={cols}
+              getRowId={(p) => p.data.employee_code}
+              localeText={AG_GRID_LOCALE_VI}
+              headerHeight={32}
+              rowHeight={36}
+              animateRows={false}
+              rowSelection="multiple"
+              suppressRowClickSelection
+              singleClickEdit
+              stopEditingWhenCellsLoseFocus
+              onGridReady={(p) => {
+                setGridApi(p.api);
+                const restored = colPrefs.restore(p.api);
+                if (!restored && !didInitialSortRef.current) {
+                  applyDefaultSort(p.api);
+                }
+                didInitialSortRef.current = true;
+              }}
+              {...colPrefs.handlers}
+              onCellDoubleClicked={(e) => {
+                if (e.colDef.field === "full_name" && e.data && onPickEmployee) {
+                  onPickEmployee(e.data);
+                }
+              }}
+              onCellValueChanged={(e) => void onCellChanged(e)}
+              getRowClass={(p) => {
+                const f = p.data?.row_flag;
+                if (f && f !== "ok" && f !== "off") return `tk-grid-flag-${f}`;
+                return undefined;
+              }}
+              defaultColDef={{
+                sortable: true,
+                resizable: true,
+                filter: false,
+                suppressHeaderMenuButton: false,
+              }}
+            />
+            {refreshing && (
+              <div className="tk-daily-refresh-overlay" aria-hidden="true">
+                <span className="field-hint">Đang cập nhật…</span>
+              </div>
+            )}
+            {toast && (
+              <div className="tk-daily-toast-host" role="status" aria-live="polite">
+                <p className="form-ok fs-sheet-banner">{toast}</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

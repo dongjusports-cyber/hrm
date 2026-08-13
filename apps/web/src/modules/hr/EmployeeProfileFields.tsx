@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ChangeEvent } from "react";
-import type { AllowanceAssignment, AllowanceType, Department, Team } from "../../shared/api";
+import type { AllowanceAssignment, AllowanceType, Department, Position, Team } from "../../shared/api";
 import { LookupSelect } from "../../shared/LookupSelect";
 import {
   activeTeams,
@@ -7,7 +7,13 @@ import {
   formatDepartmentLabel,
   formatTeamLabel,
 } from "../../shared/formatOrg";
-import { formatMoneyTyping, sanitizeMoneyInput, type EmployeeFormState, type ProfileTab } from "./employeeFormState";
+import {
+  formatAllowanceDefaultAmount,
+  formatMoneyTyping,
+  sanitizeMoneyInput,
+  type EmployeeFormState,
+  type ProfileTab,
+} from "./employeeFormState";
 
 type Props = {
   form: EmployeeFormState;
@@ -16,6 +22,7 @@ type Props = {
   isNew: boolean;
   departments: Department[];
   teams: Team[];
+  positions?: Position[];
   /** column = 1 cột trong panel hồ sơ overlay */
   fieldLayout?: "grid" | "column";
   fieldErrors?: Record<string, string>;
@@ -91,6 +98,38 @@ function teamSelect(
   );
 }
 
+function positionSelect(
+  form: EmployeeFormState,
+  setForm: (next: EmployeeFormState) => void,
+  positions: Position[],
+) {
+  const activePositions = positions.filter((p) => p.is_active);
+  return (
+    <label className="field">
+      <span>Chức vụ</span>
+      <select
+        value={form.position_code}
+        onChange={(e) => {
+          const code = e.target.value;
+          const pos = activePositions.find((p) => p.code === code);
+          setForm({
+            ...form,
+            position_code: code,
+            position_title: pos?.name ?? "",
+          });
+        }}
+      >
+        <option value="">— Chọn chức vụ —</option>
+        {activePositions.map((p) => (
+          <option key={p.code} value={p.code}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function moneyFieldHandlers(
   form: EmployeeFormState,
   setForm: (next: EmployeeFormState) => void,
@@ -118,6 +157,7 @@ export function EmployeeCreateFields({
   setForm,
   departments,
   teams,
+  positions = [],
   fieldErrors,
   photoPreview,
   onPhotoPick,
@@ -198,13 +238,7 @@ export function EmployeeCreateFields({
           </h3>
           <div className="emp-fields-col emp-fields-compact">
             {teamSelect(form, setForm, departments, teams, fieldErrors)}
-            <label className="field">
-              <span>Chức vụ</span>
-              <input
-                value={form.position_title}
-                onChange={(e) => setForm({ ...form, position_title: e.target.value })}
-              />
-            </label>
+            {positionSelect(form, setForm, positions)}
             <label className="field">
               <span>Ngày vào</span>
               <input
@@ -412,13 +446,21 @@ function AllowanceAddForm({
   "allowTypes" | "newAllowCode" | "setNewAllowCode" | "newAllowAmount" | "setNewAllowAmount" | "saving" | "onAdd"
 >) {
   const selectableTypes = profileAllowanceTypes(allowTypes);
+
+  function onTypeChange(code: string) {
+    setNewAllowCode(code);
+    const t = selectableTypes.find((x) => x.code === code);
+    const defaultAmt = formatAllowanceDefaultAmount(t?.default_amount);
+    if (defaultAmt) setNewAllowAmount(defaultAmt);
+  }
+
   return (
     <div className="emp-allow-add-block" aria-label="Thêm phụ cấp">
       <h4 className="emp-allow-block-title">Thêm phụ cấp</h4>
       <div className="emp-allow-add emp-allow-add-col">
         <label className="field">
           <span>Loại</span>
-          <select value={newAllowCode} onChange={(e) => setNewAllowCode(e.target.value)}>
+          <select value={newAllowCode} onChange={(e) => onTypeChange(e.target.value)}>
             <option value="">— Chọn loại phụ cấp —</option>
             {selectableTypes.map((t) => (
               <option key={t.code} value={t.code}>
@@ -431,9 +473,9 @@ function AllowanceAddForm({
           <span>Số tiền</span>
           <input
             value={newAllowAmount}
-            onChange={(e) => setNewAllowAmount(sanitizeMoneyInput(e.target.value))}
-            onBlur={(e) => setNewAllowAmount(formatMoneyTyping(e.target.value))}
+            onChange={(e) => setNewAllowAmount(formatMoneyTyping(e.target.value))}
             inputMode="numeric"
+            placeholder="0"
           />
         </label>
         <button
@@ -503,6 +545,7 @@ export function EmployeeProfileCompactFields({
   setForm,
   departments,
   teams,
+  positions = [],
   allowancePanel,
 }: Omit<Props, "tab" | "isNew" | "fieldLayout"> & {
   allowancePanel?: AllowanceColProps;
@@ -520,13 +563,7 @@ export function EmployeeProfileCompactFields({
           </h3>
           <div className="emp-fields-col">
             {teamSelect(form, setForm, departments, teams)}
-            <label className="field">
-              <span>Chức vụ</span>
-              <input
-                value={form.position_title}
-                onChange={(e) => setForm({ ...form, position_title: e.target.value })}
-              />
-            </label>
+            {positionSelect(form, setForm, positions)}
             <label className="field">
               <span>Ngày vào</span>
               <input
@@ -680,6 +717,7 @@ export function EmployeeProfileTabFields({
   tab,
   departments,
   teams,
+  positions = [],
   fieldLayout = "grid",
   insuranceChecksFirst = false,
 }: Props & { insuranceChecksFirst?: boolean }) {
@@ -899,13 +937,7 @@ export function EmployeeProfileTabFields({
     return (
       <div className="emp-fields-grid">
         {teamSelect(form, setForm, departments, teams)}
-        <label className="field">
-          <span>Chức vụ</span>
-          <input
-            value={form.position_title}
-            onChange={(e) => setForm({ ...form, position_title: e.target.value })}
-          />
-        </label>
+        {positionSelect(form, setForm, positions)}
         <label className="field">
           <span>Trạng thái</span>
           <input

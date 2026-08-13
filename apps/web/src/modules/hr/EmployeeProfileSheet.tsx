@@ -14,6 +14,7 @@ import {
   fetchEmployeeDocuments,
   fetchEmployeePhotoObjectUrl,
   fetchEmployeeViolations,
+  fetchPositions,
   fetchTeams,
   printEmployeeContract,
   printEmployeeDecision,
@@ -27,6 +28,7 @@ import {
   type Employee,
   type EmployeeDocument,
   type EmployeeViolation,
+  type Position,
   type Team,
 } from "../../shared/api";
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
@@ -90,6 +92,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   const [form, setForm] = useState(emptyEmployeeForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [allowTypes, setAllowTypes] = useState<AllowanceType[]>([]);
   const [allowances, setAllowances] = useState<AllowanceAssignment[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
   const [, setEmp] = useState<Employee | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [newAllowCode, setNewAllowCode] = useState("");
-  const [newAllowAmount, setNewAllowAmount] = useState("0");
+  const [newAllowAmount, setNewAllowAmount] = useState("");
   const [violations, setViolations] = useState<EmployeeViolation[]>([]);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -199,12 +202,22 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
     }
     void fetchDepartments().then(setDepartments).catch(() => setDepartments([]));
     void fetchTeams().then(setTeams).catch(() => setTeams([]));
+    void fetchPositions().then(setPositions).catch(() => setPositions([]));
     void fetchAllowanceTypes()
       .then((list) => {
         setAllowTypes(list);
       })
       .catch(() => setAllowTypes([]));
   }, [open]);
+
+  useEffect(() => {
+    if (!form.position_code && form.position_title && positions.length > 0) {
+      const match = positions.find((p) => p.name === form.position_title);
+      if (match) {
+        setForm((prev) => ({ ...prev, position_code: match.code }));
+      }
+    }
+  }, [positions, form.position_code, form.position_title]);
 
   useEffect(() => {
     if (!open || !employeeId) return;
@@ -333,7 +346,8 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
         amount: digitsOnlyMoney(newAllowAmount.trim()),
       });
       setAllowances(await fetchAllowanceAssignments(form.employee_code));
-      setNewAllowAmount("0");
+      setNewAllowCode("");
+      setNewAllowAmount("");
       setOk(`Đã gán phụ cấp ${newAllowCode}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không gán phụ cấp.");
@@ -742,6 +756,7 @@ export function EmployeeProfileSheet({ employeeId, open, onClose, onUpdated }: P
               setForm={setFormUndoable}
               departments={departments}
               teams={teams}
+              positions={positions}
               allowancePanel={{
                 allowances,
                 allowTypes,

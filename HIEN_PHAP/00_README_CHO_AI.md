@@ -14,12 +14,17 @@
 | Quy tắc nghiệp vụ | `20`–`24`, đặc biệt **`22`**, **`23`** |
 | Quyết định chốt | `10_QUYET_DINH_CHOT.md` |
 | Runbook sự cố | `15_RUNBOOK_KHONG_IT.md` |
+| **Phím tắt HR** | **`PHIM_TAT_HR.md`** |
 | Test / ngoại lệ | `13_TEST_NGHIEM_THU_NGOAI_LE.md` |
 | Định nghĩa v1.0 | `V1_0_DINH_NGHIA.md` |
 
 ## Không đọc nữa (đã archive)
 
 Báo cáo phiên, USB, bàn giao tạm → **`_ARCHIVE/`**
+
+## Tối ưu sau (backlog — chưa làm)
+
+Polish UI / hiệu năng — **không chặn UAT** → **`_TOI_UU/`**
 
 ---
 

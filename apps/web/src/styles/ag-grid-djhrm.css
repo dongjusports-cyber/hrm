@@ -1,0 +1,142 @@
+/**
+ * DJ HRM — AG Grid 33 overrides (load SAU ag-grid.css + ag-theme-quartz.css)
+ *
+ * Gốc lỗi “2 ô chồng / chữ sát trên / mất kẻ dọc”:
+ * rule legacy `.hr-grid .ag-cell { display:flex }` phá `display:inline-block` + `position:absolute`
+ * mà AG Grid 33 bắt buộc cho .ag-cell.
+ */
+
+.ag-theme-quartz.hr-grid,
+.ag-theme-quartz.hr-grid-wrap,
+.ag-theme-quartz.tk-daily-grid-wrap,
+.ag-theme-quartz.tk-grid-wrap,
+.ag-theme-quartz.payroll-grid {
+  --ag-border-color: #d4dce6;
+  --ag-secondary-border-color: #d4dce6;
+  --ag-cell-horizontal-border: solid var(--ag-border-color);
+  --ag-row-border-color: #d4dce6;
+  --ag-row-border-style: solid;
+  --ag-row-border-width: 1px;
+  --ag-header-column-separator-display: block;
+  --ag-header-column-separator-color: #d4dce6;
+  --ag-wrapper-border-radius: 0;
+  --ag-cell-horizontal-padding: 8px;
+  --ag-font-size: 14px;
+}
+
+/* Khôi phục layout cell AG Grid 33 — thắng rule legacy display:flex nếu còn trong cache */
+.ag-theme-quartz.hr-grid .ag-cell,
+.ag-theme-quartz.hr-grid-wrap .ag-cell,
+.ag-theme-quartz.tk-daily-grid-wrap .ag-cell,
+.ag-theme-quartz.tk-grid-wrap .ag-cell,
+.ag-theme-quartz.payroll-grid .ag-cell {
+  display: inline-block !important;
+  position: absolute !important;
+  box-sizing: border-box !important;
+}
+
+.ag-theme-quartz.hr-grid .ag-pinned-left-header,
+.ag-theme-quartz.hr-grid .ag-pinned-left-cols-container,
+.ag-theme-quartz.hr-grid-wrap .ag-pinned-left-header,
+.ag-theme-quartz.hr-grid-wrap .ag-pinned-left-cols-container,
+.ag-theme-quartz.tk-daily-grid-wrap .ag-pinned-left-header,
+.ag-theme-quartz.tk-daily-grid-wrap .ag-pinned-left-cols-container,
+.ag-theme-quartz.tk-grid-wrap .ag-pinned-left-header,
+.ag-theme-quartz.tk-grid-wrap .ag-pinned-left-cols-container {
+  background-color: var(--ag-background-color);
+}
+
+.ag-theme-quartz.hr-grid .ag-pinned-left-cols-container .ag-row.ag-row-odd .ag-cell,
+.ag-theme-quartz.hr-grid-wrap .ag-pinned-left-cols-container .ag-row.ag-row-odd .ag-cell,
+.ag-theme-quartz.tk-daily-grid-wrap .ag-pinned-left-cols-container .ag-row.ag-row-odd .ag-cell,
+.ag-theme-quartz.tk-grid-wrap .ag-pinned-left-cols-container .ag-row.ag-row-odd .ag-cell {
+  background-color: var(--ag-odd-row-background-color);
+}
+
+.ag-theme-quartz .tk-grid-sel-cell,
+.ag-theme-quartz .tk-grid-sel-header {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+/* Body: .ag-cell + .ag-cell-wrapper đều có padding — gây lệch so với header */
+.ag-theme-quartz .ag-ltr .ag-cell.tk-grid-sel-cell {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.ag-theme-quartz .tk-grid-sel-cell .ag-cell-wrapper {
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.ag-theme-quartz .tk-grid-sel-cell .ag-selection-checkbox {
+  margin: 0 !important;
+}
+
+.ag-theme-quartz .tk-grid-sel-cell .ag-cell-value {
+  display: none !important;
+  width: 0 !important;
+  flex: 0 0 0 !important;
+  overflow: hidden;
+}
+
+/* Header: checkbox là con trực tiếp của .ag-header-cell (không nằm trong comp-wrapper) */
+.ag-theme-quartz .ag-header-cell.tk-grid-sel-header {
+  justify-content: center !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.ag-theme-quartz .ag-header-cell.tk-grid-sel-header .ag-header-cell-comp-wrapper {
+  display: none !important;
+  width: 0 !important;
+  flex: 0 0 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.ag-theme-quartz .ag-header-cell.tk-grid-sel-header .ag-header-select-all {
+  margin: 0 !important;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+/* Căn giữa dọc nội dung ô */
+.ag-theme-quartz.hr-grid .ag-cell-wrapper,
+.ag-theme-quartz.hr-grid-wrap .ag-cell-wrapper,
+.ag-theme-quartz.tk-daily-grid-wrap .ag-cell-wrapper,
+.ag-theme-quartz.tk-grid-wrap .ag-cell-wrapper,
+.ag-theme-quartz.payroll-grid .ag-cell-wrapper {
+  height: 100%;
+  align-items: center;
+}
+
+.ag-theme-quartz .tk-cell-pick-name .ag-cell-value,
+.ag-theme-quartz .hr-cell-name-link .ag-cell-value {
+  text-decoration: none !important;
+}
+
+/* Cột giờ Vào / Ra — căn giữa ô */
+.ag-theme-quartz .ag-cell.tk-cell-time-center {
+  text-align: center;
+}
+
+.ag-theme-quartz .ag-cell.tk-cell-time-center .ag-cell-wrapper {
+  justify-content: center;
+  width: 100%;
+}
+
+.ag-theme-quartz .ag-cell.tk-cell-time-center .ag-cell-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-theme-quartz .ag-header-cell.tk-header-time-center .ag-header-cell-label {
+  justify-content: center;
+  width: 100%;
+}

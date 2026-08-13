@@ -6,7 +6,6 @@ import {
   fetchSyncJobs,
   fetchUnlinkedPunches,
   relinkPunches,
-  requestSyncNow,
   requestSyncRange,
   type IntegrationStatus,
   type SyncJob,
@@ -14,6 +13,7 @@ import {
 } from "../../shared/api";
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { labelJobStatus } from "../../shared/viLabels";
+import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
 
 function fmtDt(iso: string | null | undefined): string {
   return formatDateTimeDDMMYYYY(iso);
@@ -35,6 +35,7 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,15 +142,21 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
     setBusy(true);
     setError(null);
     setOk(null);
+    setSyncProgress({ active: true, percent: 0, message: "Bắt đầu đồng bộ…", ok: null });
     try {
-      const job = await requestSyncNow();
-      setOk(job.message);
+      const result = await runSyncWithProgress(setSyncProgress);
+      if (result.ok) {
+        setOk(result.message);
+      } else {
+        setError(result.message);
+      }
       await load();
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không yêu cầu đồng bộ được.");
     } finally {
       setBusy(false);
+      window.setTimeout(() => setSyncProgress(null), 6000);
     }
   }
 
@@ -158,15 +165,23 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
     setBusy(true);
     setError(null);
     setOk(null);
+    setSyncProgress({ active: true, percent: 0, message: "Bắt đầu đồng bộ khoảng ngày…", ok: null });
     try {
-      const job = await requestSyncRange(rangeFrom, rangeTo);
-      setOk(job.message);
+      const result = await runSyncWithProgress(setSyncProgress, {
+        createJob: () => requestSyncRange(rangeFrom, rangeTo),
+      });
+      if (result.ok) {
+        setOk(result.message);
+      } else {
+        setError(result.message);
+      }
       await load();
       onChanged?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không yêu cầu đồng bộ khoảng ngày được.");
     } finally {
       setBusy(false);
+      window.setTimeout(() => setSyncProgress(null), 6000);
     }
   }
 
@@ -190,6 +205,12 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
     <div className="tk-sync-panel">
       {error && <p className="banner-warn">{error}</p>}
       {ok && <p className="banner-ok">{ok}</p>}
+      {syncProgress?.active && (
+        <div className="tk-sync-progress" role="status">
+          <div className="tk-sync-progress-bar" style={{ width: `${syncProgress.percent}%` }} />
+          <span className="tk-sync-progress-msg">{syncProgress.message}</span>
+        </div>
+      )}
 
       {status?.stale_warning && (
         <p className="banner-warn tk-sync-stale">

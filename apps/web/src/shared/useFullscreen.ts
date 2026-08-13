@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+const APP_FS_CLASS = "app-fullscreen";
+
 type FsDocument = Document & {
   webkitFullscreenElement?: Element | null;
   webkitExitFullscreen?: () => Promise<void>;
@@ -9,7 +11,11 @@ type FsElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void>;
 };
 
-function getFullscreenElement(): Element | null {
+/** Chỉ thoát khi bấm «Thoát» — ESC/F11 thoát browser fs thì tự bật lại. */
+let locked = false;
+
+function getBrowserFullscreenElement(): Element | null {
+  if (typeof document === "undefined") return null;
   const doc = document as FsDocument;
   return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
 }
@@ -20,28 +26,32 @@ function isSupported(): boolean {
   return Boolean(el.requestFullscreen || el.webkitRequestFullscreen);
 }
 
-async function enterFullscreen(): Promise<void> {
+async function enterBrowserFullscreen(): Promise<void> {
   const el = document.documentElement as FsElement;
   const fn = el.requestFullscreen?.bind(el) ?? el.webkitRequestFullscreen?.bind(el);
   if (!fn) throw new Error("unsupported");
   await fn();
 }
 
-async function leaveFullscreen(): Promise<void> {
+async function exitBrowserFullscreenIfAny(): Promise<void> {
+  if (!getBrowserFullscreenElement()) return;
   const doc = document as FsDocument;
   const fn = doc.exitFullscreen?.bind(doc) ?? doc.webkitExitFullscreen?.bind(doc);
-  if (!fn) throw new Error("unsupported");
+  if (!fn) return;
   await fn();
 }
 
-/** Bật/tắt fullscreen trình duyệt (ẩn thanh địa chỉ Chrome khi được phép). */
+/** Bật/tắt fullscreen trình duyệt — ESC không thoát; chỉ nút «Thoát». */
 export function useFullscreen() {
-  const [active, setActive] = useState(() => Boolean(getFullscreenElement()));
+  const [active, setActive] = useState(false);
   const supported = isSupported();
 
   useEffect(() => {
     function sync() {
-      setActive(Boolean(getFullscreenElement()));
+      if (locked && !getBrowserFullscreenElement()) {
+        void enterBrowserFullscreen().catch(() => {});
+      }
+      setActive(locked);
     }
     document.addEventListener("fullscreenchange", sync);
     document.addEventListener("webkitfullscreenchange", sync);
@@ -51,17 +61,34 @@ export function useFullscreen() {
     };
   }, []);
 
-  const toggle = useCallback(async () => {
+  const enter = useCallback(async () => {
+    locked = true;
+    document.documentElement.classList.add(APP_FS_CLASS);
+    setActive(true);
     try {
-      if (getFullscreenElement()) {
-        await leaveFullscreen();
-      } else {
-        await enterFullscreen();
+      if (!getBrowserFullscreenElement()) {
+        await enterBrowserFullscreen();
       }
     } catch {
-      /* Chrome có thể chặn nếu không phải thao tác người dùng */
+      /* Giữ locked + CSS nếu trình duyệt chặn API */
     }
   }, []);
+
+  const leave = useCallback(async () => {
+    locked = false;
+    document.documentElement.classList.remove(APP_FS_CLASS);
+    setActive(false);
+    try {
+      await exitBrowserFullscreenIfAny();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggle = useCallback(async () => {
+    if (locked) await leave();
+    else await enter();
+  }, [enter, leave]);
 
   return { active, supported, toggle };
 }
