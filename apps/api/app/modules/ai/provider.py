@@ -12,6 +12,15 @@ import httpx
 
 from app.core.config import get_settings
 
+_HTTP_CLIENT: httpx.Client | None = None
+
+
+def _http_client() -> httpx.Client:
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None:
+        _HTTP_CLIENT = httpx.Client(timeout=30.0)
+    return _HTTP_CLIENT
+
 
 @dataclass
 class ProviderResult:
@@ -57,12 +66,11 @@ def generate_text(
             "temperature": 0.3,
         },
     }
-    with httpx.Client(timeout=60.0) as client:
-        res = client.post(url, params={"key": api_key}, json=payload)
-        if res.status_code >= 400:
-            detail = res.text[:500]
-            raise RuntimeError(f"Gemini API lỗi {res.status_code}: {detail}")
-        data = res.json()
+    res = _http_client().post(url, params={"key": api_key}, json=payload)
+    if res.status_code >= 400:
+        detail = res.text[:500]
+        raise RuntimeError(f"Gemini API lỗi {res.status_code}: {detail}")
+    data = res.json()
 
     text = _extract_text(data)
     usage = data.get("usageMetadata") or {}

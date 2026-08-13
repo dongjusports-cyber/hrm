@@ -93,7 +93,9 @@ def label_sync_status(code: str | None) -> str:
             return code or "—"
 
 
-def label_ai_mode(*, stub: bool) -> str:
+def label_ai_mode(*, stub: bool, direct: bool = False) -> str:
+    if direct:
+        return "tra cứu nhanh"
     return "chế độ giả lập" if stub else "Gemini"
 
 

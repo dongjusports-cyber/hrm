@@ -23,3 +23,4 @@ def test_label_sync_and_ai_mode():
     assert label_sync_status("partial") == "một phần"
     assert label_ai_mode(stub=True) == "chế độ giả lập"
     assert label_ai_mode(stub=False) == "Gemini"
+    assert label_ai_mode(stub=False, direct=True) == "tra cứu nhanh"

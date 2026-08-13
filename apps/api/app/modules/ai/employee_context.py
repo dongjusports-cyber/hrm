@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,8 @@ _MSNV_PREFIX = re.compile(
     re.IGNORECASE,
 )
 _CODE_BARE = re.compile(r"\b(\d{3,5})\b")
+
+_CONTEXT_HEADER = "### Dữ liệu nhân viên (đọc từ CSDL — chỉ phân tích, không tự sửa)"
 
 
 def extract_employee_codes(message: str, *, max_codes: int = 3) -> list[str]:
@@ -51,13 +54,14 @@ def _fmt_money(v: Decimal | None) -> str:
     return f"{v:,.0f}".replace(",", ".")
 
 
-def _employee_block(db: Session, emp: Employee, *, include_payroll: bool) -> str:
-    team = db.query(Team).filter(Team.id == emp.team_id).first() if emp.team_id else None
-    dept = (
-        db.query(Department).filter(Department.id == team.department_id).first()
-        if team and team.department_id
-        else None
-    )
+def _employee_lines(
+    emp: Employee,
+    *,
+    team: Team | None,
+    dept: Department | None,
+    slip: tuple[Payslip, PayPeriod] | None,
+    include_payroll: bool,
+) -> str:
     lines = [
         f"MSNV: {emp.employee_code} | Họ tên: {emp.full_name}",
         f"Trạng thái: {label_emp_status(emp.status)} | Ngày vào: {emp.join_date or '—'} | Ngày nghỉ: {emp.resign_date or '—'}",
@@ -68,13 +72,6 @@ def _employee_block(db: Session, emp: Employee, *, include_payroll: bool) -> str
         f"BHXH: {'có' if emp.si_enrolled else 'không'} | SĐT: {emp.phone or '—'}",
     ]
     if include_payroll:
-        slip = (
-            db.query(Payslip, PayPeriod)
-            .join(PayPeriod, PayPeriod.id == Payslip.pay_period_id)
-            .filter(Payslip.employee_id == emp.id)
-            .order_by(PayPeriod.year.desc(), PayPeriod.month.desc())
-            .first()
-        )
         if slip:
             ps, pp = slip
             period = f"{pp.year:04d}-{pp.month:02d}"
@@ -87,6 +84,36 @@ def _employee_block(db: Session, emp: Employee, *, include_payroll: bool) -> str
         else:
             lines.append("Phiếu lương: chưa có bản ghi.")
     return "\n".join(lines)
+
+
+def _fetch_org_maps(
+    db: Session, team_ids: set[UUID]
+) -> tuple[dict[UUID, Team], dict[UUID, Department]]:
+    if not team_ids:
+        return {}, {}
+    teams = db.query(Team).filter(Team.id.in_(team_ids)).all()
+    dept_ids = {t.department_id for t in teams if t.department_id}
+    depts = db.query(Department).filter(Department.id.in_(dept_ids)).all() if dept_ids else []
+    return {t.id: t for t in teams}, {d.id: d for d in depts}
+
+
+def _fetch_latest_slips(
+    db: Session, emp_ids: list[UUID]
+) -> dict[UUID, tuple[Payslip, PayPeriod]]:
+    if not emp_ids:
+        return {}
+    rows = (
+        db.query(Payslip, PayPeriod)
+        .join(PayPeriod, PayPeriod.id == Payslip.pay_period_id)
+        .filter(Payslip.employee_id.in_(emp_ids))
+        .order_by(PayPeriod.year.desc(), PayPeriod.month.desc())
+        .all()
+    )
+    out: dict[UUID, tuple[Payslip, PayPeriod]] = {}
+    for ps, pp in rows:
+        if ps.employee_id not in out:
+            out[ps.employee_id] = (ps, pp)
+    return out
 
 
 def build_employee_context(db: Session, user: User, message: str) -> tuple[list[str], str]:
@@ -103,13 +130,33 @@ def build_employee_context(db: Session, user: User, message: str) -> tuple[list[
             "Tài khoản không có quyền module Nhân sự/Lương — không đọc được hồ sơ từ CSDL. "
             "Liên hệ Admin cấp quyền nhân sự hoặc tính lương."
         )
+
     include_payroll = user.role == "admin" or user.has_module("payroll")
+    employees = (
+        db.query(Employee).filter(Employee.employee_code.in_(codes)).all()
+    )
+    by_code = {e.employee_code: e for e in employees}
+    team_ids = {e.team_id for e in employees if e.team_id}
+    teams_by_id, depts_by_id = _fetch_org_maps(db, team_ids)
+    slips_by_emp = _fetch_latest_slips(db, [e.id for e in employees]) if include_payroll else {}
+
     blocks: list[str] = []
     for code in codes:
-        emp = db.query(Employee).filter(Employee.employee_code == code).first()
+        emp = by_code.get(code)
         if emp is None:
             blocks.append(f"MSNV {code}: không tìm thấy trong hệ thống.")
-        else:
-            blocks.append(_employee_block(db, emp, include_payroll=include_payroll))
-    header = "### Dữ liệu nhân viên (đọc từ CSDL — chỉ phân tích, không tự sửa)\n"
-    return codes, header + "\n\n".join(blocks)
+            continue
+        team = teams_by_id.get(emp.team_id) if emp.team_id else None
+        dept = depts_by_id.get(team.department_id) if team and team.department_id else None
+        slip = slips_by_emp.get(emp.id)
+        blocks.append(
+            _employee_lines(
+                emp,
+                team=team,
+                dept=dept,
+                slip=slip,
+                include_payroll=include_payroll,
+            )
+        )
+
+    return codes, f"{_CONTEXT_HEADER}\n" + "\n\n".join(blocks)

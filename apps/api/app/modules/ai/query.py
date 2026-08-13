@@ -10,6 +10,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
+from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.provider import ProviderResult
 from app.modules.ai.vi_labels import (
     label_ai_mode,
     label_dispute_status,
@@ -152,20 +154,32 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         + f"### Câu hỏi\n{message}"
     )
 
-    api_key = resolve_api_key(cfg.api_key_encrypted)
-    try:
-        result = generate_text(
-            api_key=api_key,
-            model_name=cfg.model_name,
-            system=SYSTEM_PROMPT_BASE,
-            user_message=user_payload,
-            max_output_tokens=cfg.max_output_tokens,
+    direct = False
+    if kind == "employee_lookup" and context_block and not wants_llm_analysis(message):
+        result = ProviderResult(
+            text=format_employee_lookup_answer(context_block),
+            model_name="direct",
+            stub=False,
         )
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Trợ Lý AI: không gọi được Gemini — {exc}",
-        ) from exc
+        direct = True
+    else:
+        api_key = resolve_api_key(cfg.api_key_encrypted)
+        max_tokens = cfg.max_output_tokens
+        if kind == "employee_lookup":
+            max_tokens = min(max_tokens, 384)
+        try:
+            result = generate_text(
+                api_key=api_key,
+                model_name=cfg.model_name,
+                system=SYSTEM_PROMPT_BASE,
+                user_message=user_payload,
+                max_output_tokens=max_tokens,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Trợ Lý AI: không gọi được Gemini — {exc}",
+            ) from exc
 
     job = AiJob(
         user_id=user.id,
@@ -201,6 +215,6 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         remaining_today=remaining,
         message=(
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
-            f"({label_ai_mode(stub=result.stub)}). Còn {remaining} câu hôm nay."
+            f"({label_ai_mode(stub=result.stub, direct=direct)}). Còn {remaining} câu hôm nay."
         ),
     )
