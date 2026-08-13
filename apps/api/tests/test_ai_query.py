@@ -102,6 +102,20 @@ def test_ai_query_chat_stub(client):
     assert body["remaining_today"] >= 0
 
 
+def test_ai_query_employee_lookup_stub(client, db):
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Lấy thông tin nhân viên 5290"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "employee_lookup"
+    assert body["stub"] is True
+    # Stub nhúng snippet payload — phải có MSNV trong câu trả lời hoặc job prompt
+    assert "5290" in body["answer"]
+
+
 def test_ai_query_dispute_review(client, db):
     dispute_id = _calc_publish_dispute(client, db)
     res = client.post(

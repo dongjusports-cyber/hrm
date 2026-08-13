@@ -330,7 +330,7 @@ export function AiFab() {
                 onChange={(e) => setChatInput(e.target.value)}
                 rows={3}
                 maxLength={4000}
-                placeholder="Ví dụ: Rà soát khiếu nại OT cuối tuần…"
+                placeholder="Ví dụ: Thông tin MSNV 1519 · Rà soát khiếu nại OT…"
                 disabled={asking}
               />
               <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>

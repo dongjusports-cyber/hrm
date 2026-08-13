@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.modules.ai.employee_context import build_employee_context
 from app.modules.ai.models import AiJob
 from app.modules.ai.provider import SYSTEM_PROMPT_BASE, generate_text, resolve_api_key
 from app.modules.ai.schemas import AiQueryRequest, AiQueryResponse
@@ -115,6 +116,14 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         if not message:
             message = f"Rà soát khiếu nại {dispute.code}: phân tích lệch công/OT/phụ cấp và đề xuất bước tiếp theo cho HR."
 
+    emp_codes: list[str] = []
+    if not context_block and message:
+        emp_codes, emp_ctx = build_employee_context(db, user, message)
+        if emp_ctx:
+            context_block = emp_ctx
+            if emp_codes:
+                kind = "employee_lookup"
+
     if not message:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -123,7 +132,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
 
     user_payload = (
         f"Người hỏi: {user.full_name} (username={user.username}).\n\n"
-        + (f"### Ngữ cảnh khiếu nại\n{context_block}\n\n" if context_block else "")
+        + (f"{context_block}\n\n" if context_block else "")
         + f"### Câu hỏi\n{message}"
     )
 
