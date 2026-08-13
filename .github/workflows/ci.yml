@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (typecheck + build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      # Bước này bắt lỗi kiểu "thiếu import" (TS2304) — nguyên nhân P0 phiên trước.
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build (tsc -b + vite build)
+        run: npm run build
+
+      - name: Unit tests (vitest)
+        run: npm run test -- --run
+
+  api:
+    name: API (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      # Test dùng SQLite in-memory (conftest.py) — không cần Postgres/Redis.
+      - name: Pytest
+        run: python -m pytest tests/ -q
