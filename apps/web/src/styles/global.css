@@ -6010,7 +6010,7 @@ html.app-fullscreen .module-page {
   position: fixed;
   top: 10px;
   right: 12px;
-  z-index: 85;
+  z-index: 250;
   display: inline-flex;
   align-items: center;
   gap: 6px;

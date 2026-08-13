@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   applyTransferTeam,
   previewTransferTeam,
@@ -8,7 +8,7 @@ import {
 } from "../../shared/api";
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
 import { formatTeamLabel } from "../../shared/formatOrg";
-import { useEscLayer } from "../../shared/useEscLayer";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 
 function todayIso(): string {
   const d = new Date();
@@ -36,8 +36,9 @@ export function TransferTeamModal({
   const [preview, setPreview] = useState<TransferTeamPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const formShellRef = useRef<HTMLDivElement>(null);
 
-  useEscLayer(true, onClose);
+  useSheetKeyboard({ open: true, containerRef: formShellRef });
 
   function body() {
     return {
@@ -93,7 +94,7 @@ export function TransferTeamModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-card-wide" onClick={(e) => e.stopPropagation()}>
+      <div ref={formShellRef} className="modal-card modal-card-wide" onClick={(e) => e.stopPropagation()}>
         <h2>Chuyển tổ hàng loạt</h2>
         <p className="field-hint">
           Đã chọn {employees.length} nhân viên. Ghi vào lịch sử đổi tổ (employee_assignments) —

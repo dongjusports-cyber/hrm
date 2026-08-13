@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import {
 
@@ -22,7 +22,7 @@ import {
 
 } from "./employeeFormState";
 
-import { useEscLayer } from "../../shared/useEscLayer";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 
 function todayIso(): string {
   const d = new Date();
@@ -70,8 +70,9 @@ export function RehireSheet({ employee, teams, onClose, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const [busy, setBusy] = useState(false);
+  const formShellRef = useRef<HTMLFormElement>(null);
 
-  useEscLayer(true, onClose);
+  useSheetKeyboard({ open: true, containerRef: formShellRef });
 
   useEffect(() => {
 
@@ -219,7 +220,7 @@ export function RehireSheet({ employee, teams, onClose, onDone }: Props) {
 
 
 
-        <form className="rehire-form" onSubmit={(ev) => void onSubmit(ev)}>
+        <form ref={formShellRef} className="rehire-form" onSubmit={(ev) => void onSubmit(ev)}>
 
           <fieldset className="emp-form-section rehire-mode-section">
 
