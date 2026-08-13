@@ -149,7 +149,7 @@ export function AiFab() {
     try {
       const res = await askAi(chatInput.trim());
       setChatAnswer(res.answer);
-      setChatMeta(`${res.message}${res.stub ? " (stub — chưa gọi Gemini thật)" : ""}`);
+      setChatMeta(res.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không hỏi được AI.");
     } finally {
@@ -323,7 +323,7 @@ export function AiFab() {
           ) : (
             <form className="ai-fab-chat" onSubmit={(e) => void onAsk(e)}>
               <p className="field-hint">
-                Chỉ phân tích / đề xuất (read-only). Không tự sửa lương hay đóng khiếu nại.
+                Chỉ phân tích / đề xuất (chỉ đọc). Không tự sửa lương hay đóng khiếu nại.
               </p>
               <textarea
                 value={chatInput}

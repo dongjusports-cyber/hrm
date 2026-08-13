@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.ai.models import AiAlert
+from app.modules.ai.vi_labels import label_period_status, label_sync_status
 from app.modules.ai.schemas import AiAlertCreate, AiAlertOut, AiAlertsMineOut
 from app.modules.core.models import User
 from app.modules.integration.models import SyncJob
@@ -66,8 +67,8 @@ def emit_sync_job_alert(db: Session, job: SyncJob) -> AiAlertOut | None:
         title = "Trợ Lý AI: Đồng bộ Mitapro chưa đầy đủ"
 
     body = (
-        f"Trạng thái: {job.status}. "
-        f"Vào {job.records_inserted}, bỏ trùng {job.records_skipped}, nhận {job.records_in}. "
+        f"Trạng thái: {label_sync_status(job.status)}. "
+        f"Đã nhập {job.records_inserted}, bỏ trùng {job.records_skipped}, nhận {job.records_in}. "
         f"{job.message}"
     ).strip()
 
@@ -207,7 +208,7 @@ def evaluate_payroll_reminders(db: Session) -> None:
                 title=f"Trợ Lý AI: kỳ {period} chưa khóa (đã qua ngày trả lương)",
                 body=(
                     f"Ngày trả lương mục tiêu {payday.isoformat()} đã qua mà kỳ còn "
-                    f"«{pay.status}». Đề xuất hoàn tất phát hành và khóa kỳ."
+                    f"«{label_period_status(pay.status)}». Đề xuất hoàn tất phát hành và khóa kỳ."
                 ),
                 target_module="payroll",
                 user_id=None,
@@ -267,8 +268,8 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
                 rule_key="kpi_attendance_low",
                 title=f"Trợ Lý AI: chuyên cần kỳ {period} dưới ngưỡng",
                 body=(
-                    f"Attendance {kpi.attendance_rate_pct}% < ngưỡng {att_min}% "
-                    f"(policy kpi_attendance_min_pct). Kiểm tra Báo cáo KPI."
+                    f"Chuyên cần {kpi.attendance_rate_pct}% < ngưỡng {att_min}% "
+                    f"(chính sách kpi_attendance_min_pct). Kiểm tra Báo cáo KPI."
                 ),
                 target_module="report",
                 user_id=None,
@@ -281,10 +282,10 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
             db,
             AiAlertCreate(
                 rule_key="kpi_ot_high",
-                title=f"Trợ Lý AI: OT rate kỳ {period} vượt ngưỡng",
+                title=f"Trợ Lý AI: tỷ lệ OT kỳ {period} vượt ngưỡng",
                 body=(
-                    f"OT rate {kpi.ot_rate_pct}% > ngưỡng {ot_max}% "
-                    f"(kpi_ot_rate_max_pct)."
+                    f"Tỷ lệ OT {kpi.ot_rate_pct}% > ngưỡng {ot_max}% "
+                    f"(chính sách kpi_ot_rate_max_pct)."
                 ),
                 target_module="report",
                 user_id=None,
@@ -297,10 +298,10 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
             db,
             AiAlertCreate(
                 rule_key="kpi_turnover_high",
-                title=f"Trợ Lý AI: turnover kỳ {period} vượt ngưỡng",
+                title=f"Trợ Lý AI: tỷ lệ nghỉ việc kỳ {period} vượt ngưỡng",
                 body=(
-                    f"Turnover {kpi.turnover_rate_pct}% > ngưỡng {turn_max}% "
-                    f"(kpi_turnover_max_pct)."
+                    f"Tỷ lệ nghỉ việc {kpi.turnover_rate_pct}% > ngưỡng {turn_max}% "
+                    f"(chính sách kpi_turnover_max_pct)."
                 ),
                 target_module="report",
                 user_id=None,
@@ -327,7 +328,7 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
                 rule_key="kpi_ot_dept_high",
                 title=f"Trợ Lý AI: {len(offenders)} bộ phận OT vượt ngưỡng kỳ {period}",
                 body=(
-                    f"Ngưỡng bộ phận {dept_ot_max}% (kpi_ot_dept_max_pct). "
+                    f"Ngưỡng bộ phận {dept_ot_max}% (chính sách kpi_ot_dept_max_pct). "
                     f"Vượt: {', '.join(offenders[:8])}"
                     + ("…" if len(offenders) > 8 else "")
                 ),

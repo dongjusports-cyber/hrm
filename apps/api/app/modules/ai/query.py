@@ -10,6 +10,12 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
+from app.modules.ai.vi_labels import (
+    label_ai_mode,
+    label_dispute_status,
+    label_payslip_status,
+    label_policy_version,
+)
 from app.modules.ai.models import AiJob
 from app.modules.ai.provider import SYSTEM_PROMPT_BASE, generate_text, resolve_api_key
 from app.modules.ai.schemas import AiQueryRequest, AiQueryResponse
@@ -55,25 +61,35 @@ def _dispute_context(db: Session, dispute_id: UUID) -> tuple[Dispute, str]:
     d, emp, slip, pay, ts, snap = row
     period = f"{pay.year:04d}-{pay.month:02d}"
     reason = REASON_LABELS.get(d.reason_code, d.reason_code)
-    policy_ver = str(snap.package_id) if snap and snap.package_id else ("snapshot" if snap else "—")
+    policy_ver = label_policy_version(
+        package_id=snap.package_id if snap else None,
+        has_snapshot=bool(snap),
+    )
     lines = [
-        f"Mã khiếu nại: {d.code} | trạng thái ticket: {d.status}",
+        f"Mã khiếu nại: {d.code} | Trạng thái: {label_dispute_status(d.status)}",
         f"MSNV: {emp.employee_code} | Họ tên: {emp.full_name}",
-        f"Kỳ lương: {period} | divisor: {pay.salary_divisor} | policy_version: {policy_ver}",
+        f"Kỳ lương: {period} | Hệ số chia lương: {pay.salary_divisor} | Phiên bản chính sách: {policy_ver}",
         f"Lý do CN: {reason}",
         f"Mô tả CN: {d.description.split(chr(10) + '---' + chr(10) + 'HR: ')[0]}",
-        f"Trạng thái phiếu: {slip.status}",
-        f"WD: {slip.wd_salary} | PC: {slip.allowance_total} | OT: {slip.ot_pay} | Gross: {slip.gross}",
-        f"BHXH: {slip.bhxh} | BHYT: {slip.bhyt} | BHTN: {slip.bhtn} | CĐ: {slip.union_fee} | Net: {slip.net}",
+        f"Trạng thái phiếu: {label_payslip_status(slip.status)}",
+        (
+            f"Lương ngày công: {slip.wd_salary} | Phụ cấp: {slip.allowance_total} | "
+            f"Lương OT: {slip.ot_pay} | Tổng thu nhập: {slip.gross}"
+        ),
+        (
+            f"BHXH: {slip.bhxh} | BHYT: {slip.bhyt} | BHTN: {slip.bhtn} | "
+            f"CĐ: {slip.union_fee} | Thực lĩnh: {slip.net}"
+        ),
     ]
     if ts:
         lines.append(
-            f"Công: worked_days={ts.worked_days}, AL={ts.al_days}, REM={ts.rem_days}, "
-            f"late={ts.late_count}, early={ts.early_count}, "
-            f"OT_h weekday/weekend/holiday={ts.ot_hours_weekday}/{ts.ot_hours_weekend}/{ts.ot_hours_holiday}"
+            f"Công tháng: ngày công={ts.worked_days}, phép={ts.al_days}, REM={ts.rem_days}, "
+            f"muộn={ts.late_count}, sớm={ts.early_count}, "
+            f"giờ OT (thường/cuối tuần/lễ)={ts.ot_hours_weekday}/"
+            f"{ts.ot_hours_weekend}/{ts.ot_hours_holiday}"
         )
     else:
-        lines.append("Thiếu timesheet tháng — không có số công/OT để đối chiếu.")
+        lines.append("Thiếu bảng công tháng — không có số công/OT để đối chiếu.")
     if d.ai_summary:
         lines.append(f"Tóm tắt AI trước: {d.ai_summary[:500]}")
     return d, "\n".join(lines)
@@ -84,7 +100,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền hỏi AI (`ai_query`). "
+                f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền hỏi AI. "
                 "Liên hệ Admin."
             ),
         )
@@ -131,7 +147,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         )
 
     user_payload = (
-        f"Người hỏi: {user.full_name} (username={user.username}).\n\n"
+        f"Người hỏi: {user.full_name} (tài khoản={user.username}).\n\n"
         + (f"{context_block}\n\n" if context_block else "")
         + f"### Câu hỏi\n{message}"
     )
@@ -185,6 +201,6 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         remaining_today=remaining,
         message=(
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
-            f"({'stub' if result.stub else 'Gemini'}). Còn {remaining} câu hôm nay."
+            f"({label_ai_mode(stub=result.stub)}). Còn {remaining} câu hôm nay."
         ),
     )

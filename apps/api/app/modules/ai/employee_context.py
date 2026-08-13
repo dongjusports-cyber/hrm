@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod
 from app.modules.core.models import User
+from app.modules.ai.vi_labels import label_emp_status, label_pay_channel, label_payslip_status
 from app.modules.mdm.models import Department, Employee, Team
 from app.modules.payroll.models import Payslip
 
@@ -59,11 +60,11 @@ def _employee_block(db: Session, emp: Employee, *, include_payroll: bool) -> str
     )
     lines = [
         f"MSNV: {emp.employee_code} | Họ tên: {emp.full_name}",
-        f"Trạng thái: {emp.status} | Ngày vào: {emp.join_date or '—'} | Ngày nghỉ: {emp.resign_date or '—'}",
+        f"Trạng thái: {label_emp_status(emp.status)} | Ngày vào: {emp.join_date or '—'} | Ngày nghỉ: {emp.resign_date or '—'}",
         f"Bộ phận: {dept.name if dept else '—'} ({dept.code if dept else '—'})",
         f"Tổ: {team.name if team else '—'} ({team.code if team else '—'})",
         f"Chức vụ: {emp.position_title or emp.position_code or '—'}",
-        f"Lương HĐ: {_fmt_money(emp.contract_salary)} | Kênh lương: {emp.pay_channel}",
+        f"Lương HĐ: {_fmt_money(emp.contract_salary)} | Kênh lương: {label_pay_channel(emp.pay_channel)}",
         f"BHXH: {'có' if emp.si_enrolled else 'không'} | SĐT: {emp.phone or '—'}",
     ]
     if include_payroll:
@@ -78,8 +79,10 @@ def _employee_block(db: Session, emp: Employee, *, include_payroll: bool) -> str
             ps, pp = slip
             period = f"{pp.year:04d}-{pp.month:02d}"
             lines.append(
-                f"Phiếu lương gần nhất ({period}): WD={ps.wd_salary}, PC={ps.allowance_total}, "
-                f"OT={ps.ot_pay}, Gross={ps.gross}, Net={ps.net}, trạng thái={ps.status}"
+                f"Phiếu lương gần nhất ({period}): lương ngày công={ps.wd_salary}, "
+                f"phụ cấp={ps.allowance_total}, lương OT={ps.ot_pay}, "
+                f"tổng thu nhập={ps.gross}, thực lĩnh={ps.net}, "
+                f"trạng thái={label_payslip_status(ps.status)}"
             )
         else:
             lines.append("Phiếu lương: chưa có bản ghi.")
@@ -98,7 +101,7 @@ def build_employee_context(db: Session, user: User, message: str) -> tuple[list[
         return codes, (
             "### Tra cứu nhân viên\n"
             "Tài khoản không có quyền module Nhân sự/Lương — không đọc được hồ sơ từ CSDL. "
-            "Liên hệ Admin cấp quyền `hr` hoặc `payroll`."
+            "Liên hệ Admin cấp quyền nhân sự hoặc tính lương."
         )
     include_payroll = user.role == "admin" or user.has_module("payroll")
     blocks: list[str] = []

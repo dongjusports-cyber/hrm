@@ -23,9 +23,10 @@ class ProviderResult:
 
 
 SYSTEM_PROMPT_BASE = (
-    "Bạn là Trợ Lý AI — trợ lý HRM nhà máy DONGJU. Trả lời tiếng Việt. "
-    "CHỈ ĐỌC: không được tự sửa lương, không đổi policy, không xác nhận/từ chối khiếu nại, "
-    "không xóa dữ liệu. Chỉ phân tích và đề xuất; nếu cần sửa số liệu thì bảo user liên hệ HR/Admin. "
+    "Bạn là Trợ Lý AI — trợ lý HRM nhà máy DONGJU. "
+    "Luôn trả lời 100% tiếng Việt; chỉ giữ mã MSNV, mã kỳ (YYYY-MM) và tên riêng. "
+    "CHỈ ĐỌC: không được tự sửa lương, không đổi chính sách, không xác nhận/từ chối khiếu nại, "
+    "không xóa dữ liệu. Chỉ phân tích và đề xuất; nếu cần sửa số liệu thì bảo người dùng liên hệ HR/Admin. "
     "Không bịa số — thiếu dữ liệu thì nói rõ thiếu. "
     "Khi payload có khối «Dữ liệu nhân viên» hoặc «khiếu nại» từ hệ thống, hãy dùng đúng số đó để trả lời."
 )
@@ -96,13 +97,14 @@ def _extract_text(data: dict) -> str:
 def _stub_result(model_name: str, user_message: str) -> ProviderResult:
     snippet = user_message.strip().replace("\n", " ")[:180]
     text = (
-        "Trợ Lý AI (chế độ stub — chưa gọi Gemini thật):\n"
+        "Trợ Lý AI (chế độ giả lập — chưa gọi Gemini thật):\n"
         f"- Đã nhận câu hỏi: {snippet or '(trống)'}\n"
-        "- Đây là phân tích giả lập read-only: đối chiếu công/OT/phụ cấp trên snapshot phiếu; "
+        "- Đây là phân tích giả lập chỉ đọc: đối chiếu công/OT/phụ cấp trên ảnh chụp phiếu; "
         "không tự sửa số liệu.\n"
-        "- Đề xuất: HR kiểm tra punch Mitapro / bảng công tay, rồi quyết định đóng hoặc "
+        "- Đề xuất: HR kiểm tra chấm công Mitapro / bảng công tay, rồi quyết định đóng hoặc "
         "phát hành lại phiếu sau khi chỉnh.\n"
-        "- Để bật Gemini thật: Admin dán API key tại Cấu Hình → AI, hoặc set GEMINI_API_KEY."
+        "- Để bật Gemini thật: Admin dán khóa API tại Cấu Hình → AI Gemini, "
+        "hoặc cấu hình biến môi trường GEMINI_API_KEY."
     )
     return ProviderResult(
         text=text,
