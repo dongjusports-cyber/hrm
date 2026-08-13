@@ -29,3 +29,10 @@
 2. (Tuỳ chọn) Nâng UI Modern — phiên riêng, không đụng engine lương  
 
 *File này chỉ định nghĩa phạm vi — không thay thế 20–24.*
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

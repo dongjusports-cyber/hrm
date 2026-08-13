@@ -1,5 +1,15 @@
 # 02 — UI Portal, Phân quyền, Worker Portal
 
+## 2.0 Luật thiết kế tối cao (bắt buộc)
+
+Mọi Portal và màn Lv2–Lv4 tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**:
+
+**Chính xác · Tiện dụng · Không rối mắt · Không chừa khoảng trống · Tận dụng không gian · Ngăn nắp · Gọn gàng · Đồng đều.**
+
+- Portal 8 ô: tile **đồng đều**, lấp đủ lưới — không ô lệch, không dải trống vô nghĩa (vẫn **không** KPI trên Lv1 theo P5).
+- Lv2+: full màn hình; nội dung **giãn theo breakpoint** — đặc biệt 1920×1080.
+- Chi tiết pixel: `23_UI_MAN_HINH.md`.
+
 ## 2.1 Luật màn hình chính (BẮT BUỘC theo Chủ)
 
 ```
@@ -184,5 +194,11 @@ Chỉ các màn:
 | Component | React + Tailwind (hoặc CSS module) — nhất quán |
 | Bảng | **AG-Grid** (bắt buộc cho bảng lớn) |
 | Tone Portal | Sáng, sạch, chuyên nghiệp — **không** hiệu ứng vũ trụ prototype |
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Mọi Portal và màn Lv2–Lv4 tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 
 *Tiếp: `03_CONG_THUC_LUONG.md`*

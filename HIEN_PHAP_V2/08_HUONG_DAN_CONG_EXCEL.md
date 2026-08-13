@@ -151,3 +151,10 @@ Dùng khi HR quen sửa hàng loạt trên Excel **cho cùng một ngày**.
 ---
 
 *Liên quan: [`07_UAT_HR_1_THANG.md`](./07_UAT_HR_1_THANG.md) · [`04_CHAM_CONG_AGENT.md`](../HIEN_PHAP/04_CHAM_CONG_AGENT.md)*
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

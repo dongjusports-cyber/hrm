@@ -334,4 +334,11 @@ ai_alerts (
 - `payslips(pay_period_id, status)`
 - `disputes(status, created_at)`
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `08_MODULE_API_HOP_DONG.md`*

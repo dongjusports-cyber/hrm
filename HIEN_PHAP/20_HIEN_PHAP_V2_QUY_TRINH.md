@@ -21,6 +21,7 @@ giải mã 70 bảng và 148 thủ tục PL/SQL của phần mềm cũ.
 | 22 | `22_QUY_TAC_NGHIEP_VU.md` | Phiên đụng lương hoặc chấm công |
 | 23 | `23_UI_MAN_HINH.md` | Phiên đụng giao diện |
 | 24 | `24_LO_TRINH_5_DOT.md` | Đầu mỗi đợt, để biết phạm vi và tiêu chí nghiệm thu |
+| **25** | **`25_QUY_TAC_THIET_KE_TOI_CAO.md`** | **Mọi phiên UI** — tám chữ vàng thiết kế |
 
 **Luật ưu tiên khi mâu thuẫn** (cao → thấp):
 

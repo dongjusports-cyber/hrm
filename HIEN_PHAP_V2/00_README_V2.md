@@ -34,6 +34,7 @@
 | **06** | `06_QUY_TAC_CHO_AI.md` | Mọi phiên Cursor |
 | **07** | `07_UAT_HR_1_THANG.md` | HR test chấm công + lương |
 | **08** | `08_HUONG_DAN_CONG_EXCEL.md` | HR: lấy · sửa · dán công (Excel) |
+| **09** | **`09_QUY_TAC_THIET_KE_TOI_CAO.md`** | **Luật thiết kế tối cao** — đọc khi làm/sửa UI |
 
 ---
 

@@ -60,6 +60,12 @@
 | Success / Warn / Danger | emerald / amber / red |
 | Tone | Sáng, chuyên nghiệp — **không** hiệu ứng prototype |
 
+## Luật thiết kế tối cao (bắt buộc)
+
+Mọi màn V2 tuân **`HIEN_PHAP/25_QUY_TAC_THIET_KE_TOI_CAO.md`** (tóm tắt V2: `09_QUY_TAC_THIET_KE_TOI_CAO.md`):
+
+**Chính xác · Tiện dụng · Không rối mắt · Không chừa khoảng trống · Tận dụng không gian · Ngăn nắp · Gọn gàng · Đồng đều.**
+
 ---
 
 ## Không dùng

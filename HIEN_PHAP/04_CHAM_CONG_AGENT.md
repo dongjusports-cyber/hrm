@@ -142,4 +142,11 @@ pay_periods.salary_divisor = apply_divisor_rule(official_work_days)
 
 HR/Admin **xem** mẫu số auto; chỉ ghi đè khi có ngoại lệ (có log + xác nhận 3 lần nếu ảnh hưởng tiền).
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `05_AI_GEMINI.md`*

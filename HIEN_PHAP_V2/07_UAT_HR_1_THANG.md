@@ -87,3 +87,10 @@ DJ HRM: 850.000
 ---
 
 *Hết bộ Hiến pháp V2 — quay lại `00_README_V2.md` khi cần.*
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

@@ -317,4 +317,11 @@ Trước khi Go-live lương: chạy lại **tháng 10/2025** (331 NV), so khớ
 - `wd_salary`, `allowance` pro-rata, `si_*`, `gross`, `net`
 - Cho phép lệch làm tròn ≤ 1–2đ; lệch lớn phải log giải thích (case ngoại lệ)
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `04_CHAM_CONG_AGENT.md`*
