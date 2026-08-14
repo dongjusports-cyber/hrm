@@ -35,6 +35,7 @@ alwaysApply: true
 | Modal `.modal-backdrop` | `useSheetKeyboard` + `onClose`, hoặc `useEscLayer` |
 | Trang con HR (không có sheet ESC riêng) | `useHrSubpageEsc({ backTo, onDismiss? })` |
 | Ô giờ `TimeInput24` | `registerActiveFieldEsc` trong `onFocus` — **không** `useEscLayer` |
+| Menu toolbar `ToolbarMoreMenu` | `useEscLayer(open, onClose)` — **không** `document.addEventListener('keydown', Escape)` |
 
 **Không** tự `window.addEventListener('keydown', Escape)` — dùng `useEscLayer` / `useSheetKeyboard` (ngăn xếp `escStack.ts`).
 

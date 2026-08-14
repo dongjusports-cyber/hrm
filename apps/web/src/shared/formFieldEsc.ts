@@ -130,20 +130,6 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
     const root = containerRef.current;
     if (!root) return;
 
-    function onFocusIn(e: FocusEvent) {
-      if (!isEditableFormField(e.target)) {
-        clearActiveFieldEsc();
-        return;
-      }
-      registerActiveFieldEsc(e.target);
-    }
-
-    function onFocusOut(e: FocusEvent) {
-      const related = e.relatedTarget as Node | null;
-      if (root && related && root.contains(related) && isEditableFormField(related)) return;
-      clearActiveFieldEsc(e.target instanceof HTMLElement ? e.target : undefined);
-    }
-
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Enter") return;
       if (!isEditableFormField(e.target)) return;
@@ -153,12 +139,8 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
       (e.target as HTMLElement).blur();
     }
 
-    root.addEventListener("focusin", onFocusIn);
-    root.addEventListener("focusout", onFocusOut);
     root.addEventListener("keydown", onKeyDown);
     return () => {
-      root.removeEventListener("focusin", onFocusIn);
-      root.removeEventListener("focusout", onFocusOut);
       root.removeEventListener("keydown", onKeyDown);
       clearActiveFieldEsc();
     };

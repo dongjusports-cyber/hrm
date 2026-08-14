@@ -349,9 +349,8 @@ export function TimekeepingPage() {
     setDetailOpen(false);
   }, []);
 
-  // ESC: OT ngoài → (sheet chi tiết ngày tự xử lý) → bỏ chọn NV
-  useEscLayer(otExternalOpen, () => setOtExternalOpen(false));
-  useEscLayer(!!selected && !detailOpen && !otExternalOpen, () => {
+  // ESC: (sheet chi tiết / OT ngoài / sync tự xử lý qua FullScreenSheet) → bỏ chọn NV
+  useEscLayer(!!selected && !detailOpen && !otExternalOpen && !syncOpen, () => {
     if (isEditableFormField(document.activeElement)) return;
     clearSelection();
   });

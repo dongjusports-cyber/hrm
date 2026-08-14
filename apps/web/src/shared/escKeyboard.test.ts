@@ -131,6 +131,21 @@ describe("escStack priority", () => {
     unreg();
   });
 
+  it("overlay closes before lower stack layers", () => {
+    const lower = vi.fn();
+    const top = vi.fn();
+    const unregLower = registerEscHandler(lower);
+    const unregTop = registerEscHandler(top);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+
+    expect(top).toHaveBeenCalledTimes(1);
+    expect(lower).not.toHaveBeenCalled();
+
+    unregTop();
+    unregLower();
+  });
+
   it("detects ag grid editing container", () => {
     const el = document.createElement("div");
     el.className = "ag-cell-inline-editing";

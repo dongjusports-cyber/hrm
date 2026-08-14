@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useEscLayer } from "./useEscLayer";
 
 type Props = {
   label?: string;
@@ -26,6 +27,8 @@ export function ToolbarMoreMenu({ label = "⋮ Thêm", children, disabled }: Pro
   const [coords, setCoords] = useState<Coords | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEscLayer(open, () => setOpen(false));
 
   const reposition = useCallback(() => {
     const el = triggerRef.current;
@@ -49,17 +52,12 @@ export function ToolbarMoreMenu({ label = "⋮ Thêm", children, disabled }: Pro
       if (panelRef.current?.contains(t)) return;
       setOpen(false);
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
     document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
     window.addEventListener("resize", reposition);
     // capture=true để bắt cả scroll trong toolbar (overflow-x:auto)
     window.addEventListener("scroll", reposition, true);
     return () => {
       document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
     };

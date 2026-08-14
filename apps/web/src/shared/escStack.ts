@@ -2,7 +2,7 @@
  * @locked Ngăn xếp ESC — KHÔNG sửa tùy tiện. Xem `.cursor/rules/esc-keyboard.mdc`
  * Chạy: `npm test -- escKeyboard`
  *
- * Thứ tự: (1) hoàn tác ô nhập (2) AG Grid tự xử lý (3) overlay stack (4) quay trang.
+ * Thứ tự: (1) hoàn tác ô nhập (2) AG Grid tự hủy nếu còn editor (3) overlay stack (4) quay trang.
  */
 
 import {
