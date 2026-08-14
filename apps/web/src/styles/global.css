@@ -2009,6 +2009,20 @@ a {
 .users-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.users-table tr.is-locked-row {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+.users-status-locked {
+  color: #92400e;
+  font-weight: 700;
+}
+
+.link-btn.unlock {
+  color: #92400e;
 }
 
 .link-btn {

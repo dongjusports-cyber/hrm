@@ -5,6 +5,7 @@ import {
   deactivateUser,
   fetchAssignableModules,
   fetchUsers,
+  unlockStaffUser,
   updateUser,
   type AssignableModule,
   type StaffUser,
@@ -27,6 +28,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const assignable = useMemo(
@@ -138,6 +140,30 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
+  async function onUnlock(u: StaffUser) {
+    if (u.role === "admin") return;
+    if (!u.is_locked) return;
+    if (
+      !confirm(
+        `Mở khóa tài khoản ${u.username}? Người dùng có thể đăng nhập lại với mật khẩu hiện tại.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setOk(null);
+    setUnlockingId(u.id);
+    try {
+      const detail = await unlockStaffUser(u.id);
+      setOk(detail);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không mở khóa được.");
+    } finally {
+      setUnlockingId(null);
+    }
+  }
+
   return (
     <div className="users-page">
       <div className="users-head">
@@ -145,6 +171,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
           {!embedded && <h1>Người dùng & quyền</h1>}
           <p className="module-placeholder">
             Tạo tài khoản Web, gán tối đa 7 module. Ô Cấu Hình chỉ Admin.
+            HR bị khóa — nút Mở khóa (không đổi mật khẩu).
           </p>
         </div>
         {!embedded && (
@@ -181,16 +208,42 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className={editingId === u.id ? "is-selected" : ""}>
+                  <tr
+                    key={u.id}
+                    className={[
+                      editingId === u.id ? "is-selected" : "",
+                      u.is_locked ? "is-locked-row" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <td>{u.username}</td>
                     <td>{u.full_name}</td>
                     <td>{u.role === "admin" ? "Admin" : "Người dùng"}</td>
                     <td>{u.role === "admin" ? "8/8" : `${u.modules.length}/7`}</td>
-                    <td>{u.is_active ? "Đang bật" : "Tắt"}</td>
+                    <td>
+                      {u.is_locked ? (
+                        <span className="users-status-locked">Bị khóa</span>
+                      ) : u.is_active ? (
+                        "Đang bật"
+                      ) : (
+                        "Tắt"
+                      )}
+                    </td>
                     <td className="users-actions">
                       <button type="button" className="link-btn" onClick={() => startEdit(u)}>
                         Sửa
                       </button>
+                      {u.role !== "admin" && u.is_locked && (
+                        <button
+                          type="button"
+                          className="link-btn unlock"
+                          disabled={unlockingId === u.id}
+                          onClick={() => void onUnlock(u)}
+                        >
+                          {unlockingId === u.id ? "Đang mở…" : "Mở khóa"}
+                        </button>
+                      )}
                       {u.role !== "admin" && u.is_active && (
                         <button type="button" className="link-btn danger" onClick={() => onDeactivate(u)}>
                           Tắt
@@ -206,6 +259,22 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
 
         <form className="users-form-card" onSubmit={onSubmit}>
           <h2>{editingId ? "Sửa người dùng" : "Tạo người dùng"}</h2>
+          {editingId && users.find((u) => u.id === editingId)?.is_locked && (
+            <p className="banner-warn">
+              Tài khoản đang bị khóa do sai mật khẩu 3 lần.{" "}
+              <button
+                type="button"
+                className="link-btn unlock"
+                disabled={unlockingId === editingId}
+                onClick={() => {
+                  const locked = users.find((u) => u.id === editingId);
+                  if (locked) void onUnlock(locked);
+                }}
+              >
+                {unlockingId === editingId ? "Đang mở…" : "Mở khóa ngay"}
+              </button>
+            </p>
+          )}
 
           {!editingId && (
             <label className="field">

@@ -92,7 +92,7 @@ export async function fetchPortalTabs(): Promise<{ tabs: PortalTab[]; user_full_
   return { tabs, user_full_name: data.user_full_name as string };
 }
 
-export type StaffUser = AuthUser & { is_active: boolean };
+export type StaffUser = AuthUser & { is_active: boolean; is_locked?: boolean };
 
 export type AssignableModule = {
   key: string;
@@ -196,6 +196,13 @@ export async function updateUser(
 export async function deactivateUser(id: string): Promise<void> {
   const res = await apiFetch(`/api/users/${id}/deactivate`, { method: "POST" });
   if (!res.ok) throw new Error(await readError(res));
+}
+
+export async function unlockStaffUser(id: string): Promise<string> {
+  const res = await apiFetch(`/api/users/${id}/unlock`, { method: "POST" });
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as { detail?: string };
+  return data.detail ?? "Đã mở khóa tài khoản.";
 }
 
 export type CatalogLeaveType = {

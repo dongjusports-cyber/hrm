@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     role: str
     role_code: str | None = None
     is_active: bool = True
+    is_locked: bool = False
     must_change_password: bool
     modules: list[str]
     permissions: list[str]

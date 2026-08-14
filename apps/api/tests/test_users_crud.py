@@ -151,6 +151,67 @@ def test_update_and_deactivate(client):
     listed = client.get("/api/users", headers=headers).json()
     row = next(u for u in listed if u["id"] == uid)
     assert row["is_active"] is False
+    assert row["is_locked"] is False
+
+
+def test_admin_unlocks_locked_hr_user(client):
+    headers = _admin_headers(client)
+    created = client.post(
+        "/api/users",
+        headers=headers,
+        json={
+            "username": "hr.lock",
+            "full_name": "HR Locked",
+            "password": "HrLock@123456",
+            "modules": ["hr"],
+            "permissions": [],
+        },
+    )
+    assert created.status_code == 201, created.text
+    uid = created.json()["id"]
+    assert created.json()["is_locked"] is False
+
+    for _ in range(3):
+        bad = client.post("/api/auth/login", json={"username": "hr.lock", "password": "sai"})
+    assert bad.status_code == 423
+
+    listed = client.get("/api/users", headers=headers).json()
+    row = next(u for u in listed if u["id"] == uid)
+    assert row["is_locked"] is True
+
+    hr_try = client.post(f"/api/users/{uid}/unlock", headers=_hr_headers(client))
+    assert hr_try.status_code == 403
+
+    still = client.post("/api/auth/login", json={"username": "hr.lock", "password": "HrLock@123456"})
+    assert still.status_code == 423
+
+    unlocked = client.post(f"/api/users/{uid}/unlock", headers=headers)
+    assert unlocked.status_code == 200, unlocked.text
+    assert "hr.lock" in unlocked.json()["detail"]
+
+    listed = client.get("/api/users", headers=headers).json()
+    row = next(u for u in listed if u["id"] == uid)
+    assert row["is_locked"] is False
+
+    ok = client.post("/api/auth/login", json={"username": "hr.lock", "password": "HrLock@123456"})
+    assert ok.status_code == 200, ok.text
+
+
+def test_admin_cannot_unlock_admin_or_worker(client, db):
+    from app.modules.core.models import User
+
+    headers = _admin_headers(client)
+    admin = db.query(User).filter(User.username == "admin").one()
+    admin_res = client.post(f"/api/users/{admin.id}/unlock", headers=headers)
+    assert admin_res.status_code == 400
+    assert "nhân viên HR" in admin_res.json()["detail"]
+
+    worker = db.query(User).filter(User.role == "worker").first()
+    if worker is None:
+        return
+    worker_res = client.post(f"/api/users/{worker.id}/unlock", headers=headers)
+    assert worker_res.status_code == 400
+    assert "công nhân" in worker_res.json()["detail"]
 
 
 def test_new_user_can_login(client):

@@ -9,6 +9,7 @@ export function PermissionsAdminPage() {
       <h1>Phân quyền</h1>
       <p className="field-hint">
         Gán tối đa 7 module + quyền AI cho từng tài khoản. Vai trò Admin có toàn quyền Cấu Hình.
+        Tài khoản HR bị khóa (sai mật khẩu 3 lần) — dùng nút Mở khóa.
       </p>
       <UsersPage embedded />
     </div>

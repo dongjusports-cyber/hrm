@@ -36,6 +36,7 @@ def user_to_out(user: User) -> UserOut:
         role=user.role,
         role_code=user.role_code,
         is_active=user.is_active,
+        is_locked=bool(user.is_locked),
         must_change_password=user.must_change_password,
         modules=user.granted_modules(),
         permissions=user.permission_keys(),
@@ -213,6 +214,39 @@ def update_user(
         validate_role_code(db, role_code, user.role)
         assign_user_role_code(db, user, role_code)
 
+    db.commit()
+    return user_to_out(_load_user(db, user.id))
+
+
+def unlock_staff_user(db: Session, *, actor: User, user_id) -> UserOut:
+    """Admin mở khóa tài khoản Web (HR) sau 3 lần sai mật khẩu."""
+    from app.modules.audit.service import write_audit
+
+    user = _load_user(db, user_id)
+    if user.role == "worker":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: tài khoản công nhân mở khóa tại Nhân Sự (Reset Mật Khẩu).",
+        )
+    if user.role != "user":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: chỉ mở khóa tài khoản nhân viên HR (không phải Admin).",
+        )
+
+    user.is_locked = False
+    user.failed_attempts = 0
+    user.failed_login_count = 0
+    user.locked_until = None
+    write_audit(
+        db,
+        actor=actor,
+        action="user.unlock",
+        entity_type="user",
+        entity_id=str(user.id),
+        summary=f"Mở khóa tài khoản {user.username}",
+        commit=False,
+    )
     db.commit()
     return user_to_out(_load_user(db, user.id))
 

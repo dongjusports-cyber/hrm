@@ -68,6 +68,13 @@ def update_user(user_id: UUID, body: UserUpdate, admin: AdminUser, db: DbSession
     )
 
 
+@router.post("/{user_id}/unlock", response_model=MessageOut)
+def unlock_user(user_id: UUID, admin: AdminUser, db: DbSession) -> MessageOut:
+    """Chỉ Admin — mở khóa tài khoản HR bị khóa sau 3 lần sai mật khẩu."""
+    user = service.unlock_staff_user(db, actor=admin, user_id=user_id)
+    return MessageOut(detail=f"Trợ Lý AI: đã mở khóa tài khoản {user.username}.")
+
+
 @router.post("/{user_id}/deactivate", response_model=MessageOut)
 def deactivate_user(user_id: UUID, admin: AdminUser, db: DbSession) -> MessageOut:
     user = service.update_user(
