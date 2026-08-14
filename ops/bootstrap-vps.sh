@@ -47,6 +47,7 @@ cd "$INSTALL_DIR"
 git pull --ff-only || git pull || true
 
 cp "$ENV_SRC" .env.prod
+sed -i 's/\r$//' .env.prod
 chmod +x ops/*.sh 2>/dev/null || true
 
 echo "-> Deploy (migrate, chua seed)..."

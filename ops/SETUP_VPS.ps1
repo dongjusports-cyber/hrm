@@ -63,7 +63,7 @@ CADDY_EMAIL=admin@dongju-v.com
 "@
 
 $EnvLocal = Join-Path $Root "ops\djhrm-vps.env"
-$EnvContent | Out-File -FilePath $EnvLocal -Encoding utf8NoBOM
+$EnvContent | Out-File -FilePath $EnvLocal -Encoding utf8
 
 Write-Host "== SETUP VPS $VpsIp ==" -ForegroundColor Green
 
@@ -80,7 +80,7 @@ $session = $null
 try {
     Write-Host "-> Ket noi SSH..."
     $session = New-SSHSession -ComputerName $VpsIp -Credential $Cred -AcceptKey -ConnectionTimeout 60
-    if (-not $session) { throw "Khong ket noi duoc SSH — kiem tra IP, mat khau, VPS da bat chua." }
+    if (-not $session) { throw "Khong ket noi duoc SSH - kiem tra IP, mat khau, VPS da bat chua." }
 
     Write-Host "-> Upload file..."
     Set-SCPItem -ComputerName $VpsIp -Credential $Cred -AcceptKey `
@@ -90,11 +90,12 @@ try {
 
     $Dump = Join-Path $Root "backups\djhrm_local_latest.dump"
     if (Test-Path $Dump) {
-        Write-Host "-> Upload backup DB ($( [math]::Round((Get-Item $Dump).Length/1KB) ) KB)..."
+        $dumpKb = [math]::Round((Get-Item $Dump).Length / 1KB)
+        Write-Host "-> Upload backup DB ($dumpKb KB)..."
         Set-SCPItem -ComputerName $VpsIp -Credential $Cred -AcceptKey `
             -Path $Dump -Destination "/root/djhrm_local_latest.dump"
     } else {
-        Write-Host "Khong thay backups\djhrm_local_latest.dump — VPS se seed demo." -ForegroundColor Yellow
+        Write-Host "Khong thay backups\djhrm_local_latest.dump - VPS se seed demo." -ForegroundColor Yellow
     }
 
     Write-Host "-> Chay bootstrap tren VPS (5-15 phut)..."
@@ -103,7 +104,7 @@ try {
     Write-Host $result.Output
     if ($result.Error) { Write-Host $result.Error -ForegroundColor DarkYellow }
     if ($result.ExitStatus -ne 0) {
-        Write-Host "Bootstrap co loi (exit $($result.ExitStatus)) — xem output tren." -ForegroundColor Red
+        Write-Host "Bootstrap co loi (exit $($result.ExitStatus)) - xem output tren." -ForegroundColor Red
         exit $result.ExitStatus
     }
 
@@ -113,7 +114,7 @@ try {
     Write-Host "  Admin:    admin / $AdminPass"
     Write-Host "  Agent:    DJ_AGENT_TOKEN=$AgentToken"
     Write-Host ""
-    Write-Host "Luu mat khau admin vao password manager — khong commit file nay." -ForegroundColor Yellow
+    Write-Host "Luu mat khau admin vao password manager - khong commit file nay." -ForegroundColor Yellow
     $CredOut = Join-Path $Root "ops\vps-admin-credentials.txt"
     @(
         "VPS IP: $VpsIp"
