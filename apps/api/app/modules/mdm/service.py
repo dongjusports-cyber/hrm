@@ -169,6 +169,28 @@ def _photo_dir() -> Path:
     return root
 
 
+def _employee_photo_file(emp: Employee) -> Path | None:
+    """Tìm file ảnh NV trên đĩa.
+
+    photo_path trong DB có thể là tên file (chuẩn) hoặc path tuyệt đối Windows
+    do script import chạy trên host — API Docker/Linux phải resolve qua upload_dir.
+    """
+    if not emp.photo_path:
+        return None
+    stored = Path(emp.photo_path)
+    root = _photo_dir()
+    for candidate in (
+        stored,
+        root / stored.name,
+        root / f"{emp.id}.jpg",
+        root / f"{emp.id}.jpeg",
+        root / f"{emp.id}.png",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def _account_fields(emp: Employee, user: User | None) -> dict:
     if emp.status == "resigned":
         return {
@@ -309,7 +331,8 @@ def employee_to_out(
 ) -> EmployeeOut:
     dept = emp.department
     team = emp.team
-    has_photo = bool(emp.photo_path)
+    photo_file = _employee_photo_file(emp)
+    has_photo = photo_file is not None
     acct = _account_fields(emp, user)
     al_total = allowance_total if allowance_total is not None else Decimal("0")
     total_salary = Decimal(str(emp.contract_salary)) + al_total
@@ -711,7 +734,8 @@ def list_employees(
             )
         )
     if status in ("active", "probation", "maternity"):
-        out = [o for o in out if o.effective_status == status]
+        if not (q and q.strip()):
+            out = [o for o in out if o.effective_status == status]
     return out
 
 
@@ -1029,17 +1053,15 @@ def upload_employee_photo(
             except OSError:
                 pass
     dest.write_bytes(content)
-    emp.photo_path = str(dest)
+    emp.photo_path = dest.name
     db.commit()
     return get_employee(db, emp_id)
 
 
 def resolve_employee_photo_file(db: Session, emp_id: UUID) -> tuple[Path, str]:
     emp = _get_employee_row(db, emp_id)
-    if not emp.photo_path:
-        raise HTTPException(status_code=404, detail="Trợ Lý AI: nhân viên chưa có ảnh hồ sơ.")
-    path = Path(emp.photo_path)
-    if not path.is_file():
+    path = _employee_photo_file(emp)
+    if path is None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy file ảnh hồ sơ.")
     ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return path, ctype

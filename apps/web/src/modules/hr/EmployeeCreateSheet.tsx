@@ -70,7 +70,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
     };
   }, [photoPreview]);
 
-  useSheetKeyboard({ open, containerRef: formShellRef });
+  useSheetKeyboard({ open, containerRef: formShellRef, onClose });
 
   function onPhotoPick(file: File | null) {
     if (file && !file.type.startsWith("image/")) {
@@ -132,8 +132,9 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
     <FullScreenSheet
       open={open}
       title="Tạo nhân viên"
-      subtitle="* bắt buộc · MSNV gợi ý tự động · Esc: hoàn tác ô nhập · Đóng: nút ×"
+      subtitle="* bắt buộc · MSNV gợi ý tự động · Esc: hoàn tác ô nhập / đóng"
       onClose={onClose}
+      closeOnEsc={false}
       bodyClassName="fs-sheet-body-create"
       actions={
         <button

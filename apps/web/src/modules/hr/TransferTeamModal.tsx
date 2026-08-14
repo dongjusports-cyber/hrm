@@ -38,7 +38,7 @@ export function TransferTeamModal({
   const [busy, setBusy] = useState(false);
   const formShellRef = useRef<HTMLDivElement>(null);
 
-  useSheetKeyboard({ open: true, containerRef: formShellRef });
+  useSheetKeyboard({ open: true, containerRef: formShellRef, onClose });
 
   function body() {
     return {

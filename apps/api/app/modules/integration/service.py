@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -32,6 +32,34 @@ from app.modules.integration.schemas import (
 )
 
 SYNC_STALE_HOURS = 24
+SYNC_JOB_STALE_MINUTES = 45
+
+
+def expire_stale_sync_jobs(db: Session, *, max_age_minutes: int = SYNC_JOB_STALE_MINUTES) -> int:
+    """Job running/requested quá lâu → error (Agent crash hoặc push thất bại)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+    rows = (
+        db.query(SyncJob)
+        .filter(
+            SyncJob.source == "mitapro",
+            SyncJob.status.in_(("requested", "running")),
+            SyncJob.started_at < cutoff,
+        )
+        .all()
+    )
+    if not rows:
+        return 0
+    now = datetime.now(timezone.utc)
+    for job in rows:
+        job.status = "error"
+        job.finished_at = now
+        prev = (job.message or "").strip()
+        job.message = (
+            f"{prev} — Hết hạn sau {max_age_minutes} phút (Agent không hoàn tất). "
+            "Kiểm tra Agent Mitapro và chạy lại Đồng bộ."
+        ).strip()
+    db.commit()
+    return len(rows)
 
 
 def normalize_punch_time(punch_time: datetime) -> datetime:
@@ -280,6 +308,7 @@ def request_sync_range(db: Session, *, date_from: date, date_to: date) -> SyncJo
 
 
 def list_sync_jobs(db: Session, *, limit: int = 50, offset: int = 0) -> SyncJobsListOut:
+    expire_stale_sync_jobs(db)
     lim = max(1, min(limit, 200))
     off = max(0, offset)
     q = db.query(SyncJob).filter(SyncJob.source == "mitapro")
@@ -315,6 +344,7 @@ def claim_pending_request(db: Session, job_id) -> SyncJobOut:
 
 
 def integration_status(db: Session) -> IntegrationStatusOut:
+    expire_stale_sync_jobs(db)
     settings = get_settings()
     last = db.query(SyncJob).order_by(SyncJob.started_at.desc()).first()
     last_ok = (

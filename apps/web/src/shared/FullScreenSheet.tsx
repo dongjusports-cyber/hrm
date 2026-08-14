@@ -16,7 +16,7 @@ type Props = {
   hideHeader?: boolean;
   /** Class bổ sung cho vùng body (vd. form tạo NV không cuộn). */
   bodyClassName?: string;
-  /** Khi false, ESC không đóng sheet — chỉ `onTabBack` / ô nhập (xem formFieldEsc). */
+  /** Khi true (mặc định): ESC đóng sheet nếu không có useSheetKeyboard/onBeforeClose chặn. */
   closeOnEsc?: boolean;
   /** Trả true nếu đã xử lý ESC (chưa đóng sheet). Chỉ dùng khi `closeOnEsc`. */
   onBeforeClose?: () => boolean;
@@ -33,7 +33,7 @@ export function FullScreenSheet({
   inFrameScroll = false,
   hideHeader = false,
   bodyClassName,
-  closeOnEsc = false,
+  closeOnEsc = true,
   onBeforeClose,
 }: Props) {
   useEscLayer(open && closeOnEsc, () => {

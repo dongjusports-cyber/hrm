@@ -1,0 +1,31 @@
+---
+description: Quy tắc phím ESC — ô nhập, overlay, quay trang (apps/web)
+globs: apps/web/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# Phím ESC (bắt buộc)
+
+## Hành vi
+
+1. **Đang focus ô nhập** (`input`/`textarea`/`select` editable): **ESC** = hoàn tác về giá trị lúc focus + blur (thoát ô). Không đóng sheet/trang.
+2. **Trong overlay/sheet/modal, không sửa ô**: **ESC** = đóng tầng hiện tại (≈ nút «Đóng») hoặc quay tab con trước (`onTabBack`), rồi mới đóng.
+3. **Trang module, không còn overlay**: **ESC** = quay trang trước (`GlobalEscBack` / `useHrSubpageEsc`).
+
+## Cách implement
+
+| Pattern | Cách làm |
+|---------|----------|
+| Form full-screen có ô nhập | `useSheetKeyboard({ open, containerRef, onTabBack?, onClose })` + `FullScreenSheet closeOnEsc={false}` |
+| Sheet/modal chỉ xem / ít form | `FullScreenSheet` (mặc định `closeOnEsc={true}`) hoặc `useEscLayer(open, onClose)` |
+| Modal `.modal-backdrop` | `useSheetKeyboard` + `onClose`, hoặc `useEscLayer` |
+| Trang con HR | `useHrSubpageEsc({ backTo, onDismiss? })` |
+
+**Không** tự `window.addEventListener('keydown', Escape)` — dùng `useEscLayer` / `useSheetKeyboard` (ngăn xếp `escStack.ts`).
+
+## Checklist khi thêm overlay mới
+
+- [ ] ESC trong ô nhập hoàn tác + blur
+- [ ] ESC ngoài ô đóng overlay (`onClose`)
+- [ ] Sheet có tab con: `onTabBack` trước, `onClose` sau
+- [ ] Không trùng hai tầng ESC (vd. `closeOnEsc={true}` **và** `useSheetKeyboard` cùng đóng)

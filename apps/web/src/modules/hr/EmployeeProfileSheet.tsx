@@ -211,6 +211,7 @@ export function EmployeeProfileSheet({
       setExtraTab(prev);
       return true;
     },
+    onClose,
   });
 
   useEffect(() => {
@@ -501,7 +502,7 @@ export function EmployeeProfileSheet({
   ];
 
   return (
-    <FullScreenSheet open={open} title={title} hideHeader onClose={onClose}>
+    <FullScreenSheet open={open} title={title} hideHeader closeOnEsc={false} onClose={onClose}>
       <div className="fs-sheet-layout" ref={formShellRef}>
         {loading ? (
           <p className="field-hint fs-sheet-loading">Đang tải hồ sơ…</p>

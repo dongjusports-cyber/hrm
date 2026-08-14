@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
+from app.core.config import get_settings
 from app.core.deps import AdminUser, CurrentUser, DbSession, require_module
 from app.modules.integration import service
 from app.modules.integration.post_ingest import run_post_ingest_recalc

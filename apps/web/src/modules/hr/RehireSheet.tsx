@@ -72,7 +72,7 @@ export function RehireSheet({ employee, teams, onClose, onDone }: Props) {
   const [busy, setBusy] = useState(false);
   const formShellRef = useRef<HTMLFormElement>(null);
 
-  useSheetKeyboard({ open: true, containerRef: formShellRef });
+  useSheetKeyboard({ open: true, containerRef: formShellRef, onClose });
 
   useEffect(() => {
 

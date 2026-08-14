@@ -42,14 +42,16 @@ type SheetKeyboardOptions = {
   containerRef: RefObject<HTMLElement | null>;
   /** ESC khi không đang sửa ô — quay tab trước. Trả true nếu đã xử lý. */
   onTabBack?: () => boolean;
+  /** ESC khi `onTabBack` không xử lý — đóng sheet / quay trang trước (≈ nút Đóng). */
+  onClose?: () => void;
 };
 
 /**
- * ESC trong ô nhập: hoàn tác về giá trị lúc focus.
+ * ESC trong ô nhập: hoàn tác về giá trị lúc focus, blur khỏi ô.
  * Enter trong ô (trừ textarea): blur = commit qua onBlur/onChange.
- * ESC ngoài ô: `onTabBack` (không đóng sheet / không thoát Full).
+ * ESC ngoài ô: `onTabBack` trước, rồi `onClose`.
  */
-export function useSheetKeyboard({ open, containerRef, onTabBack }: SheetKeyboardOptions) {
+export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: SheetKeyboardOptions) {
   const [fieldEditing, setFieldEditing] = useState(false);
   const snapshotRef = useRef<{
     el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -57,6 +59,8 @@ export function useSheetKeyboard({ open, containerRef, onTabBack }: SheetKeyboar
   } | null>(null);
   const onTabBackRef = useRef(onTabBack);
   onTabBackRef.current = onTabBack;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) {
@@ -113,6 +117,7 @@ export function useSheetKeyboard({ open, containerRef, onTabBack }: SheetKeyboar
   });
 
   useEscLayer(open && !fieldEditing, () => {
-    onTabBackRef.current?.();
+    if (onTabBackRef.current?.()) return;
+    onCloseRef.current?.();
   });
 }

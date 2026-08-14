@@ -41,6 +41,11 @@ def test_probation_filter_by_unsigned_contract(client):
     active_list = client.get("/api/employees?status=active", headers=headers).json()
     assert code not in {e["employee_code"] for e in active_list}
 
+    # Tìm MSNV trên tab Chính thức vẫn thấy NV (đang thuộc tab Thử việc)
+    search_active = client.get(f"/api/employees?status=active&q={code}", headers=headers).json()
+    assert code in {e["employee_code"] for e in search_active}
+    assert search_active[0]["effective_status"] == "probation"
+
     future = (date.today() + timedelta(days=30)).isoformat()
     client.put(
         f"/api/employees/{emp_id}",

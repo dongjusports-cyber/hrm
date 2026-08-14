@@ -364,12 +364,19 @@ def _apply_profile(emp: Employee, assign: dict, prof: dict) -> None:
     if sal and sal > 0:
         emp.contract_salary = sal
 
-    if prof.get("contract_start"):
-        emp.contract_signed_at = prof["contract_start"]
+    signed = prof.get("contract_signed_at") or prof.get("contract_start")
+    if signed:
+        emp.contract_signed_at = signed if isinstance(signed, date) else _parse_vn_date(signed, 0)
 
+    ctype = prof.get("contract_type_code")
     if prof.get("left_date"):
         emp.resign_date = prof["left_date"]
         emp.status = "resigned"
+    elif ctype == "TV":
+        emp.status = "probation"
+    elif ctype in ("VTH", "HD1", "HD2"):
+        emp.status = "active"
+        emp.resign_date = None
     else:
         emp.status = "active"
         emp.resign_date = None

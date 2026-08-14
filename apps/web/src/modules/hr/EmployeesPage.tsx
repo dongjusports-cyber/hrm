@@ -121,6 +121,9 @@ export function EmployeesPage() {
   const location = useLocation();
   const [rows, setRows] = useState<Employee[]>([]);
   const [q, setQ] = useState("");
+  /** Từ khóa đã áp dụng lên API — chỉ đổi khi bấm Tìm / Enter (tránh race với tải ban đầu). */
+  const [appliedQ, setAppliedQ] = useState("");
+  const fetchSeqRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -155,6 +158,11 @@ export function EmployeesPage() {
   );
 
   useEffect(() => {
+    setQ("");
+    setAppliedQ("");
+  }, [statusFilter]);
+
+  useEffect(() => {
     const st = location.state as { openProfileId?: string } | null;
     if (st?.openProfileId) {
       setProfileEmpId(st.openProfileId);
@@ -185,21 +193,35 @@ export function EmployeesPage() {
     [activeTeamList, departmentId],
   );
 
+  const searchCrossTabHint = useMemo(() => {
+    if (!appliedQ.trim() || statusFilter === "all" || statusFilter === "resigned") return null;
+    const others = rows.filter((e) => e.effective_status && e.effective_status !== statusFilter);
+    if (others.length === 0) return null;
+    const labels = [...new Set(others.map((e) => e.status_label || e.effective_status))];
+    return `Kết quả gồm NV thuộc tab khác (${labels.join(", ")}) — vẫn mở được hồ sơ.`;
+  }, [appliedQ, rows, statusFilter]);
+
   const reload = useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
     setError(null);
     try {
-      setRows(
-        await fetchEmployees({
-          q: q || undefined,
-          status: statusFilter,
-          department_id: departmentId || undefined,
-          team_id: teamId || undefined,
-        }),
-      );
+      const data = await fetchEmployees({
+        q: appliedQ || undefined,
+        status: statusFilter,
+        department_id: departmentId || undefined,
+        team_id: teamId || undefined,
+      });
+      if (seq !== fetchSeqRef.current) return;
+      setRows(data);
     } catch (e) {
+      if (seq !== fetchSeqRef.current) return;
       setError(e instanceof Error ? e.message : "Không tải được nhân sự.");
     }
-  }, [q, statusFilter, departmentId, teamId]);
+  }, [appliedQ, statusFilter, departmentId, teamId]);
+
+  function applySearch() {
+    setAppliedQ(q.trim());
+  }
 
   useEffect(() => {
     void reload();
@@ -215,6 +237,7 @@ export function EmployeesPage() {
     setDepartmentId("");
     setTeamId("");
     setQ("");
+    setAppliedQ("");
   }
 
   async function onUnlockReset(emp: Employee, e: MouseEvent) {
@@ -428,7 +451,7 @@ export function EmployeesPage() {
     try {
       await downloadEmployeesExport(
         {
-          q: q || undefined,
+          q: appliedQ || undefined,
           status: statusFilter,
           department_id: departmentId || undefined,
           team_id: teamId || undefined,
@@ -457,6 +480,7 @@ export function EmployeesPage() {
       </div>
 
       {error && <p className="banner-warn">{error}</p>}
+      {searchCrossTabHint && <p className="field-hint">{searchCrossTabHint}</p>}
       {ok && <p className="banner-ok">{ok}</p>}
 
       <div className="hr-toolbar">
@@ -467,7 +491,7 @@ export function EmployeesPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") void reload();
+            if (e.key === "Enter") applySearch();
           }}
         />
         <select
@@ -498,7 +522,7 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <button type="button" className="btn-primary btn-compact" onClick={() => void reload()}>
+        <button type="button" className="btn-primary btn-compact" onClick={applySearch}>
           Tìm
         </button>
         <div className="view-toggle view-toggle-compact">

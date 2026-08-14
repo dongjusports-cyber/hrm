@@ -43,3 +43,32 @@ def test_push_with_claimed_job_updates_same_job(client):
     listed = client.get("/api/integrations/sync-jobs?limit=5", headers=_hr_headers(client)).json()
     same = next((j for j in listed["items"] if j["id"] == job_id), None)
     assert same is not None
+
+
+def test_push_background_recalc_path(client, monkeypatch):
+    """Production: SYNC_RECALC_INLINE=0 — schedule_recalc không được NameError."""
+    monkeypatch.setenv("SYNC_RECALC_INLINE", "0")
+    get_settings.cache_clear()
+
+    job = client.post("/api/attendance/sync-now", headers=_hr_headers(client)).json()
+    job_id = job["id"]
+    client.post(
+        f"/api/integrations/mitapro/pending/{job_id}/claim",
+        headers=_agent_headers(),
+    )
+
+    res = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "claimed_job_id": job_id,
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-09T08:02:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-09T17:02:00+07:00"},
+            ],
+        },
+    )
+    assert res.status_code == 200, res.text
+    out = res.json()["job"]
+    assert out["id"] == job_id
+    assert out["status"] in ("success", "partial", "running")
