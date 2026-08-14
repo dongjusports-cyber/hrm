@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
 import { registerEscHandler } from "./escStack";
 
-/** Đăng ký một tầng ESC — chỉ active khi `active === true`. */
+/**
+ * @locked Đăng ký tầng ESC — dùng escStack, không tự addEventListener Escape.
+ * Xem `.cursor/rules/esc-keyboard.mdc`
+ */
 export function useEscLayer(active: boolean, onEsc: () => void) {
   const ref = useRef(onEsc);
   ref.current = onEsc;

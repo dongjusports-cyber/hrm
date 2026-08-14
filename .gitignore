@@ -45,6 +45,9 @@ redisdata/
 # Uploads (ảnh hồ sơ NV…)
 apps/api/data/uploads/
 
+# SQLite UAT / dev local
+apps/api/data/*.db
+
 # Dữ liệu lương gốc GenusSuite dùng để nạp dữ liệu test (PII thật)
 apps/api/data/genussuite_2026/
 

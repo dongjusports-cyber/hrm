@@ -1,16 +1,30 @@
 ---
-description: Quy tắc phím ESC — ô nhập, overlay, quay trang (apps/web)
+description: Quy tắc phím ESC — ô nhập, overlay, quay trang (apps/web) — KHÓA
 globs: apps/web/**/*.{tsx,ts}
-alwaysApply: false
+alwaysApply: true
 ---
 
-# Phím ESC (bắt buộc)
+# Phím ESC (bắt buộc — KHÔNG sửa tùy tiện)
+
+> **Khóa hồi quy:** Sau mỗi thay đổi liên quan ESC, chạy `cd apps/web && npm test -- escKeyboard`.
+> Không refactor / gộp file ESC nếu không có yêu cầu rõ ràng. Giữ nguyên thứ tự ưu tiên bên dưới.
 
 ## Hành vi
 
-1. **Đang focus ô nhập** (`input`/`textarea`/`select` editable): **ESC** = hoàn tác về giá trị lúc focus + blur (thoát ô). Không đóng sheet/trang.
-2. **Trong overlay/sheet/modal, không sửa ô**: **ESC** = đóng tầng hiện tại (≈ nút «Đóng») hoặc quay tab con trước (`onTabBack`), rồi mới đóng.
-3. **Trang module, không còn overlay**: **ESC** = quay trang trước (`GlobalEscBack` / `useHrSubpageEsc`).
+1. **Đang focus ô nhập** (`input`/`textarea`/`select` editable): **ESC** = hoàn tác về giá trị lúc focus + blur (thoát ô, giống Excel). **Không** đóng sheet/trang.
+2. **AG Grid đang sửa ô** (`.ag-cell-inline-editing`): **ESC** để grid tự hủy — `escStack` **không** chặn.
+3. **Trong overlay/sheet/modal, không sửa ô**: **ESC** = đóng tầng hiện tại (≈ nút «Đóng») hoặc quay tab con trước (`onTabBack`), rồi mới đóng.
+4. **Trang module, không còn overlay**: **ESC** = quay trang trước (`GlobalEscBack` / `useHrSubpageEsc`).
+
+## File lõi (đã khóa `@locked`)
+
+| File | Vai trò |
+|------|---------|
+| `apps/web/src/shared/escStack.ts` | Listener capture + thứ tự ưu tiên |
+| `apps/web/src/shared/formFieldEsc.ts` | Snapshot ô nhập, `useSheetKeyboard` |
+| `apps/web/src/shared/useEscLayer.ts` | Đăng ký tầng overlay |
+| `apps/web/src/shared/GlobalEscBack.tsx` | Fallback quay trang |
+| `apps/web/src/shared/escKeyboard.test.ts` | Test hồi quy |
 
 ## Cách implement
 
@@ -19,13 +33,16 @@ alwaysApply: false
 | Form full-screen có ô nhập | `useSheetKeyboard({ open, containerRef, onTabBack?, onClose })` + `FullScreenSheet closeOnEsc={false}` |
 | Sheet/modal chỉ xem / ít form | `FullScreenSheet` (mặc định `closeOnEsc={true}`) hoặc `useEscLayer(open, onClose)` |
 | Modal `.modal-backdrop` | `useSheetKeyboard` + `onClose`, hoặc `useEscLayer` |
-| Trang con HR | `useHrSubpageEsc({ backTo, onDismiss? })` |
+| Trang con HR (không có sheet ESC riêng) | `useHrSubpageEsc({ backTo, onDismiss? })` |
+| Ô giờ `TimeInput24` | `registerActiveFieldEsc` trong `onFocus` — **không** `useEscLayer` |
+| Menu toolbar `ToolbarMoreMenu` | `useEscLayer(open, onClose)` — **không** `document.addEventListener('keydown', Escape)` |
 
 **Không** tự `window.addEventListener('keydown', Escape)` — dùng `useEscLayer` / `useSheetKeyboard` (ngăn xếp `escStack.ts`).
 
 ## Checklist khi thêm overlay mới
 
-- [ ] ESC trong ô nhập hoàn tác + blur
+- [ ] ESC trong ô nhập hoàn tác + blur (tự động qua `formFieldEsc` global)
 - [ ] ESC ngoài ô đóng overlay (`onClose`)
 - [ ] Sheet có tab con: `onTabBack` trước, `onClose` sau
 - [ ] Không trùng hai tầng ESC (vd. `closeOnEsc={true}` **và** `useSheetKeyboard` cùng đóng)
+- [ ] Chạy `npm test -- escKeyboard`

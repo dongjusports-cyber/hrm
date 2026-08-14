@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { navigateSmooth } from "./navigateSmooth";
 import { useEscLayer } from "./useEscLayer";
 
-/** ESC trên màn con HR: đóng overlay/tab con trước, sau đó về `backTo` (mặc định hub `/m/hr`). */
+/**
+ * @locked ESC trang con HR — xem `.cursor/rules/esc-keyboard.mdc`
+ */
 export function useHrSubpageEsc(options?: {
   onDismiss?: () => boolean;
   backTo?: string;
