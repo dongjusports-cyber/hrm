@@ -246,6 +246,7 @@ def rebuild_timesheets(
         emp_ids.add(eid)
     emp_map = {e.id: e for e in db.query(Employee).filter(Employee.id.in_(emp_ids)).all()} if emp_ids else {}
 
+    penalty_rules = _attendance_penalties(db)
     upserted = 0
     for emp_id, emp in emp_map.items():
         if emp.deleted_at is not None:
@@ -292,7 +293,7 @@ def rebuild_timesheets(
             _day_penalty_views(day_rows),
             _adj_penalty_views(adj_rows),
             contract_signed_at=emp.contract_signed_at,
-            penalties=_attendance_penalties(db),
+            penalties=penalty_rules,
         )
         late_c = penalty_sum.late_count
         early_c = penalty_sum.early_count

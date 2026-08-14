@@ -21,6 +21,10 @@ class MitaproPushRequest(BaseModel):
     synced_from: datetime | None = None
     synced_to: datetime | None = None
     agent_name: str | None = None
+    claimed_job_id: UUID | None = Field(
+        default=None,
+        description="Job HR đã claim — ingest cập nhật cùng job (tránh poll lệch ID).",
+    )
 
 
 class MitaproErrorReport(BaseModel):

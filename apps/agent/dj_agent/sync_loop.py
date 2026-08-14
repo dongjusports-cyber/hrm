@@ -32,6 +32,7 @@ def run_once(
     reason: str = "schedule",
     dt_from: datetime | None = None,
     dt_to: datetime | None = None,
+    claimed_job_id: str | None = None,
 ) -> dict:
     if dt_from is None or dt_to is None:
         dt_from, dt_to = compute_window(settings)
@@ -42,6 +43,7 @@ def run_once(
         rows,
         synced_from=dt_from.isoformat(),
         synced_to=dt_to.isoformat(),
+        claimed_job_id=claimed_job_id,
     )
     job = result.get("job") or {}
     set_last_sync_at(
@@ -76,6 +78,7 @@ def process_pending(settings: AgentSettings, source: PunchSource, pusher: ApiPus
                 reason="manual",
                 dt_from=dt_from,
                 dt_to=dt_to,
+                claimed_job_id=jid,
             )
             done += 1
         except Exception as exc:  # noqa: BLE001
@@ -118,8 +121,11 @@ def run_forever(settings: AgentSettings, source: PunchSource, pusher: ApiPusher)
     )
     while True:
         try:
-            process_pending(settings, source, pusher)
-            run_once(settings, source, pusher, reason="schedule")
+            pending_done = process_pending(settings, source, pusher)
+            if pending_done == 0:
+                run_once(settings, source, pusher, reason="schedule")
+            else:
+                log.info("Bỏ qua scheduled sync — vừa xử lý %s pending job", pending_done)
         except Exception as exc:  # noqa: BLE001
             log.error("Trợ Lý AI / Agent lỗi sync: %s", exc)
             _safe_report_error(pusher, str(exc))

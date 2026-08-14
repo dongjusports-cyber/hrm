@@ -12,6 +12,7 @@ os.environ["DJHRM_AI_STUB"] = "1"
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["APP_ENV"] = "local"
 os.environ["AGENT_TOKEN"] = "test-agent-token-local"
+os.environ["SYNC_RECALC_INLINE"] = "1"
 
 from collections.abc import Generator  # noqa: E402
 

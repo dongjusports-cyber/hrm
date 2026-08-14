@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.modules.attendance.engine import VN_TZ, to_vn
+from app.modules.integration.bulk_ingest import bulk_insert_punches
 from app.modules.integration.models import AttendancePunch, SyncJob
 from app.modules.integration.punch_resolver import (
     backfill_unlinked_punches,
@@ -59,31 +60,73 @@ def _is_mock_punch(ma_cham_cong: str | None) -> bool:
     return bool(ma_cham_cong and str(ma_cham_cong).strip().upper().startswith("MOCK-FP-"))
 
 
+def _recalc_after_ingest(db: Session, date_from: date, date_to: date) -> None:
+    from app.modules.attendance.service import recalculate_days
+    from app.modules.attendance.timesheet import rebuild_timesheets
+
+    recalculate_days(db, date_from=date_from, date_to=date_to)
+    y, m = date_from.year, date_from.month
+    end_y, end_m = date_to.year, date_to.month
+    while (y, m) <= (end_y, end_m):
+        rebuild_timesheets(db, f"{y:04d}-{m:02d}", recalc_days=False)
+        if m == 12:
+            y += 1
+            m = 1
+        else:
+            m += 1
+
+
 def ingest_punches(
-    db: Session, body: MitaproPushRequest, *, trigger: str = "agent"
+    db: Session,
+    body: MitaproPushRequest,
+    *,
+    trigger: str = "agent",
+    claimed_job_id: UUID | None = None,
+    schedule_recalc: bool = True,
+    on_recalc_scheduled=None,
 ) -> MitaproPushResult:
-    """Nhận batch punch; trùng (MSNV, thời điểm) thì bỏ qua."""
-    job = SyncJob(
-        status="running",
-        records_in=len(body.punches),
-        records_inserted=0,
-        records_skipped=0,
-        message="Đang nhận dữ liệu từ Agent…",
-        source="mitapro",
-        trigger=trigger,
-        started_at=datetime.now(timezone.utc),
-    )
-    db.add(job)
+    """Nhận batch punch; trùng (MSNV, thời điểm) thì bỏ qua.
+
+    claimed_job_id: job HR đã claim — cập nhật cùng job thay vì tạo mới.
+    schedule_recalc: False trong test đồng bộ; True → tính công nền sau response.
+    on_recalc_scheduled: callback(job_id, date_from, date_to, partial, base_message).
+    """
+    if claimed_job_id is not None:
+        job = db.get(SyncJob, claimed_job_id)
+        if job is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Trợ Lý AI: không tìm thấy job đồng bộ.",
+            )
+        job.status = "running"
+        job.records_in = len(body.punches)
+        job.records_inserted = 0
+        job.records_skipped = 0
+        job.message = "Đang nhận dữ liệu từ Agent…"
+        job.trigger = trigger
+        job.started_at = job.started_at or datetime.now(timezone.utc)
+        job.finished_at = None
+    else:
+        job = SyncJob(
+            status="running",
+            records_in=len(body.punches),
+            records_inserted=0,
+            records_skipped=0,
+            message="Đang nhận dữ liệu từ Agent…",
+            source="mitapro",
+            trigger=trigger,
+            started_at=datetime.now(timezone.utc),
+        )
+        db.add(job)
     db.flush()
 
     maps = build_employee_resolve_maps(db)
     known_codes = set(maps.by_code.keys())
-    inserted = 0
-    skipped = 0
     mock_ignored = 0
     patrol_ignored = 0
     linked = 0
     unknown: list[str] = []
+    prepared: list[dict] = []
 
     for p in body.punches:
         code = p.employee_code.strip()
@@ -94,87 +137,78 @@ def ingest_punches(
             mock_ignored += 1
             continue
         punch_time = normalize_punch_time(p.punch_time)
-
         emp_id = resolve_employee_id(maps, employee_code=code, ma_cham_cong=p.ma_cham_cong)
         if emp_id is None and code not in unknown:
             unknown.append(code)
-
         direction = direction_from_punch_in(p.direction, p.raw)
+        prepared.append(
+            {
+                "employee_code": code,
+                "employee_id": emp_id,
+                "punch_time": punch_time,
+                "direction": direction,
+                "source": "mitapro",
+                "ma_cham_cong": p.ma_cham_cong,
+                "device_id": p.device_id,
+                "raw": p.raw or {"employee_code": code},
+            }
+        )
 
-        nested = db.begin_nested()
-        try:
-            db.add(
-                AttendancePunch(
-                    employee_code=code,
-                    employee_id=emp_id,
-                    punch_time=punch_time,
-                    direction=direction,
-                    sync_job_id=job.id,
-                    source="mitapro",
-                    ma_cham_cong=p.ma_cham_cong,
-                    device_id=p.device_id,
-                    raw=p.raw or {"employee_code": code},
-                )
-            )
-            db.flush()
-            nested.commit()
-            inserted += 1
-            if emp_id is not None:
-                linked += 1
-        except IntegrityError:
-            nested.rollback()
-            skipped += 1
-
+    inserted, skipped, linked = bulk_insert_punches(db, sync_job_id=job.id, rows=prepared)
     job.records_inserted = inserted
     job.records_skipped = skipped
-    job.finished_at = datetime.now(timezone.utc)
 
+    partial = bool(unknown)
     if not body.punches:
         job.status = "success"
         job.message = "Agent gửi 0 punch."
+        job.finished_at = datetime.now(timezone.utc)
     else:
         warn = ""
         if unknown:
             sample = ", ".join(unknown[:10])
             more = f"… (+{len(unknown) - 10})" if len(unknown) > 10 else ""
             warn = f" Cảnh báo: MSNV chưa có trong Nhân Sự: {sample}{more}."
-            job.status = "partial"
-        else:
-            job.status = "success"
         patrol_note = ""
         if patrol_ignored:
             patrol_note = f" Bỏ bảo vệ tuần (200*): {patrol_ignored}."
         mock_note = ""
         if mock_ignored:
             mock_note = f" Bỏ dữ liệu mock Agent: {mock_ignored}."
-        job.message = (
-            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{inserted}.{warn}{patrol_note}{mock_note}"
+        base_message = (
+            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{max(inserted, 1)}.{warn}{patrol_note}{mock_note}"
         ).strip()
+
+        if inserted > 0 and schedule_recalc:
+            dates = [
+                to_vn(normalize_punch_time(p.punch_time)).date()
+                for p in body.punches
+                if p.employee_code.strip() in known_codes
+            ]
+            if dates:
+                d_from, d_to = min(dates), max(dates)
+                if get_settings().sync_recalc_inline:
+                    _recalc_after_ingest(db, d_from, d_to)
+                    base_message = f"{base_message} Đã tính lại công {d_from} → {d_to}."
+                elif on_recalc_scheduled is not None:
+                    job.status = "running"
+                    job.message = f"{base_message} Đang tính lại công…"
+                    job.finished_at = None
+                    db.commit()
+                    db.refresh(job)
+                    on_recalc_scheduled(job.id, d_from, d_to, partial, base_message)
+                    return MitaproPushResult(job=to_job_out(job), detail=f"Trợ Lý AI: {job.message}")
+
+        job.status = "partial" if partial else "success"
+        job.message = base_message
+        job.finished_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(job)
 
-    # P2.5 — Lớp A: sync partial/error → nhắc Admin
     from app.modules.ai.service import emit_sync_job_alert
 
     emit_sync_job_alert(db, job)
-
-    # P2.3 — tự tính lại ngày công cho khoảng punch vừa nhận (MSNV đã có hồ sơ)
-    if inserted > 0:
-        from app.modules.attendance.engine import to_vn
-        from app.modules.attendance.service import recalculate_days
-
-        dates = [
-            to_vn(normalize_punch_time(p.punch_time)).date()
-            for p in body.punches
-            if p.employee_code.strip() in known_codes
-        ]
-        if dates:
-            recalculate_days(db, date_from=min(dates), date_to=max(dates))
-            from app.modules.attendance.timesheet import rebuild_timesheets
-
-            for period in {f"{d.year:04d}-{d.month:02d}" for d in dates}:
-                rebuild_timesheets(db, period, recalc_days=False)
 
     return MitaproPushResult(job=to_job_out(job), detail=f"Trợ Lý AI: {job.message}")
 

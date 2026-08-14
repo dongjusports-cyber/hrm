@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "Admin@DongJu2026"
     admin_full_name: str = "Nguyễn Thanh Thiện"
+    # True: tính công ngay trong request (test/dev). False: nền sau response (production Agent).
+    sync_recalc_inline: bool = False
 
     @property
     def is_production(self) -> bool:
