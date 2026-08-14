@@ -1,4 +1,7 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
+/**
+ * @locked ESC trong ô nhập — KHÔNG sửa tùy tiện. Xem `.cursor/rules/esc-keyboard.mdc`
+ */
+import { type RefObject, useEffect, useRef } from "react";
 import { useEscLayer } from "./useEscLayer";
 
 export function isEditableFormField(
@@ -37,6 +40,68 @@ export function setFormFieldValue(
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+type ActiveFieldEsc = {
+  el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+  value: string;
+  onRevert?: () => void;
+};
+
+let activeFieldEsc: ActiveFieldEsc | null = null;
+let globalFieldListenerInstalled = false;
+
+export function registerActiveFieldEsc(
+  el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
+  onRevert?: () => void,
+) {
+  activeFieldEsc = { el, value: getFieldValue(el), onRevert };
+}
+
+function ensureGlobalFieldEsc() {
+  if (globalFieldListenerInstalled) return;
+  if (typeof document === "undefined") return;
+  globalFieldListenerInstalled = true;
+  document.addEventListener("focusin", (e) => {
+    if (!isEditableFormField(e.target)) {
+      clearActiveFieldEsc();
+      return;
+    }
+    registerActiveFieldEsc(e.target);
+  });
+  document.addEventListener("focusout", (e) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && isEditableFormField(related)) return;
+    clearActiveFieldEsc(e.target instanceof HTMLElement ? e.target : undefined);
+  });
+}
+
+/** Gọi từ escStack khi khởi tạo listener ESC (tránh chạy lúc import trong Node test). */
+export function installGlobalFieldEsc() {
+  ensureGlobalFieldEsc();
+}
+
+export function clearActiveFieldEsc(el?: HTMLElement) {
+  if (!activeFieldEsc) return;
+  if (!el || activeFieldEsc.el === el) activeFieldEsc = null;
+}
+
+/** Gọi từ escStack — hoàn tác ô đang focus (Excel-like). */
+export function tryRevertActiveFieldEsc(): boolean {
+  if (!activeFieldEsc) return false;
+  const { el, value } = activeFieldEsc;
+  if (document.activeElement !== el) return false;
+  setFormFieldValue(el, value);
+  activeFieldEsc.onRevert?.();
+  el.blur();
+  activeFieldEsc = null;
+  return true;
+}
+
+export function isFieldFocusedInRoot(root: HTMLElement | null): boolean {
+  if (!root) return false;
+  const active = document.activeElement;
+  return isEditableFormField(active) && root.contains(active);
+}
+
 type SheetKeyboardOptions = {
   open: boolean;
   containerRef: RefObject<HTMLElement | null>;
@@ -47,16 +112,11 @@ type SheetKeyboardOptions = {
 };
 
 /**
- * ESC trong ô nhập: hoàn tác về giá trị lúc focus, blur khỏi ô.
+ * ESC trong ô nhập: hoàn tác về giá trị lúc focus, blur khỏi ô (escStack xử lý).
  * Enter trong ô (trừ textarea): blur = commit qua onBlur/onChange.
  * ESC ngoài ô: `onTabBack` trước, rồi `onClose`.
  */
 export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: SheetKeyboardOptions) {
-  const [fieldEditing, setFieldEditing] = useState(false);
-  const snapshotRef = useRef<{
-    el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-    value: string;
-  } | null>(null);
   const onTabBackRef = useRef(onTabBack);
   onTabBackRef.current = onTabBack;
   const onCloseRef = useRef(onClose);
@@ -64,8 +124,7 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
 
   useEffect(() => {
     if (!open) {
-      setFieldEditing(false);
-      snapshotRef.current = null;
+      clearActiveFieldEsc();
       return;
     }
     const root = containerRef.current;
@@ -73,19 +132,16 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
 
     function onFocusIn(e: FocusEvent) {
       if (!isEditableFormField(e.target)) {
-        setFieldEditing(false);
-        snapshotRef.current = null;
+        clearActiveFieldEsc();
         return;
       }
-      snapshotRef.current = { el: e.target, value: getFieldValue(e.target) };
-      setFieldEditing(true);
+      registerActiveFieldEsc(e.target);
     }
 
     function onFocusOut(e: FocusEvent) {
       const related = e.relatedTarget as Node | null;
       if (root && related && root.contains(related) && isEditableFormField(related)) return;
-      setFieldEditing(false);
-      snapshotRef.current = null;
+      clearActiveFieldEsc(e.target instanceof HTMLElement ? e.target : undefined);
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -104,19 +160,13 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
       root.removeEventListener("focusin", onFocusIn);
       root.removeEventListener("focusout", onFocusOut);
       root.removeEventListener("keydown", onKeyDown);
+      clearActiveFieldEsc();
     };
   }, [open, containerRef]);
 
-  useEscLayer(open && fieldEditing, () => {
-    const snap = snapshotRef.current;
-    if (!snap) return;
-    setFormFieldValue(snap.el, snap.value);
-    snap.el.blur();
-    setFieldEditing(false);
-    snapshotRef.current = null;
-  });
-
-  useEscLayer(open && !fieldEditing, () => {
+  useEscLayer(open, () => {
+    const root = containerRef.current;
+    if (isFieldFocusedInRoot(root)) return;
     if (onTabBackRef.current?.()) return;
     onCloseRef.current?.();
   });

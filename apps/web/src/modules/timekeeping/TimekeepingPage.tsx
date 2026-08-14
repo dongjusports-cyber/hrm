@@ -24,6 +24,7 @@ import { AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { isEditableFormField } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
@@ -350,7 +351,10 @@ export function TimekeepingPage() {
 
   // ESC: OT ngoài → (sheet chi tiết ngày tự xử lý) → bỏ chọn NV
   useEscLayer(otExternalOpen, () => setOtExternalOpen(false));
-  useEscLayer(!!selected && !detailOpen && !otExternalOpen, clearSelection);
+  useEscLayer(!!selected && !detailOpen && !otExternalOpen, () => {
+    if (isEditableFormField(document.activeElement)) return;
+    clearSelection();
+  });
 
   const applySearchSelect = useCallback(
     (opts?: { exactOnly?: boolean }) => {

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { fetchEmployees } from "../../shared/api";
 import { isEmployeeRouteUuid } from "../../shared/employeeRouteId";
-import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { type HrNavState } from "../../shared/hrNavState";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 
@@ -23,8 +22,6 @@ export function EmployeeDetailPage() {
   const listBack =
     (location.state as HrNavState | null)?.hrListBack ??
     (isNew ? "/m/hr" : "/m/hr/lists/active");
-
-  useHrSubpageEsc({ backTo: listBack });
 
   useEffect(() => {
     if (isNew) {

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useEscLayer } from "./useEscLayer";
+import { clearActiveFieldEsc, registerActiveFieldEsc } from "./formFieldEsc";
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -52,15 +52,10 @@ export function TimeInput24({
   placeholder = "HH:mm",
   ...rest
 }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [, setEditing] = useState(false);
   const snapshotRef = useRef(value);
-
-  useEscLayer(editing, () => {
-    onEditCancel?.();
-    onChange(snapshotRef.current);
-    setEditing(false);
-    (document.activeElement as HTMLElement | null)?.blur();
-  });
+  const onEditCancelRef = useRef(onEditCancel);
+  onEditCancelRef.current = onEditCancel;
 
   const selectAll = useCallback((el: HTMLInputElement) => {
     requestAnimationFrame(() => el.select());
@@ -70,6 +65,10 @@ export function TimeInput24({
     (e: FocusEvent<HTMLInputElement>) => {
       snapshotRef.current = value;
       setEditing(true);
+      registerActiveFieldEsc(e.currentTarget, () => {
+        onEditCancelRef.current?.();
+        setEditing(false);
+      });
       selectAll(e.currentTarget);
       onFocus?.(e);
     },
@@ -79,6 +78,7 @@ export function TimeInput24({
   const handleBlur = useCallback(
     (e: FocusEvent<HTMLInputElement>) => {
       setEditing(false);
+      clearActiveFieldEsc(e.currentTarget);
       const n = normalizeTimeHHMM(e.target.value);
       if (n !== value) onChange(n);
       onBlur?.(e);
