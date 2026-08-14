@@ -120,8 +120,8 @@ export function computePanelBox(
   },
 ): PanelBox {
   const fabSize = opts?.fabSize ?? FAB_SIZE;
-  const panelWidth = opts?.panelWidth ?? 360;
-  const preferredHeight = opts?.preferredHeight ?? 480;
+  const panelWidth = opts?.panelWidth ?? 400;
+  const preferredHeight = opts?.preferredHeight ?? 520;
   const margin = opts?.margin ?? MARGIN;
   const gap = opts?.gap ?? 10;
 

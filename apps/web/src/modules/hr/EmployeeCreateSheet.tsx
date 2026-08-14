@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   createEmployee,
   fetchDepartments,
@@ -14,6 +14,7 @@ import {
   type ValidationIssue,
 } from "../../shared/api";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 import { emptyEmployeeForm, formToPayload } from "./employeeFormState";
 import { EmployeeCreateFields } from "./EmployeeProfileFields";
 
@@ -25,6 +26,7 @@ type Props = {
 
 /** Pilot full-screen overlay — tạo NV từ hub Nhân Sự. */
 export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
+  const formShellRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState(emptyEmployeeForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -67,6 +69,8 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
       if (photoPreview?.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
     };
   }, [photoPreview]);
+
+  useSheetKeyboard({ open, containerRef: formShellRef });
 
   function onPhotoPick(file: File | null) {
     if (file && !file.type.startsWith("image/")) {
@@ -128,7 +132,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
     <FullScreenSheet
       open={open}
       title="Tạo nhân viên"
-      subtitle="* bắt buộc · MSNV gợi ý tự động · Esc hoặc × để đóng"
+      subtitle="* bắt buộc · MSNV gợi ý tự động · Esc: hoàn tác ô nhập · Đóng: nút ×"
       onClose={onClose}
       bodyClassName="fs-sheet-body-create"
       actions={
@@ -154,6 +158,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
       )}
       <form
         id="emp-create-sheet-form"
+        ref={formShellRef}
         className="fs-sheet-form emp-create-form"
         onSubmit={(ev) => void onSubmit(ev)}
       >

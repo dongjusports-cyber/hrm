@@ -34,6 +34,7 @@ import {
 } from "../../shared/api";
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 import { labelEmpStatus } from "../../shared/viLabels";
 import { digitsOnlyMoney, emptyEmployeeForm, employeeToForm, formToPayload, type EmployeeFormState } from "./employeeFormState";
 import { EmployeeExperiencePanel } from "./EmployeeExperiencePanel";
@@ -98,6 +99,10 @@ export function EmployeeProfileSheet({
 }: Props) {
   const navigate = useNavigate();
   const [extraTab, setExtraTab] = useState<ExtraTab | null>(null);
+  const tabStackRef = useRef<(ExtraTab | null)[]>([]);
+  const formShellRef = useRef<HTMLDivElement>(null);
+  const extraTabRef = useRef<ExtraTab | null>(null);
+  extraTabRef.current = extraTab;
   const [form, setForm] = useState(emptyEmployeeForm);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -184,6 +189,30 @@ export function EmployeeProfileSheet({
 
   onUndoRef.current = onUndo;
 
+  const goExtraTab = useCallback((tab: ExtraTab | null) => {
+    setExtraTab((prev) => {
+      if (tab === prev) return prev;
+      tabStackRef.current.push(prev);
+      return tab;
+    });
+  }, []);
+
+  const goMainTab = useCallback(() => {
+    tabStackRef.current = [];
+    setExtraTab(null);
+  }, []);
+
+  useSheetKeyboard({
+    open,
+    containerRef: formShellRef,
+    onTabBack: () => {
+      if (extraTabRef.current === null) return false;
+      const prev = tabStackRef.current.pop() ?? null;
+      setExtraTab(prev);
+      return true;
+    },
+  });
+
   useEffect(() => {
     if (!ok) return;
     const t = window.setTimeout(() => setOk(null), 2800);
@@ -205,6 +234,7 @@ export function EmployeeProfileSheet({
   useEffect(() => {
     if (!open) {
       setExtraTab(null);
+      tabStackRef.current = [];
       undoStackRef.current = [];
       setCanUndo(false);
       return;
@@ -471,14 +501,8 @@ export function EmployeeProfileSheet({
   ];
 
   return (
-    <FullScreenSheet open={open} title={title} hideHeader onClose={onClose} onBeforeClose={() => {
-      if (extraTab !== null) {
-        setExtraTab(null);
-        return true;
-      }
-      return false;
-    }}>
-      <div className="fs-sheet-layout">
+    <FullScreenSheet open={open} title={title} hideHeader onClose={onClose}>
+      <div className="fs-sheet-layout" ref={formShellRef}>
         {loading ? (
           <p className="field-hint fs-sheet-loading">Đang tải hồ sơ…</p>
         ) : (
@@ -528,7 +552,7 @@ export function EmployeeProfileSheet({
                         role="tab"
                         aria-selected={extraTab === null}
                         className={extraTab === null ? "emp-subtab active" : "emp-subtab"}
-                        onClick={() => setExtraTab(null)}
+                        onClick={goMainTab}
                       >
                         Hồ sơ chính
                       </button>
@@ -539,7 +563,7 @@ export function EmployeeProfileSheet({
                           role="tab"
                           aria-selected={extraTab === t.id}
                           className={extraTab === t.id ? "emp-subtab active" : "emp-subtab"}
-                          onClick={() => setExtraTab(t.id)}
+                          onClick={() => goExtraTab(t.id)}
                         >
                           {t.label}
                           {t.count ? ` (${t.count})` : ""}
@@ -611,7 +635,7 @@ export function EmployeeProfileSheet({
                       type="button"
                       className="btn-ghost-dark btn-sm"
                       disabled={saving || !canUndo}
-                      title="Hoàn tác thay đổi chưa lưu (Ctrl+Z) · Đóng: Esc hoặc bấm nền tối"
+                      title="Hoàn tác thay đổi chưa lưu (Ctrl+Z) · Esc: quay tab / hoàn tác ô nhập · Đóng: nút ×"
                       onClick={() => onUndo()}
                     >
                       ↶ Hoàn tác

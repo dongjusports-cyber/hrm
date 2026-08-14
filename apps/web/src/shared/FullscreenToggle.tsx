@@ -25,8 +25,8 @@ export function FullscreenToggle() {
       onClick={() => void toggle()}
       title={
         active
-          ? "Thoát phóng to — bấm nút này (Esc dùng để quay tab)"
-          : "Full — phóng to toàn màn hình (ẩn thanh Chrome)"
+          ? "Thoát phóng to — chỉ bấm chuột (Esc: quay tab / hoàn tác ô nhập)"
+          : "Full — phóng to toàn màn hình (chỉ bấm chuột để thoát)"
       }
       aria-pressed={active}
       aria-label={active ? "Thoát phóng to" : "Phóng to toàn màn hình"}

@@ -3,6 +3,12 @@ import { Link } from "react-router-dom";
 import { fetchAiSettings, updateAiSettings, type AiSettings } from "../../shared/api";
 import { ConfigTabNav } from "./ConfigTabNav";
 
+const SOURCE_VI: Record<string, string> = {
+  database: "cơ sở dữ liệu",
+  env: "biến môi trường",
+  none: "chưa có",
+};
+
 /** Cấu Hình → AI Gemini (05§5.2) — key mã hóa at-rest / env. */
 export function AiSettingsPage() {
   const [settings, setSettings] = useState<AiSettings | null>(null);
@@ -54,7 +60,7 @@ export function AiSettingsPage() {
   }
 
   async function onClearKey() {
-    if (!window.confirm("Xóa API key đã lưu trong DB? (Vẫn dùng GEMINI_API_KEY trong .env nếu có)")) {
+    if (!window.confirm("Xóa khóa API đã lưu trong DB? (Vẫn dùng biến GEMINI_API_KEY trong .env nếu có)")) {
       return;
     }
     setBusy(true);
@@ -77,7 +83,7 @@ export function AiSettingsPage() {
       </p>
       <h1>AI Gemini (Trợ Lý AI)</h1>
       <p className="field-hint">
-        Lớp A nhắc việc = 0 token. Lớp B hỏi đáp chỉ khi user có <code>ai_query</code> và bấm Gửi.
+        Lớp A nhắc việc = 0 token. Lớp B hỏi đáp chỉ khi người dùng có quyền hỏi AI và bấm Gửi.
         Không hiện trên Worker Portal.
       </p>
       {error && <p className="banner-warn">{error}</p>}
@@ -128,20 +134,20 @@ export function AiSettingsPage() {
             />
           </label>
           <label>
-            API key mới (để trống = giữ nguyên)
+            Khóa API mới (để trống = giữ nguyên)
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Dán key Google AI Studio / Workspace"
+              placeholder="Dán khóa Google AI Studio / Workspace"
               autoComplete="off"
             />
           </label>
           <p className="field-hint">
-            Key hiện tại:{" "}
+            Khóa hiện tại:{" "}
             {settings.has_api_key
-              ? `${settings.api_key_masked ?? "****"} (nguồn: ${settings.source})`
-              : "chưa có — set GEMINI_API_KEY hoặc dán ở trên"}
+              ? `${settings.api_key_masked ?? "****"} (nguồn: ${SOURCE_VI[settings.source] ?? settings.source})`
+              : "chưa có — cấu hình biến GEMINI_API_KEY hoặc dán ở trên"}
           </p>
           <div className="dispute-action-btns">
             <button type="submit" className="btn-primary" disabled={busy}>
@@ -149,7 +155,7 @@ export function AiSettingsPage() {
             </button>
             {settings.has_api_key && settings.source === "database" && (
               <button type="button" className="btn-secondary" disabled={busy} onClick={() => void onClearKey()}>
-                Xóa key DB
+                Xóa khóa DB
               </button>
             )}
           </div>

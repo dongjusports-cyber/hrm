@@ -9,6 +9,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.modules.ai.employee_context import build_employee_context
+from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.provider import ProviderResult
+from app.modules.ai.vi_labels import (
+    label_ai_mode,
+    label_dispute_status,
+    label_payslip_status,
+    label_policy_version,
+)
 from app.modules.ai.models import AiJob
 from app.modules.ai.provider import SYSTEM_PROMPT_BASE, generate_text, resolve_api_key
 from app.modules.ai.schemas import AiQueryRequest, AiQueryResponse
@@ -54,25 +63,35 @@ def _dispute_context(db: Session, dispute_id: UUID) -> tuple[Dispute, str]:
     d, emp, slip, pay, ts, snap = row
     period = f"{pay.year:04d}-{pay.month:02d}"
     reason = REASON_LABELS.get(d.reason_code, d.reason_code)
-    policy_ver = str(snap.package_id) if snap and snap.package_id else ("snapshot" if snap else "—")
+    policy_ver = label_policy_version(
+        package_id=snap.package_id if snap else None,
+        has_snapshot=bool(snap),
+    )
     lines = [
-        f"Mã khiếu nại: {d.code} | trạng thái ticket: {d.status}",
+        f"Mã khiếu nại: {d.code} | Trạng thái: {label_dispute_status(d.status)}",
         f"MSNV: {emp.employee_code} | Họ tên: {emp.full_name}",
-        f"Kỳ lương: {period} | divisor: {pay.salary_divisor} | policy_version: {policy_ver}",
+        f"Kỳ lương: {period} | Hệ số chia lương: {pay.salary_divisor} | Phiên bản chính sách: {policy_ver}",
         f"Lý do CN: {reason}",
         f"Mô tả CN: {d.description.split(chr(10) + '---' + chr(10) + 'HR: ')[0]}",
-        f"Trạng thái phiếu: {slip.status}",
-        f"WD: {slip.wd_salary} | PC: {slip.allowance_total} | OT: {slip.ot_pay} | Gross: {slip.gross}",
-        f"BHXH: {slip.bhxh} | BHYT: {slip.bhyt} | BHTN: {slip.bhtn} | CĐ: {slip.union_fee} | Net: {slip.net}",
+        f"Trạng thái phiếu: {label_payslip_status(slip.status)}",
+        (
+            f"Lương ngày công: {slip.wd_salary} | Phụ cấp: {slip.allowance_total} | "
+            f"Lương OT: {slip.ot_pay} | Tổng thu nhập: {slip.gross}"
+        ),
+        (
+            f"BHXH: {slip.bhxh} | BHYT: {slip.bhyt} | BHTN: {slip.bhtn} | "
+            f"CĐ: {slip.union_fee} | Thực lĩnh: {slip.net}"
+        ),
     ]
     if ts:
         lines.append(
-            f"Công: worked_days={ts.worked_days}, AL={ts.al_days}, REM={ts.rem_days}, "
-            f"late={ts.late_count}, early={ts.early_count}, "
-            f"OT_h weekday/weekend/holiday={ts.ot_hours_weekday}/{ts.ot_hours_weekend}/{ts.ot_hours_holiday}"
+            f"Công tháng: ngày công={ts.worked_days}, phép={ts.al_days}, REM={ts.rem_days}, "
+            f"muộn={ts.late_count}, sớm={ts.early_count}, "
+            f"giờ OT (thường/cuối tuần/lễ)={ts.ot_hours_weekday}/"
+            f"{ts.ot_hours_weekend}/{ts.ot_hours_holiday}"
         )
     else:
-        lines.append("Thiếu timesheet tháng — không có số công/OT để đối chiếu.")
+        lines.append("Thiếu bảng công tháng — không có số công/OT để đối chiếu.")
     if d.ai_summary:
         lines.append(f"Tóm tắt AI trước: {d.ai_summary[:500]}")
     return d, "\n".join(lines)
@@ -83,7 +102,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền hỏi AI (`ai_query`). "
+                f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền hỏi AI. "
                 "Liên hệ Admin."
             ),
         )
@@ -115,6 +134,14 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         if not message:
             message = f"Rà soát khiếu nại {dispute.code}: phân tích lệch công/OT/phụ cấp và đề xuất bước tiếp theo cho HR."
 
+    emp_codes: list[str] = []
+    if not context_block and message:
+        emp_codes, emp_ctx = build_employee_context(db, user, message)
+        if emp_ctx:
+            context_block = emp_ctx
+            if emp_codes:
+                kind = "employee_lookup"
+
     if not message:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -122,25 +149,37 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         )
 
     user_payload = (
-        f"Người hỏi: {user.full_name} (username={user.username}).\n\n"
-        + (f"### Ngữ cảnh khiếu nại\n{context_block}\n\n" if context_block else "")
+        f"Người hỏi: {user.full_name} (tài khoản={user.username}).\n\n"
+        + (f"{context_block}\n\n" if context_block else "")
         + f"### Câu hỏi\n{message}"
     )
 
-    api_key = resolve_api_key(cfg.api_key_encrypted)
-    try:
-        result = generate_text(
-            api_key=api_key,
-            model_name=cfg.model_name,
-            system=SYSTEM_PROMPT_BASE,
-            user_message=user_payload,
-            max_output_tokens=cfg.max_output_tokens,
+    direct = False
+    if kind == "employee_lookup" and context_block and not wants_llm_analysis(message):
+        result = ProviderResult(
+            text=format_employee_lookup_answer(context_block),
+            model_name="direct",
+            stub=False,
         )
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Trợ Lý AI: không gọi được Gemini — {exc}",
-        ) from exc
+        direct = True
+    else:
+        api_key = resolve_api_key(cfg.api_key_encrypted)
+        max_tokens = cfg.max_output_tokens
+        if kind == "employee_lookup":
+            max_tokens = min(max_tokens, 384)
+        try:
+            result = generate_text(
+                api_key=api_key,
+                model_name=cfg.model_name,
+                system=SYSTEM_PROMPT_BASE,
+                user_message=user_payload,
+                max_output_tokens=max_tokens,
+            )
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Trợ Lý AI: không gọi được Gemini — {exc}",
+            ) from exc
 
     job = AiJob(
         user_id=user.id,
@@ -176,6 +215,6 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         remaining_today=remaining,
         message=(
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
-            f"({'stub' if result.stub else 'Gemini'}). Còn {remaining} câu hôm nay."
+            f"({label_ai_mode(stub=result.stub, direct=direct)}). Còn {remaining} câu hôm nay."
         ),
     )

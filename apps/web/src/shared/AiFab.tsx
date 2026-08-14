@@ -113,8 +113,16 @@ export function AiFab() {
   useEscLayer(open, () => setOpen(false));
 
   const panelBox = useMemo(
-    () => computePanelBox(pos, viewport.w, viewport.h, { fabSize: FAB_SIZE }),
-    [pos, viewport.w, viewport.h],
+    () =>
+      computePanelBox(pos, viewport.w, viewport.h, {
+        fabSize: FAB_SIZE,
+        panelWidth: tab === "chat" ? Math.min(520, Math.max(400, viewport.w - 32)) : 400,
+        preferredHeight:
+          tab === "chat"
+            ? Math.min(720, Math.max(480, Math.floor(viewport.h * 0.82)))
+            : Math.min(560, Math.max(360, Math.floor(viewport.h * 0.65))),
+      }),
+    [pos, viewport.w, viewport.h, tab],
   );
 
   if (!accessToken || onWorker || onLogin) return null;
@@ -149,7 +157,7 @@ export function AiFab() {
     try {
       const res = await askAi(chatInput.trim());
       setChatAnswer(res.answer);
-      setChatMeta(`${res.message}${res.stub ? " (stub — chưa gọi Gemini thật)" : ""}`);
+      setChatMeta(res.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không hỏi được AI.");
     } finally {
@@ -225,7 +233,7 @@ export function AiFab() {
     <>
       {open && (
         <div
-          className="ai-fab-panel"
+          className={`ai-fab-panel${tab === "chat" ? " ai-fab-panel--chat" : ""}`}
           role="dialog"
           aria-label="Trợ Lý AI"
           style={{
@@ -273,73 +281,79 @@ export function AiFab() {
             )}
           </div>
 
-          {error && <p className="banner-warn">{error}</p>}
+          {error && <p className="banner-warn ai-fab-banner">{error}</p>}
 
-          {tab === "alerts" ? (
-            <>
-              <div className="ai-fab-actions">
-                <button type="button" className="link-btn" onClick={() => void reload()}>
-                  Làm mới
-                </button>
-                {unread > 0 && (
-                  <button type="button" className="link-btn" onClick={() => void onReadAll()}>
-                    Đánh dấu đã đọc hết
+          <div className="ai-fab-body">
+            {tab === "alerts" ? (
+              <>
+                <div className="ai-fab-actions">
+                  <button type="button" className="link-btn" onClick={() => void reload()}>
+                    Làm mới
                   </button>
+                  {unread > 0 && (
+                    <button type="button" className="link-btn" onClick={() => void onReadAll()}>
+                      Đánh dấu đã đọc hết
+                    </button>
+                  )}
+                </div>
+                {alerts.length === 0 && todos.length === 0 ? (
+                  <p className="field-hint">Không có nhắc việc (0 token).</p>
+                ) : (
+                  <ul className="ai-fab-list">
+                    {todos.map((card) => (
+                      <li key={card.key} className="is-unread">
+                        <button type="button" className="ai-fab-item" onClick={() => openHref(card.href)}>
+                          <strong>
+                            {card.title}
+                            {card.count > 0 ? ` (${card.count})` : ""}
+                          </strong>
+                          <span>{card.body}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {alerts.map((a) => (
+                      <li key={a.id} className={a.is_read ? "is-read" : "is-unread"}>
+                        <button
+                          type="button"
+                          className="ai-fab-item"
+                          onClick={() => {
+                            void onRead(a.id);
+                            openModule(a.target_module || "timekeeping");
+                          }}
+                        >
+                          <strong>{a.title}</strong>
+                          <span>{a.body}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </div>
-              {alerts.length === 0 && todos.length === 0 ? (
-                <p className="field-hint">Không có nhắc việc (0 token).</p>
-              ) : (
-                <ul className="ai-fab-list">
-                  {todos.map((card) => (
-                    <li key={card.key} className="is-unread">
-                      <button type="button" className="ai-fab-item" onClick={() => openHref(card.href)}>
-                        <strong>
-                          {card.title}
-                          {card.count > 0 ? ` (${card.count})` : ""}
-                        </strong>
-                        <span>{card.body}</span>
-                      </button>
-                    </li>
-                  ))}
-                  {alerts.map((a) => (
-                    <li key={a.id} className={a.is_read ? "is-read" : "is-unread"}>
-                      <button
-                        type="button"
-                        className="ai-fab-item"
-                        onClick={() => {
-                          void onRead(a.id);
-                          openModule(a.target_module || "timekeeping");
-                        }}
-                      >
-                        <strong>{a.title}</strong>
-                        <span>{a.body}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          ) : (
-            <form className="ai-fab-chat" onSubmit={(e) => void onAsk(e)}>
-              <p className="field-hint">
-                Chỉ phân tích / đề xuất (read-only). Không tự sửa lương hay đóng khiếu nại.
-              </p>
-              <textarea
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                rows={3}
-                maxLength={4000}
-                placeholder="Ví dụ: Rà soát khiếu nại OT cuối tuần…"
-                disabled={asking}
-              />
-              <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>
-                {asking ? "Đang hỏi…" : "Gửi"}
-              </button>
-              {chatMeta && <p className="field-hint">{chatMeta}</p>}
-              {chatAnswer && <pre className="ai-fab-answer">{chatAnswer}</pre>}
-            </form>
-          )}
+              </>
+            ) : (
+              <form className="ai-fab-chat" onSubmit={(e) => void onAsk(e)}>
+                <p className="field-hint ai-fab-chat-hint">
+                  Tra cứu MSNV trả lời ngay. Câu phân tích mới gọi Gemini. Chỉ đọc — không tự sửa dữ liệu.
+                </p>
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  rows={2}
+                  maxLength={4000}
+                  placeholder="Ví dụ: Thông tin MSNV 1519 · Rà soát khiếu nại OT…"
+                  disabled={asking}
+                />
+                <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>
+                  {asking ? "Đang hỏi…" : "Gửi"}
+                </button>
+                {chatMeta && <p className="field-hint ai-fab-chat-meta">{chatMeta}</p>}
+                {chatAnswer && (
+                  <div className="ai-fab-answer-wrap" aria-live="polite">
+                    <pre className="ai-fab-answer">{chatAnswer}</pre>
+                  </div>
+                )}
+              </form>
+            )}
+          </div>
         </div>
       )}
 
