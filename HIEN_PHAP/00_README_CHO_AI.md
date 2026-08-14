@@ -17,6 +17,7 @@
 | **Phím tắt HR** | **`PHIM_TAT_HR.md`** |
 | Test / ngoại lệ | `13_TEST_NGHIEM_THU_NGOAI_LE.md` |
 | Định nghĩa v1.0 | `V1_0_DINH_NGHIA.md` |
+| Tự động hóa vận hành | **`26_TU_DONG_HOA_VAN_HANH.md`** |
 
 ## Không đọc nữa (đã archive)
 
@@ -35,7 +36,7 @@ Polish UI / hiệu năng — **không chặn UAT** → **`_TOI_UU/`**
 | 00 | `00_README_CHO_AI.md` — file này |
 | 01–15 | Vision, Portal, công thức, stack, runbook… |
 
-## Nghiệp vụ GenusSuite (20–24)
+## Nghiệp vụ GenusSuite (20–26)
 
 | # | File |
 |---|------|
@@ -44,6 +45,7 @@ Polish UI / hiệu năng — **không chặn UAT** → **`_TOI_UU/`**
 | 22 | `22_QUY_TAC_NGHIEP_VU.md` |
 | 23 | `23_UI_MAN_HINH.md` — UI **bản 5173** |
 | 24 | `24_LO_TRINH_5_DOT.md` |
+| 26 | `26_TU_DONG_HOA_VAN_HANH.md` — job nền, Operations Hub |
 
 ---
 
