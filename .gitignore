@@ -3,6 +3,9 @@
 .env.local
 .env.prod
 *.pem
+ops/vps-root.txt
+ops/djhrm-vps.env
+ops/vps-admin-credentials.txt
 
 # Python
 __pycache__/
