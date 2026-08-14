@@ -25,6 +25,10 @@ class MitaproPushRequest(BaseModel):
         default=None,
         description="Job HR đã claim — ingest cập nhật cùng job (tránh poll lệch ID).",
     )
+    chunk_final: bool = Field(
+        default=True,
+        description="False = còn chunk tiếp theo; API giữ job running, chưa tính lại công.",
+    )
 
 
 class MitaproErrorReport(BaseModel):

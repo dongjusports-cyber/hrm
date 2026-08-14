@@ -15,13 +15,17 @@
 
 ## Cài đặt nhanh
 
+> **Máy dev `.123`:** chạy `DEPLOY_AGENT_122.bat` (ở thư mục gốc repo) — copy Agent sang `.122`.  
+> **Máy Mitapro `.122`:** double-click **`CAI_VA_CHAY_AGENT.bat`** — tự cài venv + ODBC + chạy nền.
+
+> Đường dẫn `.122`: `D:\dj-hrm\apps\agent` · **Không copy** folder `.venv` giữa các máy.
+
 ```powershell
-cd D:\HRM\dj-hrm\apps\agent
-copy config.example.env .env
-# Sửa DJ_API_BASE_URL + DJ_AGENT_TOKEN + MITAPRO_ODBC trong .env
-python -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
+# Máy nhà máy Mitapro (.122) — chỉ 1 file
+D:\dj-hrm\apps\agent\CAI_VA_CHAY_AGENT.bat
 ```
+
+Chi tiết cài tay (nếu cần): copy `config.example.env` → `.env`, sửa token/ODBC, `pip install -r requirements.txt`.
 
 ### Chạy thử không cần SQL (mock)
 

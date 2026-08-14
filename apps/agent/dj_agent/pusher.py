@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
 
 from dj_agent.sql_reader import PunchRow
 
+log = logging.getLogger("dj_agent")
+
 _DEFAULT_TIMEOUT = 300.0
+_DEFAULT_CHUNK = 800
 
 
 class ApiPusher:
@@ -19,10 +23,12 @@ class ApiPusher:
         agent_name: str = "dj-agent",
         *,
         timeout: float = _DEFAULT_TIMEOUT,
+        push_chunk_size: int = _DEFAULT_CHUNK,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.agent_token = agent_token
         self.agent_name = agent_name
+        self.push_chunk_size = max(50, push_chunk_size)
         self._client = httpx.Client(timeout=timeout)
 
     def close(self) -> None:
@@ -43,11 +49,65 @@ class ApiPusher:
         synced_to: str | None = None,
         claimed_job_id: str | None = None,
     ) -> dict[str, Any]:
+        chunk_size = self.push_chunk_size
+        if len(punches) <= chunk_size:
+            return self._push_chunk(
+                punches,
+                synced_from=synced_from,
+                synced_to=synced_to,
+                claimed_job_id=claimed_job_id,
+                chunk_final=True,
+            )
+
+        total = len(punches)
+        chunks = [punches[i : i + chunk_size] for i in range(0, total, chunk_size)]
+        log.info(
+            "Chia %s punch thành %s chunk (tối đa %s/lần)",
+            total,
+            len(chunks),
+            chunk_size,
+        )
+
+        active_job_id = claimed_job_id
+        last: dict[str, Any] = {}
+        for idx, chunk in enumerate(chunks):
+            is_final = idx == len(chunks) - 1
+            last = self._push_chunk(
+                chunk,
+                synced_from=synced_from if is_final else None,
+                synced_to=synced_to if is_final else None,
+                claimed_job_id=active_job_id,
+                chunk_final=is_final,
+            )
+            if active_job_id is None:
+                job = last.get("job") or {}
+                jid = job.get("id")
+                if jid:
+                    active_job_id = str(jid)
+            log.info(
+                "Chunk %s/%s — %s punch%s",
+                idx + 1,
+                len(chunks),
+                len(chunk),
+                " (cuối)" if is_final else "",
+            )
+        return last
+
+    def _push_chunk(
+        self,
+        punches: list[PunchRow],
+        *,
+        synced_from: str | None,
+        synced_to: str | None,
+        claimed_job_id: str | None,
+        chunk_final: bool,
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "punches": [p.to_api_dict() for p in punches],
             "synced_from": synced_from,
             "synced_to": synced_to,
             "agent_name": self.agent_name,
+            "chunk_final": chunk_final,
         }
         if claimed_job_id:
             payload["claimed_job_id"] = claimed_job_id

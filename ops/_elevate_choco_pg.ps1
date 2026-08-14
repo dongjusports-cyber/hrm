@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Continue"
-$log = "D:\HRM\dj-hrm\ops\pg-install2.log"
+$log = Join-Path $PSScriptRoot "pg-install2.log"
 function Log($m){ "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
 Log "START"
 # Install Chocolatey if missing

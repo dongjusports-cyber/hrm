@@ -39,6 +39,14 @@ def existing_punch_keys(
     return found
 
 
+def _insert_rowcount(result, chunk_len: int) -> int:
+    """psycopg3 đôi khi trả rowcount=-1 với INSERT ON CONFLICT — đã lọc trùng trước."""
+    rc = result.rowcount
+    if rc is None or rc < 0:
+        return chunk_len
+    return rc
+
+
 def _insert_chunk(db: Session, sync_job_id: UUID, chunk: list[dict]) -> int:
     if not chunk:
         return 0
@@ -61,12 +69,12 @@ def _insert_chunk(db: Session, sync_job_id: UUID, chunk: list[dict]) -> int:
         stmt = pg_insert(AttendancePunch).values(values)
         stmt = stmt.on_conflict_do_nothing(constraint="uq_punch_employee_time")
         result = db.execute(stmt)
-        return result.rowcount or 0
+        return _insert_rowcount(result, len(chunk))
     if dialect == "sqlite":
         stmt = sqlite_insert(AttendancePunch).values(values)
         stmt = stmt.on_conflict_do_nothing(index_elements=["employee_code", "punch_time"])
         result = db.execute(stmt)
-        return result.rowcount or 0
+        return _insert_rowcount(result, len(chunk))
     db.add_all(
         [
             AttendancePunch(

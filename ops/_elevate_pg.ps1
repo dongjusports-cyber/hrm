@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Continue"
-$log = "D:\HRM\dj-hrm\ops\pg-install.log"
+$log = Join-Path $PSScriptRoot "pg-install.log"
 function Log($m){ "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
 Log "START pg"
 winget install -e --id PostgreSQL.PostgreSQL.17 --accept-package-agreements --accept-source-agreements 2>&1 | Tee-Object -FilePath $log -Append

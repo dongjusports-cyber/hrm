@@ -1,0 +1,21 @@
+DJ Sync Agent — huong dan copy USB
+====================================
+
+TREN MAY .123 (dev):
+  Double-click: CHUAN_BI_USB.bat
+  -> Tao folder USB-dj-agent
+  -> Copy folder do vao USB
+
+TREN MAY .122 (Mitapro):
+  1. Dan toan bo USB vao: D:\dj-hrm\apps\agent
+     (hoac chay CAI_TU_USB.bat truc tiep tu USB — tu copy sang D:)
+  2. Double-click: CAI_TU_USB.bat
+     -> Tu cai Python venv + ODBC + chay Agent nen
+
+LUU Y:
+  - KHONG copy folder .venv tu may khac
+  - Giu file agent_state.json cu tren .122 neu da sync truoc do
+  - May .123 phai bat Docker: docker compose up -d
+  - API: http://192.168.1.123:8000
+
+Sau nay cap nhat: chay lai CHUAN_BI_USB tren .123, copy USB, chay CAI_TU_USB tren .122.

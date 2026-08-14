@@ -18,6 +18,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 from dj_agent.config import get_settings
+from dj_agent.odbc_util import odbc_setup_hint, resolve_odbc_conn_str
 from dj_agent.pusher import ApiPusher
 from dj_agent.sql_reader import PunchRow, build_source
 from dj_agent.sync_loop import process_pending, run_forever, run_once
@@ -60,15 +61,29 @@ def main(argv: list[str] | None = None) -> int:
             logging.getLogger("dj_agent").error("Trợ Lý AI: %s", msg)
         return 2
 
+    odbc = settings.mitapro_odbc
+    if not settings.dj_agent_mock_sql:
+        odbc, picked = resolve_odbc_conn_str(odbc)
+        if picked:
+            logging.getLogger("dj_agent").warning(
+                "ODBC: tự chuyển sang driver '%s' (sửa MITAPRO_ODBC trong .env cho cố định).",
+                picked,
+            )
+        elif odbc:
+            hint = odbc_setup_hint(settings.mitapro_odbc)
+            if "Không có" in hint or "Chưa có" in hint:
+                logging.getLogger("dj_agent").error("Trợ Lý AI: %s", hint)
+
     source = build_source(
         mock=settings.dj_agent_mock_sql,
-        odbc=settings.mitapro_odbc,
+        odbc=odbc,
         mock_rows=_demo_mock_rows() if settings.dj_agent_mock_sql else None,
     )
     pusher = ApiPusher(
         settings.dj_api_base_url,
         settings.dj_agent_token,
         agent_name=settings.agent_name,
+        push_chunk_size=settings.push_chunk_size,
     )
 
     try:

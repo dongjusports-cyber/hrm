@@ -1,6 +1,6 @@
 # Đăng ký Task Scheduler: backup DJ HRM mỗi ngày 02:00 (10.9 / 12§12.4)
 # Chạy PowerShell (Admin khuyến nghị):
-#   cd D:\HRM\dj-hrm
+#   cd C:\DATA\HRM\dj-hrm\dj-hrm
 #   .\ops\register-backup-task.ps1
 # Gỡ: .\ops\register-backup-task.ps1 -Unregister
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-ROOT = Path(__file__).resolve().parents[4]  # D:\dj-hrm
+ROOT = Path(__file__).resolve().parents[4]  # repo root (tự nhận — .123: C:\DATA\HRM\dj-hrm\dj-hrm)
 SRC = ROOT / "HIEN_PHAP" / "GenuSuite HRM"
 OUT = Path(__file__).resolve().parent
 

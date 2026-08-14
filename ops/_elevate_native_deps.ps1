@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Continue"
-$log = "D:\HRM\dj-hrm\ops\native-deps-install.log"
+$log = Join-Path $PSScriptRoot "native-deps-install.log"
 function Log($m){ "$(Get-Date -Format o) $m" | Tee-Object -FilePath $log -Append }
 Log "START native deps"
 winget install -e --id PostgreSQL.PostgreSQL.16 --accept-package-agreements --accept-source-agreements | Tee-Object -FilePath $log -Append

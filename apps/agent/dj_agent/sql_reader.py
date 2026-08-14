@@ -94,7 +94,19 @@ class MitaproSqlSource:
         t = dt_to.replace(tzinfo=None) if dt_to.tzinfo else dt_to
 
         rows: list[PunchRow] = []
-        with pyodbc.connect(self.odbc_conn_str, timeout=30) as conn:
+        try:
+            conn = pyodbc.connect(self.odbc_conn_str, timeout=30)
+        except pyodbc.Error as exc:
+            err = str(exc)
+            if "IM002" in err or "Data source name not found" in err:
+                from dj_agent.odbc_util import odbc_setup_hint
+
+                raise RuntimeError(
+                    f"Không kết nối được SQL Mitapro — {odbc_setup_hint(self.odbc_conn_str)} "
+                    "Chạy KIEM_TRA_ODBC.bat và sửa MITAPRO_ODBC trong .env."
+                ) from exc
+            raise RuntimeError(f"Không kết nối được SQL Mitapro: {exc}") from exc
+        with conn:
             conn.timeout = 60
             cur = conn.cursor()
             cur.execute(PUNCH_SQL, f, t)

@@ -30,6 +30,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
+from app.modules.attendance.models import WorkShift  # noqa: F401 — FK teams.default_shift_id
 from app.modules.audit.models import AuditLog
 from app.modules.core.models import User  # noqa: F401 — đăng ký bảng users cho FK audit_logs.actor_user_id
 from app.modules.mdm.models import Department, Job, Position, Team
@@ -85,30 +86,43 @@ def wipe(db, dry_run: bool) -> None:
     db.commit()
 
 
-def load_departments(db, dry_run: bool) -> dict[str, Department]:
+def load_departments(db, dry_run: bool, *, upsert: bool = False) -> dict[str, Department]:
     rows = _read_csv("departments.csv")
     print(f"== Nạp departments: {len(rows)} dòng (kỳ vọng 10) ==")
     by_pk: dict[str, Department] = {}
     for r in rows:
-        dept = Department(
-            code=r["code"],
-            name=r["name"],
-            name_local=r["name_local"] or r["name"],
-            category="direct",
-            dept_type=r["dept_type"] or None,
-            mitapro_names=[r["name"]],
-            effective_from=_parse_date(r["effective_from"]) or date(2007, 1, 1),
-            effective_to=_parse_date(r["effective_to"]),
-        )
-        if not dry_run:
-            db.add(dept)
+        if upsert and not dry_run:
+            dept = db.query(Department).filter(Department.code == r["code"]).first()
+            if dept is None:
+                dept = Department(code=r["code"])
+                db.add(dept)
+            dept.name = r["name"]
+            dept.name_local = r["name_local"] or r["name"]
+            dept.category = "direct"
+            dept.dept_type = r["dept_type"] or None
+            dept.mitapro_names = [r["name"]]
+            dept.effective_from = _parse_date(r["effective_from"]) or date(2007, 1, 1)
+            dept.effective_to = _parse_date(r["effective_to"])
+        else:
+            dept = Department(
+                code=r["code"],
+                name=r["name"],
+                name_local=r["name_local"] or r["name"],
+                category="direct",
+                dept_type=r["dept_type"] or None,
+                mitapro_names=[r["name"]],
+                effective_from=_parse_date(r["effective_from"]) or date(2007, 1, 1),
+                effective_to=_parse_date(r["effective_to"]),
+            )
+            if not dry_run:
+                db.add(dept)
         by_pk[r["pk"]] = dept
     if not dry_run:
         db.flush()
     return by_pk
 
 
-def load_teams(db, dry_run: bool, dept_by_pk: dict[str, Department]) -> None:
+def load_teams(db, dry_run: bool, dept_by_pk: dict[str, Department], *, upsert: bool = False) -> None:
     rows = _read_csv("teams.csv")
     print(f"== Nạp teams: {len(rows)} dòng (kỳ vọng 73) ==")
     missing_dept = 0
@@ -118,23 +132,45 @@ def load_teams(db, dry_run: bool, dept_by_pk: dict[str, Department]) -> None:
             missing_dept += 1
             print(f"  ! Bỏ qua tổ '{r['code']} - {r['name']}': không tìm thấy bộ phận PK={r['department_pk']}")
             continue
-        team = Team(
-            department_id=dept.id,
-            code=r["code"],
-            name=r["name"],
-            name_local=r["name_local"] or r["name"],
-            effective_from=_parse_date(r["effective_from"]) or date(2007, 1, 1),
-            effective_to=_parse_date(r["effective_to"]),
-        )
-        if not dry_run:
-            db.add(team)
+        if upsert and not dry_run:
+            team = (
+                db.query(Team)
+                .filter(Team.department_id == dept.id, Team.code == r["code"])
+                .first()
+            )
+            if team is None:
+                team = Team(department_id=dept.id, code=r["code"])
+                db.add(team)
+            team.name = r["name"]
+            team.name_local = r["name_local"] or r["name"]
+            team.effective_from = _parse_date(r["effective_from"]) or date(2007, 1, 1)
+            team.effective_to = _parse_date(r["effective_to"])
+        else:
+            team = Team(
+                department_id=dept.id,
+                code=r["code"],
+                name=r["name"],
+                name_local=r["name_local"] or r["name"],
+                effective_from=_parse_date(r["effective_from"]) or date(2007, 1, 1),
+                effective_to=_parse_date(r["effective_to"]),
+            )
+            if not dry_run:
+                db.add(team)
     if missing_dept:
         print(f"  => {missing_dept} tổ bị bỏ qua vì thiếu bộ phận cha — CẦN Chủ kiểm tra lại nguồn.")
     if not dry_run:
         db.flush()
 
 
-def load_common_code_table(db, dry_run: bool, csv_name: str, model, extra_field: str) -> None:
+def load_common_code_table(
+    db,
+    dry_run: bool,
+    csv_name: str,
+    model,
+    extra_field: str,
+    *,
+    upsert: bool = False,
+) -> None:
     rows = _read_csv(csv_name)
     print(f"== Nạp {model.__tablename__}: {len(rows)} dòng ==")
     for r in rows:
@@ -146,7 +182,14 @@ def load_common_code_table(db, dry_run: bool, csv_name: str, model, extra_field:
             "is_active": r["is_active"] == "1",
             extra_field: r[extra_field] == "1",
         }
-        if not dry_run:
+        if upsert and not dry_run:
+            row = db.query(model).filter(model.code == r["code"]).first()
+            if row is None:
+                db.add(model(**kwargs))
+            else:
+                for key, val in kwargs.items():
+                    setattr(row, key, val)
+        elif not dry_run:
             db.add(model(**kwargs))
     if not dry_run:
         db.flush()
@@ -168,26 +211,40 @@ def write_audit(db, summary: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="Chỉ đọc CSV và in ra, không ghi DB")
+    parser.add_argument(
+        "--skip-wipe",
+        action="store_true",
+        help="Không xóa NV/lương — chỉ upsert bộ phận/tổ/chức vụ/công việc từ CSV",
+    )
     args = parser.parse_args()
 
     db = SessionLocal()
     try:
-        wipe(db, args.dry_run)
-        dept_by_pk = load_departments(db, args.dry_run)
-        load_teams(db, args.dry_run, dept_by_pk)
-        load_common_code_table(db, args.dry_run, "positions.csv", Position, "is_management")
-        load_common_code_table(db, args.dry_run, "jobs.csv", Job, "is_hazardous")
+        if not args.skip_wipe:
+            wipe(db, args.dry_run)
+        else:
+            print("== Bỏ qua wipe — giữ nhân viên hiện có ==")
+        upsert = args.skip_wipe
+        dept_by_pk = load_departments(db, args.dry_run, upsert=upsert)
+        load_teams(db, args.dry_run, dept_by_pk, upsert=upsert)
+        load_common_code_table(
+            db, args.dry_run, "positions.csv", Position, "is_management", upsert=upsert
+        )
+        load_common_code_table(db, args.dry_run, "jobs.csv", Job, "is_hazardous", upsert=upsert)
 
         if args.dry_run:
             print("\n(dry-run) không ghi DB — chạy lại không có --dry-run để nạp thật.")
             return
 
-        write_audit(
-            db,
+        summary = (
             "Nạp lại cây tổ chức thật từ GenusSuite: 10 bộ phận (TCO_EODEPT), "
-            "73 tổ (THR_ABWORKGRP), 52 chức vụ (HRAB0060), 82 công việc (HRAB0100). "
-            "Xóa sạch nhân viên/phiếu lương test cũ theo hạng mục 1.2.",
+            "73 tổ (THR_ABWORKGRP), 52 chức vụ (HRAB0060), 82 công việc (HRAB0100)."
         )
+        if args.skip_wipe:
+            summary += " Giữ nguyên nhân viên/lương (--skip-wipe)."
+        else:
+            summary += " Xóa sạch nhân viên/phiếu lương test cũ theo hạng mục 1.2."
+        write_audit(db, summary)
         db.commit()
 
         print("\n== Xác nhận số dòng sau khi nạp ==")

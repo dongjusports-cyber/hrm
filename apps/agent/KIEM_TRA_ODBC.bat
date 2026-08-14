@@ -11,5 +11,12 @@ echo.
 echo Can thay: ODBC Driver 17 for SQL Server  HOAC  ODBC Driver 18 for SQL Server
 echo Tai: https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
 echo.
-echo Sau khi cai, sua .env dong MITAPRO_ODBC cho dung ten Driver trong list tren.
+echo Tu dong sua .env (neu co .env):
+if exist ".venv\Scripts\python.exe" (
+  .venv\Scripts\python fix_odbc_env.py
+) else if exist "fix_odbc_env.py" (
+  python fix_odbc_env.py
+)
+echo.
+echo Sau khi cai, chay lai fix_odbc_env.py hoac CAI_AGENT_HR122.bat
 pause

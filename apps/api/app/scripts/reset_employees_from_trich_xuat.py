@@ -71,7 +71,34 @@ WIPE_EMPLOYEE_SQL = [
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
+    p = Path(__file__).resolve()
+    for n in (4, 3):
+        try:
+            return p.parents[n]
+        except IndexError:
+            continue
+    return p.parents[2]
+
+
+def _load_valid_teams() -> set[str]:
+    roots: list[Path] = []
+    hi = repo_root() / "HIEN_PHAP"
+    if hi.is_dir():
+        roots.append(hi)
+    for extra in (Path("/tmp/empinfo"), Path("/tmp/trich_xuat")):
+        if extra.is_dir():
+            roots.append(extra)
+    for root in roots:
+        for xlsx in root.rglob("*.xlsx"):
+            name = xlsx.name.lower()
+            if "bộ phận" in name or "bo phan" in name or name.startswith("b"):
+                try:
+                    teams = load_valid_teams(xlsx)
+                    if teams:
+                        return teams
+                except Exception:
+                    continue
+    return set()
 
 
 def default_trich_xuat_dir() -> Path:
@@ -268,19 +295,6 @@ def import_trich_xuat(
             photos += 1
 
     return created, updated, photos, skipped
-
-
-def _load_valid_teams() -> set[str]:
-    for xlsx in (repo_root() / "HIEN_PHAP").rglob("*.xlsx"):
-        name = xlsx.name.lower()
-        if "bộ phận" in name or "bo phan" in name or name.startswith("b"):
-            try:
-                teams = load_valid_teams(xlsx)
-                if teams:
-                    return teams
-            except Exception:
-                continue
-    return set()
 
 
 def run(trich_dir: Path, *, wipe: bool = True, dry_run: bool = False) -> None:

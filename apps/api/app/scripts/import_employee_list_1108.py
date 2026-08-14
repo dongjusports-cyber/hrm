@@ -6,7 +6,7 @@ Nguồn:
   - Thông tin danh sách công nhân 11.08.26.xls   → hồ sơ chi tiết (ngày sinh, ĐC, SĐT…)
 
 Chạy:
-  docker cp "D:/dj-hrm/dj-hrm/HIEN_PHAP/Thông tin danh sách nhân viên" djhrm-api:/tmp/empinfo
+  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Thông tin danh sách nhân viên" djhrm-api:/tmp/empinfo
   docker compose exec api python -m app.scripts.import_employee_list_1108 /tmp/empinfo --profiles-only [--dry-run]
 
   # Full (đồng bộ tổ — cẩn thận trên DB công ty):

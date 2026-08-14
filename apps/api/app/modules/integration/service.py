@@ -104,6 +104,23 @@ def _recalc_after_ingest(db: Session, date_from: date, date_to: date) -> None:
             m += 1
 
 
+def _ingest_recalc_window(body: MitaproPushRequest, known_codes: set[str]) -> tuple[date, date] | None:
+    """Khoảng ngày tính lại công — ưu tiên synced_from/to (Agent gửi khi sync khoảng lớn)."""
+    if body.synced_from is not None and body.synced_to is not None:
+        d_from = to_vn(normalize_punch_time(body.synced_from)).date()
+        d_to = to_vn(normalize_punch_time(body.synced_to)).date()
+        if d_to >= d_from:
+            return d_from, d_to
+    dates = [
+        to_vn(normalize_punch_time(p.punch_time)).date()
+        for p in body.punches
+        if p.employee_code.strip() in known_codes
+    ]
+    if not dates:
+        return None
+    return min(dates), max(dates)
+
+
 def ingest_punches(
     db: Session,
     body: MitaproPushRequest,
@@ -127,9 +144,7 @@ def ingest_punches(
                 detail="Trợ Lý AI: không tìm thấy job đồng bộ.",
             )
         job.status = "running"
-        job.records_in = len(body.punches)
-        job.records_inserted = 0
-        job.records_skipped = 0
+        job.records_in += len(body.punches)
         job.message = "Đang nhận dữ liệu từ Agent…"
         job.trigger = trigger
         job.started_at = job.started_at or datetime.now(timezone.utc)
@@ -147,6 +162,8 @@ def ingest_punches(
         )
         db.add(job)
     db.flush()
+
+    chunk_more = not body.chunk_final and bool(body.punches)
 
     maps = build_employee_resolve_maps(db)
     known_codes = set(maps.by_code.keys())
@@ -183,10 +200,27 @@ def ingest_punches(
         )
 
     inserted, skipped, linked = bulk_insert_punches(db, sync_job_id=job.id, rows=prepared)
-    job.records_inserted = inserted
-    job.records_skipped = skipped
+    if claimed_job_id is not None:
+        job.records_inserted += inserted
+        job.records_skipped += skipped
+    else:
+        job.records_inserted = inserted
+        job.records_skipped = skipped
 
     partial = bool(unknown)
+    if chunk_more and body.punches:
+        job.message = (
+            f"Đang nhận dữ liệu… {job.records_in} punch "
+            f"({job.records_inserted} mới, {job.records_skipped} trùng)."
+        )
+        job.finished_at = None
+        db.commit()
+        db.refresh(job)
+        return MitaproPushResult(
+            job=to_job_out(job),
+            detail=f"Trợ Lý AI: {job.message}",
+        )
+
     if not body.punches:
         job.status = "success"
         job.message = "Agent gửi 0 punch."
@@ -204,28 +238,24 @@ def ingest_punches(
         if mock_ignored:
             mock_note = f" Bỏ dữ liệu mock Agent: {mock_ignored}."
         base_message = (
-            f"Đồng bộ: thêm {inserted}, bỏ trùng {skipped}, khớp NV {linked}/{max(inserted, 1)}.{warn}{patrol_note}{mock_note}"
+            f"Đồng bộ: thêm {job.records_inserted}, bỏ trùng {job.records_skipped}, "
+            f"khớp NV {linked}/{max(job.records_inserted, 1)}.{warn}{patrol_note}{mock_note}"
         ).strip()
 
-        if inserted > 0 and schedule_recalc:
-            dates = [
-                to_vn(normalize_punch_time(p.punch_time)).date()
-                for p in body.punches
-                if p.employee_code.strip() in known_codes
-            ]
-            if dates:
-                d_from, d_to = min(dates), max(dates)
-                if get_settings().sync_recalc_inline:
-                    _recalc_after_ingest(db, d_from, d_to)
-                    base_message = f"{base_message} Đã tính lại công {d_from} → {d_to}."
-                elif on_recalc_scheduled is not None:
-                    job.status = "running"
-                    job.message = f"{base_message} Đang tính lại công…"
-                    job.finished_at = None
-                    db.commit()
-                    db.refresh(job)
-                    on_recalc_scheduled(job.id, d_from, d_to, partial, base_message)
-                    return MitaproPushResult(job=to_job_out(job), detail=f"Trợ Lý AI: {job.message}")
+        recalc_window = _ingest_recalc_window(body, known_codes)
+        if job.records_inserted > 0 and schedule_recalc and recalc_window is not None:
+            d_from, d_to = recalc_window
+            if get_settings().sync_recalc_inline:
+                _recalc_after_ingest(db, d_from, d_to)
+                base_message = f"{base_message} Đã tính lại công {d_from} → {d_to}."
+            elif on_recalc_scheduled is not None:
+                job.status = "running"
+                job.message = f"{base_message} Đang tính lại công…"
+                job.finished_at = None
+                db.commit()
+                db.refresh(job)
+                on_recalc_scheduled(job.id, d_from, d_to, partial, base_message)
+                return MitaproPushResult(job=to_job_out(job), detail=f"Trợ Lý AI: {job.message}")
 
         job.status = "partial" if partial else "success"
         job.message = base_message

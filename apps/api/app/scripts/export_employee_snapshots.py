@@ -10,7 +10,7 @@ Nguồn:
 
 Chạy (từ apps/api):
   python -m app.scripts.export_employee_snapshots
-  python -m app.scripts.export_employee_snapshots --out D:/dj-hrm/dj-hrm/HIEN_PHAP/Dữ liệu công nhân
+  python -m app.scripts.export_employee_snapshots --out C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Dữ liệu công nhân
 """
 
 from __future__ import annotations

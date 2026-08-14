@@ -70,7 +70,7 @@ git pull
 
 ## 4. Agent nhà máy → cloud
 
-Trên máy Windows Mitapro:
+Trên máy Windows Mitapro **(.122 — repo vẫn `D:\HRM\dj-hrm`)**:
 
 ```powershell
 cd D:\HRM\dj-hrm\apps\agent

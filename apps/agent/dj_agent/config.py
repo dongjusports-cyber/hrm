@@ -26,6 +26,7 @@ class AgentSettings(BaseSettings):
     sync_interval_minutes: int = 2
     sync_overlap_minutes: int = 30
     sync_lookback_days: int = 3
+    push_chunk_size: int = 800
     dj_agent_mock_sql: bool = False
     state_file: str = "./agent_state.json"
     agent_name: str = "dj-agent-mitapro"

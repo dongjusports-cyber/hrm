@@ -35,14 +35,17 @@ if not exist ".env" (
   )
 )
 
-echo Tao virtualenv...
-python -m venv .venv
+echo Tao virtualenv + cai thu vien...
+if not exist ".venv\Scripts\python.exe" python -m venv .venv
 call .venv\Scripts\pip install -r requirements.txt
 if errorlevel 1 (
   echo LOI: pip install that bai
   pause
   exit /b 1
 )
+
+echo Kiem tra / sua ODBC trong .env...
+call .venv\Scripts\python fix_odbc_env.py
 
 echo.
 echo === Thu mock (khong can SQL) ===
@@ -59,7 +62,7 @@ echo === Thu doc Mitapro that ===
 call .venv\Scripts\python -m dj_agent.main --once
 
 echo.
-echo XONG. De chay nen 15 phut/lan:
+echo XONG. De chay nen 2 phut/lan:
 echo   .venv\Scripts\python -m dj_agent.main
 echo.
 pause
