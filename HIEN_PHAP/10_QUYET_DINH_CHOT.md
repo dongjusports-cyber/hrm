@@ -165,3 +165,10 @@ Mọi thay đổi sau: sửa file liên quan + thêm dòng Changelog.
 | 2026-08-08 | REM: Chủ nợ câu trả lời — sẽ hỏi NV tính lương. MVP mặc định REM không trả lương; cập nhật sau | Nguyễn Thanh Thiện |
 | 2026-08-08 | GenuiSuite dùng **Toad** chỉnh dữ liệu → có DB backend (Oracle/SQL Server). Không kết nối sống vào DJ HRM; tra cứu thủ công khi cần | Nguyễn Thanh Thiện |
 | 2026-08-08 | **Chốt tên: DJ HRM** (công ty DongJu). Repo/thư mục `dj-hrm` viết thường; UI viết hoa DJ HRM. COSMOS AI giữ nguyên | Nguyễn Thanh Thiện |
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

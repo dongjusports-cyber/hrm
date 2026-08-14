@@ -41,4 +41,11 @@
 Chạy nền: tính lương, đồng bộ Mitapro, gọi Gemini, export lớn.  
 Còn lại: xử lý đồng bộ cho đơn giản. **Không** dựng pipeline sự kiện phức tạp.
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `12_BAO_MAT_BACKUP_VAN_HANH.md`*

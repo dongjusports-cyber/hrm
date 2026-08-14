@@ -45,6 +45,7 @@ Polish UI / hiệu năng — **không chặn UAT** → **`_TOI_UU/`**
 | 22 | `22_QUY_TAC_NGHIEP_VU.md` |
 | 23 | `23_UI_MAN_HINH.md` — UI **bản 5173** |
 | 24 | `24_LO_TRINH_5_DOT.md` |
+| **25** | **`25_QUY_TAC_THIET_KE_TOI_CAO.md`** — luật thiết kế tối cao |
 | 26 | `26_TU_DONG_HOA_VAN_HANH.md` — job nền, Operations Hub |
 
 ---

@@ -967,30 +967,28 @@ a {
 
 .emp-sheet-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 12px;
-  padding: 6px 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid #e2e8f0;
-  align-items: stretch;
+  align-items: start;
 }
 
 .emp-sheet-header-main {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
 }
 
 .emp-sheet-identity-top {
   display: grid;
-  grid-template-columns: auto auto;
-  gap: 6px 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px;
   align-items: end;
   padding: 0;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
 }
 
 .emp-sheet-identity-top .field input {
@@ -1008,12 +1006,12 @@ a {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  padding: 5px 8px;
+  padding: 6px 10px;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #fff;
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .emp-sheet-toolbar .emp-subtab {
@@ -1379,12 +1377,18 @@ a {
 }
 
 .emp-photo-sheet {
-  width: 112px;
-  height: 100%;
-  min-height: 112px;
-  max-height: 132px;
+  width: 120px;
+  height: 150px;
+  min-width: 120px;
+  min-height: 150px;
   flex-shrink: 0;
-  align-self: center;
+  align-self: start;
+  border-radius: 12px;
+}
+
+.emp-photo-sheet .emp-photo-empty small {
+  font-size: 0.68rem;
+  opacity: 0.9;
 }
 
 .emp-allow-section-sheet {
@@ -1419,8 +1423,8 @@ a {
   }
 
   .emp-sheet-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px 10px;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 12px;
   }
 
   .emp-sheet-identity-top {
@@ -1434,13 +1438,104 @@ a {
   }
 
   .emp-photo-sheet {
-    width: 88px;
-    min-height: 88px;
-    max-height: 108px;
+    width: 96px;
+    height: 120px;
+    min-width: 96px;
+    min-height: 120px;
   }
 
   .emp-allow-add-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Màn rộng — ảnh NV lớn hơn, tận dụng không gian trống */
+@media (min-width: 1400px) {
+  .emp-sheet-header {
+    padding: 12px 20px;
+    gap: 14px 20px;
+  }
+
+  .emp-photo-sheet {
+    width: 148px;
+    height: 185px;
+    min-width: 148px;
+    min-height: 185px;
+    border-radius: 14px;
+  }
+
+  .emp-sheet-fields-fixed {
+    margin: 0 18px 14px;
+    padding: 10px 12px 12px;
+  }
+
+  .emp-sheet-identity-top .field input {
+    font-size: 0.95rem;
+  }
+}
+
+@media (min-width: 1680px) {
+  .emp-profile-cols-weighted {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .emp-photo-sheet {
+    width: 168px;
+    height: 210px;
+    min-width: 168px;
+    min-height: 210px;
+  }
+
+  .emp-profile-compact .field input,
+  .emp-profile-compact .field select {
+    padding: 5px 8px;
+    font-size: 0.84rem;
+  }
+
+  .emp-profile-compact .emp-form-section-title {
+    font-size: 0.84rem;
+  }
+}
+
+@media (min-width: 1920px) {
+  .emp-sheet-header {
+    padding: 14px 28px;
+    gap: 18px 24px;
+  }
+
+  .emp-photo-sheet {
+    width: 180px;
+    height: 225px;
+    min-width: 180px;
+    min-height: 225px;
+    border-radius: 16px;
+  }
+
+  .emp-sheet-fields-fixed {
+    margin: 0 28px 18px;
+    padding: 12px 16px 14px;
+  }
+
+  .emp-sheet-identity-top .field input {
+    font-size: 1rem;
+    padding: 7px 11px;
+  }
+
+  .emp-sheet-toolbar .emp-subtab {
+    padding: 6px 12px;
+    font-size: 0.92rem;
+  }
+
+  .emp-profile-compact .field input,
+  .emp-profile-compact .field select {
+    padding: 6px 9px;
+    font-size: 0.88rem;
+  }
+
+  .emp-photo-create {
+    width: 96px;
+    height: 120px;
+    min-width: 96px;
   }
 }
 

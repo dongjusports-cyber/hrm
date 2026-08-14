@@ -82,4 +82,11 @@ Giới hạn:
 | + Gemini khiếu nại ~10–20 ticket/tháng | Thấp (dùng Gemini Pro Workspace) |
 | Tắt chat AI | **0đ** API |
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `06_CONG_NGHE_KIENTRUC.md`*

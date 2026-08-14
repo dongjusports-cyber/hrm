@@ -65,4 +65,11 @@
 | REM | Nghỉ chế độ nhà nước |
 | MSNV | Mã số nhân viên |
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `15_RUNBOOK_KHONG_IT.md`*

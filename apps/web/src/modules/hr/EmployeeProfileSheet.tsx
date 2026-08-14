@@ -489,6 +489,22 @@ export function EmployeeProfileSheet({
           >
             <div className="fs-sheet-pinned">
               <div className="emp-sheet-header">
+                <button
+                  type="button"
+                  className="emp-photo emp-photo-sheet"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={saving}
+                  title="Bấm để đổi ảnh"
+                >
+                  {photoUrl ? (
+                    <img src={photoUrl} alt={form.full_name || "Ảnh NV"} />
+                  ) : (
+                    <span className="emp-photo-empty">
+                      <strong>Ảnh</strong>
+                      <small>Bấm thêm</small>
+                    </span>
+                  )}
+                </button>
                 <div className="emp-sheet-header-main">
                   <div className="emp-sheet-identity-top">
                     <label className="field emp-sheet-msnv">
@@ -610,22 +626,6 @@ export function EmployeeProfileSheet({
                     </button>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="emp-photo emp-photo-sheet"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={saving}
-                  title="Bấm để đổi ảnh"
-                >
-                  {photoUrl ? (
-                    <img src={photoUrl} alt={form.full_name || "Ảnh NV"} />
-                  ) : (
-                    <span className="emp-photo-empty">
-                      <strong>Ảnh</strong>
-                    </span>
-                  )}
-                </button>
                 <input
                   ref={fileRef}
                   type="file"

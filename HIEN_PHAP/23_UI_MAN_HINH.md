@@ -5,6 +5,25 @@
 
 ---
 
+## 23.0 LUẬT THIẾT KẾ TỐI CAO (đọc trước mọi mục dưới)
+
+**Nguồn đầy đủ:** `25_QUY_TAC_THIET_KE_TOI_CAO.md` · Tóm tắt **bắt buộc**:
+
+| Nguyên tắc | Áp dụng trong file này |
+|------------|------------------------|
+| **Chính xác** | §23.2 cột tiền, §23.3 nhãn/ô, §23.7 lỗi |
+| **Tiện dụng** | §23.5 hàng loạt, §23.6 nhập nhanh, §23.8 giảm click |
+| **Không rối mắt** | §23.1 chrome 160px, tối đa 12 trường/tab |
+| **Không chừa khoảng trống** | Header/toolbar full width; không form 1120px giữa màn 1920 |
+| **Tận dụng không gian** | Breakpoint 1400/1680/1920; ảnh NV & cột form scale lên |
+| **Ngăn nắp** | §23.1 tách chrome / dữ liệu / status |
+| **Gọn gàng** | Toolbar không wrap @1366; gap đồng bộ |
+| **Đồng đều** | Cột lưới `repeat(n, 1fr)` trên màn rộng; tile Portal đều nhau |
+
+> **Kiểm tra merge UI:** checklist §25.3 trong file `25`.
+
+---
+
 ## 23.1 NGÂN SÁCH CHIỀU CAO — áp cho mọi màn
 
 | Dải | Cao | Hành vi | Nội dung |
@@ -235,8 +254,8 @@ Lập trình viên **tự chọn** thêm Tailwind hay mở rộng CSS hiện có
 | P3c | `marital_status` → lookup `marital_status` | **Done** |
 | P3d | Nút Toàn màn hình (thử nghiệm) | Giữ — có tooltip |
 
-**Đã đạt (giữ):** FullScreenSheet hồ sơ · Lưu không nhảy trang · grid cuộn trong vùng dữ liệu · kỳ mặc định tháng hiện tại.
+**Đã đạt (giữ):** FullScreenSheet hồ sơ · Lưu không nhảy trang · grid cuộn trong vùng dữ liệu · kỳ mặc định tháng hiện tại · ảnh NV scale @1920 (§25.4).
 
 ---
 
-*Tiếp: `24_LO_TRINH_5_DOT.md`*
+*Tiếp: `24_LO_TRINH_5_DOT.md` · Luật tối cao: `25_QUY_TAC_THIET_KE_TOI_CAO.md`*

@@ -66,4 +66,11 @@ Local (test) → VPS (production)
 - Trạng thái Agent Mitapro hiển thị trên Web.
 - **Không** dựng Grafana/Prometheus giai đoạn đầu trừ khi Chủ muốn.
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `13_TEST_NGHIEM_THU_NGOAI_LE.md`*

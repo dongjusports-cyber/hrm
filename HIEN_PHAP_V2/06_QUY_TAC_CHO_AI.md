@@ -28,10 +28,18 @@
 ```
 1. Đọc HIEN_PHAP_V2/00 → file liên quan task
 2. Nếu bug UAT → đọc HIEN_PHAP/22, 03, MSNV + kỳ
-3. Nếu UI V2 → checkout feat/ui-v2, chỉ sửa web-v2
+3. Nếu UI V2 → checkout feat/ui-v2, chỉ sửa web-v2; đọc 09 + HIEN_PHAP/25
 4. pytest / vitest trước khi báo xong
 5. Không commit trừ khi Chủ yêu cầu
 ```
+
+## Luật thiết kế tối cao (khi sửa UI)
+
+**Bắt buộc đọc:** `HIEN_PHAP/25_QUY_TAC_THIET_KE_TOI_CAO.md` · Tóm tắt: `09_QUY_TAC_THIET_KE_TOI_CAO.md`
+
+Tám chữ vàng: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều.**
+
+Trước khi báo xong UI: checklist §25.3 trong file `25`.
 
 ---
 

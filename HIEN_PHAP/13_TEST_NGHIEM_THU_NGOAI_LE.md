@@ -88,4 +88,11 @@ MVP: xử lý các case phổ biến; case hiếm → cho HR chỉnh tay + ghi l
 - Ra **> 17:15** → OT tính từ **17:00**; **Thứ 3 / Thứ 5** → cột OT trên sổ; ngày khác → `OT_EXT`.
 - Một lần bấm sáng sau dedupe 60s → ghi **`first_in`**, không bỏ trống cả hai cột.
 
+
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.
 *Tiếp: `14_DATA_DICTIONARY.md`*

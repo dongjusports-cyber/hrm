@@ -185,3 +185,9 @@ quyết định của Chủ khi thấy số đã khớp đủ lâu.
 ---
 
 *Hết bộ V2 (20–26). Quay lại `20_HIEN_PHAP_V2_QUY_TRINH.md` khi bắt đầu phiên mới.*
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

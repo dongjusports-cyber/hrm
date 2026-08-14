@@ -30,3 +30,9 @@
 3. **Đợt 6 — Tự động hóa vận hành** — `26_TU_DONG_HOA_VAN_HANH.md` + `24§Đợt 6`  
 
 *File này chỉ định nghĩa phạm vi — không thay thế 20–26.*
+
+---
+
+## Thiết kế giao diện (luật tối cao)
+
+Phần hiển thị liên quan file này tuân **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**: **chính xác · tiện dụng · không rối mắt · không chừa khoảng trống · tận dụng không gian · ngăn nắp · gọn gàng · đồng đều**.

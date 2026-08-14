@@ -91,6 +91,22 @@ Bối cảnh: **1 nhà máy, ~500 người, không IT, chạy local trước r�
 
 **Thang đo “vừa đủ”:** trang thường tải < 2s; tính lương 500 người < 2 phút; người không IT thao tác được không cần cầm tay.
 
+### P12 — Thiết kế tối cao: chính xác · tiện dụng · không rối · không chừa trống
+> **Luật bắt buộc cho mọi giao diện** — chi tiết đầy đủ: **`25_QUY_TAC_THIET_KE_TOI_CAO.md`**
+
+Mọi màn hình phải đạt **cả tám** nguyên tắc:
+
+1. **Chính xác** — số, nhãn, căn lề đúng nghiệp vụ  
+2. **Tiện dụng** — ít thao tác, phím tắt, làm việc hàng loạt  
+3. **Không rối mắt** — một vùng một việc; không nhồi trang trí  
+4. **Không chừa khoảng trống** — không khối nhỏ lơ lửng giữa màn 1920×1080  
+5. **Tận dụng không gian trống** — giãn đều, ảnh/ô lớn hơn trên màn rộng  
+6. **Ngăn nắp** — header / toolbar / dữ liệu / status tách rõ  
+7. **Gọn gàng** — padding và hàng thẳng, toolbar không wrap oan  
+8. **Đồng đều** — cột lưới và gap nhất quán trong cùng màn  
+
+**Cân bằng P11 ↔ P12:** KISS không có nghĩa bỏ phí không gian màn hình — đơn giản **và** lấp đầy có chủ đích.
+
 ## 1.4 Phạm vi MVP vs Sau
 
 | Phạm vi | MVP | Phase 2+ |
