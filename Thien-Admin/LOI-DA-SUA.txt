@@ -188,3 +188,16 @@ Test (đã pass):
     -> 23 passed
 
 Phạm vi: CHỈ Bước E (engine + prefetch recalculate_days). AI nhắc T−3 (Bước F) chưa làm.
+
+[AI-F001] AI nhắc chế độ về sớm T−3 (Bước F) — 2026-08-15
+  - ai/service.py: evaluate_wt_regime_reminders (date_to = today+3, regime còn hiệu lực)
+    gọi trong list_mine cùng evaluate_payroll_reminders; source_ref wt_regime:{id}:{date_to}
+  - ai/todos.py: card «N chế độ sắp hết hạn» → /m/hr/lists/special_regime
+  - _visible_to: wt_regime_expiring → admin hoặc has_module("hr")
+  - Test: test_wt_regime_reminders.py + test_todos_57.py (key wt_regime_expiring)
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_wt_regime_reminders.py tests/test_todos_57.py -q
+    -> 6 passed
+
+Phạm vi: CHỈ Bước F. Cột HR thâm niên tiền (Bước G) chưa làm.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -130,6 +130,10 @@ def _visible_to(user: User, alert: AiAlert) -> bool:
         if user.role == "admin":
             return True
         return user.has_module("dispute") or user.has_module("payroll")
+    if alert.rule_key == "wt_regime_expiring":
+        if user.role == "admin":
+            return True
+        return user.has_module("hr")
     if alert.rule_key.startswith("kpi_"):
         if user.role == "admin":
             return True
@@ -213,6 +217,45 @@ def evaluate_payroll_reminders(db: Session) -> None:
                 target_module="payroll",
                 user_id=None,
                 source_ref=f"period_lock_overdue:{period}",
+            ),
+        )
+
+
+_WT_REGIME_LABEL = {"PREGNANT": "Thai sản", "CHILD": "Nuôi con"}
+
+
+def evaluate_wt_regime_reminders(db: Session) -> None:
+    """22§22.14 / Bước F — nhắc HR khi chế độ về sớm còn 3 ngày (date_to = today+3)."""
+    from app.modules.mdm.models import Employee, EmployeeWtRegime
+
+    today = date.today()
+    target = today + timedelta(days=3)
+    rows = (
+        db.query(EmployeeWtRegime, Employee)
+        .join(Employee, Employee.id == EmployeeWtRegime.employee_id)
+        .filter(
+            EmployeeWtRegime.date_to == target,
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.ended_at.is_(None),
+            Employee.deleted_at.is_(None),
+        )
+        .all()
+    )
+    for regime, emp in rows:
+        label = _WT_REGIME_LABEL.get(regime.regime_type, regime.regime_type)
+        date_to_str = regime.date_to.strftime("%d/%m/%Y")
+        create_alert(
+            db,
+            AiAlertCreate(
+                rule_key="wt_regime_expiring",
+                title=f"Trợ Lý AI: chế độ {label} MSNV {emp.employee_code} sắp hết hạn",
+                body=(
+                    f"MSNV {emp.employee_code} — {label} ({regime.hours_early}h), "
+                    f"hết {date_to_str} (còn 3 ngày). Gia hạn hoặc chấm dứt trên hồ sơ."
+                ),
+                target_module="hr",
+                user_id=None,
+                source_ref=f"wt_regime:{regime.id}:{regime.date_to.isoformat()}",
             ),
         )
 
@@ -343,6 +386,7 @@ def list_mine(db: Session, user: User, *, unread_only: bool = False, limit: int 
     # Lazy rule engine (0 token) — 05§5.3
     try:
         evaluate_payroll_reminders(db)
+        evaluate_wt_regime_reminders(db)
         evaluate_kpi_threshold_alerts(db)
     except Exception:  # noqa: BLE001 — không chặn badge nếu rule lỗi
         pass

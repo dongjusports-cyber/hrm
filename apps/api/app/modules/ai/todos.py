@@ -11,7 +11,7 @@ from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
 from app.modules.dispute.service import OPEN_STATUSES
 from app.modules.insurance.models import InsuranceDeclaration
-from app.modules.mdm.models import Employee, LabourContract
+from app.modules.mdm.models import Employee, EmployeeWtRegime, LabourContract
 from app.modules.payroll.models import Payslip
 
 
@@ -48,6 +48,30 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     target_module="hr",
                     href="/m/hr/contracts",
                     priority=10,
+                )
+            )
+
+        expiring_wt = (
+            db.query(EmployeeWtRegime)
+            .join(Employee, Employee.id == EmployeeWtRegime.employee_id)
+            .filter(
+                EmployeeWtRegime.date_to == today + timedelta(days=3),
+                EmployeeWtRegime.date_from <= today,
+                EmployeeWtRegime.ended_at.is_(None),
+                Employee.deleted_at.is_(None),
+            )
+            .count()
+        )
+        if expiring_wt > 0:
+            cards.append(
+                TodoCardOut(
+                    key="wt_regime_expiring",
+                    title=f"{expiring_wt} chế độ sắp hết hạn",
+                    body="Chế độ về sớm (Thai sản / Nuôi con) hết sau 3 ngày — gia hạn hoặc chấm dứt trên hồ sơ.",
+                    count=expiring_wt,
+                    target_module="hr",
+                    href="/m/hr/lists/special_regime",
+                    priority=12,
                 )
             )
 
