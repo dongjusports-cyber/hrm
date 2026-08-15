@@ -1,6 +1,6 @@
 """Hạng mục 1.4 — API + lưới danh sách NV: bộ lọc Bộ phận › Tổ, xuất Excel theo bộ lọc."""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -73,6 +73,19 @@ def test_seniority_and_contract_type_labels(client, db: Session):
     row = next(e for e in res.json() if e["employee_code"] == "1514")
     assert row["contract_type_label"] == "Chính thức"
     assert "năm" in row["seniority_label"]
+    assert row["seniority_amount"] is not None
+    assert Decimal(str(row["seniority_amount"])) > 0
+
+
+def test_seniority_amount_empty_under_one_year(client, db: Session):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.join_date = date.today() - timedelta(days=90)
+    db.commit()
+
+    headers = _hr_headers(client)
+    res = client.get("/api/employees?q=5290", headers=headers)
+    row = next(e for e in res.json() if e["employee_code"] == "5290")
+    assert row.get("seniority_amount") is None
 
 
 def test_export_respects_filter_and_columns(client, db: Session):

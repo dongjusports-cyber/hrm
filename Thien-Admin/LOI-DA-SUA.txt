@@ -188,3 +188,15 @@ Test (đã pass):
     -> 23 passed
 
 Phạm vi: CHỈ Bước E (engine + prefetch recalculate_days). AI nhắc T−3 (Bước F) chưa làm.
+
+[HR-G001] Cột HR phụ cấp thâm niên tiền (Bước G) — 2026-08-15
+  - EmployeeOut.seniority_amount (Decimal | None) — seniority_monthly + batch tiers 1 lần/list
+  - mdm/service.py: _load_seniority_rules_batch, _seniority_amount trong employee_to_out
+  - EmployeesPage FULL view: cột «PC thâm niên» sau «Thâm niên»; api.ts type
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_allowances_engine.py tests/test_policy_rate_tables.py tests/test_org_filter_export.py -q
+    -> 21 passed
+  cd apps/web && npm run build -> OK (201 modules)
+
+Phạm vi: CHỈ Bước G. Cột phép còn lại (Bước H) chưa làm.

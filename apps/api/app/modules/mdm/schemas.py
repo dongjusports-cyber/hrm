@@ -284,6 +284,7 @@ class EmployeeOut(BaseModel):
     total_salary: Decimal = Decimal("0")
     # Suy ra, không lưu cột — nguồn duy nhất để lưới và Excel xuất khớp nhau (hạng mục 1.4)
     seniority_label: str | None = None
+    seniority_amount: Decimal | None = None
     contract_type_label: str = "Chính thức"
     si_base_override: Decimal | None
     si_enrolled: bool
