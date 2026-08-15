@@ -73,9 +73,9 @@ def test_attendance_bonus_rules_match_genus_and_hien_phap(client):
     res = client.get("/api/policies/attendance-bonus-rules/current", headers=headers)
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["late_count_half"] == 3
+    assert body["late_count_half"] == 2
     assert body["early_count_half"] == 2
     assert body["late_count_zero"] == 5
-    assert body["early_count_zero"] == 4
+    assert body["early_count_zero"] == 5
     assert set(body["exempt_leave_codes"]) == {"ALE", "FLE", "WED"}
     assert Decimal(str(body["full_amount"])) == Decimal("600000")

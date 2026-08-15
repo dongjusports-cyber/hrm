@@ -4,7 +4,7 @@ Nguồn số:
 - BH / công đoàn / trần: 22§22.9 + GenusSuite GenuiSuite_Logic.sql dòng 13410–13420
 - Biểu thuế + giảm trừ: seed_payload hiện hành + 22§22.10 / 22§22.12
 - Thâm niên: 22§22.5 + F_CAL_SERVERANCE (bung công thức 6–119 thành bậc 6 tháng)
-- Chuyên cần: 20§20.7 (600.000) + F_CAL_INDUS_AMT (ngưỡng 3/2 → 5/4) + 22§22.12
+- Chuyên cần: 20§20.7 (600.000) + 22§22.3 (ngưỡng mới 2026-08-15: trễ 2/5, sớm 2/5) + 22§22.12
 
 effective_from mặc định = 2024-07-01 (mốc lương tối thiểu vùng I NĐ 74/2024) — đủ bao phủ
 dữ liệu GenusSuite Jan–Jul/2026. effective_to = NULL (đang hiệu lực).
@@ -120,10 +120,10 @@ def seed_policy_rate_tables(db: Session) -> dict[str, int]:
             AttendanceBonusRule(
                 effective_from=SEED_FROM,
                 effective_to=None,
-                late_count_half=3,
+                late_count_half=2,
                 early_count_half=2,
                 late_count_zero=5,
-                early_count_zero=4,
+                early_count_zero=5,
                 exempt_leave_codes=["ALE", "FLE", "WED"],
                 full_amount=Decimal("600000"),
             )

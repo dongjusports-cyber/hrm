@@ -48,13 +48,13 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
     "attendance_penalties": {
 
-        "late_half": 3,
+        "late_half": 2,
 
         "early_half": 2,
 
         "late_zero": 5,
 
-        "early_zero": 4,
+        "early_zero": 5,
 
         "any_absence_zero": True,
 

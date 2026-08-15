@@ -14,7 +14,8 @@ def test_default_payload_has_22_12_blocks():
     assert p["divisor_rule"]["source"] == "calendar_working_days"
     assert p["divisor_rule"]["cap"] == 26
     pen = p["attendance_penalties"]
-    assert pen["late_half"] == 3 and pen["early_half"] == 2
+    assert pen["late_half"] == 2 and pen["early_half"] == 2
+    assert pen["late_zero"] == 5 and pen["early_zero"] == 5
     assert pen["exempt_leave_codes"] == ["ALE", "FLE", "WED"]
     assert pen["exempt_requires_hours_lt"] == 8
     assert pen["exempt_requires_punch"] is True

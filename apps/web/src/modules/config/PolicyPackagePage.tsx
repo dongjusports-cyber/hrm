@@ -26,10 +26,10 @@ export function PolicyPackagePage() {
   const [jsonText, setJsonText] = useState("");
   const [attendMonthly, setAttendMonthly] = useState(600_000);
   const [transportMonthly, setTransportMonthly] = useState(800_000);
-  const [lateHalf, setLateHalf] = useState(3);
+  const [lateHalf, setLateHalf] = useState(2);
   const [earlyHalf, setEarlyHalf] = useState(2);
   const [lateZero, setLateZero] = useState(5);
-  const [earlyZero, setEarlyZero] = useState(4);
+  const [earlyZero, setEarlyZero] = useState(5);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,10 +47,10 @@ export function PolicyPackagePage() {
     setAttendMonthly(num(p.attendance_bonus_monthly, 600_000));
     setTransportMonthly(num(p.transport_monthly_default, 800_000));
     const pen = (p.attendance_penalties as Record<string, unknown>) || {};
-    setLateHalf(num(pen.late_half, 3));
+    setLateHalf(num(pen.late_half, 2));
     setEarlyHalf(num(pen.early_half, 2));
     setLateZero(num(pen.late_zero, 5));
-    setEarlyZero(num(pen.early_zero, 4));
+    setEarlyZero(num(pen.early_zero, 5));
   }
 
   function buildPayloadFromForm(base: Record<string, unknown>): Record<string, unknown> {
