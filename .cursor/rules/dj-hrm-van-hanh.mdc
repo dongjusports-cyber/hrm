@@ -1,0 +1,46 @@
+---
+description: Vận hành DJ-HRM — GitHub, VPS, máy .123, Cloud Agent (không chứa secret)
+globs:
+alwaysApply: true
+---
+
+# DJ-HRM — vận hành (cập nhật 2026-08-15)
+
+## Ba nơi
+
+| Nơi | Vai trò |
+|-----|---------|
+| **GitHub** `dongjusports-cyber/hrm` branch `main` | Source of truth code |
+| **VPS** https://hrm.dongju-v.com — `/opt/dj-hrm` | Production + DB 359 NV |
+| **Máy .123** `C:\DATA\HRM\dj-hrm\dj-hrm` | Dev / Cursor ban ngày |
+
+**DB production chỉ trên VPS** — không sync 3 chiều. Cloud Agent **không** SSH VPS.
+
+## Thư mục Thien-Admin (user double-click)
+
+`Thien-Admin\02-DONG-BO-SANG.bat` — **mỗi sáng**: deploy VPS + git pull .123
+
+Một lần đã xong: Deploy Key GitHub, repo mới, Cloud Environment Save.
+
+## Secret / mật khẩu
+
+Đọc file **local** `ops/THONG_TIN_VPS.txt` (gitignore) — SSH root, portal admin, Postgres, AGENT_TOKEN.
+
+Không commit: `vps-root.txt`, `.env.prod`, `THONG_TIN_VPS.txt`, `Dữ liệu công nhân/`.
+
+## Deploy VPS từ AI
+
+`python ops/deploy_vps_from_git.py` hoặc user chạy `02-DONG-BO-SANG.bat`.
+
+Config repo: `ops/github.repo`. Kiểm tra: `python ops/check_vps.py`, `python ops/verify_github_deploy_key.py`.
+
+## Cloud Agent tối
+
+Repo `hrm`, `.cursor/environment.json` + `ops/cloud/install.sh`. Prompt: `Thien-Admin/PROMPT-TOI-CLOUD.txt`.
+
+**Không** thêm VPS secrets vào Cloud. Sáng user/agent chạy đồng bộ.
+
+## Fix gần đây (commit 2d3b515)
+
+- OT ngày lễ buổi sáng/chiều (`engine.py`)
+- Race `ensure_pay_period` → HTTP 500 chấm công (`timesheet.py`)
