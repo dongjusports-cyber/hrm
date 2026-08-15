@@ -165,6 +165,7 @@ Mọi thay đổi sau: sửa file liên quan + thêm dòng Changelog.
 | 2026-08-08 | REM: Chủ nợ câu trả lời — sẽ hỏi NV tính lương. MVP mặc định REM không trả lương; cập nhật sau | Nguyễn Thanh Thiện |
 | 2026-08-08 | GenuiSuite dùng **Toad** chỉnh dữ liệu → có DB backend (Oracle/SQL Server). Không kết nối sống vào DJ HRM; tra cứu thủ công khi cần | Nguyễn Thanh Thiện |
 | 2026-08-08 | **Chốt tên: DJ HRM** (công ty DongJu). Repo/thư mục `dj-hrm` viết thường; UI viết hoa DJ HRM. COSMOS AI giữ nguyên | Nguyễn Thanh Thiện |
+| 2026-08-15 | **Chuyên cần — quy định mới:** trễ ≥2 hoặc sớm ≥2 → 50%; trễ ≥5 hoặc sớm ≥5 hoặc vắng → 0%. Không gộp trễ+sớm. Miễn vắng: ALE/FLE/WED/TMP/OFF. PT khám thai = mất 100% chuyên cần (HR gán mã miễn tay). Không thêm mã quân sự. Ca Cleaner 07–12/13–16, OT từ 17:00. Chế độ về sớm Thai sản/Nuôi con: bảng `employee_wt_regimes`, thủ công hồ sơ, không tính lùi ngày, AI nhắc T−3. Spec kỹ sư: `Thien-Admin/KE-HOACH-KY-SU-2026-08-15.md` | AI + Nguyễn Thanh Thiện |
 
 
 ---

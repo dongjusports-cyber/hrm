@@ -112,15 +112,18 @@ Phụ cấp chức vụ `POS_ALL` chia theo **đúng công thức này**.
 | Tháng Tết 20 ngày, đi 15 | 600.000 / 20 × 15 | 450.000 |
 
 ### Tỷ lệ chuyên cần — nhân sau cùng
-Nguồn: hàm `F_CAL_INDUS_AMT`, dòng **104–215**; áp dụng ở dòng **13961–13965**.
+
+> **Cập nhật 2026-08-15 (Chủ / HR):** thay ngưỡng GenusSuite cũ (trễ 3 / sớm 2 / sớm 4) bằng quy định mới bên dưới. Tham số lưu trong `policy_packages.payload.attendance_penalties` và `attendance_bonus_rules`.
 
 ```
 tỷ lệ = 1.00
-NẾU (số lần trễ >= 3) HOẶC (số lần sớm >= 2)                    → tỷ lệ = 0.50
-NẾU (số lần trễ >= 5) HOẶC (số lần sớm >= 4) HOẶC (có vắng)     → tỷ lệ = 0.00
+NẾU (số lần trễ >= 2) HOẶC (số lần sớm >= 2)                    → tỷ lệ = 0.50
+NẾU (số lần trễ >= 5) HOẶC (số lần sớm >= 5) HOẶC (có vắng)     → tỷ lệ = 0.00
 
 tiền chuyên cần cuối = tiền đã chia × tỷ lệ
 ```
+
+**Không gộp lỗi:** đếm trễ và sớm **độc lập** — trễ 1 + sớm 1 vẫn 100% (chưa đạt ngưỡng 2).
 
 **Miễn trừ trễ/sớm** — không tính vào số lần trễ/sớm nếu ngày đó thỏa cả ba:
 1. Có mã nghỉ thuộc `ALE`, `FLE`, `WED`
@@ -189,7 +192,7 @@ Nguồn: `Common_Codes.csv`, nhóm `HRAB0110`. Cột cuối là **% công ty tr�
 | `LA` | Nghỉ tai nạn lao động | 100 | |
 | `OFF` | Nghỉ bù | 100 | Không tính là vắng |
 | `TMP` | Nghỉ hết hàng | **70** | Không tính là vắng, nhưng **không** vào tử số chia phụ cấp |
-| `PT` | Nghỉ khám thai | 0 | BHXH chi trả |
+| `PT` | Nghỉ khám thai | 0 | BHXH chi trả · **mất 100% chuyên cần** (HR gán mã miễn khác nếu được phép) |
 | `MLE` | Nghỉ thai sản | 0 | BHXH chi trả |
 | `MC` | Nghỉ sẩy thai | 0 | BHXH chi trả |
 | `SLE` | Nghỉ ốm | 0 | BHXH chi trả |
@@ -204,6 +207,8 @@ Nguồn: dòng **13811**.
 tiền = (BASIC_SAL + SAL_ALLOW) / divisor × số_ngày_nghỉ × (% trả lương / 100)
 ```
 Mỗi loại nghỉ là **một dòng riêng** trên phiếu lương, không gộp vào lương ngày công.
+
+> **Ca làm việc và chế độ về sớm (Thai sản / Nuôi con):** xem **§22.13** và **§22.14** — không thuộc mục nghỉ phép này.
 
 ---
 
@@ -397,7 +402,78 @@ giữ nguyên cơ chế đó, gói cũ thiếu khóa mới vẫn chạy được
 
 ---
 
+## 22.13 CA LÀM VIỆC THEO TỔ
 
+Ca lưu ở `work_shifts`; mỗi Tổ có `teams.default_shift_id`, có thể ghi đè từng ngày qua
+`team_shift_schedules`. **Engine phải tính theo ca của Tổ**, không theo một lịch chung.
+
+### Ca hành chính (`ADMIN`) — mặc định
+08:00 – 17:00 · nghỉ trưa 12:00 – 13:00 · OT từ 17:00.
+
+### Ca tạp vụ (`CLEANER`)
+Tổ **Cleaner** (`teams.code = 02`, bộ phận HR & Admin).
+
+| Mốc | Giờ |
+|-----|-----|
+| Vào ca | 07:00 |
+| Nghỉ trưa | 12:00 – 13:00 |
+| **Hết ca** (mốc về sớm / đủ công) | **16:00** |
+| 16:00 – 17:00 | Giờ nghỉ — **không** tính OT |
+| **Bắt đầu OT** | **17:00** (`work_shifts.ot_start`, giống công nhân) |
+| Grace OT | 17:15 · OT sổ 17:00–20:00 Th3+Th5 |
+
+Ra máy **16:00 = bình thường**, không tính về sớm. Khoảng 16:00–17:00 là giờ nghỉ nên **không**
+sinh OT dù có bấm thẻ.
+
+**Luật engine:** `end_time` (mốc hết ca / về sớm) **tách khỏi** `ot_start` (mốc OT). Hai mốc này
+bằng nhau ở ca ADMIN nhưng **khác nhau** ở ca CLEANER — không được suy mốc OT từ giờ hết ca.
+
+---
+
+## 22.14 CHẾ ĐỘ VỀ SỚM (THAI SẢN / NUÔI CON)
+
+HR khai **thủ công** trên hồ sơ NV — bảng `employee_wt_regimes`. Không có màn WT Allowance riêng
+(phase 1); hệ thống **không** tự suy từ giới tính hay tuổi con.
+
+| Trường | Quy tắc |
+|--------|--------|
+| Loại | `PREGNANT` (Thai sản) · `CHILD` (Nuôi con) |
+| Giờ về sớm | 1 / 2 / 3 (mặc định gợi ý: 1 / 2) |
+| Từ ngày – Đến ngày | Bắt buộc · **Từ ngày ≥ ngày gán** (không tính lùi ngày) |
+| Tab HR | «Chế độ đặc biệt» khi `date_from ≤ hôm nay ≤ date_to` |
+| Chấm dứt | HR bấm «Chấm dứt» → `date_to = hôm nay` → NV **tự về** tab Chính thức |
+| AI | Nhắc HR **3 ngày** trước `date_to` (Lớp A, 0 token) |
+
+### Công thức trong kỳ hiệu lực
+
+```
+allowed_out = hết_ca(theo Tổ) − hours_early
+Nếu last_out ≥ allowed_out:
+  early_minutes = 0
+  worked_hours  = min(giờ_thực + hours_early, 8)      -- bù đủ công, không quá 8h
+Ngược lại:
+  early_minutes = phút(allowed_out − last_out)        -- chỉ phần vượt mốc
+  worked_hours  = giờ_thực + hours_early              -- vẫn bù, nhưng không quá 8h
+```
+
+Ví dụ ca 08–17, Thai sản 1h → `allowed_out = 16:00`:
+
+| Giờ ra | Giờ thực | worked_hours | early_minutes |
+|--------|----------|--------------|---------------|
+| 16:00 | 7h | **8h** | 0 |
+| 15:00 | 6h | **7h** | **60** (1 lần về sớm) |
+| 17:00 | 8h | **8h** (không thành 9h) | 0 |
+
+**Ngày công:** `worked_hours > 0` → tính **1 ngày công** (không đổi luật §22.1).
+
+**Chỉ áp dụng khi có đủ giờ vào + giờ ra.** Thiếu bấm thẻ là ngoại lệ HR xử lý tay, chế độ
+**không** che lỗi thiếu punch.
+
+**Phân biệt:** phụ cấp **tiền** `CHILD` (Con nhỏ) ≠ chế độ `CHILD` (Nuôi con — giờ về sớm). Hai
+thứ độc lập, NV có thể có một, cả hai, hoặc không có.
+
+**Tab «Thai sản» cũ:** chỉ tính nghỉ dài `MLE` / `MC` — **không** đưa `PT` (khám thai, nghỉ ngày
+lẻ) hay `REM` vào tab.
 
 ---
 

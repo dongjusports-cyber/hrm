@@ -19,6 +19,7 @@ Grep mã nguồn ngày 2026-08-10. Trước khi tạo bất kỳ bảng nào, đ
 | `config` | `portal_tabs` |
 | `ai` | `ai_alerts`, `ai_runtime_settings`, `ai_jobs` |
 | `policy` | `policy_packages`, `policy_confirm_logs` |
+| `mdm` (bổ sung) | `employee_wt_regimes` (2026-08-15) |
 | `payroll` | `allowance_types`, `employee_allowance_assignments`, `policy_snapshots`, `payroll_runs`, `payslip_adjustments`, `payslips` |
 | `calendar` | `holidays`, `work_week_rules` |
 
@@ -139,6 +140,27 @@ UNIQUE (employee_id, seq_no)
 ```
 **KHÔNG unique theo `employee_id`.** Công nhân nghỉ rồi vào lại là chuyện thường ở xưởng may.
 5 lý do: trong thử việc · nộp đơn · tự ý bỏ việc · hết hạn HĐ · sa thải.
+
+### `employee_wt_regimes` — MỚI (2026-08-15)
+
+Chế độ về sớm Thai sản / Nuôi con — HR khai trên hồ sơ.
+
+```
+id                  UUID PK
+employee_id         FK employees NOT NULL
+regime_type         varchar(20) NOT NULL   -- PREGNANT | CHILD
+hours_early         smallint NOT NULL      -- 1 | 2 | 3
+date_from           date NOT NULL
+date_to             date NOT NULL
+note                text DEFAULT ''
+created_by_user_id  FK users
+created_at          timestamptz
+ended_at            timestamptz NULL
+CHECK (date_to >= date_from)
+INDEX (employee_id, date_from, date_to)
+```
+
+Spec: `Thien-Admin/KE-HOACH-KY-SU-2026-08-15.md` bước D–F.
 
 ### `employee_salary_history` · `employee_allowance_history` — MỚI
 ```
