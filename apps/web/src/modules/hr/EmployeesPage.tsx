@@ -72,6 +72,7 @@ const FULL_COLUMNS = [
   "join_date",
   "seniority_label",
   "seniority_amount",
+  "annual_leave_remaining",
   "contract_type_label",
   "total_salary",
   "contract_signed_at",
@@ -114,6 +115,13 @@ function saveViewPrefs(prefs: ViewPrefs) {
 function parseFilter(raw: string | undefined): StatusFilter {
   if (raw && raw in FILTER_META) return raw as StatusFilter;
   return "all";
+}
+
+function formatLeaveDays(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return n.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function formatVnd(v: string | number | null | undefined): string {
@@ -344,6 +352,13 @@ export function EmployeesPage() {
           filter: false,
           cellClass: "hr-cell-money",
           valueFormatter: (p) => formatVnd(p.value),
+        },
+        {
+          field: "annual_leave_remaining",
+          headerName: "Phép còn",
+          width: 95,
+          filter: false,
+          valueFormatter: (p) => formatLeaveDays(p.value),
         },
         { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 130, width: 130, filter: false },
         {

@@ -360,6 +360,7 @@ def employee_to_out(
     effective_status: str | None = None,
     wt_regime_active: bool = False,
     seniority_rules: dict | None = None,
+    annual_leave_remaining: Decimal | None = None,
 ) -> EmployeeOut:
     dept = emp.department
     team = emp.team
@@ -408,6 +409,7 @@ def employee_to_out(
         position_title=emp.position_title,
         seniority_label=_seniority_label(emp.join_date, emp.resign_date),
         seniority_amount=_seniority_amount(emp.join_date, emp.resign_date, rules),
+        annual_leave_remaining=annual_leave_remaining,
         contract_type_label=_contract_type_label_for_employee(emp, active_contract_type),
         join_date=emp.join_date,
         contract_signed_at=emp.contract_signed_at,
@@ -761,6 +763,9 @@ def list_employees(
     active_types = _active_contract_types(db, ids)
     maternity_ids = es.maternity_employee_ids(db)
     seniority_rules = _load_seniority_rules_batch(db)
+    from app.modules.attendance.annual_leave_ledger import annual_leave_remaining_batch
+
+    leave_remaining_map = annual_leave_remaining_batch(db, ids)
     out: list[EmployeeOut] = []
     for e in rows:
         user = by_emp_id.get(e.id) or by_code.get(e.employee_code)
@@ -779,6 +784,7 @@ def list_employees(
                 effective_status=eff,
                 wt_regime_active=e.id in regime_ids,
                 seniority_rules=seniority_rules,
+                annual_leave_remaining=leave_remaining_map.get(e.id),
             )
         )
     if status in ("active", "probation", "maternity"):
@@ -805,6 +811,9 @@ def get_employee(db: Session, emp_id: UUID) -> EmployeeOut:
         active_contract_type=act_type,
         on_maternity_leave=emp.id in maternity_ids,
     )
+    from app.modules.attendance.annual_leave_ledger import annual_leave_remaining_batch
+
+    leave_map = annual_leave_remaining_batch(db, [emp.id])
     return employee_to_out(
         emp,
         _worker_user_for_employee(db, emp),
@@ -813,6 +822,7 @@ def get_employee(db: Session, emp_id: UUID) -> EmployeeOut:
         effective_status=eff,
         wt_regime_active=active_wt_regime(db, emp.id) is not None,
         seniority_rules=_load_seniority_rules_batch(db),
+        annual_leave_remaining=leave_map.get(emp.id),
     )
 
 

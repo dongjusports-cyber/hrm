@@ -1246,6 +1246,7 @@ export type Employee = {
   tax_dependent_count?: number;
   seniority_label?: string | null;
   seniority_amount?: string | number | null;
+  annual_leave_remaining?: string | number | null;
   contract_type_label?: string;
   status: string;
   effective_status?: string;
