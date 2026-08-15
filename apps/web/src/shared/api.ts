@@ -414,6 +414,78 @@ export async function deleteEmployeeEducation(empId: string, rowId: string): Pro
   if (!res.ok) throw new Error(await readError(res));
 }
 
+// --- Chế độ về sớm (Thai sản / Nuôi con) — 22§22.14 (Bước D) ---
+
+export type WtRegimeType = "PREGNANT" | "CHILD";
+
+export type EmployeeWtRegime = {
+  id: string;
+  employee_id: string;
+  regime_type: WtRegimeType;
+  hours_early: number;
+  date_from: string;
+  date_to: string;
+  note: string;
+  created_at: string | null;
+  ended_at: string | null;
+};
+
+export type WtRegimeCreate = {
+  regime_type: WtRegimeType;
+  hours_early: number;
+  date_from: string;
+  date_to: string;
+  note?: string;
+};
+
+export type WtRegimeUpdate = {
+  hours_early?: number;
+  date_to?: string;
+  note?: string;
+};
+
+export async function fetchEmployeeWtRegimes(empId: string): Promise<EmployeeWtRegime[]> {
+  const res = await apiFetch(`/api/employees/${empId}/wt-regimes`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function createEmployeeWtRegime(
+  empId: string,
+  body: WtRegimeCreate,
+): Promise<EmployeeWtRegime> {
+  const res = await apiFetch(`/api/employees/${empId}/wt-regimes`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function patchEmployeeWtRegime(
+  empId: string,
+  regimeId: string,
+  body: WtRegimeUpdate,
+): Promise<EmployeeWtRegime> {
+  const res = await apiFetch(`/api/employees/${empId}/wt-regimes/${regimeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function endEmployeeWtRegime(
+  empId: string,
+  regimeId: string,
+): Promise<EmployeeWtRegime> {
+  const res = await apiFetch(`/api/employees/${empId}/wt-regimes/${regimeId}/end`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export async function fetchEmployeeExperiences(empId: string): Promise<EmployeeExperience[]> {
   const res = await apiFetch(`/api/employees/${empId}/experiences`);
   if (!res.ok) throw new Error(await readError(res));
@@ -1186,6 +1258,7 @@ export type Employee = {
   is_locked?: boolean;
   failed_attempts?: number;
   has_worker_account?: boolean;
+  wt_regime_active?: boolean;
 };
 
 export type UnlockResetPasswordResult = {

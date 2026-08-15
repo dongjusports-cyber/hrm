@@ -82,3 +82,52 @@ def test_maternity_filter_by_status(client):
 
     active_list = client.get("/api/employees?status=active", headers=headers).json()
     assert code not in {e["employee_code"] for e in active_list}
+
+
+def test_special_regime_filter_by_wt_regime(client):
+    """Tab «Chế độ đặc biệt» — lọc NV có chế độ về sớm hiệu lực (không dùng status)."""
+    headers = _hr_headers(client)
+    code = "9104"
+    created = client.post(
+        "/api/employees",
+        headers=headers,
+        json={
+            "employee_code": code,
+            "full_name": "NV Che Do Dac Biet",
+            "team_code": "T1",
+            "department_code": "SW1",
+            "contract_salary": "6000000",
+            "probation_salary": "5100000",
+            "pay_channel": "ATM",
+            "join_date": "2020-01-15",
+            "contract_signed_at": "2020-01-15",
+            "status": "active",
+        },
+    )
+    assert created.status_code == 201, created.text
+    emp_id = created.json()["id"]
+
+    # Chưa có regime → không nằm trong tab special_regime, vẫn ở tab Chính thức
+    before = client.get("/api/employees?status=special_regime", headers=headers).json()
+    assert code not in {e["employee_code"] for e in before}
+    active_before = client.get("/api/employees?status=active", headers=headers).json()
+    assert code in {e["employee_code"] for e in active_before}
+
+    today = date.today()
+    reg = client.post(
+        f"/api/employees/{emp_id}/wt-regimes",
+        headers=headers,
+        json={
+            "regime_type": "CHILD",
+            "hours_early": 2,
+            "date_from": today.isoformat(),
+            "date_to": (today + timedelta(days=30)).isoformat(),
+        },
+    )
+    assert reg.status_code == 201, reg.text
+
+    special = client.get("/api/employees?status=special_regime", headers=headers).json()
+    assert code in {e["employee_code"] for e in special}
+    # Vẫn còn ở tab Chính thức (chế độ đặc biệt không đổi effective_status)
+    active_after = client.get("/api/employees?status=active", headers=headers).json()
+    assert code in {e["employee_code"] for e in active_after}

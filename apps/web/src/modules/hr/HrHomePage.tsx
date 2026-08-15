@@ -50,12 +50,12 @@ const TILES: HubTile[] = [
     countFn: (r) => r.filter((e) => empEffectiveStatus(e) === "probation").length,
   },
   {
-    key: "maternity",
-    name: "Thai sản",
-    description: "Nhân viên nghỉ thai sản",
-    to: "/m/hr/lists/maternity",
+    key: "special_regime",
+    name: "Chế độ đặc biệt",
+    description: "NV có chế độ về sớm (Thai sản / Nuôi con)",
+    to: "/m/hr/lists/special_regime",
     countKey: "employees",
-    countFn: (r) => r.filter((e) => empEffectiveStatus(e) === "maternity").length,
+    countFn: (r) => r.filter((e) => e.wt_regime_active).length,
   },
   {
     key: "new",

@@ -14,9 +14,11 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -469,6 +471,36 @@ class EmployeeExperience(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     employee: Mapped[Employee] = relationship(back_populates="experiences")
+
+
+class EmployeeWtRegime(Base):
+    """Chế độ về sớm (22§22.14) — Thai sản / Nuôi con: giảm giờ cuối ca theo kỳ.
+
+    Không dùng status=maternity cho Nuôi con — chỉ bảng này. Engine (Bước E) đọc
+    regime hiệu lực (date_from ≤ ngày ≤ date_to) để bù giờ / miễn về sớm.
+    """
+
+    __tablename__ = "employee_wt_regimes"
+    __table_args__ = (
+        CheckConstraint("hours_early IN (1, 2, 3)", name="ck_wt_regime_hours_early"),
+        CheckConstraint("date_to >= date_from", name="ck_wt_regime_dates"),
+        Index("ix_wt_regimes_employee_dates", "employee_id", "date_from", "date_to"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("employees.id"), nullable=False
+    )
+    regime_type: Mapped[str] = mapped_column(String(20), nullable=False)  # PREGNANT | CHILD
+    hours_early: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 | 2 | 3
+    date_from: Mapped[date] = mapped_column(Date, nullable=False)
+    date_to: Mapped[date] = mapped_column(Date, nullable=False)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class EmployeeHealthCheck(Base):

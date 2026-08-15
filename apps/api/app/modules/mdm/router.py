@@ -27,6 +27,9 @@ from app.modules.mdm.schemas import (
     EmployeeEducationCreate,
     EmployeeEducationOut,
     EmployeeEducationUpdate,
+    EmployeeWtRegimeCreate,
+    EmployeeWtRegimeOut,
+    EmployeeWtRegimeUpdate,
     EmployeeExperienceCreate,
     EmployeeExperienceOut,
     EmployeeExperienceUpdate,
@@ -632,6 +635,46 @@ def delete_education(
     emp_id: UUID, row_id: UUID, _user: HrUser, db: DbSession
 ) -> dict[str, str]:
     return service.delete_education(db, emp_id, row_id)
+
+
+@router.get("/employees/{emp_id}/wt-regimes", response_model=list[EmployeeWtRegimeOut])
+def get_wt_regimes(emp_id: UUID, _user: HrUser, db: DbSession) -> list[EmployeeWtRegimeOut]:
+    return service.list_wt_regimes(db, emp_id)
+
+
+@router.post(
+    "/employees/{emp_id}/wt-regimes",
+    response_model=EmployeeWtRegimeOut,
+    status_code=201,
+)
+def post_wt_regime(
+    emp_id: UUID, body: EmployeeWtRegimeCreate, user: HrUser, db: DbSession
+) -> EmployeeWtRegimeOut:
+    return service.create_wt_regime(db, emp_id, body, user)
+
+
+@router.patch(
+    "/employees/{emp_id}/wt-regimes/{regime_id}",
+    response_model=EmployeeWtRegimeOut,
+)
+def patch_wt_regime(
+    emp_id: UUID,
+    regime_id: UUID,
+    body: EmployeeWtRegimeUpdate,
+    user: HrUser,
+    db: DbSession,
+) -> EmployeeWtRegimeOut:
+    return service.patch_wt_regime(db, emp_id, regime_id, body, user)
+
+
+@router.post(
+    "/employees/{emp_id}/wt-regimes/{regime_id}/end",
+    response_model=EmployeeWtRegimeOut,
+)
+def end_wt_regime(
+    emp_id: UUID, regime_id: UUID, user: HrUser, db: DbSession
+) -> EmployeeWtRegimeOut:
+    return service.end_wt_regime(db, emp_id, regime_id, user)
 
 
 @router.get("/employees/{emp_id}/experiences", response_model=list[EmployeeExperienceOut])

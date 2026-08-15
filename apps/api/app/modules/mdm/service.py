@@ -27,6 +27,7 @@ from app.modules.mdm.models import (
     EmployeeResignation,
     EmployeeSalaryHistory,
     EmployeeViolation,
+    EmployeeWtRegime,
     LabourContract,
     LookupValue,
     Position,
@@ -53,6 +54,9 @@ from app.modules.mdm.schemas import (
     EmployeeDocumentOut,
     EmployeeEducationCreate,
     EmployeeEducationOut,
+    EmployeeWtRegimeCreate,
+    EmployeeWtRegimeOut,
+    EmployeeWtRegimeUpdate,
     EmployeeEducationUpdate,
     EmployeeExperienceCreate,
     EmployeeExperienceOut,
@@ -328,6 +332,7 @@ def employee_to_out(
     allowance_total: Decimal | None = None,
     active_contract_type: str | None = None,
     effective_status: str | None = None,
+    wt_regime_active: bool = False,
 ) -> EmployeeOut:
     dept = emp.department
     team = emp.team
@@ -389,6 +394,7 @@ def employee_to_out(
         phone=emp.phone,
         has_photo=has_photo,
         photo_url=f"/api/employees/{emp.id}/photo" if has_photo else None,
+        wt_regime_active=wt_regime_active,
         **acct,
     )
 
@@ -679,8 +685,14 @@ def list_employees(
         .filter(Employee.deleted_at.is_(None))
         .order_by(Employee.employee_code.asc())
     )
+    regime_ids = active_wt_regime_ids(db)
     if status == "resigned":
         query = query.filter(Employee.status == "resigned")
+    elif status == "special_regime":
+        # Tab «Chế độ đặc biệt» — NV có chế độ về sớm hiệu lực hôm nay (không dùng status).
+        query = query.filter(
+            Employee.status != "resigned", Employee.id.in_(list(regime_ids))
+        )
     elif status in ("active", "probation", "maternity"):
         query = query.filter(Employee.status != "resigned")
     elif status:
@@ -731,6 +743,7 @@ def list_employees(
                 allowance_total=allowance_totals.get(e.id, Decimal("0")),
                 active_contract_type=act_type,
                 effective_status=eff,
+                wt_regime_active=e.id in regime_ids,
             )
         )
     if status in ("active", "probation", "maternity"):
@@ -763,6 +776,7 @@ def get_employee(db: Session, emp_id: UUID) -> EmployeeOut:
         allowance_total=al_total,
         active_contract_type=act_type,
         effective_status=eff,
+        wt_regime_active=active_wt_regime(db, emp.id) is not None,
     )
 
 
@@ -2861,6 +2875,189 @@ def delete_education(db: Session, emp_id: UUID, row_id: UUID) -> dict[str, str]:
     db.delete(row)
     db.commit()
     return {"detail": "Trợ Lý AI: đã xóa bản ghi đào tạo."}
+
+
+# --- Chế độ về sớm (Thai sản / Nuôi con) — 22§22.14 (Bước D) ---
+
+VALID_REGIME_TYPES = frozenset({"PREGNANT", "CHILD"})
+
+
+def active_wt_regime(
+    db: Session, employee_id: UUID, as_of: date | None = None
+) -> EmployeeWtRegime | None:
+    """Regime hiệu lực cho NV vào ngày as_of (date_from ≤ as_of ≤ date_to)."""
+    today = as_of or date.today()
+    return (
+        db.query(EmployeeWtRegime)
+        .filter(
+            EmployeeWtRegime.employee_id == employee_id,
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.date_to >= today,
+        )
+        .order_by(EmployeeWtRegime.date_from.desc())
+        .first()
+    )
+
+
+def active_wt_regime_ids(db: Session, as_of: date | None = None) -> set[UUID]:
+    """Tập employee_id có regime hiệu lực hôm nay — cho lọc tab «Chế độ đặc biệt»."""
+    today = as_of or date.today()
+    rows = (
+        db.query(EmployeeWtRegime.employee_id)
+        .filter(
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.date_to >= today,
+        )
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
+def _wt_regime_overlap(
+    db: Session, emp_id: UUID, date_from: date, date_to: date, exclude_id: UUID | None = None
+) -> EmployeeWtRegime | None:
+    """Bản ghi đang hiệu lực (ended_at IS NULL) giao khoảng [date_from, date_to]."""
+    q = db.query(EmployeeWtRegime).filter(
+        EmployeeWtRegime.employee_id == emp_id,
+        EmployeeWtRegime.ended_at.is_(None),
+        EmployeeWtRegime.date_from <= date_to,
+        EmployeeWtRegime.date_to >= date_from,
+    )
+    if exclude_id is not None:
+        q = q.filter(EmployeeWtRegime.id != exclude_id)
+    return q.first()
+
+
+def _recalc_after_regime_change(db: Session, emp: Employee, r: EmployeeWtRegime) -> None:
+    """Tính lại công cho RIÊNG NV trong phần kỳ regime đã tới hôm nay (spec §Bước D).
+
+    range = [max(date_from, today) .. min(date_to, today)] → chỉ ngày hôm nay khi
+    regime đang hiệu lực; regime tương lai bỏ qua. Ngày is_locked engine tự bỏ qua.
+    """
+    from app.modules.attendance.service import recalculate_days
+
+    today = date.today()
+    lo = max(r.date_from, today)
+    hi = min(r.date_to, today)
+    if lo <= hi:
+        recalculate_days(db, lo, hi, emp.employee_code)
+
+
+def list_wt_regimes(db: Session, emp_id: UUID) -> list[EmployeeWtRegimeOut]:
+    emp = _get_employee_row(db, emp_id)
+    rows = (
+        db.query(EmployeeWtRegime)
+        .filter(EmployeeWtRegime.employee_id == emp.id)
+        .order_by(EmployeeWtRegime.date_from.desc(), EmployeeWtRegime.created_at.desc())
+        .all()
+    )
+    return [EmployeeWtRegimeOut.model_validate(r) for r in rows]
+
+
+def create_wt_regime(
+    db: Session, emp_id: UUID, body: EmployeeWtRegimeCreate, user: User
+) -> EmployeeWtRegimeOut:
+    emp = _get_employee_row(db, emp_id)
+    today = date.today()
+    if body.regime_type not in VALID_REGIME_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Trợ Lý AI: loại chế độ phải là Thai sản (PREGNANT) hoặc Nuôi con (CHILD).",
+        )
+    if body.hours_early not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="Trợ Lý AI: số giờ về sớm chỉ 1, 2 hoặc 3.")
+    if body.date_from < today:
+        raise HTTPException(
+            status_code=400,
+            detail="Trợ Lý AI: ngày bắt đầu chế độ phải từ hôm nay trở đi (không tính lùi).",
+        )
+    if body.date_to < body.date_from:
+        raise HTTPException(
+            status_code=400, detail="Trợ Lý AI: ngày kết thúc phải ≥ ngày bắt đầu."
+        )
+    dup = _wt_regime_overlap(db, emp.id, body.date_from, body.date_to)
+    if dup is not None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Trợ Lý AI: NV đã có chế độ hiệu lực đến {dup.date_to.strftime('%d/%m/%Y')} — "
+                "chấm dứt trước khi thêm mới."
+            ),
+        )
+    r = EmployeeWtRegime(
+        employee_id=emp.id,
+        regime_type=body.regime_type,
+        hours_early=body.hours_early,
+        date_from=body.date_from,
+        date_to=body.date_to,
+        note=(body.note or "").strip(),
+        created_by_user_id=user.id,
+    )
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    _recalc_after_regime_change(db, emp, r)
+    return EmployeeWtRegimeOut.model_validate(r)
+
+
+def patch_wt_regime(
+    db: Session, emp_id: UUID, regime_id: UUID, body: EmployeeWtRegimeUpdate, user: User
+) -> EmployeeWtRegimeOut:
+    emp = _get_employee_row(db, emp_id)
+    r = (
+        db.query(EmployeeWtRegime)
+        .filter(EmployeeWtRegime.id == regime_id, EmployeeWtRegime.employee_id == emp.id)
+        .one_or_none()
+    )
+    if r is None:
+        raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy chế độ về sớm.")
+    new_hours = body.hours_early if body.hours_early is not None else r.hours_early
+    new_to = body.date_to if body.date_to is not None else r.date_to
+    if new_hours not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="Trợ Lý AI: số giờ về sớm chỉ 1, 2 hoặc 3.")
+    if new_to < r.date_from:
+        raise HTTPException(
+            status_code=400, detail="Trợ Lý AI: ngày kết thúc phải ≥ ngày bắt đầu."
+        )
+    if r.ended_at is None:
+        dup = _wt_regime_overlap(db, emp.id, r.date_from, new_to, exclude_id=r.id)
+        if dup is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Trợ Lý AI: NV đã có chế độ hiệu lực đến {dup.date_to.strftime('%d/%m/%Y')} — "
+                    "chấm dứt trước khi thêm mới."
+                ),
+            )
+    r.hours_early = new_hours
+    r.date_to = new_to
+    if body.note is not None:
+        r.note = body.note.strip()
+    db.commit()
+    db.refresh(r)
+    _recalc_after_regime_change(db, emp, r)
+    return EmployeeWtRegimeOut.model_validate(r)
+
+
+def end_wt_regime(db: Session, emp_id: UUID, regime_id: UUID, user: User) -> EmployeeWtRegimeOut:
+    emp = _get_employee_row(db, emp_id)
+    r = (
+        db.query(EmployeeWtRegime)
+        .filter(EmployeeWtRegime.id == regime_id, EmployeeWtRegime.employee_id == emp.id)
+        .one_or_none()
+    )
+    if r is None:
+        raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy chế độ về sớm.")
+    today = date.today()
+    # Chấm dứt: date_to = hôm nay; nếu regime chưa tới ngày bắt đầu (tương lai) thì kẹp
+    # về date_from để không vi phạm CHECK (date_to >= date_from).
+    r.date_to = max(today, r.date_from)
+    r.ended_at = datetime.now(tz=timezone(timedelta(hours=7)))
+    db.commit()
+    db.refresh(r)
+    _recalc_after_regime_change(db, emp, r)
+    return EmployeeWtRegimeOut.model_validate(r)
 
 
 def list_experiences(db: Session, emp_id: UUID) -> list[EmployeeExperienceOut]:

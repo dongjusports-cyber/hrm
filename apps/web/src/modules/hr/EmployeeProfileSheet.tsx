@@ -39,6 +39,7 @@ import { labelEmpStatus } from "../../shared/viLabels";
 import { digitsOnlyMoney, emptyEmployeeForm, employeeToForm, formToPayload, type EmployeeFormState } from "./employeeFormState";
 import { EmployeeExperiencePanel } from "./EmployeeExperiencePanel";
 import { EmployeeProfileCompactFields } from "./EmployeeProfileFields";
+import { WtRegimePanel } from "./WtRegimePanel";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   contract: "Hợp đồng",
@@ -830,6 +831,7 @@ export function EmployeeProfileSheet({
                 formatMoney,
               }}
             />
+            <WtRegimePanel employeeId={employeeId} />
           </div>
         )}
           </form>

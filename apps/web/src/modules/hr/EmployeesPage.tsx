@@ -33,7 +33,13 @@ import { RehireSheet } from "./RehireSheet";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 
-type StatusFilter = "active" | "probation" | "resigned" | "maternity" | "all";
+type StatusFilter =
+  | "active"
+  | "probation"
+  | "resigned"
+  | "maternity"
+  | "special_regime"
+  | "all";
 type ViewMode = "compact" | "full";
 
 const FILTER_META: Record<StatusFilter, { title: string; hint: string }> = {
@@ -41,6 +47,10 @@ const FILTER_META: Record<StatusFilter, { title: string; hint: string }> = {
   active: { title: "Chính thức", hint: "Đã ký hợp đồng chính thức" },
   probation: { title: "Thử việc", hint: "Đang thử việc" },
   maternity: { title: "Thai sản", hint: "Nghỉ thai sản" },
+  special_regime: {
+    title: "Chế độ đặc biệt",
+    hint: "NV có chế độ về sớm (Thai sản / Nuôi con) hiệu lực",
+  },
   resigned: { title: "Thôi việc", hint: "Đã thôi việc" },
 };
 
