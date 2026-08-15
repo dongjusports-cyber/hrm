@@ -141,3 +141,37 @@ Test (đã pass):
     gán tổ code 02: ADMIN/NULL -> CLEANER, chạy lại idempotent (rollback, không ghi DB dev).
 
 Phạm vi: CHỈ Bước C. Không đụng bước khác.
+
+[WT-D001] Chế độ về sớm — bảng employee_wt_regimes (Bước D) — 2026-08-15
+-----------------------------------------------------------------------
+Triệu chứng:
+  HR cần ghi «Thai sản / Nuôi con» trên hồ sơ NV (giờ về sớm 1–3h, có kỳ hiệu lực)
+  nhưng hệ thống chỉ có status=maternity — không phân Nuôi con, không có date_from/date_to,
+  không tab lọc NV đang trong chế độ.
+
+Nguyên nhân:
+  Chưa có bảng lưu chế độ theo kỳ (22§22.14). status=maternity không đủ cho Nuôi con
+  và không hỗ trợ validate «không tính lùi ngày» (date_from >= today).
+
+Cách xử lý:
+  - Migration apps/api/alembic/versions/20260815_0051_employee_wt_regimes.py
+      revision "20260815_0051", down_revision "20260815_0050"
+  - Model EmployeeWtRegime (mdm/models.py): regime_type PREGNANT|CHILD, hours_early 1|2|3,
+    date_from, date_to, ended_at, note
+  - Service CRUD + validate (date_from>=today khi tạo, date_to>=date_from, không chồng kỳ),
+    active_wt_regime / active_wt_regime_ids batch, gọi recalculate_days sau POST/PATCH/end
+  - Router: GET/POST/PATCH/end /api/employees/{id}/wt-regimes
+  - Lọc list_employees status=special_regime; cờ wt_regime_active trên EmployeeOut
+  - Frontend: WtRegimePanel.tsx trong EmployeeProfileSheet (useSheetKeyboard sẵn có — không ESC trùng),
+    tab «Chế độ đặc biệt» (EmployeesPage FILTER_META + HrHomePage tile → /m/hr/lists/special_regime),
+    api.ts types + 4 fetch fn
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_wt_regimes_api.py tests/test_employee_status_filter.py -q
+    -> 6 passed
+  Full suite API: py -3.12 -m pytest -q -> 398 passed (394 nền + 4 test wt mới), không đỏ thêm
+  Migration Postgres: upgrade head -> downgrade -1 -> upgrade head OK
+  cd apps/web && npm test -- escKeyboard -> 10 passed
+  cd apps/web && npm run build -> OK (201 modules)
+
+Phạm vi: CHỈ Bước D (data + API + UI). Engine tính giờ (Bước E) chưa làm.

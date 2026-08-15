@@ -1,0 +1,15 @@
+---
+description: Model bắt buộc — chỉ Composer 2.5 cho mọi tác vụ DJ-HRM
+globs:
+alwaysApply: true
+---
+
+# Model bắt buộc — chỉ Composer 2.5
+
+Dự án DJ-HRM **chỉ** dùng mô hình **Composer 2.5** cho mọi tác vụ: viết code, chat, review, sub-agent, Cloud Agent prompt.
+
+- **Không** dùng mô hình khác trong phiên làm việc dự án này.
+- Khi cần sub-agent / tác vụ phụ: vẫn chỉ định **Composer 2.5**.
+- Nếu phiên đang chạy mô hình khác: dừng và chuyển về Composer 2.5 trước khi sửa code.
+
+Repo: `dongjusports-cyber/hrm` · Kế hoạch kỹ sư: `Thien-Admin/KE-HOACH-KY-SU-2026-08-15.md`
