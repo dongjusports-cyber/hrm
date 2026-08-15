@@ -145,7 +145,7 @@ export function ReportPage() {
                       <td>{CAT_VI[c.category] ?? c.label}</td>
                       <td>{c.headcount}</td>
                       <td>{fmtNum(c.worked_days)}</td>
-                      <td>{fmtNum(c.ot_hours)}</td>
+                      <td>{fmtNum(c.ot_hours)}h</td>
                     </tr>
                   ))}
                 </tbody>
@@ -174,7 +174,7 @@ export function ReportPage() {
                       <td>{CAT_VI[d.category] ?? d.category}</td>
                       <td>{d.headcount}</td>
                       <td>{fmtNum(d.worked_days)}</td>
-                      <td>{fmtNum(d.ot_hours)}</td>
+                      <td>{fmtNum(d.ot_hours)}h</td>
                       <td>{fmtNum(d.ot_pay)}</td>
                     </tr>
                   ))}

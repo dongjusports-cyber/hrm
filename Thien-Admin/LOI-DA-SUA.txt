@@ -1,0 +1,45 @@
+LOI DA SUA — DJ-HRM
+====================
+
+[OT-B001] Formatter OT dùng chung (Bước B) — 2026-08-15
+-------------------------------------------------------
+Triệu chứng:
+  OT hiển thị lẫn lộn giữa các trang (LH-8): lưới ngày công hiện PHÚT thô
+  (vd. "90"), trong khi lưới tháng / báo cáo hiện GIỜ. Số giờ lẻ không thống
+  nhất (chỗ có hậu tố "h", chỗ không; số 0 thừa).
+
+Nguyên nhân:
+  Mỗi nơi tự định dạng riêng (cellMinutes hiện phút thô; fmtHours cục bộ trong
+  OtExternalPreviewSheet; fmtNum trong Report/Overview) → không có một hàm chuẩn.
+
+Cách xử lý (CHỈ web, KHÔNG đụng API/backend):
+  - File mới apps/web/src/shared/formatOtHours.ts:
+      formatOtHours(minutes, empty="") -> phút→giờ, toFixed(2), bỏ 0 thừa, hậu tố "h";
+      <=0 / null / undefined -> empty. Nguồn theo GIỜ thì nhân 60 để dùng chung.
+  - Test mới apps/web/src/shared/formatOtHours.test.ts theo đúng bảng spec
+      (90->1.5h, 50->0.83h, 45->0.75h, 30->0.5h, 66->1.1h, 120->2h, 480->8h,
+       600->10h [không thành 1h], 1200->20h, 0/null/âm -> "").
+  - Thay hiển thị OT:
+      * DailyGridPanel.tsx  : cột "Tăng ca sổ"/"Tăng ca ngoài" (PHÚT) -> formatOtHours(phút)
+      * TimekeepingPage.tsx : lưới ngày otOnBooks/otExternal (PHÚT) -> formatOtHours(phút);
+                              lưới tháng ot_hours_weekday/ot_hours_external (GIỜ) -> formatOtHours(giờ*60).
+                              (Giữ cellMinutes cho TRỄ/SỚM — là phút, không phải OT.)
+      * OtExternalPreviewSheet.tsx : bỏ fmtHours cục bộ, dùng chung qua fmtOt() = formatOtHours(giờ*60,"—").
+      * ReportPage.tsx      : thống nhất hậu tố "h" cho ô OT (bảng theo loại + theo bộ phận),
+                              giữ fmtNum (định dạng vi-VN) vì đây là tổng hợp GIỜ lớn và nằm
+                              cùng dòng với reference_hours (không phải OT).
+      * OverviewPage.tsx    : ĐÃ sẵn hiển thị "…h" (toLocaleng vi-VN + "h"), khớp y hệt ReportPage
+                              -> đã đạt "thống nhất suffix h" (idem), không cần sửa thêm.
+
+  QUYẾT ĐỊNH THIẾT KẾ (spec cho phép linh hoạt):
+    formatOtHours nhận PHÚT (theo spec). Với các trường lưu theo GIỜ (lưới tháng,
+    OT ngoài, KPI) -> nhân 60 để dùng chung một hàm. Report/Overview giữ định dạng
+    vi-VN + hậu tố "h" (spec ghi "thống nhất suffix h" / "idem", KHÔNG bắt buộc formatOtHours)
+    nhằm giữ dấu phân cách nghìn cho số tổng hợp lớn. LH-8 (lẫn phút/giờ) đã hết vì các
+    lưới ngày nay hiển thị GIỜ.
+
+Test (đã pass):
+  cd apps/web && npm test -- formatOtHours   -> 4 test pass (gồm 600->10h)
+  cd apps/web && npm run build               -> OK (tsc -b + vite, 200 modules)
+
+Phạm vi: CHỈ Bước B. Không sửa API/backend, không đụng bước khác.
