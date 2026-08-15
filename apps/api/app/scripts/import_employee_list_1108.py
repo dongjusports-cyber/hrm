@@ -41,6 +41,14 @@ from app.scripts.empinfo_lookup_map import (
 ORG_EFFECTIVE = date(2026, 7, 1)
 CLOSE_DATE = date(2026, 6, 30)
 
+
+def _as_decimal(val, default: Decimal = Decimal("0")) -> Decimal:
+    if val is None or val == "":
+        return default
+    if isinstance(val, Decimal):
+        return val
+    return Decimal(str(val))
+
 TEAM_ALIASES: dict[str, str] = {
     "HR/Admin": "HR/Admin Staff",
     "QC (KCS)": "QC (KCS)",
@@ -361,10 +369,9 @@ def _apply_profile(emp: Employee, assign: dict, prof: dict) -> None:
         emp.position_title = prof["position_title"]
 
     sal = prof.get("contract_salary") or assign.get("contract_salary")
-    if sal is not None and sal != "":
-        sal_dec = sal if isinstance(sal, Decimal) else Decimal(str(sal))
-        if sal_dec > 0:
-            emp.contract_salary = sal_dec
+    sal_dec = _as_decimal(sal, Decimal("-1"))
+    if sal_dec > 0:
+        emp.contract_salary = sal_dec
 
     signed = prof.get("contract_signed_at") or prof.get("contract_start")
     if signed:
@@ -391,7 +398,7 @@ def _upsert_labour_contract(db: Session, emp: Employee, prof: dict) -> None:
         return
     ctype = prof.get("contract_type_code") or "VTH"
     end = prof.get("contract_end")
-    salary = prof.get("contract_salary") or emp.contract_salary or Decimal("0")
+    salary = _as_decimal(prof.get("contract_salary") or emp.contract_salary)
 
     active = (
         db.query(LabourContract)
@@ -421,7 +428,7 @@ def _upsert_labour_contract(db: Session, emp: Employee, prof: dict) -> None:
         active.end_date = end
     elif ctype == "VTH":
         active.end_date = None
-    if salary and salary > 0:
+    if salary > 0:
         active.base_salary = salary
     if emp.team_id:
         active.team_id = emp.team_id
