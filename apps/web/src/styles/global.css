@@ -5578,8 +5578,13 @@ a {
 
 /* ——— Worker Portal (mobile-first, ≥16px, nút ≥48px) ——— */
 
+html.worker-surface,
+body.worker-surface {
+  background: #f8fafc;
+}
+
 .worker-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: #f8fafc;
   color: #0f172a;
   font-size: 16px;
@@ -5634,6 +5639,7 @@ a {
 }
 
 .worker-btn,
+.worker-btn-primary,
 .worker-btn-secondary {
   min-height: 48px;
   border-radius: 12px;
@@ -5645,12 +5651,21 @@ a {
   font-family: inherit;
 }
 
-.worker-btn {
+.worker-btn,
+.worker-btn-primary {
   background: #1e40af;
   color: white;
 }
 
-.worker-btn:disabled {
+.worker-btn-primary {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.worker-btn:disabled,
+.worker-btn-primary:disabled {
   opacity: 0.7;
 }
 
@@ -5732,8 +5747,9 @@ a {
   margin-top: 20px;
 }
 
-.worker-home {
-  background: linear-gradient(180deg, #dbeafe 0%, #f8fafc 140px);
+.worker-home,
+.worker-payslip-detail {
+  background: #f8fafc;
 }
 
 .worker-payslip-list {
@@ -5791,10 +5807,6 @@ a {
 .worker-status-confirmed {
   background: #d1fae5;
   color: #065f46;
-}
-
-.worker-payslip-detail {
-  background: linear-gradient(180deg, #dbeafe 0%, #f8fafc 160px);
 }
 
 .worker-detail-head {

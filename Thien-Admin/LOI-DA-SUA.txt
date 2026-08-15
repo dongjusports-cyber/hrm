@@ -291,3 +291,25 @@ Cách xử lý:
 
 Ghi nhớ AI: user nói "bị khóa pass" → chạy unlock ngay, không hỏi SSH phức tạp.
 
+[WK-I002] Phiếu lương mobile nền xanh (portal gradient lộ + header xanh dương) — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng:
+  Công nhân mở phiếu lương trên điện thoại: nền/viền bị xanh (xanh lá portal hoặc xanh dương header).
+
+Nguyên nhân:
+  1) body portal HR có gradient xanh lá #0d8a6a (global.css) — worker-page chỉ phủ div bên trong,
+     overscroll/PWA/standalone để lộ nền portal.
+  2) .worker-home / .worker-payslip-detail thêm gradient xanh dương #dbeafe ở header.
+  3) PWA cache-first (sw.js v2) có thể giữ CSS cũ trên ĐT sau deploy.
+
+Cách xử lý:
+  - useWorkerSurface.ts: khi vào trang worker (RequireWorker), gắn class worker-surface
+    trên html/body → nền #f8fafc
+  - global.css: bỏ gradient xanh header; worker-page min-height 100dvh; thêm .worker-btn-primary
+  - sw.js: bump CACHE dj-hrm-worker-v3 (ĐT cần mở lại app PWA hoặc xóa cache)
+
+Test (đã pass):
+  cd apps/web && npm run build -> OK
+
+Ghi nhớ AI: worker portal ≠ portal HR — tách nền body; đổi CSS worker thì bump sw cache.
+

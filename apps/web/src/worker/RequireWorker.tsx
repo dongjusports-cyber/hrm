@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useWorkerAuth } from "./workerAuthStore";
+import { useWorkerSurface } from "./useWorkerSurface";
 
 export function RequireWorker({ children }: { children: ReactNode }) {
   const { accessToken, worker } = useWorkerAuth();
   const location = useLocation();
+  useWorkerSurface();
 
   if (!accessToken) return <Navigate to="/worker/login" replace />;
 
