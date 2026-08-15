@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:48.699358+00:00",
+  "employee_code": "8436",
+  "organization": {
+    "department_code": "08",
+    "department_name": "Sewing",
+    "team_code": "27",
+    "team_name": "Computer Sewing"
+  },
+  "profile": {
+    "id": "f610879b-c0b2-4db7-9e01-8ada27ae7be4",
+    "employee_code": "8436",
+    "full_name": "VĂ• THá» THĂY KIá»€U",
+    "gender": "F",
+    "birth_date": "2001-01-01",
+    "birth_place_code": null,
+    "nationality_code": null,
+    "ethnicity_code": null,
+    "religion_code": null,
+    "marital_status": null,
+    "children_count": 0,
+    "education_code": null,
+    "id_number": "072301004353",
+    "id_issue_date": null,
+    "id_issue_place_code": null,
+    "permanent_address": null,
+    "temporary_address": null,
+    "urgent_contact": null,
+    "si_book_no": null,
+    "bank_account": "060226934408",
+    "pay_channel": "ATM",
+    "team_id": "b1d9a728-cc25-44e8-8470-7379282cfb86",
+    "position_code": null,
+    "job_code": null,
+    "position_title": "Worker",
+    "join_date": "2024-09-19",
+    "contract_signed_at": "2025-10-18",
+    "probation_salary": "4925750.00",
+    "contract_salary": "5315000.00",
+    "si_base_override": null,
+    "si_enrolled": true,
+    "pit_enrolled": true,
+    "tax_dependent_count": 0,
+    "union_fee_override": null,
+    "status": "resigned",
+    "resign_date": "2026-01-31",
+    "phone": null,
+    "photo_path": null,
+    "deleted_at": null,
+    "created_at": "2026-08-10T10:03:01.578098+00:00",
+    "updated_at": "2026-08-11T07:11:08.273121+00:00"
+  },
+  "labour_contracts": [
+    {
+      "id": "877d8841-07e0-4b10-970a-41251c19178d",
+      "employee_id": "f610879b-c0b2-4db7-9e01-8ada27ae7be4",
+      "contract_type_code": "VTH",
+      "seq_no": 1,
+      "sign_date": "2025-10-18",
+      "start_date": "2025-10-18",
+      "end_date": "2026-01-31",
+      "base_salary": "5315000.00",
+      "position_code": null,
+      "team_id": "b1d9a728-cc25-44e8-8470-7379282cfb86",
+      "status": "terminated",
+      "file_path": null,
+      "created_at": "2026-08-11T08:56:54.654780+00:00",
+      "updated_at": "2026-08-11T08:56:54.654780+00:00"
+    }
+  ],
+  "allowances": [
+    {
+      "component_code": "TOXIC",
+      "amount": "100000.00",
+      "meta": null
+    }
+  ],
+  "family_members": [],
+  "attendance_days": [],
+  "timesheet_months": [
+    {
+      "id": "57548871-1d49-4edc-9077-7d0f3610aee0",
+      "pay_period_id": "03fc268b-e895-4124-a1dd-86502ce141f5",
+      "employee_id": "f610879b-c0b2-4db7-9e01-8ada27ae7be4",
+      "worked_days": "25.5000",
+      "al_days": "1.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "17.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-10T10:03:01.578098+00:00"
+    }
+  ],
+  "sources": {
+    "empinfo_profile": null,
+    "empinfo_assignment": null,
+    "salary_by_month": {
+      "2026-01": {
+        "dept": "Computer Sewing",
+        "name": "VÕ THỊ THÚY KIỀU",
+        "id_number": "072301004353",
+        "bank_account": "060226934408",
+        "position": "Worker",
+        "join_date": "2024-09-19",
+        "contract_signed_at": "2025-10-18",
+        "probation_salary": "4925750.0",
+        "contract_salary": "5315000.0",
+        "workdays_total": "25.5",
+        "al_days": "1.0",
+        "rem_days": "0.0",
+        "wd_salary": "5417212.0",
+        "allowance_attend": "234423.08",
+        "allowance_position": "0.0",
+        "allowance_toxic": "0.0",
+        "allowance_transport": "774615.38",
+        "allowance_pccc_hse": "0.0",
+        "allowance_skill": "100000.0",
+        "allowance_seniority": "50000.0",
+        "allowance_other": "0.0",
+        "allowance_total": "1159038.46",
+        "ot_hours": "17.0",
+        "ot_pay": "698185.1",
+        "gross": "7274435.0",
+        "bhxh": "437200.0",
+        "bhyt": "81975.0",
+        "bhtn": "54650.0",
+        "union_fee": "44100.0",
+        "deduct": "0.0",
+        "net": "6656510.0",
+        "sex": "Nữ"
+      }
+    },
+    "cong_files_index": [
+      "Cong 01.08 -12.08.xls"
+    ]
+  }
+}

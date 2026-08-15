@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:50.721242+00:00",
+  "employee_code": "8845",
+  "organization": {
+    "department_code": "08",
+    "department_name": "Sewing",
+    "team_code": "71",
+    "team_name": "Sewing CB 3"
+  },
+  "profile": {
+    "id": "dab765f1-437d-47e6-b094-0d357dcbd28e",
+    "employee_code": "8845",
+    "full_name": "TRẦN ĐẠI THẠCH",
+    "gender": "M",
+    "birth_date": "1993-03-16",
+    "birth_place_code": "BIRTH_PLACE021",
+    "nationality_code": "NATIONALITY001",
+    "ethnicity_code": null,
+    "religion_code": null,
+    "marital_status": null,
+    "children_count": 0,
+    "education_code": "EDUCATION_LEVEL004",
+    "id_number": "040093017719",
+    "id_issue_date": "2026-01-30",
+    "id_issue_place_code": "ID_ISSUE_PLACE021",
+    "permanent_address": "THÔN TÂN THỊNH ; THÀNH BÌNH THỌ ; NGHỆ AN",
+    "temporary_address": null,
+    "urgent_contact": null,
+    "si_book_no": null,
+    "bank_account": null,
+    "pay_channel": "ATM",
+    "team_id": "bdbada74-1f3a-4877-bb40-ce09d7be5cad",
+    "position_code": null,
+    "job_code": null,
+    "position_title": "Worker",
+    "join_date": "2026-08-04",
+    "contract_signed_at": "2026-08-10",
+    "probation_salary": "0.00",
+    "contract_salary": "5315000.00",
+    "si_base_override": null,
+    "si_enrolled": true,
+    "pit_enrolled": true,
+    "tax_dependent_count": 0,
+    "union_fee_override": null,
+    "status": "active",
+    "resign_date": null,
+    "phone": "0933011926",
+    "photo_path": null,
+    "deleted_at": null,
+    "created_at": "2026-08-11T07:22:12.185029+00:00",
+    "updated_at": "2026-08-11T13:47:58.895520+00:00"
+  },
+  "labour_contracts": [
+    {
+      "id": "8ccb8002-3309-463f-8cae-95a0beee79ea",
+      "employee_id": "dab765f1-437d-47e6-b094-0d357dcbd28e",
+      "contract_type_code": "HD1",
+      "seq_no": 1,
+      "sign_date": "2026-08-10",
+      "start_date": "2026-08-10",
+      "end_date": "2027-08-10",
+      "base_salary": "5315000.00",
+      "position_code": null,
+      "team_id": "bdbada74-1f3a-4877-bb40-ce09d7be5cad",
+      "status": "active",
+      "file_path": null,
+      "created_at": "2026-08-11T08:56:54.654780+00:00",
+      "updated_at": "2026-08-11T13:47:58.895520+00:00"
+    }
+  ],
+  "allowances": [
+    {
+      "component_code": "ATTEND",
+      "amount": "600000.00",
+      "meta": null
+    },
+    {
+      "component_code": "TRANSPORT",
+      "amount": "800000.00",
+      "meta": null
+    },
+    {
+      "component_code": "TECH",
+      "amount": "500000.00",
+      "meta": null
+    }
+  ],
+  "family_members": [],
+  "attendance_days": [],
+  "timesheet_months": [
+    {
+      "id": "a10334cd-d6b1-4add-84fa-ac19b4dd158e",
+      "pay_period_id": "6a4e79db-4023-4dd3-a8e6-b1ccca7f5ce8",
+      "employee_id": "dab765f1-437d-47e6-b094-0d357dcbd28e",
+      "worked_days": "0.0000",
+      "al_days": "0.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "0.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-11T09:43:30.066703+00:00"
+    },
+    {
+      "id": "6806fbff-dd39-4be7-a22b-28c14a78b794",
+      "pay_period_id": "7091dd39-3317-4311-a567-1578c15da09a",
+      "employee_id": "dab765f1-437d-47e6-b094-0d357dcbd28e",
+      "worked_days": "0.0000",
+      "al_days": "0.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "0.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-11T13:05:41.927675+00:00"
+    }
+  ],
+  "sources": {
+    "empinfo_profile": {
+      "department_name": "Sewing",
+      "team_name": "Sewing CB 3",
+      "full_name": "TRẦN ĐẠI THẠCH",
+      "birth_date": "1993-03-16",
+      "join_date": "2026-08-04",
+      "birth_place_text": "Nghệ An",
+      "contract_salary": "5315000.0",
+      "gender": "M",
+      "position_title": "Worker",
+      "phone": "0933011926",
+      "education_code": "EDUCATION_LEVEL004",
+      "permanent_address": "THÔN TÂN THỊNH ; THÀNH BÌNH THỌ ; NGHỆ AN",
+      "id_number": "040093017719",
+      "id_issue_place_text": "Nghệ An",
+      "id_issue_date": "2026-01-30",
+      "si_book_no": null,
+      "contract_no": "8845/HĐ1",
+      "contract_type_code": "HD1",
+      "contract_start": "2026-08-10",
+      "contract_end": "2027-08-10",
+      "left_date": null,
+      "status": "active"
+    },
+    "empinfo_assignment": {
+      "department_name": "Sewing",
+      "team_name": "Sewing CB 3",
+      "full_name": "TRẦN ĐẠI THẠCH",
+      "join_date": "2026-08-04",
+      "position_title": "Worker",
+      "contract_salary": "5315000.0"
+    },
+    "salary_by_month": {},
+    "cong_files_index": [
+      "Cong 01.08 -12.08.xls"
+    ]
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:48.645481+00:00",
+  "employee_code": "8417",
+  "organization": {
+    "department_code": "08",
+    "department_name": "Sewing",
+    "team_code": "49",
+    "team_name": "Line 8"
+  },
+  "profile": {
+    "id": "d9e1ddeb-df96-4d53-8fb5-790c13ee3167",
+    "employee_code": "8417",
+    "full_name": "TRÆ¯Æ NG THá» Háº¬N",
+    "gender": "F",
+    "birth_date": "1979-01-01",
+    "birth_place_code": null,
+    "nationality_code": null,
+    "ethnicity_code": null,
+    "religion_code": null,
+    "marital_status": null,
+    "children_count": 0,
+    "education_code": null,
+    "id_number": "072179003243",
+    "id_issue_date": null,
+    "id_issue_place_code": null,
+    "permanent_address": null,
+    "temporary_address": null,
+    "urgent_contact": null,
+    "si_book_no": null,
+    "bank_account": "060225748708",
+    "pay_channel": "ATM",
+    "team_id": "71f1e09f-80ef-46eb-a3ed-330e530ee9ef",
+    "position_code": null,
+    "job_code": null,
+    "position_title": "Leader",
+    "join_date": "2024-09-05",
+    "contract_signed_at": "2025-10-04",
+    "probation_salary": "7225000.00",
+    "contract_salary": "6910000.00",
+    "si_base_override": null,
+    "si_enrolled": true,
+    "pit_enrolled": true,
+    "tax_dependent_count": 0,
+    "union_fee_override": null,
+    "status": "resigned",
+    "resign_date": "2026-01-31",
+    "phone": null,
+    "photo_path": null,
+    "deleted_at": null,
+    "created_at": "2026-08-10T10:03:01.578098+00:00",
+    "updated_at": "2026-08-11T07:11:08.273121+00:00"
+  },
+  "labour_contracts": [
+    {
+      "id": "91fd1bbb-30e1-4b69-8cc4-3954baef204f",
+      "employee_id": "d9e1ddeb-df96-4d53-8fb5-790c13ee3167",
+      "contract_type_code": "VTH",
+      "seq_no": 1,
+      "sign_date": "2025-10-04",
+      "start_date": "2025-10-04",
+      "end_date": "2026-01-31",
+      "base_salary": "6910000.00",
+      "position_code": null,
+      "team_id": "71f1e09f-80ef-46eb-a3ed-330e530ee9ef",
+      "status": "terminated",
+      "file_path": null,
+      "created_at": "2026-08-11T08:56:54.654780+00:00",
+      "updated_at": "2026-08-11T08:56:54.654780+00:00"
+    }
+  ],
+  "allowances": [
+    {
+      "component_code": "TOXIC",
+      "amount": "100000.00",
+      "meta": null
+    }
+  ],
+  "family_members": [],
+  "attendance_days": [],
+  "timesheet_months": [
+    {
+      "id": "242b9c29-0df9-4235-84c9-8a179d9bd533",
+      "pay_period_id": "03fc268b-e895-4124-a1dd-86502ce141f5",
+      "employee_id": "d9e1ddeb-df96-4d53-8fb5-790c13ee3167",
+      "worked_days": "26.7500",
+      "al_days": "0.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "23.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-10T10:03:01.578098+00:00"
+    }
+  ],
+  "sources": {
+    "empinfo_profile": null,
+    "empinfo_assignment": null,
+    "salary_by_month": {
+      "2026-01": {
+        "dept": "Line 8",
+        "name": "TRƯƠNG THỊ HẬN",
+        "id_number": "072179003243",
+        "bank_account": "060225748708",
+        "position": "Leader",
+        "join_date": "2024-09-05",
+        "contract_signed_at": "2025-10-04",
+        "probation_salary": "7225000.0",
+        "contract_salary": "6910000.0",
+        "workdays_total": "26.75",
+        "al_days": "0.0",
+        "rem_days": "0.0",
+        "wd_salary": "7109327.0",
+        "allowance_attend": "236634.62",
+        "allowance_position": "2057692.31",
+        "allowance_toxic": "0.0",
+        "allowance_transport": "781923.08",
+        "allowance_pccc_hse": "0.0",
+        "allowance_skill": "0.0",
+        "allowance_seniority": "50000.0",
+        "allowance_other": "0.0",
+        "allowance_total": "3126250.01",
+        "ot_hours": "23.0",
+        "ot_pay": "1524302.89",
+        "gross": "11759880.0",
+        "bhxh": "716800.0",
+        "bhyt": "134400.0",
+        "bhtn": "89600.0",
+        "union_fee": "44100.0",
+        "deduct": "0.0",
+        "net": "10774980.0",
+        "sex": "Nữ"
+      }
+    },
+    "cong_files_index": [
+      "Cong 01.08 -12.08.xls"
+    ]
+  }
+}

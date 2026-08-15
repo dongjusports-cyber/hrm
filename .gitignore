@@ -61,4 +61,6 @@ apps/api/data/*.db
 apps/api/data/genussuite_2026/
 
 # Tài liệu & DDL/dữ liệu gốc GenusSuite dùng để tham chiếu nghiệp vụ (PII thật)
-HIEN_PHAP/
+HIEN_PHAP/*
+!HIEN_PHAP/Dữ liệu công nhân/
+!HIEN_PHAP/Dữ liệu công nhân/**

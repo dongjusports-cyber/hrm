@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:50.471634+00:00",
+  "employee_code": "8821",
+  "organization": {
+    "department_code": "06",
+    "department_name": "Production",
+    "team_code": "17",
+    "team_name": "Bond"
+  },
+  "profile": {
+    "id": "976c630f-fe78-4593-a52f-725871fdba1f",
+    "employee_code": "8821",
+    "full_name": "NGUYá»„N TIáº¾N PHĂT",
+    "gender": "M",
+    "birth_date": null,
+    "birth_place_code": null,
+    "nationality_code": null,
+    "ethnicity_code": null,
+    "religion_code": null,
+    "marital_status": null,
+    "children_count": 0,
+    "education_code": null,
+    "id_number": "072204005627",
+    "id_issue_date": null,
+    "id_issue_place_code": null,
+    "permanent_address": null,
+    "temporary_address": null,
+    "urgent_contact": null,
+    "si_book_no": null,
+    "bank_account": null,
+    "pay_channel": "ATM",
+    "team_id": "aba7f83d-3501-4568-831a-18106bd219d1",
+    "position_code": null,
+    "job_code": null,
+    "position_title": "Worker",
+    "join_date": "2026-07-21",
+    "contract_signed_at": null,
+    "probation_salary": "5707750.00",
+    "contract_salary": "5315000.00",
+    "si_base_override": null,
+    "si_enrolled": true,
+    "pit_enrolled": true,
+    "tax_dependent_count": 0,
+    "union_fee_override": null,
+    "status": "resigned",
+    "resign_date": "2026-07-01",
+    "phone": null,
+    "photo_path": null,
+    "deleted_at": null,
+    "created_at": "2026-08-10T10:03:01.578098+00:00",
+    "updated_at": "2026-08-11T07:22:12.185029+00:00"
+  },
+  "labour_contracts": [
+    {
+      "id": "ef31e4d7-c112-455b-a33e-b2d7c18d59ae",
+      "employee_id": "976c630f-fe78-4593-a52f-725871fdba1f",
+      "contract_type_code": "VTH",
+      "seq_no": 1,
+      "sign_date": "2026-07-21",
+      "start_date": "2026-07-21",
+      "end_date": "2026-07-01",
+      "base_salary": "5315000.00",
+      "position_code": null,
+      "team_id": "aba7f83d-3501-4568-831a-18106bd219d1",
+      "status": "terminated",
+      "file_path": null,
+      "created_at": "2026-08-11T08:56:54.654780+00:00",
+      "updated_at": "2026-08-11T08:56:54.654780+00:00"
+    }
+  ],
+  "allowances": [
+    {
+      "component_code": "TOXIC",
+      "amount": "100000.00",
+      "meta": null
+    }
+  ],
+  "family_members": [],
+  "attendance_days": [],
+  "timesheet_months": [
+    {
+      "id": "97c5c48e-910c-41dc-a794-d0b9ade7d43d",
+      "pay_period_id": "6a4e79db-4023-4dd3-a8e6-b1ccca7f5ce8",
+      "employee_id": "976c630f-fe78-4593-a52f-725871fdba1f",
+      "worked_days": "7.5938",
+      "al_days": "0.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "0.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-10T10:03:01.578098+00:00"
+    }
+  ],
+  "sources": {
+    "empinfo_profile": null,
+    "empinfo_assignment": null,
+    "salary_by_month": {
+      "2026-07": {
+        "dept": "Bond",
+        "name": "NGUYỄN TIẾN PHÁT",
+        "id_number": "072204005627",
+        "bank_account": "",
+        "position": "Worker",
+        "join_date": "2026-07-21",
+        "contract_signed_at": null,
+        "probation_salary": "5707750.0",
+        "contract_salary": "5315000.0",
+        "workdays_total": "7.5938",
+        "al_days": "0.0",
+        "rem_days": "0.0",
+        "wd_salary": "1609456.0",
+        "allowance_attend": "43990.39",
+        "allowance_position": "0.0",
+        "allowance_toxic": "100000.0",
+        "allowance_transport": "117307.69",
+        "allowance_pccc_hse": "0.0",
+        "allowance_skill": "0.0",
+        "allowance_seniority": "0.0",
+        "allowance_other": "0.0",
+        "allowance_total": "261298.08",
+        "ot_hours": "0.0",
+        "ot_pay": "0.0",
+        "gross": "1870755.0",
+        "bhxh": "0.0",
+        "bhyt": "0.0",
+        "bhtn": "0.0",
+        "union_fee": "0.0",
+        "deduct": "0.0",
+        "net": "1870755.0",
+        "sex": "Nam"
+      }
+    },
+    "cong_files_index": [
+      "Cong 01.08 -12.08.xls"
+    ]
+  }
+}

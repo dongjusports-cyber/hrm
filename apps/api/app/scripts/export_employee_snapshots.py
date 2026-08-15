@@ -49,7 +49,12 @@ SALARY_MONTH_TAGS = {
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
+    """Tìm thư mục gốc repo (có HIEN_PHAP hoặc docker-compose.yml)."""
+    start = Path(__file__).resolve()
+    for anc in start.parents:
+        if (anc / "HIEN_PHAP").is_dir() or (anc / "docker-compose.yml").is_file():
+            return anc
+    return start.parents[4]
 
 
 def find_empinfo_dir(hien_phap: Path) -> Path | None:
@@ -347,7 +352,7 @@ def main() -> None:
     parser.add_argument(
         "--hien-phap",
         type=Path,
-        default=repo_root() / "HIEN_PHAP",
+        default=None,
         help="Thư mục HIEN_PHAP",
     )
     parser.add_argument(
@@ -365,7 +370,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     year = args.attendance_year if args.attendance_year > 0 else None
-    hien_phap = args.hien_phap.resolve()
+    hien_phap = (args.hien_phap or repo_root() / "HIEN_PHAP").resolve()
     out_dir = (args.out or default_employee_data_dir(hien_phap)).resolve()
     run(
         hien_phap=hien_phap,

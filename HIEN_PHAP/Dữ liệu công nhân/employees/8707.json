@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:49.400470+00:00",
+  "employee_code": "8707",
+  "organization": {
+    "department_code": "08",
+    "department_name": "Sewing",
+    "team_code": "40",
+    "team_name": "Line 3"
+  },
+  "profile": {
+    "id": "061cd9bc-f886-4001-b456-34f0373129e2",
+    "employee_code": "8707",
+    "full_name": "NGUYá»„N THá» ANH THÆ¯",
+    "gender": "F",
+    "birth_date": "2001-01-01",
+    "birth_place_code": null,
+    "nationality_code": null,
+    "ethnicity_code": null,
+    "religion_code": null,
+    "marital_status": null,
+    "children_count": 0,
+    "education_code": null,
+    "id_number": "072301005973",
+    "id_issue_date": null,
+    "id_issue_place_code": null,
+    "permanent_address": null,
+    "temporary_address": null,
+    "urgent_contact": null,
+    "si_book_no": null,
+    "bank_account": null,
+    "pay_channel": "ATM",
+    "team_id": "e2cf5945-b8f7-4694-9817-c94f6a8107ef",
+    "position_code": null,
+    "job_code": null,
+    "position_title": "Worker",
+    "join_date": "2026-04-25",
+    "contract_signed_at": null,
+    "probation_salary": "5444250.00",
+    "contract_salary": "5315000.00",
+    "si_base_override": null,
+    "si_enrolled": true,
+    "pit_enrolled": true,
+    "tax_dependent_count": 0,
+    "union_fee_override": null,
+    "status": "resigned",
+    "resign_date": "2026-04-30",
+    "phone": null,
+    "photo_path": null,
+    "deleted_at": null,
+    "created_at": "2026-08-10T10:03:01.578098+00:00",
+    "updated_at": "2026-08-11T07:11:08.273121+00:00"
+  },
+  "labour_contracts": [
+    {
+      "id": "0081c72b-e73d-4d5a-961f-32776240d6d1",
+      "employee_id": "061cd9bc-f886-4001-b456-34f0373129e2",
+      "contract_type_code": "VTH",
+      "seq_no": 1,
+      "sign_date": "2026-04-25",
+      "start_date": "2026-04-25",
+      "end_date": "2026-04-30",
+      "base_salary": "5315000.00",
+      "position_code": null,
+      "team_id": "e2cf5945-b8f7-4694-9817-c94f6a8107ef",
+      "status": "terminated",
+      "file_path": null,
+      "created_at": "2026-08-11T08:56:54.654780+00:00",
+      "updated_at": "2026-08-11T08:56:54.654780+00:00"
+    }
+  ],
+  "allowances": [
+    {
+      "component_code": "TOXIC",
+      "amount": "100000.00",
+      "meta": null
+    }
+  ],
+  "family_members": [],
+  "attendance_days": [],
+  "timesheet_months": [
+    {
+      "id": "f5836bf2-883a-4877-acbd-9d7c04ac5b1b",
+      "pay_period_id": "18ceec88-3408-4643-b1ca-dacb8d4d664e",
+      "employee_id": "061cd9bc-f886-4001-b456-34f0373129e2",
+      "worked_days": "5.0000",
+      "al_days": "0.0000",
+      "rem_days": "0.0000",
+      "late_count": 0,
+      "early_count": 0,
+      "ot_hours_weekday": "3.00",
+      "ot_hours_external": "0.00",
+      "ot_hours_weekend": "0.00",
+      "ot_hours_holiday": "0.00",
+      "updated_at": "2026-08-10T10:03:01.578098+00:00"
+    }
+  ],
+  "sources": {
+    "empinfo_profile": null,
+    "empinfo_assignment": null,
+    "salary_by_month": {
+      "2026-04": {
+        "dept": "Line 3",
+        "name": "NGUYỄN THỊ ANH THƯ",
+        "id_number": "072301005973",
+        "bank_account": "",
+        "position": "Worker",
+        "join_date": "2026-04-25",
+        "contract_signed_at": null,
+        "probation_salary": "5444250.0",
+        "contract_salary": "5315000.0",
+        "workdays_total": "5.0",
+        "al_days": "0.0",
+        "rem_days": "0.0",
+        "wd_salary": "1046971.0",
+        "allowance_attend": "0.0",
+        "allowance_position": "0.0",
+        "allowance_toxic": "0.0",
+        "allowance_transport": "0.0",
+        "allowance_pccc_hse": "0.0",
+        "allowance_skill": "0.0",
+        "allowance_seniority": "0.0",
+        "allowance_other": "0.0",
+        "allowance_total": "0.0",
+        "ot_hours": "3.0",
+        "ot_pay": "117784.26",
+        "gross": "1164755.0",
+        "bhxh": "0.0",
+        "bhyt": "0.0",
+        "bhtn": "0.0",
+        "union_fee": "0.0",
+        "deduct": "0.0",
+        "net": "1164755.0",
+        "sex": "Nữ"
+      }
+    },
+    "cong_files_index": [
+      "Cong 01.08 -12.08.xls"
+    ]
+  }
+}
