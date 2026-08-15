@@ -71,6 +71,7 @@ const FULL_COLUMNS = [
   "position_title",
   "join_date",
   "seniority_label",
+  "seniority_amount",
   "contract_type_label",
   "total_salary",
   "contract_signed_at",
@@ -336,6 +337,14 @@ export function EmployeesPage() {
         },
         { field: "join_date", headerName: "Ngày vào", width: 105, filter: false, valueFormatter: (p) => formatDateDDMMYYYY(p.value) },
         { field: "seniority_label", headerName: "Thâm niên", width: 120, filter: false },
+        {
+          field: "seniority_amount",
+          headerName: "PC thâm niên",
+          width: 120,
+          filter: false,
+          cellClass: "hr-cell-money",
+          valueFormatter: (p) => formatVnd(p.value),
+        },
         { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 130, width: 130, filter: false },
         {
           field: "total_salary",

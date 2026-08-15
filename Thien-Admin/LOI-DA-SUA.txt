@@ -200,4 +200,43 @@ Test (đã pass):
   cd apps/api && py -3.12 -m pytest tests/test_wt_regime_reminders.py tests/test_todos_57.py -q
     -> 6 passed
 
-Phạm vi: CHỈ Bước F. Cột HR thâm niên tiền (Bước G) chưa làm.
+[HR-G001] Cột HR phụ cấp thâm niên tiền (Bước G) — 2026-08-15
+  - EmployeeOut.seniority_amount (Decimal | None) — seniority_monthly + batch tiers 1 lần/list
+  - mdm/service.py: _load_seniority_rules_batch, _seniority_amount trong employee_to_out
+  - EmployeesPage FULL view: cột «PC thâm niên» sau «Thâm niên»; api.ts type
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_allowances_engine.py tests/test_policy_rate_tables.py tests/test_org_filter_export.py -q
+    -> 21 passed
+  cd apps/web && npm run build -> OK (201 modules)
+
+[HR-H001] Cột HR phép còn lại (Bước H) — 2026-08-15
+  - annual_leave_ledger.py: annual_leave_remaining_batch — load ledger + pending ALE 1 query;
+    _sync_accrual_if_needed chỉ khi thiếu tháng; annual_leave_remaining gọi batch
+  - EmployeeOut.annual_leave_remaining; list_employees / get_employee batch 1 lần
+  - EmployeesPage FULL view: cột «Phép còn»; api.ts type
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_annual_leave_ledger_47.py tests/test_nghiem_thu_47.py tests/test_payroll_ui_49.py -q
+    -> 8 passed
+
+[WK-I001] Phiếu lương mobile 3 nhóm accordion (Bước I) — 2026-08-15
+  - payslip_detail.py: group_payslip_money_lines (work / allowance / deduction)
+  - worker/payslips.py + WorkerPayslipDetailOut: work_lines, allowance_lines, deduction_lines
+  - WorkerPayslipPage.tsx: 3 accordion «Công & nghỉ phép» / «Phụ cấp» / «Khấu trừ»
+  - Không đổi số tiền — net khớp HR
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_worker_payslips.py -q -> 3 passed
+  cd apps/web && npm run build -> OK
+
+[HR-J001] Tab maternity — bỏ PT/REM khỏi MATERNITY_LEAVE_CODES (J1) — 2026-08-15
+  - employment_status.py: MATERNITY_LEAVE_CODES = frozenset({"MLE", "MC"})
+  - PT (khám thai nửa ngày) không đẩy NV khỏi tab Chính thức; REM không thuộc 14 mã §22.6
+  - Test: test_pt_leave_stays_on_active_tab, test_mle_leave_on_maternity_tab
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_employee_status_filter.py -q -> 5 passed
+
+Phạm vi: A→J1 hoàn tất trên main (2026-08-15). J2 rem_days chờ HR — chưa làm.
+

@@ -272,6 +272,32 @@ def _seniority_label(join_date: date | None, resign_date: date | None) -> str | 
     return f"{years} năm {months} tháng"
 
 
+def _load_seniority_rules_batch(db: Session, as_of: date | None = None) -> dict:
+    """Nạp bảng bậc thâm niên 1 lần/request (22§22.5) — rules cho seniority_monthly."""
+    from app.modules.payroll.seed_allowances import SENIORITY_RULES
+    from app.modules.policy.service import list_seniority_tiers
+
+    list_seniority_tiers(db, as_of or date.today())
+    return SENIORITY_RULES
+
+
+def _seniority_amount(
+    join_date: date | None,
+    resign_date: date | None,
+    rules: dict,
+    as_of: date | None = None,
+) -> Decimal | None:
+    if join_date is None:
+        return None
+    end = resign_date if resign_date is not None else (as_of or date.today())
+    if end < join_date:
+        return None
+    from app.modules.payroll.engine_allowances import seniority_monthly
+
+    amt = seniority_monthly(join_date, end, rules)
+    return amt if amt > 0 else None
+
+
 def _active_contract_types(db: Session, emp_ids: list[UUID]) -> dict[UUID, str]:
     if not emp_ids:
         return {}
@@ -333,6 +359,7 @@ def employee_to_out(
     active_contract_type: str | None = None,
     effective_status: str | None = None,
     wt_regime_active: bool = False,
+    seniority_rules: dict | None = None,
 ) -> EmployeeOut:
     dept = emp.department
     team = emp.team
@@ -344,6 +371,11 @@ def employee_to_out(
     eff = effective_status or es.effective_employment_status(
         emp, active_contract_type=active_contract_type
     )
+    rules = seniority_rules
+    if rules is None:
+        from app.modules.payroll.seed_allowances import SENIORITY_RULES
+
+        rules = SENIORITY_RULES
     return EmployeeOut(
         id=emp.id,
         employee_code=emp.employee_code,
@@ -375,6 +407,7 @@ def employee_to_out(
         position_code=emp.position_code,
         position_title=emp.position_title,
         seniority_label=_seniority_label(emp.join_date, emp.resign_date),
+        seniority_amount=_seniority_amount(emp.join_date, emp.resign_date, rules),
         contract_type_label=_contract_type_label_for_employee(emp, active_contract_type),
         join_date=emp.join_date,
         contract_signed_at=emp.contract_signed_at,
@@ -727,6 +760,7 @@ def list_employees(
     allowance_totals = _allowance_totals_by_employee(db, ids)
     active_types = _active_contract_types(db, ids)
     maternity_ids = es.maternity_employee_ids(db)
+    seniority_rules = _load_seniority_rules_batch(db)
     out: list[EmployeeOut] = []
     for e in rows:
         user = by_emp_id.get(e.id) or by_code.get(e.employee_code)
@@ -744,6 +778,7 @@ def list_employees(
                 active_contract_type=act_type,
                 effective_status=eff,
                 wt_regime_active=e.id in regime_ids,
+                seniority_rules=seniority_rules,
             )
         )
     if status in ("active", "probation", "maternity"):
@@ -777,6 +812,7 @@ def get_employee(db: Session, emp_id: UUID) -> EmployeeOut:
         active_contract_type=act_type,
         effective_status=eff,
         wt_regime_active=active_wt_regime(db, emp.id) is not None,
+        seniority_rules=_load_seniority_rules_batch(db),
     )
 
 
