@@ -175,3 +175,16 @@ Test (đã pass):
   cd apps/web && npm run build -> OK (201 modules)
 
 Phạm vi: CHỈ Bước D (data + API + UI). Engine tính giờ (Bước E) chưa làm.
+
+[WT-E001] Engine chế độ về sớm — _apply_wt_regime (Bước E) — 2026-08-15
+  - engine.py: _apply_wt_regime + kw-only wt_hours_early / standard_hours trên calculate_day
+    (chỉ khi đủ vào+ra, ngày công; không bù khi thiếu punch; không áp ngày nghỉ/lễ)
+  - mdm/service.py: active_wt_regime_hours_batch — 1 query prefetch (employee_ids × date_range)
+  - attendance/service.py recalculate_days: truyền regime_map + timing.standard_hours vào engine
+  - Test: apps/api/tests/test_wt_regime_engine.py (8 case theo KE-HOACH §Bước E)
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_wt_regime_engine.py tests/test_shift_cleaner.py tests/test_attendance_engine.py -q
+    -> 23 passed
+
+Phạm vi: CHỈ Bước E (engine + prefetch recalculate_days). AI nhắc T−3 (Bước F) chưa làm.

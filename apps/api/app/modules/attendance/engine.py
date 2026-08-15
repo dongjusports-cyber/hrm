@@ -165,6 +165,30 @@ def _calc_partial_workday(
     return late, early, ot, ot_on_books, ot_external, worked, ot_type
 
 
+def _apply_wt_regime(
+    *,
+    last_out: datetime,
+    work_date: date,
+    schedule: Schedule,
+    actual_worked: Decimal,
+    wt_hours_early: int,
+    standard_hours: Decimal,
+) -> tuple[int, Decimal]:
+    """Điều chỉnh early/worked theo chế độ về sớm (22§22.14).
+
+    Chỉ gọi khi đủ vào+ra trên ngày công. allowed_out = hết ca − hours_early.
+    """
+    allowed_out = combine_vn(work_date, schedule.afternoon_end) - timedelta(hours=wt_hours_early)
+    bonus = Decimal(str(wt_hours_early))
+    if last_out >= allowed_out:
+        early = 0
+        worked = min(actual_worked + bonus, standard_hours)
+    else:
+        early = _seconds_to_minutes_up((allowed_out - last_out).total_seconds())
+        worked = min(actual_worked + bonus, standard_hours)
+    return early, worked
+
+
 def _shift_worked_hours(
     first_in: datetime,
     last_out: datetime,
@@ -199,6 +223,8 @@ def calculate_day(
     punch_dedupe_window_seconds: int = 60,
     ot_split: OtSplitPolicy | None = None,
     ot_start: time | None = None,
+    wt_hours_early: int | None = None,
+    standard_hours: Decimal | None = None,
 ) -> DayCalcResult:
     split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
@@ -283,6 +309,15 @@ def calculate_day(
                 ot = ot_on_books + ot_external
                 ot_type = "weekday" if ot > 0 else None
             worked = _shift_worked_hours(first_in, last_out, schedule, work_date)
+            if wt_hours_early is not None:
+                early, worked = _apply_wt_regime(
+                    last_out=last_out,
+                    work_date=work_date,
+                    schedule=schedule,
+                    actual_worked=worked,
+                    wt_hours_early=wt_hours_early,
+                    standard_hours=standard_hours or Decimal("8"),
+                )
         else:
             late, early, ot, ot_on_books, ot_external, worked, ot_type = _calc_partial_workday(
                 first_in=first_in,

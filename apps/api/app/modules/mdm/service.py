@@ -2899,6 +2899,38 @@ def active_wt_regime(
     )
 
 
+def active_wt_regime_hours_batch(
+    db: Session,
+    employee_ids: list[UUID],
+    date_from: date,
+    date_to: date,
+) -> dict[tuple[UUID, date], int]:
+    """Batch load hours_early theo (employee_id, work_date) — 1 query, không N+1 (Bước E)."""
+    if not employee_ids:
+        return {}
+    rows = (
+        db.query(EmployeeWtRegime)
+        .filter(
+            EmployeeWtRegime.employee_id.in_(employee_ids),
+            EmployeeWtRegime.date_from <= date_to,
+            EmployeeWtRegime.date_to >= date_from,
+        )
+        .order_by(EmployeeWtRegime.date_from.desc())
+        .all()
+    )
+    out: dict[tuple[UUID, date], int] = {}
+    for r in rows:
+        lo = max(r.date_from, date_from)
+        hi = min(r.date_to, date_to)
+        d = lo
+        while d <= hi:
+            key = (r.employee_id, d)
+            if key not in out:
+                out[key] = r.hours_early
+            d += timedelta(days=1)
+    return out
+
+
 def active_wt_regime_ids(db: Session, as_of: date | None = None) -> set[UUID]:
     """Tập employee_id có regime hiệu lực hôm nay — cho lọc tab «Chế độ đặc biệt»."""
     today = as_of or date.today()

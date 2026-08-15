@@ -166,6 +166,10 @@ def recalculate_days(
     # Ca chỉ vài mã (ADMIN, CLEANER) — nạp 1 query, tránh N+1 trong vòng lặp.
     shift_map = {s.code: s for s in db.query(WorkShift).all()}
 
+    from app.modules.mdm.service import active_wt_regime_hours_batch
+
+    regime_map = active_wt_regime_hours_batch(db, emp_ids, date_from, date_to)
+
     for (code, wd), times in grouped.items():
         emp = employees[code]
         row = day_map.get((emp.id, wd))
@@ -184,6 +188,8 @@ def recalculate_days(
             punch_dedupe_window_seconds=dedupe_window,
             ot_split=ot_split,
             ot_start=timing.ot_start_time,
+            wt_hours_early=regime_map.get((emp.id, wd)),
+            standard_hours=timing.standard_hours,
         )
         if row is None:
             row = AttendanceDay(employee_id=emp.id, work_date=wd)
