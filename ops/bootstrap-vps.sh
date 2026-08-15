@@ -5,7 +5,7 @@ set -euo pipefail
 INSTALL_DIR="${INSTALL_DIR:-/opt/dj-hrm}"
 ENV_SRC="${ENV_SRC:-/root/djhrm-vps.env}"
 DUMP_SRC="${DUMP_SRC:-/root/djhrm_local_latest.dump}"
-REPO_URL="${REPO_URL:-https://github.com/nguyenthiendongju-hub/dj-.git}"
+REPO_URL="${REPO_URL:-https://github.com/dongjusports-cyber/hrm.git}"
 
 export DEBIAN_FRONTEND=noninteractive
 

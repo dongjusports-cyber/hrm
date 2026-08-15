@@ -1,0 +1,84 @@
+================================================================================
+  THIEN-ADMIN — BẮT ĐẦU TẠI ĐÂY
+  DJ-HRM · máy .123 · GitHub · VPS hrm.dongju-v.com
+================================================================================
+
+Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo thứ tự bên dưới.
+
+--------------------------------------------------------------------------------
+  BƯỚC 0 — MỘT LẦN DUY NHẤT (GitHub mới + Deploy Key)
+--------------------------------------------------------------------------------
+
+  Đọc trước:  00-CHUYEN-GITHUB-MOI.txt
+
+  File 1:  00-PUSH-GITHUB-MOI.bat     → đẩy code lên dongjusports-cyber/hrm
+  File 2:  01-THEM-DEPLOY-KEY.bat     → nối VPS với GitHub
+  File 3:  01-KIEM-TRA-DEPLOY-KEY.bat → kiểm tra OK
+
+  Tài khoản GitHub:  dongjusports-cyber
+  Repo:              https://github.com/dongjusports-cyber/hrm
+
+  Nếu trang GitHub báo 404:
+    → Đọc file:  HUONG-DAN-DEPLOY-KEY.txt
+    → Phải đăng nhập đúng tài khoản dongjusports-cyber
+
+  Khi thấy dòng "OK — VPS co the git pull tu GitHub" → xong bước 0.
+
+--------------------------------------------------------------------------------
+  HẰNG NGÀY — SÁNG (sau khi AI sửa code đêm qua)
+--------------------------------------------------------------------------------
+
+  File:  02-DONG-BO-SANG.bat
+
+  Làm gì (1 click):
+    • VPS production pull code mới + deploy
+    • Máy .123 pull code mới
+
+  Portal: https://hrm.dongju-v.com
+
+--------------------------------------------------------------------------------
+  KHI CẦN — KHẨN CẤP
+--------------------------------------------------------------------------------
+
+  File:  03-MO-KHOA-PORTAL.bat
+    → Admin hoặc hr.demo bị khóa / quên mật khẩu
+    → Pass mặc định sau khi mở khóa:
+         admin    → Thanhthien0918283825@
+         hr.demo  → demo123456
+
+  File:  04-PULL-VE-123.bat
+    → Chỉ cập nhật code trên máy .123 (không deploy VPS)
+
+  File:  05-DEPLOY-VPS.bat
+    → Chỉ deploy lên VPS (không pull máy .123)
+
+--------------------------------------------------------------------------------
+  TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
+--------------------------------------------------------------------------------
+
+  Mở Cursor Cloud, gửi:
+
+    "Chạy full test API + web, sửa lỗi fail, commit push main.
+     Không đụng DB production VPS."
+
+  Sáng hôm sau: chạy 02-DONG-BO-SANG.bat
+
+--------------------------------------------------------------------------------
+  BA BẢN PHẦN MỀM — HIỂU NHANH
+--------------------------------------------------------------------------------
+
+  GitHub     = code chuẩn (AI push sau khi sửa)
+  VPS        = chạy thật + dữ liệu 359 công nhân
+  Máy .123   = dev/test (DB Docker riêng, KHÔNG tự đồng bộ DB từ VPS)
+
+  → Ba nơi cùng PHIÊN BẢN CODE khi bạn chạy 02-DONG-BO-SANG.bat
+
+--------------------------------------------------------------------------------
+  THÔNG TIN THÊM (mật khẩu VPS, portal…)
+--------------------------------------------------------------------------------
+
+  ops\THONG_TIN_VPS.txt   (trong thư mục repo, file local — không lên Git)
+
+  Hỏi AI: "kiểm tra VPS" / "deploy code mới" / "backup"
+
+================================================================================

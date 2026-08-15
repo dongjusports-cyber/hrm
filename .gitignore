@@ -6,6 +6,11 @@
 ops/vps-root.txt
 ops/djhrm-vps.env
 ops/vps-admin-credentials.txt
+ops/THONG_TIN_VPS.txt
+ops/_vps_fetch_latest.txt
+ops/github_deploy_key.pub
+Thien-Admin/DEPLOY-KEY.txt
+ops/portal_defaults.env
 
 # Python
 __pycache__/

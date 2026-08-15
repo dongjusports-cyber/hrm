@@ -8,6 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import (
@@ -160,8 +161,18 @@ def ensure_pay_period(db: Session, period: str) -> PayPeriod:
             status="open",
         )
         db.add(row)
-        db.commit()
-        db.refresh(row)
+        try:
+            db.commit()
+        except IntegrityError:
+            # Ganh dua: nhieu request song song cung tao ky luong 1 thang.
+            db.rollback()
+            row = (
+                db.query(PayPeriod)
+                .filter(PayPeriod.year == year, PayPeriod.month == month)
+                .one()
+            )
+        else:
+            db.refresh(row)
         return row
     if row.status == "open":
         row.official_work_days = div.official_work_days

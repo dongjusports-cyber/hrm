@@ -1,0 +1,21 @@
+Repo: dongjusports-cyber/hrm, base branch main.
+
+Mục tiêu: nightly health check — test, sửa lỗi nhỏ, đẩy code lên GitHub.
+
+Quy trình:
+1. git pull origin main
+2. cd apps/api && pytest -q
+3. cd apps/web && npm test -- --run
+4. cd apps/web && npm test -- escKeyboard  (bắt buộc nếu sửa ESC)
+5. Nếu fail: sửa tối thiểu, chạy lại test đến pass
+6. Không commit .env, vps-root.txt, THONG_TIN_VPS.txt, Dữ liệu công nhân/
+7. Tuân thủ .cursor/rules/ (đặc biệt esc-keyboard.mdc)
+8. Không đụng DB production — chỉ Postgres local trong ops/cloud/
+
+Git:
+- Tạo branch cursor/nightly-YYYY-MM-DD
+- Commit message: fix(test): nightly auto-fix YYYY-MM-DD
+- Mở PR vào main (mô tả test pass + thay đổi gì)
+- Nếu all tests pass và không đổi gì: báo "All tests passed, no changes" — không mở PR rỗng
+
+Cấm: force push, xóa file hàng loạt, migration production không có test.

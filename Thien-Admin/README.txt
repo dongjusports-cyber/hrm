@@ -1,0 +1,25 @@
+Thư mục này gom mọi thứ **Thiên** cần double-click hoặc đọc.
+
+GitHub mới:  https://github.com/dongjusports-cyber/hrm
+Tài khoản:   dongjusports-cyber
+
+Đọc trước:  DOC_BAT_DAU.txt  →  00-CHUYEN-GITHUB-MOI.txt
+
+| File | Khi nào dùng |
+|------|----------------|
+| 00-PUSH-GITHUB-MOI.bat | **Lần đầu** — đẩy code lên repo mới |
+| 00-CHUYEN-GITHUB-MOI.txt | Hướng dẫn chuyển GitHub |
+| 01-THEM-DEPLOY-KEY.bat | **Một lần** — nối VPS với GitHub |
+| 01-KIEM-TRA-DEPLOY-KEY.bat | Kiểm tra đã nối GitHub chưa |
+| 02-DONG-BO-SANG.bat | **Mỗi sáng** — đồng bộ VPS + máy .123 |
+| 03-MO-KHOA-PORTAL.bat | Admin/hr.demo bị khóa |
+| 04-PULL-VE-123.bat | Chỉ cập nhật code máy .123 |
+| 05-DEPLOY-VPS.bat | Chỉ deploy lên VPS |
+| MO-TRANG-GITHUB.bat | Mở trang Deploy keys |
+| 06-CLOUD-AGENT.txt | **Setup Cloud Agent tối** (đọc 1 lần) |
+| PROMPT-TOI-CLOUD.txt | Prompt dán vào Automation / Cloud |
+| DEPLOY-KEY.txt | Public key dán lên GitHub |
+| HUONG-DAN-DEPLOY-KEY.txt | Sửa lỗi 404 GitHub |
+| QUY-TRINH-HANG-NGAY.txt | Tóm tắt tối/sáng |
+
+Đường dẫn: C:\DATA\HRM\dj-hrm\dj-hrm\Thien-Admin

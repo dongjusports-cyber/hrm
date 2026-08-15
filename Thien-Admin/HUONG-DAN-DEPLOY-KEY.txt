@@ -1,0 +1,20 @@
+================================================================================
+  HƯỚNG DẪN THÊM DEPLOY KEY — REPO MỚI dongjusports-cyber/hrm
+================================================================================
+
+  1. Đăng nhập:  https://github.com/login  →  dongjusports-cyber
+
+  2. Vào repo:   https://github.com/dongjusports-cyber/hrm
+
+  3. Settings → Deploy keys → Add deploy key
+
+  4. Title: dj-hrm-vps-deploy
+     Key:   copy file DEPLOY-KEY.txt (cùng thư mục)
+     KHÔNG tick Allow write access
+
+  5. Chạy:  01-KIEM-TRA-DEPLOY-KEY.bat
+
+  Link Deploy keys:
+    https://github.com/dongjusports-cyber/hrm/settings/keys
+
+================================================================================

@@ -1,0 +1,7 @@
+# Nguon chuan GitHub — cap nhat 2026-08-15 (dongjusports-cyber / Cursor Pro)
+OWNER=dongjusports-cyber
+REPO=hrm
+HTTPS=https://github.com/dongjusports-cyber/hrm.git
+SSH=git@github.com:dongjusports-cyber/hrm.git
+DEPLOY_KEYS_URL=https://github.com/dongjusports-cyber/hrm/settings/keys
+REPO_HOME=https://github.com/dongjusports-cyber/hrm

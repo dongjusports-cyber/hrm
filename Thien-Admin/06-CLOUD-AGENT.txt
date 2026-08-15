@@ -1,0 +1,63 @@
+================================================================================
+  CLOUD AGENT — CÓ NÊN LÀM KHÔNG?
+================================================================================
+
+  CÓ — nếu bạn muốn tối AI tự test/sửa bug KHÔNG cần máy .123 bật cả đêm.
+
+  Cloud Agent làm được:
+    • Chạy pytest + npm test trên VM Cursor
+    • Sửa lỗi, commit, mở PR (hoặc push main)
+    • Chạy theo lịch (Automation 22:00)
+
+  Cloud Agent KHÔNG làm được (vẫn cần bạn sáng):
+    • Deploy lên VPS → 02-DONG-BO-SANG.bat
+    • Đụng DB production 359 NV trên VPS
+
+  Kết luận: LÀM — lợi rõ. Màn Agents bạn chụp (Run Everything) là LOCAL;
+  Cloud Agent cấu hình riêng trên web Cursor.
+
+================================================================================
+  BƯỚC SETUP (MỘT LẦN — ~10 phút)
+================================================================================
+
+  1. Kết nối GitHub
+     https://cursor.com/dashboard/integrations
+     → Connect GitHub → đăng nhập dongjusports-cyber
+     → Chọn repo: dongjusports-cyber/hrm (quyền read-write)
+
+  2. Cloud Environment (repo đã có sẵn config)
+     https://cursor.com/dashboard/cloud-agents
+     → New environment → repo hrm
+     → Build (chạy ops/cloud/install.sh — Postgres test + pytest)
+
+  3. Default settings
+     • Default repository: dongjusports-cyber/hrm
+     • Base branch: main
+     • Branch prefix: cursor/  (giữ như Settings → Git & PRs)
+
+  4. (Tùy chọn) Automation tối 22:00
+     https://cursor.com/automations/new
+     → Scheduled hàng ngày
+     → Repo hrm, branch main
+     → Dán prompt từ file: PROMPT-TOI-CLOUD.txt
+
+================================================================================
+  WORKFLOW SAU KHI SETUP
+================================================================================
+
+  22:00   Cloud Agent test + sửa → PR (nhánh cursor/...) hoặc push main
+  Sáng    Review PR (nếu có) → merge
+          Double-click 02-DONG-BO-SANG.bat
+
+================================================================================
+  MÀN AGENTS BẠN ĐANG XEM (Settings → Agents)
+================================================================================
+
+  Giữ nguyên hoặc:
+    • Run Everything     → OK cho ban ngày trên máy .123 (AI local)
+    • Web Search ON      → OK
+    • Branch prefix cursor/ → OK (Cloud tạo PR từ nhánh cursor/...)
+
+  Cloud Agents: sidebar trái → "Cloud Agents" (khác tab Agents)
+
+================================================================================
