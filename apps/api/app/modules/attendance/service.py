@@ -17,7 +17,8 @@ from app.modules.attendance.day_enrich import (
     resolve_work_shift_id,
 )
 from app.modules.attendance.engine import VN_TZ, Schedule, calculate_day, to_vn
-from app.modules.attendance.models import AttendanceDay
+from app.modules.attendance.models import AttendanceDay, WorkShift
+from app.modules.attendance.shift_schedule import timing_from_shift
 from app.modules.attendance.schemas import AttendanceDayOut, RecalculateResult
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
@@ -162,22 +163,32 @@ def recalculate_days(
 
     from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE
 
+    # Ca chỉ vài mã (ADMIN, CLEANER) — nạp 1 query, tránh N+1 trong vòng lặp.
+    shift_map = {s.code: s for s in db.query(WorkShift).all()}
+
     for (code, wd), times in grouped.items():
         emp = employees[code]
-        calc = calculate_day(
-            times, wd, schedule, punch_dedupe_window_seconds=dedupe_window, ot_split=ot_split
-        )
         row = day_map.get((emp.id, wd))
         if row is not None and row.is_locked:
             continue
-        if row is None:
-            row = AttendanceDay(employee_id=emp.id, work_date=wd)
-            db.add(row)
-            day_map[(emp.id, wd)] = row
         if emp.team_id is None:
             shift_id = ADMIN_SHIFT_CODE
         else:
             shift_id = shift_cache.get((emp.team_id, wd), ADMIN_SHIFT_CODE)
+        # Nối ca của Tổ vào engine (22§22.13): dùng lịch + mốc OT theo ca.
+        timing = timing_from_shift(shift_map.get(shift_id), schedule)
+        calc = calculate_day(
+            times,
+            wd,
+            timing.schedule,
+            punch_dedupe_window_seconds=dedupe_window,
+            ot_split=ot_split,
+            ot_start=timing.ot_start_time,
+        )
+        if row is None:
+            row = AttendanceDay(employee_id=emp.id, work_date=wd)
+            db.add(row)
+            day_map[(emp.id, wd)] = row
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         upserted += 1
         touched_emps.add(code)

@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
 from app.modules.attendance.engine import VN_TZ, calculate_day, is_company_workday, to_vn
-from app.modules.attendance.models import AttendanceDay, PayPeriod
+from app.modules.attendance.models import AttendanceDay, PayPeriod, WorkShift
+from app.modules.attendance.shift_schedule import timing_from_shift
 from app.modules.attendance.schemas import AttendanceDayOut
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
@@ -234,8 +235,11 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
 
     schedule = _load_schedule(db)
     punches = [to_vn(body.first_in), to_vn(body.last_out)]
-    calc = calculate_day(punches, body.work_date, schedule, ot_split=load_ot_split_policy(db))
     shift_id = resolve_work_shift_id(db, emp, body.work_date)
+    timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
+    calc = calculate_day(
+        punches, body.work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+    )
     apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
     row.source = "manual"
     row.note = (body.note or "").strip()
