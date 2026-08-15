@@ -44,3 +44,23 @@ Repo `hrm`, `.cursor/environment.json` + `ops/cloud/install.sh`. Prompt: `Thien-
 
 - OT ngày lễ buổi sáng/chiều (`engine.py`)
 - Race `ensure_pay_period` → HTTP 500 chấm công (`timesheet.py`)
+
+## Fix gần đây (commit f02be75 — benchmark / danh sách NV)
+
+- `GET /api/employees` **không được ghi DB** — `annual_leave_remaining_batch` chỉ đọc; ghi sổ phép qua `sync_accrual_batch` khi chốt kỳ lương.
+- Test hồi quy: `apps/api/tests/test_employees_list_benchmark.py` (đếm SQL, Session mới).
+- Báo cáo: `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`.
+
+## Portal bị khóa pass (admin / hr.demo)
+
+**Triệu chứng:** đăng nhập báo khóa sau 3 lần sai pass.
+
+**User:** double-click `Thien-Admin\03-MO-KHOA-PORTAL.bat` (hoặc `MO_KHOA_PORTAL.bat` gốc repo).
+
+**AI trên .123:** `python ops/unlock_portal.py` — cần `ops/vps-root.txt` (local).
+
+**Script VPS bắt buộc:** `ops/reset_portal_passwords.sh` — chạy trong container `api`, mở khóa + reset pass admin/hr.demo. Nếu thiếu file → `unlock_portal.py` báo FileNotFoundError; tạo lại script (đã commit 2026-08-15).
+
+**Pass sau mở khóa:** in cuối `unlock_portal.py` / `Thien-Admin/DOC_BAT_DAU.txt` (không ghi secret vào chat công khai nếu không cần).
+
+**Deploy VPS lỗi Permission denied:** `chmod +x ops/*.sh` trên VPS hoặc commit `mode 100755` cho `ops/deploy.sh` (đã sửa a378224).

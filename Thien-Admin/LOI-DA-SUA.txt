@@ -266,3 +266,20 @@ Test (đã pass):
 
 Báo cáo: Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md (bản 2, commit f02be75)
 
+[OPS-P001] Portal khóa pass + thiếu reset_portal_passwords.sh — 2026-08-15
+----------------------------------------------------------------------
+Triệu chứng:
+  admin / hr.demo không đăng nhập được (khóa sau 3 lần sai pass).
+  Chạy MO_KHOA_PORTAL.bat / unlock_portal.py → FileNotFoundError: reset_portal_passwords.sh
+
+Nguyên nhân:
+  File ops/reset_portal_passwords.sh chưa có trong repo (unlock_portal.py upload script lên VPS).
+
+Cách xử lý:
+  - Tạo ops/reset_portal_passwords.sh: docker exec api python → unlock User, reset hash, failed_attempts=0
+  - User: Thien-Admin\03-MO-KHOA-PORTAL.bat
+  - AI: python ops/unlock_portal.py (cần ops/vps-root.txt)
+  - Pass sau mở khóa: xem cuối unlock_portal.py hoặc DOC_BAT_DAU.txt
+
+Ghi nhớ AI: user nói "bị khóa pass" → chạy unlock ngay, không hỏi SSH phức tạp.
+
