@@ -67,3 +67,13 @@ Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]` ·
 **Pass sau mở khóa:** in cuối `unlock_portal.py` / `Thien-Admin/DOC_BAT_DAU.txt` (không ghi secret vào chat công khai nếu không cần).
 
 **Deploy VPS lỗi Permission denied:** `chmod +x ops/*.sh` trên VPS hoặc commit `mode 100755` cho `ops/deploy.sh` (đã sửa a378224).
+
+## Nợ kỹ thuật (chưa sửa — gom 1 lần sau)
+
+Xem **`Thien-Admin/NO-KY-THUAT.txt`**.
+
+| Mã | Triệu chứng | Nguyên nhân ngắn |
+|----|-------------|------------------|
+| **REP-OV001** | Tổng Quan trắng / «Đang tải…» | `GET /api/reports/overview` **500** — hai class `TodoCardOut` (ai vs report), lỗi khi có todo card (HĐ sắp hết hạn trên VPS) |
+
+AI: user nói «Tổng Quan không hiển thị» → gọi API overview trước; **đừng sửa vội từng mảnh** — user muốn gom sửa 1 lần theo NO-KY-THUAT.
