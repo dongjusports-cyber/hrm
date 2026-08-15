@@ -80,27 +80,49 @@ def _entry_exists(db: Session, ledger_id: UUID, reference: str) -> bool:
 
 
 def _refresh_ledger_summary(db: Session, ledger: AnnualLeaveLedger) -> None:
-    rows = db.query(AnnualLeaveEntry).filter(AnnualLeaveEntry.ledger_id == ledger.id).all()
-    accrued = Decimal("0")
-    used = Decimal("0")
-    adjusted = Decimal("0")
-    movement = Decimal("0")
-    last_accrual_month: int | None = None
+    _refresh_ledger_summary_batch(db, [ledger])
+
+
+def _refresh_ledger_summary_batch(db: Session, ledgers: list[AnnualLeaveLedger]) -> None:
+    """Tính lại tổng sổ từ bút toán — một query cho cả lô, dùng ở đường lệnh."""
+    if not ledgers:
+        return
+    by_id = {led.id: led for led in ledgers}
+    rows = db.query(AnnualLeaveEntry).filter(AnnualLeaveEntry.ledger_id.in_(list(by_id))).all()
+    agg: dict[UUID, dict] = {
+        led_id: {
+            "accrued": Decimal("0"),
+            "used": Decimal("0"),
+            "adjusted": Decimal("0"),
+            "movement": Decimal("0"),
+            "last_accrual_month": None,
+        }
+        for led_id in by_id
+    }
     for row in rows:
+        bucket = agg.get(row.ledger_id)
+        if bucket is None:
+            continue
         signed = _signed_days(row.kind, row.days)
-        movement += signed
+        bucket["movement"] += signed
         if row.kind == KIND_ACCRUAL:
-            accrued += abs(signed)
-            last_accrual_month = max(last_accrual_month or 0, row.entry_date.month)
+            bucket["accrued"] += abs(signed)
+            bucket["last_accrual_month"] = max(
+                bucket["last_accrual_month"] or 0, row.entry_date.month
+            )
         elif row.kind == KIND_USE:
-            used += abs(signed)
+            bucket["used"] += abs(signed)
         elif row.kind == KIND_ADJUST:
-            adjusted += signed
-    ledger.accrued = accrued.quantize(Q2, rounding=ROUND_HALF_UP)
-    ledger.used = used.quantize(Q2, rounding=ROUND_HALF_UP)
-    ledger.adjusted = adjusted.quantize(Q2, rounding=ROUND_HALF_UP)
-    ledger.closing_balance = (ledger.opening_balance + movement).quantize(Q2, rounding=ROUND_HALF_UP)
-    ledger.last_accrued_month = last_accrual_month
+            bucket["adjusted"] += signed
+    for led_id, ledger in by_id.items():
+        bucket = agg[led_id]
+        ledger.accrued = bucket["accrued"].quantize(Q2, rounding=ROUND_HALF_UP)
+        ledger.used = bucket["used"].quantize(Q2, rounding=ROUND_HALF_UP)
+        ledger.adjusted = bucket["adjusted"].quantize(Q2, rounding=ROUND_HALF_UP)
+        ledger.closing_balance = (ledger.opening_balance + bucket["movement"]).quantize(
+            Q2, rounding=ROUND_HALF_UP
+        )
+        ledger.last_accrued_month = bucket["last_accrual_month"]
 
 
 def add_entry(
@@ -251,30 +273,25 @@ def _target_accrued(emp: Employee, as_of: date, days_per_year: int) -> Decimal:
     )
 
 
-def _sync_accrual_if_needed(
-    db: Session,
+def _closing_with_unrecorded_accrual(
+    ledger: AnnualLeaveLedger | None,
     emp: Employee,
-    ledger: AnnualLeaveLedger,
     as_of: date,
     days_per_year: int,
-) -> AnnualLeaveLedger:
-    """Chỉ ghi accrual khi thiếu tháng — không sync mù mọi NV."""
-    months = _accrual_months(emp, as_of)
-    if months <= 0:
-        return ledger
+) -> Decimal:
+    """Số dư sổ + phần tích lũy đến `as_of` chưa kịp ghi bút toán — không đụng DB.
+
+    Phải ra đúng con số như sau khi `sync_accrual_batch` đã ghi, nếu lệch thì cột
+    «Phép còn» sẽ nhảy số vào lúc chốt kỳ lương.
+    """
     target = _target_accrued(emp, as_of, days_per_year)
-    delta = (target - ledger.accrued).quantize(Q2, rounding=ROUND_HALF_UP)
-    if delta > 0:
-        add_entry(
-            db,
-            ledger,
-            kind=KIND_ACCRUAL,
-            days=delta,
-            entry_date=as_of,
-            reference=f"accrual-{as_of.year}-through-{months:02d}",
-            note=f"Tích lũy đến tháng {months}/{as_of.year}",
-        )
-    return ledger
+    if ledger is None:
+        return target
+    closing = Decimal(str(ledger.closing_balance)).quantize(Q2, rounding=ROUND_HALF_UP)
+    missing = (target - Decimal(str(ledger.accrued))).quantize(Q2, rounding=ROUND_HALF_UP)
+    if missing <= 0:
+        return closing
+    return (closing + missing).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
 def annual_leave_remaining_batch(
@@ -282,7 +299,12 @@ def annual_leave_remaining_batch(
     employee_ids: list[UUID],
     as_of: date | None = None,
 ) -> dict[UUID, Decimal]:
-    """Số phép còn theo lô — tránh N+1 sync_accrual (22§22.7, Bước H)."""
+    """Số phép còn theo lô — CHỈ ĐỌC, 3 query, không INSERT/UPDATE (22§22.7).
+
+    Bút toán tích lũy ghi ở `sync_accrual_batch` (đường lệnh). Không đưa lệnh ghi
+    trở lại đây: hàm này chạy trên `GET /api/employees`, mà `get_db()` không commit
+    nên mọi INSERT/UPDATE đều bị rollback rồi lặp lại ở request sau.
+    """
     if not employee_ids:
         return {}
     as_of = as_of or date.today()
@@ -292,19 +314,15 @@ def annual_leave_remaining_batch(
     employees = {
         e.id: e for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
     }
-    ledgers = (
-        db.query(AnnualLeaveLedger)
+    ledger_by_emp = {
+        row.employee_id: row
+        for row in db.query(AnnualLeaveLedger)
         .filter(
             AnnualLeaveLedger.employee_id.in_(employee_ids),
             AnnualLeaveLedger.year == year,
         )
         .all()
-    )
-    ledger_by_emp = {row.employee_id: row for row in ledgers}
-    for emp_id in employee_ids:
-        if emp_id not in ledger_by_emp and emp_id in employees:
-            ledger_by_emp[emp_id] = ensure_ledger(db, emp_id, year)
-
+    }
     pending_map = pending_submitted_days_batch(db, employee_ids, year)
 
     out: dict[UUID, Decimal] = {}
@@ -313,15 +331,107 @@ def annual_leave_remaining_batch(
         if emp is None:
             out[emp_id] = Decimal("0")
             continue
-        ledger = ledger_by_emp.get(emp_id)
-        if ledger is None:
-            out[emp_id] = Decimal("0")
-            continue
-        ledger = _sync_accrual_if_needed(db, emp, ledger, as_of, days_per_year)
+        closing = _closing_with_unrecorded_accrual(
+            ledger_by_emp.get(emp_id), emp, as_of, days_per_year
+        )
         pending = pending_map.get(emp_id, Decimal("0"))
-        remaining = (ledger.closing_balance - pending).quantize(Q2, rounding=ROUND_HALF_UP)
+        remaining = (closing - pending).quantize(Q2, rounding=ROUND_HALF_UP)
         out[emp_id] = max(Decimal("0"), remaining)
     return out
+
+
+def sync_accrual_batch(
+    db: Session,
+    *,
+    employee_ids: list[UUID] | None = None,
+    as_of: date | None = None,
+) -> int:
+    """Ghi bút toán tích lũy phép cho cả lô — ĐƯỜNG LỆNH, trả về số bút toán mới.
+
+    Gọi khi chốt kỳ lương (hoặc job tháng), KHÔNG gọi từ endpoint GET.
+    """
+    as_of = as_of or date.today()
+    year = as_of.year
+    days_per_year = _annual_days_per_year(db)
+
+    emp_query = db.query(Employee).filter(Employee.deleted_at.is_(None))
+    if employee_ids is not None:
+        if not employee_ids:
+            return 0
+        emp_query = emp_query.filter(Employee.id.in_(employee_ids))
+    employees = emp_query.all()
+    if not employees:
+        return 0
+
+    ids = [e.id for e in employees]
+    ledger_by_emp = {
+        row.employee_id: row
+        for row in db.query(AnnualLeaveLedger)
+        .filter(AnnualLeaveLedger.employee_id.in_(ids), AnnualLeaveLedger.year == year)
+        .all()
+    }
+    missing = [emp.id for emp in employees if emp.id not in ledger_by_emp]
+    if missing:
+        created = [
+            AnnualLeaveLedger(
+                employee_id=emp_id,
+                year=year,
+                opening_balance=Decimal("0"),
+                accrued=Decimal("0"),
+                used=Decimal("0"),
+                adjusted=Decimal("0"),
+                closing_balance=Decimal("0"),
+            )
+            for emp_id in missing
+        ]
+        db.add_all(created)
+        db.flush()
+        for row in created:
+            ledger_by_emp[row.employee_id] = row
+
+    ledger_ids = [led.id for led in ledger_by_emp.values()]
+    existing_refs = {
+        (led_id, ref)
+        for led_id, ref in db.query(
+            AnnualLeaveEntry.ledger_id, AnnualLeaveEntry.reference
+        ).filter(AnnualLeaveEntry.ledger_id.in_(ledger_ids))
+    }
+
+    new_entries: list[AnnualLeaveEntry] = []
+    touched: list[AnnualLeaveLedger] = []
+    for emp in employees:
+        ledger = ledger_by_emp.get(emp.id)
+        if ledger is None:
+            continue
+        months = _accrual_months(emp, as_of)
+        if months <= 0:
+            continue
+        delta = (
+            _target_accrued(emp, as_of, days_per_year) - Decimal(str(ledger.accrued))
+        ).quantize(Q2, rounding=ROUND_HALF_UP)
+        if delta <= 0:
+            continue
+        reference = f"accrual-{year}-through-{months:02d}"
+        if (ledger.id, reference) in existing_refs:
+            continue
+        new_entries.append(
+            AnnualLeaveEntry(
+                ledger_id=ledger.id,
+                entry_date=as_of,
+                kind=KIND_ACCRUAL,
+                days=delta,
+                reference=reference,
+                note=f"Tích lũy đến tháng {months}/{year}",
+            )
+        )
+        touched.append(ledger)
+
+    if not new_entries:
+        return 0
+    db.add_all(new_entries)
+    db.flush()
+    _refresh_ledger_summary_batch(db, touched)
+    return len(new_entries)
 
 
 def annual_leave_remaining(db: Session, employee_id: UUID, as_of: date | None = None) -> Decimal:

@@ -18,6 +18,7 @@ from app.modules.attendance.models import (
     TimesheetMonth,
     TimesheetMonthDetail,
 )
+from app.modules.attendance.annual_leave_ledger import sync_accrual_batch
 from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets, seed_leave_types
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
@@ -433,6 +434,9 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
 
     rebuild_timesheets(db, period, recalc_days=True)
     pay = ensure_pay_period(db, period)
+    # Bút toán tích lũy phép ghi ở đây (đường lệnh, 1 lần/kỳ). Đường đọc — danh sách NV,
+    # phiếu lương — chỉ tính suy ra, không ghi sổ.
+    sync_accrual_batch(db, as_of=pay.date_to or date.today())
     _purge_ineligible_draft_payslips(db, pay)
 
     pkg, payload = _active_policy(db)
