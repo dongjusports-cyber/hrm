@@ -1,6 +1,10 @@
 """Lọc NV theo trạng thái suy ra — thử việc / thai sản."""
 
 from datetime import date, timedelta
+from decimal import Decimal
+
+from app.modules.attendance.models import LeaveRequest
+from app.modules.mdm.models import Employee
 
 
 def _hr_headers(client):
@@ -82,6 +86,62 @@ def test_maternity_filter_by_status(client):
 
     active_list = client.get("/api/employees?status=active", headers=headers).json()
     assert code not in {e["employee_code"] for e in active_list}
+
+
+def test_pt_leave_stays_on_active_tab(client, db):
+    """PT (khám thai) — không đẩy NV khỏi tab Chính thức (J1, 22§22.6)."""
+    headers = _hr_headers(client)
+    emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
+    emp.status = "active"
+    emp.contract_signed_at = date(2020, 1, 15)
+    db.commit()
+
+    today = date.today()
+    db.add(
+        LeaveRequest(
+            employee_id=emp.id,
+            leave_type_code="PT",
+            from_date=today,
+            to_date=today,
+            total_days=Decimal("0.5"),
+            reason="Khám thai",
+            status="approved",
+        )
+    )
+    db.commit()
+
+    active_list = client.get("/api/employees?status=active", headers=headers).json()
+    assert "1514" in {e["employee_code"] for e in active_list}
+    mat_list = client.get("/api/employees?status=maternity", headers=headers).json()
+    assert "1514" not in {e["employee_code"] for e in mat_list}
+
+
+def test_mle_leave_on_maternity_tab(client, db):
+    """MLE vẫn đưa NV vào tab Thai sản khi đơn approved bao phủ hôm nay."""
+    headers = _hr_headers(client)
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.status = "active"
+    emp.contract_signed_at = date(2010, 1, 1)
+    db.commit()
+
+    today = date.today()
+    db.add(
+        LeaveRequest(
+            employee_id=emp.id,
+            leave_type_code="MLE",
+            from_date=today - timedelta(days=5),
+            to_date=today + timedelta(days=30),
+            total_days=Decimal("35"),
+            reason="Thai sản",
+            status="approved",
+        )
+    )
+    db.commit()
+
+    mat_list = client.get("/api/employees?status=maternity", headers=headers).json()
+    assert "5290" in {e["employee_code"] for e in mat_list}
+    active_list = client.get("/api/employees?status=active", headers=headers).json()
+    assert "5290" not in {e["employee_code"] for e in active_list}
 
 
 def test_special_regime_filter_by_wt_regime(client):

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.modules.attendance.models import LeaveRequest
 from app.modules.mdm.models import Employee
 
-MATERNITY_LEAVE_CODES = frozenset({"MLE", "MC", "REM", "PT"})
+MATERNITY_LEAVE_CODES = frozenset({"MLE", "MC"})
 PROBATION_CONTRACT_CODE = "TV"
 
 STATUS_LABELS: dict[str, str] = {

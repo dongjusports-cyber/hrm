@@ -188,3 +188,13 @@ Test (đã pass):
     -> 23 passed
 
 Phạm vi: CHỈ Bước E (engine + prefetch recalculate_days). AI nhắc T−3 (Bước F) chưa làm.
+
+[HR-J001] Tab maternity — bỏ PT/REM khỏi MATERNITY_LEAVE_CODES (J1) — 2026-08-15
+  - employment_status.py: MATERNITY_LEAVE_CODES = frozenset({"MLE", "MC"})
+  - PT (khám thai nửa ngày) không đẩy NV khỏi tab Chính thức; REM không thuộc 14 mã §22.6
+  - Test: test_pt_leave_stays_on_active_tab, test_mle_leave_on_maternity_tab
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_employee_status_filter.py -q -> 5 passed
+
+Phạm vi: CHỈ J1. J2 rem_days chờ HR xác nhận — chưa làm.
