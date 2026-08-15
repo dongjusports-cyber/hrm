@@ -73,7 +73,8 @@ class WorkerPayslipDetailOut(BaseModel):
     rem_days: Decimal | None = None
     confirm_deadline: date | None = None
     confirmed_at: datetime | None = None
-    income_lines: list[MoneyLine]
+    work_lines: list[MoneyLine]
+    allowance_lines: list[MoneyLine]
     deduction_lines: list[MoneyLine]
     can_confirm: bool
     can_dispute: bool

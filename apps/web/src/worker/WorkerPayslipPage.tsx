@@ -31,7 +31,8 @@ export function WorkerPayslipPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [openIncome, setOpenIncome] = useState(true);
+  const [openWork, setOpenWork] = useState(true);
+  const [openAllowance, setOpenAllowance] = useState(false);
   const [openDeduct, setOpenDeduct] = useState(false);
   const [showDispute, setShowDispute] = useState(false);
   const [reasons, setReasons] = useState<DisputeReason[]>([]);
@@ -165,14 +166,35 @@ export function WorkerPayslipPage() {
         <button
           type="button"
           className="worker-acc-head"
-          aria-expanded={openIncome}
-          onClick={() => setOpenIncome((v) => !v)}
+          aria-expanded={openWork}
+          onClick={() => setOpenWork((v) => !v)}
         >
-          Thu nhập
+          Công &amp; nghỉ phép
         </button>
-        {openIncome && (
+        {openWork && (
           <ul className="worker-money-list">
-            {slip.income_lines.map((line) => (
+            {slip.work_lines.map((line) => (
+              <li key={line.label}>
+                <span>{line.label}</span>
+                <strong>{formatVnd(line.amount)}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="worker-accordion">
+        <button
+          type="button"
+          className="worker-acc-head"
+          aria-expanded={openAllowance}
+          onClick={() => setOpenAllowance((v) => !v)}
+        >
+          Phụ cấp
+        </button>
+        {openAllowance && (
+          <ul className="worker-money-list">
+            {slip.allowance_lines.map((line) => (
               <li key={line.label}>
                 <span>{line.label}</span>
                 <strong>{formatVnd(line.amount)}</strong>
