@@ -240,3 +240,29 @@ Test (đã pass):
 
 Phạm vi: A→J1 hoàn tất trên main (2026-08-15). J2 rem_days chờ HR — chưa làm.
 
+[HR-H002] GET /employees ghi sổ phép mỗi request rồi rollback (fix benchmark) — 2026-08-15
+----------------------------------------------------------------------
+Triệu chứng:
+  Mở danh sách NV trên VPS ~3 giây (359 NV). Benchmark cũ báo "226 ms, đạt 300 ms".
+
+Nguyên nhân:
+  annual_leave_remaining_batch (Bước H) gọi ensure_ledger + add_entry cho từng NV trên
+  GET /api/employees. get_db() không commit → 718 INSERT + 358 UPDATE bị rollback mỗi
+  request, lặp vô hạn. DB production: 0 sổ phép / 0 bút toán. Đo trên cùng Session ấm
+  che lỗi (226 ms); Session mới = 2.749 ms, 2.170 câu SQL.
+
+Cách xử lý:
+  - annual_leave_remaining_batch: CHỈ ĐỌC, suy ra phép còn bằng công thức (kết quả không đổi)
+  - sync_accrual_batch: ghi bút toán bulk khi chốt kỳ lương (payroll/service.py)
+  - test_employees_list_benchmark.py: đếm SQL trên Session mới, chặn INSERT/UPDATE trên GET
+  - ops/bench_employees_vps.py: đo TTFB + số query trên VPS
+
+Kết quả sau deploy (359 NV):
+  TTFB 2.734 ms → 377 ms; SQL 2.170 → 17; 0 lệnh ghi/request.
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest -q -> 417 passed
+  python ops/bench_employees_vps.py (VPS)
+
+Báo cáo: Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md (bản 2, commit f02be75)
+
