@@ -18,6 +18,7 @@ Tài khoản:   dongjusports-cyber
 | MO-TRANG-GITHUB.bat | Mở trang Deploy keys |
 | 06-CLOUD-AGENT.txt | **Setup Cloud Agent tối** (đọc 1 lần) |
 | PROMPT-TOI-CLOUD.txt | Prompt dán vào Automation / Cloud |
+| Thư mục **`122\`** (cùng repo) | **USB → máy .122** — agent Mitapro |
 | DEPLOY-KEY.txt | Public key dán lên GitHub |
 | HUONG-DAN-DEPLOY-KEY.txt | Sửa lỗi 404 GitHub |
 | QUY-TRINH-HANG-NGAY.txt | Tóm tắt tối/sáng |

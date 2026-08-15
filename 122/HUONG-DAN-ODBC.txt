@@ -1,0 +1,50 @@
+================================================================================
+  ODBC 17 / ODBC 18 LÀ GÌ?
+================================================================================
+
+  Mitapro lưu công trên SQL Server. Agent .122 cần "cầu nối" ODBC để đọc SQL.
+
+  Tên đúng trên Windows (một trong hai):
+
+    ODBC Driver 17 for SQL Server
+    ODBC Driver 18 for SQL Server
+
+  (Cùng loại phần mềm Microsoft — bản 18 mới hơn; dùng cái nào có trên máy .122.)
+
+--------------------------------------------------------------------------------
+  KIỂM TRA Ở ĐÂU?
+--------------------------------------------------------------------------------
+
+  Cách 1 — Trên .122 (trong folder USB 122):
+
+    Double-click:  01-KIEM-TRA-ODBC.bat
+
+  Cách 2 — Trong thư mục agent (nếu đã cài .venv):
+
+    D:\dj-hrm\apps\agent\KIEM_TRA_ODBC.bat
+
+  Cách 3 — Windows (tay):
+
+    Win + R  →  odbcad32.exe  →  tab "Drivers"
+    Tìm dòng có "ODBC Driver 17 for SQL Server" hoặc "18"
+
+--------------------------------------------------------------------------------
+  CHƯA CÓ DRIVER?
+--------------------------------------------------------------------------------
+
+  Tải (miễn phí, Microsoft):
+
+    https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server
+
+  Cài xong → chạy lại 01-KIEM-TRA-ODBC.bat
+  → chạy 02-GHEP-ENV.bat (tự chọn 17 hoặc 18 trong .env)
+
+--------------------------------------------------------------------------------
+  FILE .env — DÒNG MITAPRO_ODBC
+
+  Driver={ODBC Driver 17 for SQL Server};...   ← nếu máy có 17
+  Driver={ODBC Driver 18 for SQL Server};...   ← nếu máy có 18
+
+  Sai tên driver → agent không đọc được Mitapro.
+
+================================================================================

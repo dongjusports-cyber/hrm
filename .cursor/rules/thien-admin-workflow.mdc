@@ -1,0 +1,41 @@
+---
+description: Cách làm việc với user Thiên — đơn giản, USB, double-click bat (bắt buộc cho mọi AI)
+globs:
+alwaysApply: true
+---
+
+# Quy tắc làm việc với user (Thiên-Admin)
+
+User **không** muốn Git/SSH/remote phức tạp. Mọi thao tác vận hành phải theo mẫu:
+
+## Nguyên tắc
+
+1. **Tạo thư mục rõ ràng** trên máy .123 — user copy USB hoặc double-click, không gõ lệnh.
+2. **Mỗi việc = 1 file `.bat` hoặc 1 `.txt`** + `DOC_BAT_DAU.txt` đọc trước.
+3. **Đánh số thứ tự** (`01-`, `02-`…) — user làm tuần tự.
+4. **File cấu hình sẵn** (`env-*.txt`) — user chỉ chạy `02-GHEP-ENV.bat`, không sửa tay trừ khi cần.
+5. **Không bắt user bật WinRM/SSH** giữa .123 ↔ .122 — agent .122 **tự poll API**.
+6. **Secret** chỉ trong `ops/THONG_TIN_VPS.txt` (local gitignore) — không đưa vào rule/chat công khai.
+
+## Thư mục chuẩn (repo)
+
+| Thư mục | Máy | Mục đích |
+|---------|-----|----------|
+| **`Thien-Admin/`** | .123 | VPS, GitHub, Cloud Agent, đồng bộ sáng |
+| **`122/`** | USB → .122 | Agent Mitapro, ODBC, `.env`, chạy nền |
+
+## Luồng hàng ngày (nhắc user ngắn gọn)
+
+- **Tối:** Cursor Cloud test + push GitHub (`PROMPT-TOI-CLOUD.txt`)
+- **Sáng:** `Thien-Admin\02-DONG-BO-SANG.bat`
+- **.122:** `122\03-CHAY-AGENT-NEN.bat` (CMD mở) + HR bấm Đồng bộ trên web
+
+## Khi thêm tính năng mới
+
+- Viết hướng dẫn vào `Thien-Admin/` hoặc `122/`, không chỉ chat.
+- Cập nhật `README.txt` trong thư mục đó.
+- AI tự chạy script/Python; user chỉ bat/USB.
+
+## Ba bản code (không nhầm DB)
+
+GitHub `dongjusports-cyber/hrm` = code chuẩn · VPS = production + DB thật · .123 Docker = dev.

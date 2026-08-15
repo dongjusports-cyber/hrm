@@ -1,0 +1,60 @@
+================================================================================
+  THƯ MỤC 122 — COPY USB → MÁY NHÀ MÁY (.122)
+  Tạo trên máy .123:  C:\DATA\HRM\dj-hrm\dj-hrm\122\
+================================================================================
+
+  Mục đích: bạn copy cả folder "122" vào USB, dán sang máy .122, chạy vài file .bat
+  — không cần share mạng .123 ↔ .122.
+
+--------------------------------------------------------------------------------
+  BƯỚC 1 — USB
+--------------------------------------------------------------------------------
+
+  Copy folder   122\   (toàn bộ)  →  USB
+
+  Trên máy .122: dán vào Desktop hoặc  D:\122\  (tùy bạn)
+
+--------------------------------------------------------------------------------
+  BƯỚC 2 — TRÊN MÁY .122 (lần đầu hoặc đổi cấu hình)
+--------------------------------------------------------------------------------
+
+  1.  01-KIEM-TRA-ODBC.bat     → xem máy có ODBC 17 hay 18 (đọc HUONG-DAN-ODBC.txt)
+  2.  02-GHEP-ENV.bat          → dán file .env vào D:\dj-hrm\apps\agent\
+  3.  03-CHAY-AGENT-NEN.bat    → chạy agent nền (cửa sổ CMD để mở)
+
+  Agent code đã có sẵn tại:  D:\dj-hrm\apps\agent\
+  (nếu thiếu code → xem mục "Cập nhật code agent" bên dưới)
+
+--------------------------------------------------------------------------------
+  BƯỚC 3 — TRÊN MÁY .123 (bạn)
+--------------------------------------------------------------------------------
+
+  Docker + web đang chạy → Portal → Chấm công → Đồng bộ Mitapro
+  Agent .122 tự nhận job trong ≤ 2 phút.
+
+--------------------------------------------------------------------------------
+  CẬP NHẬT CODE AGENT (khi cần bản mới từ .123)
+--------------------------------------------------------------------------------
+
+  Copy từ .123 sang USB (ngoài folder 122):
+
+    C:\DATA\HRM\dj-hrm\dj-hrm\apps\agent\
+
+  Dán đè lên .122:
+
+    D:\dj-hrm\apps\agent\
+
+  KHÔNG xóa file .env trên .122 (hoặc chạy lại 02-GHEP-ENV.bat sau khi copy).
+
+  Bỏ qua folder:  .venv   __pycache__   .pytest_cache
+
+  Sau đó trên .122 chạy:  D:\dj-hrm\apps\agent\CAI_AGENT_HR122.bat  (một lần)
+
+--------------------------------------------------------------------------------
+  PRODUCTION (VPS) — sau này
+--------------------------------------------------------------------------------
+
+  Dùng file:  env-VPS.txt  → chạy 02-GHEP-ENV.bat  (chọn VPS khi hỏi)
+  hoặc sửa tay .env:  DJ_API_BASE_URL=https://hrm.dongju-v.com
+
+================================================================================
