@@ -1,0 +1,53 @@
+---
+description: Bài học benchmark GET /employees — không ghi DB trên đường đọc (2.7s → 377ms)
+globs:
+  - apps/api/app/modules/mdm/**
+  - apps/api/app/modules/attendance/annual_leave_ledger.py
+  - apps/api/tests/test_employees_list_benchmark.py
+alwaysApply: true
+---
+
+# Bài học: GET chậm 2.7 giây — không phải JSON/mạng
+
+**Sự cố (15/08/2026):** `GET /api/employees` TTFB **2.734 ms** (359 NV). Báo cáo đầu kết luận sai: "JSON lớn / mạng chậm".
+
+## Cách chẩn đoán đúng (bắt buộc nhớ)
+
+1. **TTFB vs transfer:** Nếu TTFB ~2.7s mà transfer ~5ms → lỗi **trong server**, không phải payload/mạng.
+2. **Session mới mỗi lần đo:** Đo nhiều vòng trên **cùng** SQLAlchemy Session → identity map che lỗi ghi lặp. Một HTTP request = một Session mới (`get_db()`).
+3. **Đếm câu SQL:** Quan trọng hơn milliseconds. GET hợp lệ: **≤ ~20 query**, **0 INSERT/UPDATE/DELETE**.
+
+## Nguyên nhân gốc (đã sửa commit `f02be75`)
+
+`list_employees` → `annual_leave_remaining_batch` gọi `ensure_ledger` + `_sync_accrual_if_needed` → `add_entry` **cho từng NV**.
+
+- 1 request = **2.170 câu SQL** (718 INSERT + 358 UPDATE + 1.094 SELECT)
+- `get_db()` **không commit** → mọi ghi bị rollback → request sau lặp y nguyên
+- DB production: **0 sổ phép / 0 bút toán** dù chạy nhiều tháng
+- Benchmark "226 ms đạt 300 ms" là **ảo** (Session ấm, vòng 2+ không ghi nữa)
+
+## Cách sửa (pattern tái sử dụng)
+
+| Tầng | Làm gì |
+|------|--------|
+| **Đường đọc (GET, list, export)** | Chỉ SELECT + tính suy ra trong RAM. **Không** `ensure_*`, `add_entry`, `sync_*` ghi DB. |
+| **Đường lệnh (POST calculate, duyệt đơn, chốt kỳ)** | Ghi bút toán bulk (`sync_accrual_batch`), commit qua endpoint có `db.commit()`. |
+| **Test hồi quy** | `test_employees_list_benchmark.py`: Session mới + đếm SQL + `assert writes == 0`. |
+
+## Code hiện tại (sau fix)
+
+- `annual_leave_remaining_batch`: read-only, `_closing_with_unrecorded_accrual()` suy ra phần chưa ghi (số hiển thị **không đổi**).
+- `sync_accrual_batch`: ghi bulk khi `payroll/service.calculate_period`.
+- Kết quả VPS: TTFB **377 ms**, **17 SELECT**, **0 ghi**.
+
+## Không làm (359 NV)
+
+- View gọn / Redis / protobuf / phân trang **trước** khi xử lý ghi-on-read — chỉ che triệu chứng.
+- Benchmark chỉ bằng `time.perf_counter()` trên Session dùng lại.
+- Tin "đạt 300 ms" từ pytest SQLite mà không đo HTTP + Session mới trên Postgres.
+
+## Tài liệu & script
+
+- Báo cáo đầy đủ: `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`
+- LOI: `[HR-H002]` trong `Thien-Admin/LOI-DA-SUA.txt`
+- Đo lại VPS: `python ops/bench_employees_vps.py`

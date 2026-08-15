@@ -47,9 +47,12 @@ Repo `hrm`, `.cursor/environment.json` + `ops/cloud/install.sh`. Prompt: `Thien-
 
 ## Fix gần đây (commit f02be75 — benchmark / danh sách NV)
 
-- `GET /api/employees` **không được ghi DB** — `annual_leave_remaining_batch` chỉ đọc; ghi sổ phép qua `sync_accrual_batch` khi chốt kỳ lương.
-- Test hồi quy: `apps/api/tests/test_employees_list_benchmark.py` (đếm SQL, Session mới).
-- Báo cáo: `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`.
+**Bài học:** TTFB 2.734s, transfer 5ms → GET đang **ghi DB** (2.170 SQL/request) rồi rollback. Sửa read-only batch; ghi qua `sync_accrual_batch` khi tính lương → **377 ms**.
+
+Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]` · báo cáo `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`.
+
+- `GET /api/employees` **không được ghi DB** — test đếm SQL Session mới.
+- Script đo VPS: `python ops/bench_employees_vps.py`
 
 ## Portal bị khóa pass (admin / hr.demo)
 

@@ -266,6 +266,14 @@ Test (đã pass):
 
 Báo cáo: Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md (bản 2, commit f02be75)
 
+BÀI HỌC CHO AI (ghi nhớ — user yêu cầu 2026-08-15):
+  1) GET chậm ~3s mà transfer ~5ms → lỗi SERVER (ghi DB lặp), KHÔNG phải JSON/mạng.
+  2) Đo hiệu năng list API: Session MỚI mỗi lần + đếm SQL; ms trên Session ấm = số ảo.
+  3) get_db() không commit → mọi INSERT trong GET bị rollback vô hạn (2.170 query/request).
+  4) Sửa: tách read (annual_leave_remaining_batch chỉ đọc) vs write (sync_accrual_batch lúc tính lương).
+  5) Hàng rào: test_employees_list_benchmark.py — assert 0 INSERT/UPDATE trên GET.
+  6) Rule Cursor: .cursor/rules/hrm-perf-readonly-get.mdc
+
 [OPS-P001] Portal khóa pass + thiếu reset_portal_passwords.sh — 2026-08-15
 ----------------------------------------------------------------------
 Triệu chứng:
