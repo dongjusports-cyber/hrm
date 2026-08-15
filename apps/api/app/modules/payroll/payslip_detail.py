@@ -52,6 +52,32 @@ def _component_out(row, pc) -> PayslipComponentOut:
     )
 
 
+def group_payslip_money_lines(
+    db: Session, payslip_id: UUID
+) -> tuple[list[dict], list[dict], list[dict]] | None:
+    """Nhóm dòng phiếu work / allowance / deduction — dùng chung HR + Worker (Bước I)."""
+    rows = list_payslip_components(db, payslip_id)
+    if not rows:
+        return None
+    leave_codes = _leave_codes(db)
+    work_lines: list[dict] = []
+    allowance_lines: list[dict] = []
+    deduction_lines: list[dict] = []
+    for comp_row, pc in rows:
+        label = pc.name
+        if comp_row.note:
+            label = f"{label} — {comp_row.note}"
+        amt = comp_row.amount
+        bucket = _classify(comp_row.component_code, pc.kind, leave_codes)
+        if bucket == "deduction":
+            deduction_lines.append({"label": label, "amount": abs(amt)})
+        elif bucket == "work":
+            work_lines.append({"label": label, "amount": amt})
+        else:
+            allowance_lines.append({"label": label, "amount": amt})
+    return work_lines, allowance_lines, deduction_lines
+
+
 def get_hr_payslip_detail(db: Session, payslip_id: UUID) -> HRPayslipDetailOut:
     row = (
         db.query(Payslip, Employee, TimesheetMonth, PayPeriod)

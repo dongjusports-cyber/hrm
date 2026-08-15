@@ -12,7 +12,7 @@ from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import Payslip
-from app.modules.payroll.payslip_components import list_payslip_components
+from app.modules.payroll.payslip_detail import group_payslip_money_lines
 from app.modules.worker.schemas import WorkerPayslipDetailOut, WorkerPayslipListOut
 
 # CN chỉ thấy phiếu đã phát hành trở đi — không thấy draft
@@ -160,22 +160,25 @@ def confirm_worker_payslip(
     return _to_detail(slip, pay, emp, ts, db)
 
 
-def _money_lines_from_components(db: Session, slip: Payslip) -> tuple[list[dict], list[dict]] | None:
-    rows = list_payslip_components(db, slip.id)
-    if not rows:
-        return None
-    income: list[dict] = []
-    deductions: list[dict] = []
-    for comp, pc in rows:
-        amt = comp.amount
-        label = pc.name
-        if comp.note:
-            label = f"{label} — {comp.note}"
-        if pc.kind == "deduction" or amt < 0:
-            deductions.append({"label": label, "amount": abs(amt)})
-        else:
-            income.append({"label": label, "amount": amt})
-    return income, deductions
+def _fallback_money_lines(slip: Payslip) -> tuple[list[dict], list[dict], list[dict]]:
+    """Hồi quy khi chưa có payslip_components — tách work / allowance / deduction."""
+    work = [
+        {"label": "Lương ngày công", "amount": slip.wd_salary},
+        {"label": "Tăng ca (OT)", "amount": slip.ot_pay},
+    ]
+    allowance = [
+        {"label": "Phụ cấp", "amount": slip.allowance_total},
+        {"label": "Điều chỉnh khác", "amount": slip.other_adjustments},
+    ]
+    deductions = [
+        {"label": "BHXH", "amount": slip.bhxh},
+        {"label": "BHYT", "amount": slip.bhyt},
+        {"label": "BHTN", "amount": slip.bhtn},
+        {"label": "Công đoàn", "amount": slip.union_fee},
+        {"label": "Khấu trừ khác", "amount": slip.other_deductions},
+        {"label": "TNCN", "amount": slip.pit_amount},
+    ]
+    return work, allowance, deductions
 
 
 def _detail_message(slip: Payslip) -> str:
@@ -193,24 +196,14 @@ def _detail_message(slip: Payslip) -> str:
 def _to_detail(
     slip: Payslip, pay: PayPeriod, emp: Employee, ts: TimesheetMonth | None, db: Session | None = None
 ) -> WorkerPayslipDetailOut:
-    from_lines = _money_lines_from_components(db, slip) if db is not None else None
-    if from_lines:
-        income, deductions = from_lines
+    if db is not None:
+        grouped = group_payslip_money_lines(db, slip.id)
     else:
-        income = [
-            {"label": "Lương ngày công", "amount": slip.wd_salary},
-            {"label": "Phụ cấp", "amount": slip.allowance_total},
-            {"label": "Tăng ca (OT)", "amount": slip.ot_pay},
-            {"label": "Điều chỉnh khác", "amount": slip.other_adjustments},
-        ]
-        deductions = [
-            {"label": "BHXH", "amount": slip.bhxh},
-            {"label": "BHYT", "amount": slip.bhyt},
-            {"label": "BHTN", "amount": slip.bhtn},
-            {"label": "Công đoàn", "amount": slip.union_fee},
-            {"label": "Khấu trừ khác", "amount": slip.other_deductions},
-            {"label": "TNCN", "amount": slip.pit_amount},
-        ]
+        grouped = None
+    if grouped:
+        work, allowance, deductions = grouped
+    else:
+        work, allowance, deductions = _fallback_money_lines(slip)
     can_confirm, can_dispute = _action_flags(slip)
     return WorkerPayslipDetailOut(
         id=slip.id,
@@ -235,7 +228,8 @@ def _to_detail(
         rem_days=ts.rem_days if ts else None,
         confirm_deadline=slip.confirm_deadline,
         confirmed_at=slip.confirmed_at,
-        income_lines=income,
+        work_lines=work,
+        allowance_lines=allowance,
         deduction_lines=deductions,
         can_confirm=can_confirm,
         can_dispute=can_dispute,

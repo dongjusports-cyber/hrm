@@ -67,7 +67,8 @@ export type WorkerPayslipDetail = {
   rem_days: string | number | null;
   confirm_deadline: string | null;
   confirmed_at: string | null;
-  income_lines: MoneyLine[];
+  work_lines: MoneyLine[];
+  allowance_lines: MoneyLine[];
   deduction_lines: MoneyLine[];
   can_confirm: boolean;
   can_dispute: boolean;
