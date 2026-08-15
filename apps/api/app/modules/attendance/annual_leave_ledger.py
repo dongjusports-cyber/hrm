@@ -215,17 +215,119 @@ def pending_submitted_days(db: Session, employee_id: UUID, year: int) -> Decimal
     return Decimal(str(used or 0)).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
+def pending_submitted_days_batch(
+    db: Session, employee_ids: list[UUID], year: int
+) -> dict[UUID, Decimal]:
+    """Tổng ngày ALE chờ duyệt theo NV — 1 query (Bước H)."""
+    if not employee_ids:
+        return {}
+    rows = (
+        db.query(
+            LeaveRequest.employee_id,
+            func.coalesce(func.sum(LeaveRequest.total_days), 0),
+        )
+        .filter(
+            LeaveRequest.employee_id.in_(employee_ids),
+            LeaveRequest.leave_type_code == "ALE",
+            LeaveRequest.status == "submitted",
+            LeaveRequest.from_date >= date(year, 1, 1),
+            LeaveRequest.from_date <= date(year, 12, 31),
+        )
+        .group_by(LeaveRequest.employee_id)
+        .all()
+    )
+    return {
+        emp_id: Decimal(str(total or 0)).quantize(Q2, rounding=ROUND_HALF_UP)
+        for emp_id, total in rows
+    }
+
+
+def _target_accrued(emp: Employee, as_of: date, days_per_year: int) -> Decimal:
+    months = _accrual_months(emp, as_of)
+    if months <= 0:
+        return Decimal("0")
+    return (Decimal(months) * Decimal(days_per_year) / Decimal(12)).quantize(
+        Q2, rounding=ROUND_HALF_UP
+    )
+
+
+def _sync_accrual_if_needed(
+    db: Session,
+    emp: Employee,
+    ledger: AnnualLeaveLedger,
+    as_of: date,
+    days_per_year: int,
+) -> AnnualLeaveLedger:
+    """Chỉ ghi accrual khi thiếu tháng — không sync mù mọi NV."""
+    months = _accrual_months(emp, as_of)
+    if months <= 0:
+        return ledger
+    target = _target_accrued(emp, as_of, days_per_year)
+    delta = (target - ledger.accrued).quantize(Q2, rounding=ROUND_HALF_UP)
+    if delta > 0:
+        add_entry(
+            db,
+            ledger,
+            kind=KIND_ACCRUAL,
+            days=delta,
+            entry_date=as_of,
+            reference=f"accrual-{as_of.year}-through-{months:02d}",
+            note=f"Tích lũy đến tháng {months}/{as_of.year}",
+        )
+    return ledger
+
+
+def annual_leave_remaining_batch(
+    db: Session,
+    employee_ids: list[UUID],
+    as_of: date | None = None,
+) -> dict[UUID, Decimal]:
+    """Số phép còn theo lô — tránh N+1 sync_accrual (22§22.7, Bước H)."""
+    if not employee_ids:
+        return {}
+    as_of = as_of or date.today()
+    year = as_of.year
+    days_per_year = _annual_days_per_year(db)
+
+    employees = {
+        e.id: e for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+    }
+    ledgers = (
+        db.query(AnnualLeaveLedger)
+        .filter(
+            AnnualLeaveLedger.employee_id.in_(employee_ids),
+            AnnualLeaveLedger.year == year,
+        )
+        .all()
+    )
+    ledger_by_emp = {row.employee_id: row for row in ledgers}
+    for emp_id in employee_ids:
+        if emp_id not in ledger_by_emp and emp_id in employees:
+            ledger_by_emp[emp_id] = ensure_ledger(db, emp_id, year)
+
+    pending_map = pending_submitted_days_batch(db, employee_ids, year)
+
+    out: dict[UUID, Decimal] = {}
+    for emp_id in employee_ids:
+        emp = employees.get(emp_id)
+        if emp is None:
+            out[emp_id] = Decimal("0")
+            continue
+        ledger = ledger_by_emp.get(emp_id)
+        if ledger is None:
+            out[emp_id] = Decimal("0")
+            continue
+        ledger = _sync_accrual_if_needed(db, emp, ledger, as_of, days_per_year)
+        pending = pending_map.get(emp_id, Decimal("0"))
+        remaining = (ledger.closing_balance - pending).quantize(Q2, rounding=ROUND_HALF_UP)
+        out[emp_id] = max(Decimal("0"), remaining)
+    return out
+
+
 def annual_leave_remaining(db: Session, employee_id: UUID, as_of: date | None = None) -> Decimal:
     """Số phép còn = sổ bút toán − đơn ALE đang chờ duyệt."""
     as_of = as_of or date.today()
-    emp = db.get(Employee, employee_id)
-    if emp is None:
-        return Decimal("0")
-    ledger = sync_accrual(db, emp, as_of)
-    balance = ledger.closing_balance
-    pending = pending_submitted_days(db, employee_id, as_of.year)
-    remaining = (balance - pending).quantize(Q2, rounding=ROUND_HALF_UP)
-    return max(Decimal("0"), remaining)
+    return annual_leave_remaining_batch(db, [employee_id], as_of).get(employee_id, Decimal("0"))
 
 
 def verify_annual_leave_nghiem_thu_47(

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from app.modules.attendance.annual_leave_ledger import (
     annual_leave_remaining,
+    annual_leave_remaining_batch,
     ensure_ledger,
     ledger_balance_from_entries,
     record_leave_use,
@@ -69,6 +70,20 @@ def test_remaining_subtracts_pending_submitted(db):
 
     remaining = annual_leave_remaining(db, emp.id, date(2025, 8, 31))
     assert float(remaining) == 7.33
+
+
+def test_remaining_batch_matches_single(db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.join_date = date(2010, 1, 1)
+    db.commit()
+
+    as_of = date(2025, 8, 31)
+    sync_accrual(db, emp, as_of)
+    db.commit()
+
+    single = annual_leave_remaining(db, emp.id, as_of)
+    batch = annual_leave_remaining_batch(db, [emp.id], as_of).get(emp.id)
+    assert batch == single
 
 
 def test_ensure_ledger_idempotent(db):

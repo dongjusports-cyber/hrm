@@ -188,3 +188,15 @@ Test (đã pass):
     -> 23 passed
 
 Phạm vi: CHỈ Bước E (engine + prefetch recalculate_days). AI nhắc T−3 (Bước F) chưa làm.
+
+[HR-H001] Cột HR phép còn lại (Bước H) — 2026-08-15
+  - annual_leave_ledger.py: annual_leave_remaining_batch — load ledger + pending ALE 1 query;
+    _sync_accrual_if_needed chỉ khi thiếu tháng; annual_leave_remaining gọi batch
+  - EmployeeOut.annual_leave_remaining; list_employees / get_employee batch 1 lần
+  - EmployeesPage FULL view: cột «Phép còn»; api.ts type
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_annual_leave_ledger_47.py tests/test_nghiem_thu_47.py tests/test_payroll_ui_49.py -q
+    -> 8 passed
+
+Phạm vi: CHỈ Bước H. Phiếu lương mobile 3 nhóm (Bước I) chưa làm.
