@@ -361,8 +361,10 @@ def _apply_profile(emp: Employee, assign: dict, prof: dict) -> None:
         emp.position_title = prof["position_title"]
 
     sal = prof.get("contract_salary") or assign.get("contract_salary")
-    if sal and sal > 0:
-        emp.contract_salary = sal
+    if sal is not None and sal != "":
+        sal_dec = sal if isinstance(sal, Decimal) else Decimal(str(sal))
+        if sal_dec > 0:
+            emp.contract_salary = sal_dec
 
     signed = prof.get("contract_signed_at") or prof.get("contract_start")
     if signed:
