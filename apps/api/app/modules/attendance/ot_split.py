@@ -92,7 +92,7 @@ def load_ot_split_policy(db: Session) -> OtSplitPolicy:
 def split_weekday_ot_minutes(
     last_out: datetime,
     work_date: date,
-    shift_end: datetime,
+    ot_start: datetime,
     ot_qualify_after: datetime,
     policy: OtSplitPolicy,
 ) -> tuple[int, int]:
@@ -100,12 +100,13 @@ def split_weekday_ot_minutes(
     Trả (ot_on_books_minutes, ot_external_minutes) cho ngày làm việc thường.
 
     - ot_qualify_after (17:15): bấm ra ≤ mốc này → 0 OT (toilet / việc riêng).
-    - shift_end (17:00): khi đủ điều kiện, số phút OT tính từ hết ca (vd. 17:16 → 16p).
+    - ot_start (mốc bắt đầu OT, MẶC ĐỊNH 17:00): số phút OT tính từ đây.
+      TÁCH khỏi giờ hết ca — ca CLEANER hết ca 16:00 nhưng OT vẫn từ 17:00,
+      nên 16:00–17:00 (giờ nghỉ) không sinh OT (22§22.13, sửa LH-3).
     """
     if last_out <= ot_qualify_after:
         return 0, 0
 
-    ot_start = shift_end
     ot_end = last_out
     total = int((ot_end - ot_start).total_seconds() // 60)
     if total <= 0:

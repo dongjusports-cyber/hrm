@@ -124,6 +124,7 @@ def _calc_partial_workday(
     work_date: date,
     schedule: Schedule,
     split_policy: OtSplitPolicy,
+    ot_start: time | None = None,
 ) -> tuple[int, int, int, int, int, Decimal, str | None]:
     """Late / early / OT / worked khi thiếu vào hoặc thiếu ra."""
     shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
@@ -132,7 +133,10 @@ def _calc_partial_workday(
     )
     shift_end = combine_vn(work_date, schedule.afternoon_end)
     early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
-    ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
+    # Mốc OT tách khỏi giờ hết ca (22§22.13): mặc định = hết ca (ADMIN),
+    # nhưng CLEANER truyền ot_start=17:00 dù hết ca 16:00.
+    ot_start_dt = combine_vn(work_date, ot_start or schedule.afternoon_end)
+    ot_qualify_after = ot_start_dt + timedelta(minutes=split_policy.ot_grace_minutes)
 
     late = 0
     early = 0
@@ -149,7 +153,7 @@ def _calc_partial_workday(
             early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
         if last_out > ot_qualify_after:
             ot_on_books, ot_external = split_weekday_ot_minutes(
-                last_out, work_date, shift_end, ot_qualify_after, split_policy
+                last_out, work_date, ot_start_dt, ot_qualify_after, split_policy
             )
             ot = ot_on_books + ot_external
             ot_type = "weekday" if ot > 0 else None
@@ -194,6 +198,7 @@ def calculate_day(
     *,
     punch_dedupe_window_seconds: int = 60,
     ot_split: OtSplitPolicy | None = None,
+    ot_start: time | None = None,
 ) -> DayCalcResult:
     split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
@@ -228,6 +233,7 @@ def calculate_day(
                 work_date=work_date,
                 schedule=schedule,
                 split_policy=split_policy,
+                ot_start=ot_start,
             )
         return DayCalcResult(
             work_date=work_date,
@@ -261,7 +267,10 @@ def calculate_day(
             )
             shift_end = combine_vn(work_date, schedule.afternoon_end)
             early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
-            ot_qualify_after = shift_end + timedelta(minutes=split_policy.ot_grace_minutes)
+            # Mốc OT tách khỏi giờ hết ca (22§22.13): CLEANER hết ca 16:00 nhưng
+            # OT vẫn từ 17:00; early_deadline vẫn theo giờ hết ca (16:00).
+            ot_start_dt = combine_vn(work_date, ot_start or schedule.afternoon_end)
+            ot_qualify_after = ot_start_dt + timedelta(minutes=split_policy.ot_grace_minutes)
 
             if first_in > shift_start:
                 late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
@@ -269,7 +278,7 @@ def calculate_day(
                 early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
             if last_out > ot_qualify_after:
                 ot_on_books, ot_external = split_weekday_ot_minutes(
-                    last_out, work_date, shift_end, ot_qualify_after, split_policy
+                    last_out, work_date, ot_start_dt, ot_qualify_after, split_policy
                 )
                 ot = ot_on_books + ot_external
                 ot_type = "weekday" if ot > 0 else None
@@ -281,6 +290,7 @@ def calculate_day(
                 work_date=work_date,
                 schedule=schedule,
                 split_policy=split_policy,
+                ot_start=ot_start,
             )
     else:
         # Ngày nghỉ (lễ/cuối tuần): toàn bộ thời gian có mặt = OT, không áp

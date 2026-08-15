@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
 from app.modules.attendance.engine import VN_TZ, calculate_day, combine_vn, to_vn
-from app.modules.attendance.models import AttendanceDay, LeaveType
+from app.modules.attendance.models import AttendanceDay, LeaveType, WorkShift
+from app.modules.attendance.shift_schedule import timing_from_shift
 from app.modules.attendance.schemas import AttendanceDayGridOut, AttendanceDayOut
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
@@ -239,10 +240,11 @@ def patch_day_cell(
 
     if first_in is not None and last_out is not None:
         punches = [to_vn(first_in), to_vn(last_out)]
-        calc = calculate_day(
-            punches, work_date, schedule, ot_split=load_ot_split_policy(db)
-        )
         shift_id = resolve_work_shift_id(db, emp, work_date)
+        timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
+        calc = calculate_day(
+            punches, work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+        )
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         row.source = "manual"
         row.edited_by_user_id = user.id
@@ -358,10 +360,11 @@ def bulk_patch_days(
                 assert first_in_time and last_out_time
                 fi = combine_vn(work_date, first_in_time)
                 lo = combine_vn(work_date, last_out_time)
-                calc = calculate_day(
-                    [fi, lo], work_date, schedule, ot_split=load_ot_split_policy(db)
-                )
                 shift_id = resolve_work_shift_id(db, emp, work_date)
+                timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
+                calc = calculate_day(
+                    [fi, lo], work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+                )
                 apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
                 row.source = "manual"
                 row.edited_by_user_id = user.id

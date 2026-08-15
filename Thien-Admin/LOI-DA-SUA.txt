@@ -1,0 +1,60 @@
+LOI DA SUA — DJ-HRM
+====================
+
+[SH-C001] Ca theo tổ vào engine + ca CLEANER (Bước C) — 2026-08-15
+------------------------------------------------------------------
+Triệu chứng (LH-1, LH-3, 22§22.13):
+  - LH-1: resolve_work_shift_id / build_shift_cache đã chạy ở mọi call site nhưng
+    chỉ GHI cột attendance_days.work_shift_id; calculate_day vẫn nhận lịch CÔNG TY,
+    không tính theo ca của Tổ.
+  - LH-3: ot_split hard-code mốc OT theo giờ hết ca (shift_end). Ca tạp vụ CLEANER
+    hết ca 16:00 sẽ bị tính OT cho giờ nghỉ 16:00–17:00 (sai).
+  - Cần: end_time (mốc hết ca / về sớm / đủ công) TÁCH khỏi ot_start (mốc OT).
+    Bằng nhau ở ADMIN, khác nhau ở CLEANER (hết ca 16:00, OT từ 17:00).
+
+Nguyên nhân:
+  calculate_day + split_weekday_ot_minutes suy mốc OT từ shift_end thay vì một
+  mốc OT riêng; và không có bước ánh xạ WorkShift(ca của Tổ) -> Schedule.
+
+Cách xử lý (KHÔNG viết resolver mới — dùng day_enrich.py đã có):
+  - File mới apps/api/app/modules/attendance/shift_schedule.py:
+      ShiftTiming + timing_from_shift(shift, company): map WorkShift -> Schedule
+      (giờ vào/trưa/hết ca theo ca; grace + work_weekdays + holiday theo lịch công ty),
+      ot_start_time = shift.ot_start or shift.end_time. shift=None -> nguyên lịch công ty.
+  - engine.py: calculate_day(...) + _calc_partial_workday(...) thêm kw-only
+      ot_start: time|None=None. ot_qualify_after = (ot_start or afternoon_end) + grace.
+      early_deadline VẪN theo afternoon_end (16:00 CLEANER) -> ra 16:00 = bình thường.
+      _shift_worked_hours không đổi (đã dùng afternoon_end).
+  - ot_split.py: split_weekday_ot_minutes đổi tham số shift_end -> ot_start (datetime);
+      cửa sổ 17:00–20:00 tính từ ot_start, không từ shift_end (sửa LH-3). CLEANER:
+      16:00–17:00 rơi ngoài cửa sổ -> 0 phút OT.
+  - Nối 3 call site (lấy shift_id đã có -> timing_from_shift -> truyền schedule+ot_start):
+      service.py recalculate_days (nạp shift_map 1 query, tránh N+1),
+      day_grid.py (patch ô + bulk set_times), review.py (sửa tay).
+      Giữ _load_schedule cho is_company_workday + danh sách ngày công.
+  - seed_shifts.py: thêm CLEANER_SHIFT_CODE="CLEANER" (07:00–16:00, ot_start 17:00,
+      std 8h), idempotent như ADMIN. assign_default_shift_to_teams gán tổ code "02"
+      (tra theo teams.code, KHÔNG hard-code id/pk CSV 197) -> CLEANER, chỉ khi đang
+      NULL/ADMIN (không đè ca HR set tay), idempotent.
+
+Không cần migration:
+  Cột work_shifts.ot_start ĐÃ CÓ sẵn (migration 20260810_0029). Spec ghi "migration
+  ot_start NẾU THIẾU cột" -> cột đã tồn tại nên KHÔNG tạo migration. CLEANER là dữ liệu
+  SEED (không phải migration).
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_shift_cleaner.py tests/test_attendance_engine.py \
+      tests/test_attendance_day_calc_33.py tests/test_work_shifts_24.py tests/test_ot_engine_45.py -q
+    -> pass (thêm test_ot_split.py cũng pass, xác nhận đổi chữ ký an toàn).
+  Full suite API: py -3.12 -m pytest -q -> 394 passed (388 nền + 6 test mới), không đỏ thêm.
+  test_shift_cleaner.py các ca:
+    CLEANER 07:00–16:00 Th2 -> early=0, worked=8, ot=0
+    CLEANER 07:00–16:30      -> ot=0 (giờ nghỉ)
+    CLEANER 07:00–17:30 Th3  -> ot_on_books=30 (từ 17:00)
+    CLEANER 07:00–15:00      -> early=60, worked=7
+    ADMIN  08:00–17:00       -> hồi quy (worked=8, ot=0)
+    ADMIN  08:00–17:20 Th3   -> ot_on_books=20 (từ 17:00)
+  Kiểm tra DB thật: seed CLEANER OK (07:00->16:00, ot_start 17:00, std 8.0);
+    gán tổ code 02: ADMIN/NULL -> CLEANER, chạy lại idempotent (rollback, không ghi DB dev).
+
+Phạm vi: CHỈ Bước C. Không đụng bước khác.
