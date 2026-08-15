@@ -15,6 +15,7 @@ import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
 import { formatLeaveLabel, leaveTypesForPicker } from "../../shared/formatLeave";
 import { formatOrgName } from "../../shared/formatOrg";
+import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 
 function hhmm(iso: string | null | undefined): string {
@@ -251,7 +252,7 @@ export function DailyGridPanel({
         width: 76,
         editable: false,
         valueGetter: (p) => p.data?.ot_on_books_minutes ?? 0,
-        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+        valueFormatter: (p) => formatOtHours(Number(p.value)),
       },
       {
         colId: "ot_external",
@@ -259,7 +260,7 @@ export function DailyGridPanel({
         width: 88,
         editable: false,
         valueGetter: (p) => p.data?.ot_external_minutes ?? 0,
-        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+        valueFormatter: (p) => formatOtHours(Number(p.value)),
       },
       {
         field: "holiday_hours",

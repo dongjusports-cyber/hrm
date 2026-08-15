@@ -26,6 +26,7 @@ import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDat
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { isEditableFormField } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { formatOtHours } from "../../shared/formatOtHours";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
@@ -450,7 +451,7 @@ export function TimekeepingPage() {
         width: 76,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.otBooks,
-        valueFormatter: (p) => fmtNum(p.value, 1),
+        valueFormatter: (p) => formatOtHours(Number(p.value) * 60),
       },
       {
         field: "ot_hours_external",
@@ -458,10 +459,7 @@ export function TimekeepingPage() {
         width: 88,
         filter: false,
         headerTooltip: TK_HEADER_TIPS.otExt,
-        valueFormatter: (p) => {
-          const n = Number(p.value);
-          return n > 0 ? n.toFixed(1) : "";
-        },
+        valueFormatter: (p) => formatOtHours(Number(p.value) * 60),
       },
     ],
     [pickEmployee],
@@ -612,10 +610,10 @@ export function TimekeepingPage() {
                       {cellMinutes(row.early)}
                     </td>
                     <td className={!row.otOnBooks ? "tk-cell-empty" : ""}>
-                      {cellMinutes(row.otOnBooks)}
+                      {formatOtHours(row.otOnBooks)}
                     </td>
                     <td className={!row.otExternal ? "tk-cell-empty tk-ot-ext" : "tk-ot-ext"}>
-                      {cellMinutes(row.otExternal)}
+                      {formatOtHours(row.otExternal)}
                     </td>
                     <td className="tk-day-flag-cell">
                       {row.oddPunch ? (

@@ -5,6 +5,7 @@ import {
   type OtExternalPreview,
 } from "../../shared/api";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { formatOtHours } from "../../shared/formatOtHours";
 import { formatVnd } from "../payroll/payrollGridColumns";
 
 type Props = {
@@ -14,11 +15,11 @@ type Props = {
   onExported?: (message: string) => void;
 };
 
-function fmtHours(v: unknown): string {
-  if (v == null || v === "") return "—";
+/** OT ngoài lưu theo GIỜ → × 60 để dùng chung formatOtHours (phút). */
+function fmtOt(v: unknown): string {
   const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n.toFixed(2).replace(/\.?0+$/, "");
+  if (v == null || v === "" || Number.isNaN(n)) return "—";
+  return formatOtHours(n * 60, "—");
 }
 
 function fmtRate(v: unknown): string {
@@ -111,11 +112,11 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
               </div>
               <div className="ot-ext-stat">
                 <span className="ot-ext-stat-label">Giờ gốc</span>
-                <strong>{fmtHours(preview.total_raw_hours)}h</strong>
+                <strong>{fmtOt(preview.total_raw_hours)}</strong>
               </div>
               <div className="ot-ext-stat">
                 <span className="ot-ext-stat-label">Giờ hiệu lực</span>
-                <strong className="tk-ot-ext">{fmtHours(preview.total_effective_hours)}h</strong>
+                <strong className="tk-ot-ext">{fmtOt(preview.total_effective_hours)}</strong>
               </div>
               <div className="ot-ext-stat ot-ext-stat-total">
                 <span className="ot-ext-stat-label">Tổng trả ATM</span>
@@ -151,8 +152,8 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                         <td>{r.employee_code}</td>
                         <td>{r.full_name}</td>
                         <td>{r.bank_account || "—"}</td>
-                        <td className="num">{fmtHours(r.raw_hours)}</td>
-                        <td className="num tk-ot-ext">{fmtHours(r.effective_hours)}</td>
+                        <td className="num">{fmtOt(r.raw_hours)}</td>
+                        <td className="num tk-ot-ext">{fmtOt(r.effective_hours)}</td>
                         <td className="num">{formatVnd(r.ot_base)}</td>
                         <td className="num">{formatVnd(r.hourly_base)}</td>
                         <td className="num">{fmtRate(r.rate)}</td>
@@ -165,8 +166,8 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                       <td colSpan={3}>
                         <strong>Tổng {preview.employee_count} NV</strong>
                       </td>
-                      <td className="num">{fmtHours(preview.total_raw_hours)}</td>
-                      <td className="num tk-ot-ext">{fmtHours(preview.total_effective_hours)}</td>
+                      <td className="num">{fmtOt(preview.total_raw_hours)}</td>
+                      <td className="num tk-ot-ext">{fmtOt(preview.total_effective_hours)}</td>
                       <td colSpan={3} />
                       <td className="num ot-ext-amt">
                         <strong>{formatVnd(preview.total_amount_vnd)}</strong>

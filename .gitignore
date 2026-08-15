@@ -11,6 +11,7 @@ ops/_vps_fetch_latest.txt
 ops/github_deploy_key.pub
 Thien-Admin/DEPLOY-KEY.txt
 ops/portal_defaults.env
+ops/VPS_THONG_TIN_QUAN_TRONG.txt
 
 # Python
 __pycache__/
