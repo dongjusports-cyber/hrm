@@ -724,18 +724,16 @@ export function EmployeeProfileCompactFields({
           <h3 id="emp-sec-insurance" className="emp-form-section-title">
             Bảo hiểm & Ngân hàng
           </h3>
-          <div className="emp-fields-col-main">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="insurance"
-              isNew={false}
-              departments={departments}
-              teams={teams}
-              fieldLayout={col}
-              insuranceChecksFirst
-            />
-          </div>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="insurance"
+            isNew={false}
+            departments={departments}
+            teams={teams}
+            fieldLayout={col}
+            insuranceChecksFirst
+          />
           {employeeId ? <WtRegimePanel employeeId={employeeId} embedded /> : null}
         </section>
       </div>

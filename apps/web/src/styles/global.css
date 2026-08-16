@@ -1117,7 +1117,7 @@ a {
   flex-direction: column;
   gap: 4px;
   margin-top: 0;
-  --emp-bottom-panel-min-h: 168px;
+  --emp-bottom-panel-min-h: 132px;
 }
 
 .emp-profile-cols {
@@ -1201,37 +1201,58 @@ a {
   flex-shrink: 0;
 }
 
-/* 5 cột cùng chiều cao — đáy ô phụ cấp / Trình độ / chế độ về sớm ngang hàng */
+/* 5 cột cùng chiều cao — grid 3 hàng: tiêu đề / nội dung / đáy (không flex-shrink 0px) */
 .emp-profile-compact .emp-form-section-row-sync {
   height: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 4px;
   min-height: 0;
+  align-content: stretch;
+}
+
+.emp-form-section-row-sync > .emp-form-section-title {
+  grid-row: 1;
 }
 
 .emp-form-section-row-sync > .emp-fields-col-main {
-  flex: 1 1 0;
+  grid-row: 2;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  overflow: visible;
 }
 
-.emp-profile-anchor-field {
-  margin-top: auto;
-  flex-shrink: 0;
+.emp-form-section-row-sync > .emp-fields-col.emp-fields-insurance {
+  grid-row: 2;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.emp-form-section-row-sync > .emp-profile-anchor-field {
+  grid-row: 3;
+  margin-top: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .emp-profile-bottom-panel {
-  margin-top: auto;
-  flex-shrink: 0;
+  grid-row: 3;
+  margin-top: 0;
+  width: 100%;
+  min-width: 0;
   min-height: var(--emp-bottom-panel-min-h);
+  max-height: min(220px, 42vh);
 }
 
-.emp-form-section-row-sync > .emp-profile-bottom-panel.emp-allow-list-block {
-  flex: 1 1 0;
+.emp-form-section-salary.emp-form-section-row-sync > .emp-profile-bottom-panel.emp-allow-list-block {
   min-height: var(--emp-bottom-panel-min-h);
+  max-height: min(240px, 48vh);
   overflow: hidden;
-  contain: layout;
+  display: flex;
+  flex-direction: column;
 }
 
 .emp-form-section-row-sync .emp-allow-list-scroll {
@@ -1258,7 +1279,6 @@ a {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1 1 auto;
 }
 
 .wt-regime-form .wt-regime-add-btn {
