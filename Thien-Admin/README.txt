@@ -26,5 +26,6 @@ Tài khoản:   dongjusports-cyber
 | LOI-DA-SUA.txt | Lỗi đã sửa + cách xử lý (AI/HR tra cứu) |
 | NO-KY-THUAT.txt | **Nợ chưa sửa** — lỗi đã biết, gom sửa 1 lần sau |
 | KE-HOACH-KY-SU-2026-08-15.md | **Kế hoạch chi tiết kỹ sư** — bàn giao Composer 2.5 (đọc trước khi code) |
+| Y-TUONG-CHAM-CONG-DIEN-THOAI.md | Ý tưởng: máy vân tay + ĐT chấm công song song (chưa code) |
 
 Đường dẫn: C:\DATA\HRM\dj-hrm\dj-hrm\Thien-Admin

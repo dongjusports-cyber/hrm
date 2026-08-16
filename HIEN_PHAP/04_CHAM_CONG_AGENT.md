@@ -10,6 +10,8 @@
 | Backup tham chiếu | `SQL_mitapro.BAK` |
 | Cách lấy dữ liệu | **Agent on-prem** (mô hình giống AMIS) — đọc SQL **read-only**, đẩy lên Cloud/API |
 
+> **Ý tưởng 2026-08-17 (chưa code):** điện thoại chấm công (mặt / GPS) **song song** với máy vân tay. Hai nguồn cùng đổ vào `attendance_punches` trên VPS; **không** ghi Mitapro. Chi tiết: `Thien-Admin/Y-TUONG-CHAM-CONG-DIEN-THOAI.md`.
+
 ## 4.1b Schema Mitapro (trích từ `SQL_mitapro.BAK` — ĐÃ XÁC MINH)
 
 > Mitapro = phần mềm VN nền ZKTeco. DB `MITACOSQL`. **Khóa nối chính: `MaChamCong`.**

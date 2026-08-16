@@ -67,6 +67,7 @@
 | 3 | Giờ chuẩn 8–12 / 13–17 |
 | 4 | **Schema Mitapro đã xác minh** (từ .BAK): punch ở `CheckInOut(MaChamCong, GioCham)`; JOIN `NHANVIEN` để lấy `MaNhanVien`(=MSNV). Có sẵn bảng `TinhCong`. Đọc punch thô + đối chiếu `TinhCong` |
 | 5 | Xác minh cột in/out + kiểu dữ liệu **trên máy nhà máy có SQLEXPRESS** (máy dev chưa cài SQL Server) |
+| 6 | **Ý tưởng 2026-08-17 — chưa code:** máy vân tay + điện thoại **song song**. ĐT gửi MSNV+giờ thẳng VPS (`source=mobile`); không nhét Mitapro; máy vẫn nguồn chính xưởng. Doc: `Thien-Admin/Y-TUONG-CHAM-CONG-DIEN-THOAI.md` |
 
 ## 10.5 Worker phiếu lương
 
