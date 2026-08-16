@@ -73,13 +73,20 @@ def _worker_line_dict(
         "quantity": comp_row.quantity,
         "unit": comp_row.unit,
         "target": _day_target(salary_divisor, comp_row.unit),
+        "component_code": comp_row.component_code,
+        "note": comp_row.note,
     }
 
 
 def _sum_line_amounts(lines: list[dict]) -> Decimal | None:
     if not lines:
         return None
-    return sum(Decimal(str(ln["amount"])) for ln in lines)
+    total = Decimal("0")
+    for ln in lines:
+        if ln.get("amount") is None:
+            continue
+        total += Decimal(str(ln["amount"]))
+    return total
 
 
 def group_payslip_worker_sections(

@@ -45,7 +45,7 @@ class PayslipLineOut(BaseModel):
     """Dòng phiếu worker — SL/ĐVT/TV khi có; thiếu → null (UI hiện —)."""
 
     label: str
-    amount: Decimal
+    amount: Decimal | None = None
     quantity: Decimal | None = None
     unit: str | None = None
     target: Decimal | None = None

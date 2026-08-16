@@ -340,3 +340,19 @@ Test (đã pass):
 
 LOI: WK-I002 (nền xanh), WK-I001 (3 accordion).
 
+[WK-I004] Phiếu lương mobile — template dòng Genus đủ slot (— khi trống) — 2026-08-16
+----------------------------------------------------------------------
+Mục tiêu:
+  Luôn hiện đủ dòng cố định như Genus (công 5, nghỉ 4, phụ cấp 10, khấu trừ 7).
+  Không có dữ liệu → amount/quantity null → UI «—»; có dữ liệu → hiện số.
+
+Cách làm:
+  - payslip_genus_template.py: GenusSlot + apply_genus_*_template
+  - Map payslip_components theo component_code / OT note / ADJUST
+  - Subtotal vẫn tính từ dòng thật (trước template), không từ —
+  - sw.js dj-hrm-worker-v6
+
+Test:
+  cd apps/api && py -3.12 -m pytest tests/test_worker_payslips.py -q
+  cd apps/web && npm run build
+

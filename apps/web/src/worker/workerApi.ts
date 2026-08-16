@@ -51,7 +51,7 @@ export type WorkerPayslipListItem = {
 
 export type PayslipLine = {
   label: string;
-  amount: string | number;
+  amount: string | number | null;
   quantity: string | number | null;
   unit: string | null;
   target: string | number | null;

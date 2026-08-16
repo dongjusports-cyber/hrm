@@ -19,6 +19,12 @@ from app.modules.payroll.payslip_detail import (
     _sum_line_amounts,
     group_payslip_worker_sections,
 )
+from app.modules.payroll.payslip_genus_template import (
+    apply_genus_allowance_template,
+    apply_genus_deduction_template,
+    apply_genus_leave_template,
+    apply_genus_work_template,
+)
 from app.modules.worker.schemas import PayslipLineOut, WorkerPayslipDetailOut, WorkerPayslipListOut
 
 # CN chỉ thấy phiếu đã phát hành trở đi — không thấy draft
@@ -174,9 +180,10 @@ def confirm_worker_payslip(
 
 
 def _line_out(raw: dict) -> PayslipLineOut:
+    amt = raw.get("amount")
     return PayslipLineOut(
         label=raw["label"],
-        amount=raw["amount"],
+        amount=amt if amt is not None else None,
         quantity=raw.get("quantity"),
         unit=raw.get("unit"),
         target=raw.get("target"),
@@ -196,13 +203,17 @@ def _fallback_worker_sections(
             "quantity": wd_qty,
             "unit": "day" if wd_qty is not None else None,
             "target": _day_target(divisor, "day"),
+            "component_code": "WD",
+            "note": None,
         },
         {
             "label": "Tăng ca (OT)",
-            "amount": slip.ot_pay,
+            "amount": slip.ot_pay if slip.ot_pay > 0 else None,
             "quantity": None,
-            "unit": None,
+            "unit": "hour",
             "target": None,
+            "component_code": "OT",
+            "note": None,
         },
     ]
     leave: list[dict] = []
@@ -210,29 +221,41 @@ def _fallback_worker_sections(
         leave.append(
             {
                 "label": "Nghỉ phép năm",
-                "amount": Decimal("0"),
+                "amount": None,
                 "quantity": ts.al_days,
                 "unit": "day",
                 "target": _day_target(divisor, "day"),
+                "component_code": "ALE",
+                "note": None,
             }
         )
     allowance = [
-        {"label": "Phụ cấp", "amount": slip.allowance_total, "quantity": None, "unit": None, "target": None},
         {
-            "label": "Điều chỉnh khác",
-            "amount": slip.other_adjustments,
+            "label": "Phụ cấp",
+            "amount": slip.allowance_total,
             "quantity": None,
             "unit": None,
             "target": None,
+            "component_code": "ATTEND",
+            "note": None,
+        },
+        {
+            "label": "Điều chỉnh khác",
+            "amount": slip.other_adjustments if slip.other_adjustments != 0 else None,
+            "quantity": None,
+            "unit": None,
+            "target": None,
+            "component_code": "OTHER",
+            "note": None,
         },
     ]
     deductions = [
-        {"label": "BHXH", "amount": slip.bhxh, "quantity": None, "unit": None, "target": None},
-        {"label": "BHYT", "amount": slip.bhyt, "quantity": None, "unit": None, "target": None},
-        {"label": "BHTN", "amount": slip.bhtn, "quantity": None, "unit": None, "target": None},
-        {"label": "Công đoàn", "amount": slip.union_fee, "quantity": None, "unit": None, "target": None},
-        {"label": "Khấu trừ khác", "amount": slip.other_deductions, "quantity": None, "unit": None, "target": None},
-        {"label": "TNCN", "amount": slip.pit_amount, "quantity": None, "unit": None, "target": None},
+        {"label": "BHXH", "amount": slip.bhxh, "quantity": None, "unit": None, "target": None, "component_code": "BHXH", "note": None},
+        {"label": "BHYT", "amount": slip.bhyt, "quantity": None, "unit": None, "target": None, "component_code": "BHYT", "note": None},
+        {"label": "BHTN", "amount": slip.bhtn, "quantity": None, "unit": None, "target": None, "component_code": "BHTN", "note": None},
+        {"label": "Công đoàn", "amount": slip.union_fee, "quantity": None, "unit": None, "target": None, "component_code": "UNION", "note": None},
+        {"label": "Khấu trừ khác", "amount": slip.other_deductions if slip.other_deductions > 0 else None, "quantity": None, "unit": None, "target": None, "component_code": "OTHER_DED", "note": None},
+        {"label": "TNCN", "amount": slip.pit_amount if slip.pit_amount > 0 else None, "quantity": None, "unit": None, "target": None, "component_code": "PIT", "note": None},
     ]
     return work, leave, allowance, deductions
 
@@ -259,9 +282,19 @@ def _to_detail(
     divisor = pay.salary_divisor if pay.salary_divisor > 0 else None
     grouped = group_payslip_worker_sections(db, slip.id, divisor) if db is not None else None
     if grouped:
-        work, leave, allowance, deductions = grouped
+        work_raw, leave_raw, allowance_raw, deductions_raw = grouped
     else:
-        work, leave, allowance, deductions = _fallback_worker_sections(slip, pay, ts)
+        work_raw, leave_raw, allowance_raw, deductions_raw = _fallback_worker_sections(slip, pay, ts)
+
+    work_subtotal = _sum_line_amounts(work_raw)
+    leave_subtotal = _sum_line_amounts(leave_raw)
+    allowance_subtotal = _sum_line_amounts(allowance_raw)
+    deduction_subtotal = _sum_line_amounts(deductions_raw)
+
+    work = apply_genus_work_template(work_raw, divisor)
+    leave = apply_genus_leave_template(leave_raw, divisor)
+    allowance = apply_genus_allowance_template(allowance_raw, divisor)
+    deductions = apply_genus_deduction_template(deductions_raw, divisor)
 
     dept = emp.department
     al_remaining = (
@@ -297,10 +330,10 @@ def _to_detail(
         worked_days=ts.worked_days if ts else None,
         al_days=ts.al_days if ts else None,
         rem_days=ts.rem_days if ts else None,
-        work_subtotal=_sum_line_amounts(work),
-        leave_subtotal=_sum_line_amounts(leave),
-        allowance_subtotal=_sum_line_amounts(allowance),
-        deduction_subtotal=_sum_line_amounts(deductions),
+        work_subtotal=work_subtotal,
+        leave_subtotal=leave_subtotal,
+        allowance_subtotal=allowance_subtotal,
+        deduction_subtotal=deduction_subtotal,
         annual_leave_entitled=None,
         annual_leave_used=None,
         annual_leave_remaining=al_remaining,

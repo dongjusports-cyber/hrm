@@ -88,6 +88,8 @@ def test_worker_sees_only_published(client, db):
     assert isinstance(d["deduction_lines"], list)
     assert len(d["work_lines"]) >= 1
     assert len(d["deduction_lines"]) >= 1
+    assert len(d["allowance_lines"]) == 10
+    assert len(d["work_lines"]) == 5
     assert d["employee_code"] == "5290"
     assert "taxable_income" in d
 
@@ -101,7 +103,9 @@ def test_worker_sees_only_published(client, db):
     hr_allow = sum(Decimal(str(x.amount)) for x in hr.allowance_lines)
     w_work = sum(Decimal(str(x["amount"])) for x in d["work_lines"])
     w_leave = sum(Decimal(str(x["amount"])) for x in d["leave_lines"])
-    w_allow = sum(Decimal(str(x["amount"])) for x in d["allowance_lines"])
+    w_allow = sum(
+        Decimal(str(x["amount"])) for x in d["allowance_lines"] if x.get("amount") is not None
+    )
     assert w_work + w_leave == hr_work
     assert w_allow == hr_allow
 
