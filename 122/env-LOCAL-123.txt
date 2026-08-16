@@ -2,7 +2,7 @@
 # Test voi Docker tren may .123 (192.168.1.123:8000)
 
 DJ_API_BASE_URL=http://192.168.1.123:8000
-DJ_AGENT_TOKEN=DjHrm-Mitapro-20260812-571983
+DJ_AGENT_TOKEN=doi_agent_token_manh
 DJ_AGENT_REQUIRE_HTTPS=0
 
 # Sua Driver=17 hoac 18 sau khi chay 01-KIEM-TRA-ODBC.bat

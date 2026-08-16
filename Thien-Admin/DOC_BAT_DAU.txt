@@ -52,6 +52,9 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
   File:  05-DEPLOY-VPS.bat
     → Chỉ deploy lên VPS (không pull máy .123)
 
+  File:  07-KEO-BACKUP-VE.bat
+    → Kéo bản sao bảng lương/chấm công từ VPS về thư mục backups\ (USB)
+
 --------------------------------------------------------------------------------
   TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
 --------------------------------------------------------------------------------

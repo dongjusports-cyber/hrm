@@ -2,7 +2,7 @@
 # Production VPS (dung sau khi test local OK)
 
 DJ_API_BASE_URL=https://hrm.dongju-v.com
-DJ_AGENT_TOKEN=DjHrm-Mitapro-20260812-571983
+DJ_AGENT_TOKEN=doi_agent_token_manh
 DJ_AGENT_REQUIRE_HTTPS=1
 
 MITAPRO_ODBC=Driver={ODBC Driver 17 for SQL Server};Server=.\SQLEXPRESS;Database=MITACOSQL;Trusted_Connection=yes;TrustServerCertificate=yes;

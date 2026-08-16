@@ -15,6 +15,7 @@ Tài khoản:   dongjusports-cyber
 | 03-MO-KHOA-PORTAL.bat | Admin/hr.demo bị khóa |
 | 04-PULL-VE-123.bat | Chỉ cập nhật code máy .123 |
 | 05-DEPLOY-VPS.bat | Chỉ deploy lên VPS |
+| 07-KEO-BACKUP-VE.bat | Kéo file backup lương/công từ VPS về máy (USB) |
 | MO-TRANG-GITHUB.bat | Mở trang Deploy keys |
 | 06-CLOUD-AGENT.txt | **Setup Cloud Agent tối** (đọc 1 lần) |
 | PROMPT-TOI-CLOUD.txt | Prompt dán vào Automation / Cloud |

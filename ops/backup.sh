@@ -20,4 +20,15 @@ docker exec -t "$CONTAINER" rm -f /tmp/djhrm_backup.dump >/dev/null
 find "$BACKUP_DIR" -name 'djhrm_*.dump' -type f -mtime +"$KEEP_DAYS" -print -delete || true
 
 echo "Xong: $OUT"
+if [[ ! -s "$OUT" ]] || [[ "$(stat -c%s "$OUT" 2>/dev/null || stat -f%z "$OUT")" -lt 1000 ]]; then
+  echo "COSMOS AI: file backup quá nhỏ — kiểm tra pg_dump." >&2
+fi
+
+OFFSITE="${BACKUP_OFFSITE_DIR:-/var/backups/djhrm}"
+if mkdir -p "$OFFSITE" 2>/dev/null; then
+  cp -f "$OUT" "$OFFSITE/"
+  echo "Bản sao: ${OFFSITE}/$(basename "$OUT")"
+fi
+
 echo "Giữ tối đa ${KEEP_DAYS} ngày (RPO mục tiêu 24h)."
+echo "Keo ve may nha: python ops/pull_vps_backup.py"

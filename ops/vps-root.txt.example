@@ -2,10 +2,10 @@
 # Dong 1: IP public VPS
 # Dong 2: Mat khau root VPS
 # Dong 3: (tuy chon) domain — mac dinh hrm.dongju-v.com
-# Dong 4: (tuy chon) AGENT_TOKEN — mac dinh token Mitapro hien tai
+# Dong 4: AGENT_TOKEN — trung voi .env.prod tren VPS (KHONG ghi token that vao file example)
 #
 # Vi du:
 # 103.123.45.67
 # MatKhauRootCuaBan
 # hrm.dongju-v.com
-# DjHrm-Mitapro-20260812-571983
+# doi_agent_token_manh

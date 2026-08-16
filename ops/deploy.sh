@@ -113,3 +113,9 @@ else
 fi
 
 echo "Deploy xong. Agent nhà máy: DJ_API_BASE_URL=https://${DOMAIN:-VPS} + DJ_AGENT_REQUIRE_HTTPS=1"
+
+chmod +x ops/backup.sh ops/register-backup-cron.sh ops/harden_firewall.sh 2>/dev/null || true
+echo "→ Đăng ký backup 02:00..."
+bash ./ops/register-backup-cron.sh || echo "COSMOS AI: chưa đăng ký được cron backup."
+echo "→ Cứng firewall + swap..."
+bash ./ops/harden_firewall.sh || echo "COSMOS AI: harden firewall bỏ qua (không phải VPS Debian/ufw)."

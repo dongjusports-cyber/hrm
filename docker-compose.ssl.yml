@@ -6,13 +6,14 @@
 # DNS A/AAAA của DOMAIN phải trỏ về IP VPS trước khi up.
 
 services:
-  # web vẫn có thể publish :8080 từ prod.yml — trên VPS chặn 8080 bằng firewall,
-  # chỉ mở 80/443 qua Caddy.
+  # web :8080 chỉ 127.0.0.1 (prod.yml). Internet vào qua Caddy 80/443.
 
   caddy:
     image: caddy:2.8-alpine
     container_name: djhrm-caddy
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.50
     ports:
       - "80:80"
       - "443:443"

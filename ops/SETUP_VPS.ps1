@@ -28,8 +28,12 @@ $VpsIp = $lines[0].Trim()
 $VpsPass = $lines[1].Trim()
 $Domain = "hrm.dongju-v.com"
 if ($lines.Count -ge 3 -and $lines[2].Trim()) { $Domain = $lines[2].Trim() }
-$AgentToken = "DjHrm-Mitapro-20260812-571983"
+$AgentToken = ""
 if ($lines.Count -ge 4 -and $lines[3].Trim()) { $AgentToken = $lines[3].Trim() }
+if (-not $AgentToken) {
+    Write-Host "vps-root.txt can dong 4: AGENT_TOKEN (trung .env.prod tren VPS)" -ForegroundColor Red
+    exit 1
+}
 
 function New-Secret([int]$Len = 32) {
     $chars = (48..57) + (65..90) + (97..122)

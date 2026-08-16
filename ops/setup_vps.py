@@ -33,7 +33,10 @@ def _read_creds() -> tuple[str, str, str, str]:
         sys.exit(1)
     ip, passwd = lines[0], lines[1]
     domain = lines[2] if len(lines) > 2 else "hrm.dongju-v.com"
-    agent = lines[3] if len(lines) > 3 else "DjHrm-Mitapro-20260812-571983"
+    agent = lines[3] if len(lines) > 3 else ""
+    if not agent:
+        print("vps-root.txt can dong 4: AGENT_TOKEN (trung .env.prod)")
+        sys.exit(1)
     return ip, passwd, domain, agent
 
 
