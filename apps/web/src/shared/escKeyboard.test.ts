@@ -69,7 +69,7 @@ describe("tryRevertActiveFieldEsc", () => {
     clearActiveFieldEsc();
   });
 
-  it("returns false when value is unchanged so ESC can go back", () => {
+  it("blurs unchanged field without closing overlay", () => {
     const input = document.createElement("input");
     input.type = "text";
     input.value = "hello";
@@ -77,7 +77,8 @@ describe("tryRevertActiveFieldEsc", () => {
     input.focus();
     registerActiveFieldEsc(input);
 
-    expect(tryRevertActiveFieldEsc()).toBe(false);
+    expect(tryRevertActiveFieldEsc()).toBe(true);
+    expect(input.value).toBe("hello");
     expect(document.activeElement).not.toBe(input);
 
     document.body.removeChild(input);
@@ -142,7 +143,7 @@ describe("escStack priority", () => {
     clearActiveFieldEsc();
   });
 
-  it("runs overlay handler when focused field is unchanged", () => {
+  it("does not close overlay when focused field is unchanged", () => {
     const input = document.createElement("input");
     input.type = "text";
     input.value = "x";
@@ -154,7 +155,8 @@ describe("escStack priority", () => {
     const unreg = registerEscHandler(overlay);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
 
-    expect(overlay).toHaveBeenCalledTimes(1);
+    expect(overlay).not.toHaveBeenCalled();
+    expect(document.activeElement).not.toBe(input);
 
     unreg();
     document.body.removeChild(input);

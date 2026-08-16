@@ -6,7 +6,8 @@ import { registerEscHandler, type EscHandler } from "./escStack";
  * Xem `.cursor/rules/esc-keyboard.mdc`
  *
  * `onEsc` trả `false` nếu không xử lý — tầng dưới / quay trang vẫn chạy.
- * Không được `return` im lặng khi chưa đóng overlay / chưa quay trang.
+ * `return` (void) = đã xử lý: đóng overlay, hoặc đang focus ô (không đóng).
+ * Không được `return` im lặng khi không làm gì — sẽ nuốt ESC, mất quay trang.
  */
 export function useEscLayer(active: boolean, onEsc: EscHandler) {
   const ref = useRef(onEsc);

@@ -82,17 +82,8 @@ const FULL_COLUMNS = [
 ];
 
 const VIEW_PREFS_KEY = "hr_employees_view_prefs";
-const COLUMN_STATE_PREFIX = "hr_employees_column_state_v5";
-const AUTOSIZE_SKIP = new Set(["sel", "unlock", "rehire"]);
-
-function sizeEmployeeColumns(api: GridApi<Employee>) {
-  const ids =
-    api
-      .getColumns()
-      ?.map((c) => c.getColId())
-      .filter((id) => !AUTOSIZE_SKIP.has(id)) ?? [];
-  if (ids.length) api.autoSizeColumns(ids, false);
-}
+/** v7: cột khít chữ, dồn trái; không flex/autoSize (tránh Chức vụ phình, Thâm niên cắt chữ). */
+const COLUMN_STATE_PREFIX = "hr_employees_column_state_v7";
 
 function columnStateKey(viewMode: ViewMode): string {
   return `${COLUMN_STATE_PREFIX}_${viewMode}`;
@@ -181,8 +172,7 @@ export function EmployeesPage() {
 
   const applySavedColumns = useCallback(
     (api: GridApi<Employee>) => {
-      if (restoreAgGridColumnState(columnStateKey(viewMode), api)) return;
-      sizeEmployeeColumns(api);
+      restoreAgGridColumnState(columnStateKey(viewMode), api);
     },
     [viewMode],
   );
@@ -313,7 +303,8 @@ export function EmployeesPage() {
       {
         field: "employee_code",
         headerName: "MSNV",
-        width: 88,
+        width: 72,
+        minWidth: 64,
         filter: false,
         pinned: "left",
         cellClass: "hr-cell-open-profile",
@@ -321,8 +312,8 @@ export function EmployeesPage() {
       {
         field: "full_name",
         headerName: "Họ tên",
-        minWidth: 120,
-        width: 180,
+        minWidth: 168,
+        width: 196,
         filter: false,
         pinned: "left",
         cellClass: "hr-cell-name-link",
@@ -330,8 +321,8 @@ export function EmployeesPage() {
       {
         colId: "dept_team",
         headerName: orgColumnHeader({ departmentId, teamId }),
-        minWidth: 90,
-        width: 120,
+        minWidth: 100,
+        width: 128,
         filter: false,
         cellClass: "hr-cell-org",
         valueGetter: (p) =>
@@ -350,29 +341,38 @@ export function EmployeesPage() {
         {
           field: "position_title",
           headerName: "Chức vụ",
-          minWidth: 80,
-          width: 110,
+          minWidth: 108,
+          width: 120,
           filter: false,
         },
         {
           field: "join_date",
           headerName: "Ngày vào",
-          width: 100,
+          width: 108,
+          minWidth: 108,
           filter: false,
           valueFormatter: (p) => formatDateDDMMYYYY(p.value),
         },
         {
           field: "contract_signed_at",
           headerName: "Ngày Ký HĐ",
-          width: 108,
+          width: 118,
+          minWidth: 118,
           filter: false,
           valueFormatter: (p) => formatDateDDMMYYYY(p.value),
         },
-        { field: "seniority_label", headerName: "Thâm niên", width: 118, filter: false },
+        {
+          field: "seniority_label",
+          headerName: "Thâm niên",
+          width: 148,
+          minWidth: 148,
+          filter: false,
+        },
         {
           field: "seniority_amount",
           headerName: "PC thâm niên",
-          width: 108,
+          width: 124,
+          minWidth: 124,
           filter: false,
           cellClass: "hr-cell-money",
           headerClass: "hr-header-money",
@@ -381,17 +381,25 @@ export function EmployeesPage() {
         {
           field: "annual_leave_remaining",
           headerName: "Phép còn",
-          width: 88,
+          width: 96,
+          minWidth: 96,
           filter: false,
           cellClass: "hr-cell-money",
           headerClass: "hr-header-money",
           valueFormatter: (p) => formatLeaveDays(p.value),
         },
-        { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 100, width: 140, filter: false },
+        {
+          field: "contract_type_label",
+          headerName: "Loại HĐ",
+          minWidth: 188,
+          width: 196,
+          filter: false,
+        },
         {
           field: "total_salary",
           headerName: "Lương Tổng",
-          width: 110,
+          width: 124,
+          minWidth: 124,
           filter: false,
           cellClass: "hr-cell-money",
           headerClass: "hr-header-money",
@@ -429,8 +437,8 @@ export function EmployeesPage() {
     base.push({
       colId: "unlock",
       headerName: "Bảo mật",
-      width: 130,
-      minWidth: 128,
+      width: 132,
+      minWidth: 132,
       maxWidth: 136,
       suppressSizeToFit: true,
       resizable: false,
@@ -610,11 +618,7 @@ export function EmployeesPage() {
             className="toolbar-more-item"
             onClick={() => {
               localStorage.removeItem(columnStateKey(viewMode));
-              const api = gridApiRef.current;
-              if (api) {
-                api.resetColumnState();
-                sizeEmployeeColumns(api);
-              }
+              gridApiRef.current?.resetColumnState();
             }}
           >
             Đặt lại cột
@@ -708,7 +712,7 @@ export function EmployeesPage() {
             resizable: true,
             filter: false,
             suppressHeaderMenuButton: true,
-            autoSizePadding: 8,
+            flex: 0,
           }}
         />
       </div>

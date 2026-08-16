@@ -982,20 +982,21 @@ a {
 
 .emp-sheet-form-shell--fixed .emp-sheet-fields-fixed {
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
 
 .emp-sheet-form-shell--fixed .emp-profile-compact {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .emp-sheet-form-shell--fixed .emp-profile-cols {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
 }
 
@@ -1013,7 +1014,7 @@ a {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Tab Hồ sơ chính — một trang, không cuộn trong khung */
+/* Tab Hồ sơ chính — khít nội dung; cuộn khi màn thấp (1366×768) */
 .emp-sheet-fields-fixed {
   margin: 0 12px 12px;
   padding: 8px 10px 10px;
@@ -1209,13 +1210,12 @@ a {
   flex-direction: column;
   gap: 4px;
   margin-top: 0;
-  --emp-bottom-panel-min-h: 132px;
 }
 
 .emp-profile-cols {
   display: grid;
   gap: 5px;
-  align-items: stretch;
+  align-items: start;
 }
 
 /* Cột 1 rộng hơn (Tổ, ngày); cột 5 vừa đủ BH */
@@ -1293,54 +1293,30 @@ a {
   flex-shrink: 0;
 }
 
-/* 5 cột cùng chiều cao — grid 3 hàng: tiêu đề / nội dung / đáy (không flex-shrink 0px) */
+/* Khít trên xuống — không kéo giãn giữa các ô (tránh lỗ trống giữa cột) */
 .emp-profile-compact .emp-form-section-row-sync {
-  height: 100%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
   min-height: 0;
-  align-content: stretch;
+  height: auto;
 }
 
-.emp-form-section-row-sync > .emp-form-section-title {
-  grid-row: 1;
-}
-
-.emp-form-section-row-sync > .emp-fields-col-main {
-  grid-row: 2;
-  align-self: start;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: visible;
-}
-
-.emp-form-section-row-sync > .emp-fields-col.emp-fields-insurance {
-  grid-row: 2;
-  align-self: start;
-  width: 100%;
-  min-width: 0;
-}
-
+.emp-form-section-row-sync > .emp-fields-col-main,
+.emp-form-section-row-sync > .emp-fields-col.emp-fields-insurance,
 .emp-form-section-row-sync > .emp-profile-anchor-field {
-  grid-row: 3;
-  margin-top: 0;
   width: 100%;
   min-width: 0;
 }
 
 .emp-profile-bottom-panel {
-  grid-row: 3;
   margin-top: 0;
   width: 100%;
   min-width: 0;
-  min-height: var(--emp-bottom-panel-min-h);
   max-height: min(220px, 42vh);
 }
 
 .emp-form-section-salary.emp-form-section-row-sync > .emp-profile-bottom-panel.emp-allow-list-block {
-  min-height: var(--emp-bottom-panel-min-h);
   max-height: min(240px, 48vh);
   overflow: hidden;
   display: flex;
@@ -1348,9 +1324,8 @@ a {
 }
 
 .emp-form-section-row-sync .emp-allow-list-scroll {
-  flex: 1 1 0;
   min-height: 0;
-  max-height: none;
+  max-height: min(180px, 36vh);
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
@@ -1516,9 +1491,8 @@ a {
   border-radius: 6px;
 }
 
-/* Ghi đè fit-content — 5 cột sync theo chiều cao hàng */
 .emp-profile-compact .emp-form-section.emp-form-section-row-sync {
-  height: 100%;
+  height: auto;
 }
 
 .emp-profile-compact .emp-form-section-title {
@@ -1584,7 +1558,8 @@ a {
   padding: 4px 0;
 }
 
-@media (max-width: 1100px) {
+/* Laptop 1366×768 và hẹp hơn: 3 cột (5 cột chỉ vừa 1920) */
+@media (max-width: 1599px) {
   .emp-profile-cols-weighted {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

@@ -2,9 +2,10 @@
  * @locked Ngăn xếp ESC — KHÔNG sửa tùy tiện. Xem `.cursor/rules/esc-keyboard.mdc`
  * Chạy: `npm test -- escKeyboard`
  *
- * Thứ tự: (1) hoàn tác ô đã sửa (2) AG Grid tự hủy nếu còn editor
+ * Thứ tự: (1) ô nhập đang focus → hoàn tác (nếu sửa) + blur, không đóng sheet
+ * (2) AG Grid đang sửa ô → để grid tự hủy
  * (3) overlay stack — tầng không xử lý (`return false`) đi tiếp tầng dưới
- * (4) GlobalEscBack quay trang. Fallback không bao giờ bị nuốt bởi tầng im lặng.
+ * (4) GlobalEscBack quay trang. Fallback không bị nuốt bởi tầng im lặng.
  */
 
 import {

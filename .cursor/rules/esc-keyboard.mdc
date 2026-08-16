@@ -12,13 +12,12 @@ alwaysApply: true
 
 ## Hành vi (không được mất dù đang focus ô / vừa thao tác)
 
-1. **Ô nhập đã sửa** (`input`/`textarea`/`select` editable, giá trị khác lúc focus): **ESC** = hoàn tác + blur. **Không** đóng sheet/trang.
-2. **Ô nhập không đổi:** blur rồi **đi tiếp** đóng overlay / quay trang (một lần bấm).
-3. **AG Grid đang sửa ô** (`.ag-cell-inline-editing`): **ESC** để grid tự hủy — `escStack` **không** chặn.
-4. **Overlay/sheet/modal:** **ESC** = đóng tầng hiện tại (≈ «Đóng») hoặc `onTabBack`, rồi mới đóng.
-5. **Không còn overlay:** **ESC** = quay trang trước (`GlobalEscBack` / `useHrSubpageEsc`).
+1. **Đang focus ô nhập** (`input`/`textarea`/`select` editable): **ESC** = hoàn tác về giá trị lúc focus (nếu đã sửa) + blur (thoát ô, giống Excel). **Không** đóng sheet/trang — kể cả khi ô không đổi.
+2. **AG Grid đang sửa ô** (`.ag-cell-inline-editing`): **ESC** để grid tự hủy — `escStack` **không** chặn.
+3. **Trong overlay/sheet/modal, không còn focus ô:** **ESC** = đóng tầng hiện tại (≈ «Đóng») hoặc `onTabBack`, rồi mới đóng.
+4. **Không còn overlay:** **ESC** = quay trang trước (`GlobalEscBack` / `useHrSubpageEsc`).
 
-**Khóa chết quay trang:** tầng overlay `return false` (không xử lý) **không được nuốt ESC**. `runEscStack()` đi tiếp tầng dưới, hết stack thì **luôn** gọi fallback. Không được `if (...) return` im lặng.
+**Khóa chết quay trang:** tầng overlay `return false` (không xử lý) **không được nuốt ESC**. `runEscStack()` đi tiếp tầng dưới, hết stack thì gọi fallback. **Cấm** đóng sheet khi đang focus ô nhập.
 
 ## File lõi (đã khóa `@locked`)
 
@@ -48,9 +47,9 @@ Handler overlay: đã đóng/quay → `return` hoặc `return true`. **Không x�
 
 ## Checklist khi thêm overlay mới
 
-- [ ] ESC ô đã sửa: hoàn tác + blur (global `formFieldEsc`)
-- [ ] ESC ô không đổi / ngoài ô: đóng overlay hoặc quay trang — **không nuốt**
+- [ ] ESC trong ô nhập: hoàn tác (nếu sửa) + blur — **không** đóng sheet/trang
+- [ ] ESC ngoài ô: đóng overlay hoặc quay trang
 - [ ] Sheet có tab con: `onTabBack` trước, `onClose` sau
 - [ ] Không trùng hai tầng ESC (`closeOnEsc={true}` **và** `useSheetKeyboard`)
-- [ ] Không `if (focused) return` mà không `return false`
+- [ ] Overlay không xử lý thì `return false` (không nuốt); đang focus ô thì không đóng
 - [ ] Chạy `npm test -- escKeyboard`

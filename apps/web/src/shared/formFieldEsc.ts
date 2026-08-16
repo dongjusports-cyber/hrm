@@ -85,20 +85,16 @@ export function clearActiveFieldEsc(el?: HTMLElement) {
 }
 
 /** Gọi từ escStack — hoàn tác ô đang focus (Excel-like).
- *  Trả true nếu đã hoàn tác giá trị đã sửa → không đóng overlay/trang.
- *  Ô không đổi: blur rồi trả false để ESC tiếp tục quay trang / đóng sheet. */
+ *  Đang trong ô: luôn blur (+ hoàn tác nếu đã sửa) và trả true → không đóng sheet/trang. */
 export function tryRevertActiveFieldEsc(): boolean {
   if (!activeFieldEsc) return false;
   const { el, value } = activeFieldEsc;
   if (document.activeElement !== el) return false;
   const current = getFieldValue(el);
-  if (current === value) {
-    el.blur();
-    activeFieldEsc = null;
-    return false;
+  if (current !== value) {
+    setFormFieldValue(el, value);
+    activeFieldEsc.onRevert?.();
   }
-  setFormFieldValue(el, value);
-  activeFieldEsc.onRevert?.();
   el.blur();
   activeFieldEsc = null;
   return true;
@@ -155,6 +151,8 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
   }, [open, containerRef]);
 
   useEscLayer(open, () => {
+    const root = containerRef.current;
+    if (isFieldFocusedInRoot(root)) return;
     if (onTabBackRef.current?.()) return;
     if (!onCloseRef.current) return false;
     onCloseRef.current();
