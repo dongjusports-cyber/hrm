@@ -6,14 +6,14 @@ export function formatWorkerVnd(v: string | number | null | undefined): string {
   if (v == null || v === "") return EMPTY;
   const n = Number(v);
   if (Number.isNaN(n)) return EMPTY;
-  return n.toLocaleString("vi-VN") + " đ";
+  return Math.round(n).toLocaleString("vi-VN", { maximumFractionDigits: 0 }) + " đ";
 }
 
 export function formatWorkerQty(v: string | number | null | undefined): string {
   if (v == null || v === "") return EMPTY;
   const n = Number(v);
   if (Number.isNaN(n)) return EMPTY;
-  return n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+  return Math.round(n).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
 }
 
 export function formatWorkerUnit(unit: string | null | undefined): string {
