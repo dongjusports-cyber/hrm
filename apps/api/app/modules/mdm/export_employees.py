@@ -29,10 +29,10 @@ EXPORT_COLUMNS: dict[str, str] = {
     "team_code": "Tổ",
     "position_title": "Chức vụ",
     "join_date": "Ngày vào",
+    "contract_signed_at": "Ngày Ký HĐ",
     "seniority_label": "Thâm niên",
     "contract_type_label": "Loại HĐ",
     "total_salary": "Lương Tổng",
-    "contract_signed_at": "Ngày Ký HĐ",
     "status": "Trạng thái",
     "account_status_label": "Tài khoản",
 }

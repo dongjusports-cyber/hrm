@@ -32,6 +32,7 @@ import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 
 type StatusFilter =
   | "active"
@@ -70,18 +71,28 @@ const FULL_COLUMNS = [
   "team_code",
   "position_title",
   "join_date",
+  "contract_signed_at",
   "seniority_label",
   "seniority_amount",
   "annual_leave_remaining",
   "contract_type_label",
   "total_salary",
-  "contract_signed_at",
   "status",
   "account_status_label",
 ];
 
 const VIEW_PREFS_KEY = "hr_employees_view_prefs";
-const COLUMN_STATE_PREFIX = "hr_employees_column_state_v4";
+const COLUMN_STATE_PREFIX = "hr_employees_column_state_v5";
+const AUTOSIZE_SKIP = new Set(["sel", "unlock", "rehire"]);
+
+function sizeEmployeeColumns(api: GridApi<Employee>) {
+  const ids =
+    api
+      .getColumns()
+      ?.map((c) => c.getColId())
+      .filter((id) => !AUTOSIZE_SKIP.has(id)) ?? [];
+  if (ids.length) api.autoSizeColumns(ids, false);
+}
 
 function columnStateKey(viewMode: ViewMode): string {
   return `${COLUMN_STATE_PREFIX}_${viewMode}`;
@@ -135,6 +146,7 @@ function formatVnd(v: string | number | null | undefined): string {
 export function EmployeesPage() {
   const { filterKey } = useParams();
   const statusFilter = parseFilter(filterKey);
+  useHrSubpageEsc({ backTo: "/m/hr" });
   const meta = FILTER_META[statusFilter];
   const navigate = useNavigate();
   const location = useLocation();
@@ -169,9 +181,8 @@ export function EmployeesPage() {
 
   const applySavedColumns = useCallback(
     (api: GridApi<Employee>) => {
-      if (!restoreAgGridColumnState(columnStateKey(viewMode), api)) {
-        api.sizeColumnsToFit();
-      }
+      if (restoreAgGridColumnState(columnStateKey(viewMode), api)) return;
+      sizeEmployeeColumns(api);
     },
     [viewMode],
   );
@@ -310,8 +321,8 @@ export function EmployeesPage() {
       {
         field: "full_name",
         headerName: "Họ tên",
-        flex: 1.1,
-        minWidth: 140,
+        minWidth: 120,
+        width: 180,
         filter: false,
         pinned: "left",
         cellClass: "hr-cell-name-link",
@@ -319,8 +330,8 @@ export function EmployeesPage() {
       {
         colId: "dept_team",
         headerName: orgColumnHeader({ departmentId, teamId }),
-        flex: 1,
-        minWidth: 140,
+        minWidth: 90,
+        width: 120,
         filter: false,
         cellClass: "hr-cell-org",
         valueGetter: (p) =>
@@ -339,42 +350,52 @@ export function EmployeesPage() {
         {
           field: "position_title",
           headerName: "Chức vụ",
-          flex: 0.8,
-          minWidth: 100,
+          minWidth: 80,
+          width: 110,
           filter: false,
         },
-        { field: "join_date", headerName: "Ngày vào", width: 105, filter: false, valueFormatter: (p) => formatDateDDMMYYYY(p.value) },
-        { field: "seniority_label", headerName: "Thâm niên", width: 120, filter: false },
+        {
+          field: "join_date",
+          headerName: "Ngày vào",
+          width: 100,
+          filter: false,
+          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+        },
+        {
+          field: "contract_signed_at",
+          headerName: "Ngày Ký HĐ",
+          width: 108,
+          filter: false,
+          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+        },
+        { field: "seniority_label", headerName: "Thâm niên", width: 118, filter: false },
         {
           field: "seniority_amount",
           headerName: "PC thâm niên",
-          width: 120,
+          width: 108,
           filter: false,
           cellClass: "hr-cell-money",
+          headerClass: "hr-header-money",
           valueFormatter: (p) => formatVnd(p.value),
         },
         {
           field: "annual_leave_remaining",
           headerName: "Phép còn",
-          width: 95,
+          width: 88,
           filter: false,
+          cellClass: "hr-cell-money",
+          headerClass: "hr-header-money",
           valueFormatter: (p) => formatLeaveDays(p.value),
         },
-        { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 130, width: 130, filter: false },
+        { field: "contract_type_label", headerName: "Loại HĐ", minWidth: 100, width: 140, filter: false },
         {
           field: "total_salary",
           headerName: "Lương Tổng",
-          width: 200,
-          filter: false,
-          cellClass: "hr-cell-money",
-          valueFormatter: (p) => formatVnd(p.value),
-        },
-        {
-          field: "contract_signed_at",
-          headerName: "Ngày Ký HĐ",
           width: 110,
           filter: false,
-          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+          cellClass: "hr-cell-money",
+          headerClass: "hr-header-money",
+          valueFormatter: (p) => formatVnd(p.value),
         },
       );
     }
@@ -408,10 +429,15 @@ export function EmployeesPage() {
     base.push({
       colId: "unlock",
       headerName: "Bảo mật",
-      minWidth: 160,
-      width: 160,
+      width: 130,
+      minWidth: 128,
+      maxWidth: 136,
+      suppressSizeToFit: true,
+      resizable: false,
       sortable: false,
       filter: false,
+      cellClass: "hr-cell-unlock",
+      headerClass: "hr-header-unlock",
       cellRenderer: (p: ICellRendererParams<Employee>) => {
         const emp = p.data;
         if (!emp) return null;
@@ -587,7 +613,7 @@ export function EmployeesPage() {
               const api = gridApiRef.current;
               if (api) {
                 api.resetColumnState();
-                api.sizeColumnsToFit();
+                sizeEmployeeColumns(api);
               }
             }}
           >
@@ -670,6 +696,7 @@ export function EmployeesPage() {
             gridApiRef.current = e.api;
             applySavedColumns(e.api);
           }}
+          onFirstDataRendered={(e) => applySavedColumns(e.api)}
           onColumnMoved={(e) => persistColumns(e.api)}
           onColumnResized={(e) => {
             if (e.finished) persistColumns(e.api);
@@ -681,6 +708,7 @@ export function EmployeesPage() {
             resizable: true,
             filter: false,
             suppressHeaderMenuButton: true,
+            autoSizePadding: 8,
           }}
         />
       </div>

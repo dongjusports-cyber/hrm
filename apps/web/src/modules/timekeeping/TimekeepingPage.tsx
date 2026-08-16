@@ -24,7 +24,6 @@ import { AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
-import { isEditableFormField } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
@@ -352,7 +351,6 @@ export function TimekeepingPage() {
 
   // ESC: (sheet chi tiết / OT ngoài / sync tự xử lý qua FullScreenSheet) → bỏ chọn NV
   useEscLayer(!!selected && !detailOpen && !otExternalOpen && !syncOpen, () => {
-    if (isEditableFormField(document.activeElement)) return;
     clearSelection();
   });
 

@@ -509,155 +509,157 @@ export function EmployeeProfileSheet({
         ) : (
           <form
             id="emp-sheet-form"
-            className={`emp-sheet-form-shell${extraTab === null ? " emp-sheet-form-shell--fixed" : ""}`}
+            className={`emp-sheet-form-shell emp-sheet-form-shell--rail${extraTab === null ? " emp-sheet-form-shell--fixed" : ""}`}
             onSubmit={(ev) => void onSubmit(ev)}
           >
-            <div className="fs-sheet-pinned">
-              <div className="emp-sheet-header">
+            <aside className="emp-sheet-rail">
+              <button
+                type="button"
+                className="emp-photo emp-photo-sheet"
+                onClick={() => fileRef.current?.click()}
+                disabled={saving}
+                title="Bấm để đổi ảnh"
+              >
+                {photoUrl ? (
+                  <img src={photoUrl} alt={form.full_name || "Ảnh NV"} />
+                ) : (
+                  <span className="emp-photo-empty">
+                    <strong>Ảnh</strong>
+                    <small>Bấm thêm</small>
+                  </span>
+                )}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/*"
+                hidden
+                onChange={(e) => void onPhotoPicked(e.target.files?.[0] ?? null)}
+              />
+              <nav className="emp-sheet-subtabs" role="tablist" aria-label="Phần hồ sơ">
                 <button
                   type="button"
-                  className="emp-photo emp-photo-sheet"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={saving}
-                  title="Bấm để đổi ảnh"
+                  role="tab"
+                  aria-selected={extraTab === null}
+                  className={extraTab === null ? "emp-subtab active" : "emp-subtab"}
+                  onClick={goMainTab}
                 >
-                  {photoUrl ? (
-                    <img src={photoUrl} alt={form.full_name || "Ảnh NV"} />
-                  ) : (
-                    <span className="emp-photo-empty">
-                      <strong>Ảnh</strong>
-                      <small>Bấm thêm</small>
-                    </span>
-                  )}
+                  Hồ sơ chính
                 </button>
-                <div className="emp-sheet-header-main">
-                  <div className="emp-sheet-identity-top">
-                    <label className="field emp-sheet-msnv">
-                      <span>MSNV</span>
-                      <input value={form.employee_code} readOnly className="emp-readonly" />
-                    </label>
-                    <label className="field emp-sheet-name">
-                      <span>Họ tên</span>
-                      <input
-                        value={form.full_name}
-                        onChange={(e) => setFormUndoable({ ...form, full_name: e.target.value })}
-                        required
-                      />
-                    </label>
-                  </div>
+                {extraTabs.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={extraTab === t.id}
+                    className={extraTab === t.id ? "emp-subtab active" : "emp-subtab"}
+                    onClick={() => goExtraTab(t.id)}
+                  >
+                    {t.label}
+                    {t.count ? ` (${t.count})` : ""}
+                  </button>
+                ))}
+                <Link
+                  to={`/m/hr/contracts?employee_id=${employeeId}`}
+                  className="emp-subtab emp-subtab-link"
+                >
+                  Hợp đồng
+                </Link>
+              </nav>
+            </aside>
 
-                  <div className="emp-sheet-toolbar">
-                    <nav className="emp-sheet-subtabs" role="tablist" aria-label="Phần hồ sơ">
+            <div className="emp-sheet-main">
+            <div className="fs-sheet-pinned">
+              <div className="emp-sheet-header">
+                <div className="emp-sheet-identity-top">
+                  <label className="field emp-sheet-msnv">
+                    <span>MSNV</span>
+                    <input value={form.employee_code} readOnly className="emp-readonly" />
+                  </label>
+                  <label className="field emp-sheet-name">
+                    <span>Họ tên</span>
+                    <input
+                      value={form.full_name}
+                      onChange={(e) => setFormUndoable({ ...form, full_name: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="emp-sheet-toolbar">
+                  {extraTab === null && (
+                    <>
                       <button
                         type="button"
-                        role="tab"
-                        aria-selected={extraTab === null}
-                        className={extraTab === null ? "emp-subtab active" : "emp-subtab"}
-                        onClick={goMainTab}
-                      >
-                        Hồ sơ chính
-                      </button>
-                      {extraTabs.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          role="tab"
-                          aria-selected={extraTab === t.id}
-                          className={extraTab === t.id ? "emp-subtab active" : "emp-subtab"}
-                          onClick={() => goExtraTab(t.id)}
-                        >
-                          {t.label}
-                          {t.count ? ` (${t.count})` : ""}
-                        </button>
-                      ))}
-                      <Link
-                        to={`/m/hr/contracts?employee_id=${employeeId}`}
-                        className="emp-subtab emp-subtab-link"
-                      >
-                        Hợp đồng
-                      </Link>
-                    </nav>
-                    {extraTab === null && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-ghost-dark btn-sm"
-                          disabled={saving}
-                          onClick={() =>
-                            void printEmployeeContract(employeeId).catch((e) => setError(String(e)))
-                          }
-                        >
-                          In HĐ
-                        </button>
-                        {form.status === "probation" && (
-                          <button
-                            type="button"
-                            className="btn-ghost-dark btn-sm"
-                            disabled={saving}
-                            onClick={() =>
-                              void printEmployeeProbation(employeeId).catch((e) => setError(String(e)))
-                            }
-                          >
-                            In TV
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="btn-ghost-dark btn-sm"
-                          disabled={saving}
-                          onClick={() =>
-                            void printEmployeeDecision(employeeId).catch((e) => setError(String(e)))
-                          }
-                        >
-                          In QĐ
-                        </button>
-                      </>
-                    )}
-                    <label className="emp-sheet-status-field">
-                      <span>Trạng thái:</span>
-                      <select
-                        value={form.status}
+                        className="btn-ghost-dark btn-sm"
                         disabled={saving}
-                        onChange={(e) => void changeStatus(e.target.value)}
+                        onClick={() =>
+                          void printEmployeeContract(employeeId).catch((e) => setError(String(e)))
+                        }
                       >
-                        {STATUS_ACTIONS.map((a) => (
-                          <option key={a.status} value={a.status}>
-                            {a.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {extraTab === null && (
-                      <button type="submit" className="btn-primary btn-sm" disabled={saving}>
-                        {saving ? "Đang lưu…" : "Lưu hồ sơ"}
+                        In HĐ
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-ghost-dark btn-sm"
-                      disabled={saving || !canUndo}
-                      title="Hoàn tác thay đổi chưa lưu (Ctrl+Z) · Esc: quay tab / hoàn tác ô nhập · Đóng: nút ×"
-                      onClick={() => onUndo()}
-                    >
-                      ↶ Hoàn tác
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost-dark btn-sm"
+                      {form.status === "probation" && (
+                        <button
+                          type="button"
+                          className="btn-ghost-dark btn-sm"
+                          disabled={saving}
+                          onClick={() =>
+                            void printEmployeeProbation(employeeId).catch((e) => setError(String(e)))
+                          }
+                        >
+                          In TV
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-ghost-dark btn-sm"
+                        disabled={saving}
+                        onClick={() =>
+                          void printEmployeeDecision(employeeId).catch((e) => setError(String(e)))
+                        }
+                      >
+                        In QĐ
+                      </button>
+                    </>
+                  )}
+                  <label className="emp-sheet-status-field">
+                    <span>Trạng thái:</span>
+                    <select
+                      value={form.status}
                       disabled={saving}
-                      onClick={onClose}
+                      onChange={(e) => void changeStatus(e.target.value)}
                     >
-                      × Đóng
+                      {STATUS_ACTIONS.map((a) => (
+                        <option key={a.status} value={a.status}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {extraTab === null && (
+                    <button type="submit" className="btn-primary btn-sm" disabled={saving}>
+                      {saving ? "Đang lưu…" : "Lưu hồ sơ"}
                     </button>
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-ghost-dark btn-sm"
+                    disabled={saving || !canUndo}
+                    title="Hoàn tác thay đổi chưa lưu (Ctrl+Z) · Esc: quay tab / hoàn tác ô nhập · Đóng: nút ×"
+                    onClick={() => onUndo()}
+                  >
+                    Hoàn tác
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost-dark btn-sm"
+                    disabled={saving}
+                    onClick={onClose}
+                  >
+                    Đóng
+                  </button>
                 </div>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/*"
-                  hidden
-                  onChange={(e) => void onPhotoPicked(e.target.files?.[0] ?? null)}
-                />
               </div>
             </div>
 
@@ -833,6 +835,7 @@ export function EmployeeProfileSheet({
             />
           </div>
         )}
+            </div>
           </form>
         )}
       </div>

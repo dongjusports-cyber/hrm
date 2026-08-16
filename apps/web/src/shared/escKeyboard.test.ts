@@ -7,7 +7,13 @@ import {
   setFormFieldValue,
   tryRevertActiveFieldEsc,
 } from "./formFieldEsc";
-import { escStackDepth, isGridCellEditing, registerEscHandler, setEscFallback } from "./escStack";
+import {
+  escStackDepth,
+  isGridCellEditing,
+  registerEscHandler,
+  runEscStack,
+  setEscFallback,
+} from "./escStack";
 
 describe("isEditableFormField", () => {
   it("accepts text input", () => {
@@ -58,6 +64,21 @@ describe("tryRevertActiveFieldEsc", () => {
 
     expect(tryRevertActiveFieldEsc()).toBe(true);
     expect(onRevert).toHaveBeenCalledTimes(1);
+
+    document.body.removeChild(input);
+    clearActiveFieldEsc();
+  });
+
+  it("returns false when value is unchanged so ESC can go back", () => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = "hello";
+    document.body.appendChild(input);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    expect(tryRevertActiveFieldEsc()).toBe(false);
+    expect(document.activeElement).not.toBe(input);
 
     document.body.removeChild(input);
     clearActiveFieldEsc();
@@ -121,6 +142,25 @@ describe("escStack priority", () => {
     clearActiveFieldEsc();
   });
 
+  it("runs overlay handler when focused field is unchanged", () => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = "x";
+    document.body.appendChild(input);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    const overlay = vi.fn();
+    const unreg = registerEscHandler(overlay);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+
+    expect(overlay).toHaveBeenCalledTimes(1);
+
+    unreg();
+    document.body.removeChild(input);
+    clearActiveFieldEsc();
+  });
+
   it("runs overlay handler when not editing field or grid", () => {
     const overlay = vi.fn();
     const unreg = registerEscHandler(overlay);
@@ -142,6 +182,28 @@ describe("escStack priority", () => {
     expect(top).toHaveBeenCalledTimes(1);
     expect(lower).not.toHaveBeenCalled();
 
+    unregTop();
+    unregLower();
+  });
+
+  it("no-op overlay falls through to page-back fallback", () => {
+    const fallback = vi.fn();
+    setEscFallback(fallback);
+    const unreg = registerEscHandler(() => false);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(fallback).toHaveBeenCalledTimes(1);
+    unreg();
+  });
+
+  it("runEscStack skips false layers then hits fallback", () => {
+    const fallback = vi.fn();
+    const lower = vi.fn(() => false as const);
+    setEscFallback(fallback);
+    const unregLower = registerEscHandler(lower);
+    const unregTop = registerEscHandler(() => false);
+    expect(runEscStack()).toBe(true);
+    expect(lower).toHaveBeenCalledTimes(1);
+    expect(fallback).toHaveBeenCalledTimes(1);
     unregTop();
     unregLower();
   });
