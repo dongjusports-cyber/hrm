@@ -356,3 +356,161 @@ Test:
   cd apps/api && py -3.12 -m pytest tests/test_worker_payslips.py -q
   cd apps/web && npm run build
 
+[QA-01] OT Chủ nhật / lễ vào phiếu lương (hệ số 2,0 / 3,0) — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng:
+  Làm Chủ nhật / lễ bị nhét vào OT ngoài (ATM ×1,5), phiếu lương ot_hours_weekend /
+  ot_hours_holiday = 0.
+
+Nguyên nhân:
+  engine.py ghi ot_external = toàn bộ phút ngày nghỉ. timesheet.py ưu tiên
+  ot_external trước nhánh weekend/holiday.
+
+Cách xử lý:
+  - engine.py: ngày nghỉ ot_external=0, ot_on_books=0, giữ ot_minutes + ot_type
+  - timesheet.py: cộng ot_hours_weekend / holiday theo ot_type trước, OT ngoài sau
+
+Test:
+  tests/test_attendance_engine.py (sunday/holiday ot_external=0)
+  tests/test_timesheet.py::test_rebuild_sunday_ot_goes_to_weekend_not_external
+  tests/test_attendance_days_extend_34.py (Chủ nhật ot_external_minutes=0)
+
+[QA-02] / [REP-OV001] Tổng Quan 500 — TodoCardOut trùng — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng:
+  GET /api/reports/overview 500 khi todo_cards không rỗng (HĐ sắp hết hạn).
+
+Cách xử lý:
+  report/schemas.py import TodoCardOut từ ai/schemas, xóa class trùng.
+
+Test:
+  tests/test_todos_57.py::test_overview_ok_when_todo_cards_nonempty
+
+[QA-03] Worker chưa đổi mật khẩu không xem phiếu lương — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng:
+  Mật khẩu mặc định 1234 + gọi thẳng API vẫn lấy phiếu (UI có ép đổi).
+
+Cách xử lý:
+  deps.require_worker_password_changed / WorkerPasswordOk trên
+  GET payslips, GET detail, POST confirm, POST dispute.
+  /me + /change-password + /login vẫn mở.
+
+Test:
+  tests/test_worker_login.py::test_worker_must_change_password_blocks_payslips
+  tests/worker_auth.py — helper đổi pass cho test phiếu lương còn lại
+
+[QA-05] AI query dispute_id cần quyền lương / khiếu nại — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng:
+  User chỉ có ai_query đọc được số lương trong khiếu nại.
+
+Cách xử lý:
+  ai/query.py: user_can_view_disputes trước khi _dispute_context.
+
+Test:
+  tests/test_ai_query.py::test_ai_query_dispute_forbidden_without_payroll_or_dispute
+
+[WK-PW001] Mật khẩu mặc định worker = 4 số cuối CCCD (fallback MSNV) — 2026-08-16
+----------------------------------------------------------------------
+Triệu chứng / yêu cầu:
+  Tài khoản công nhân mới không còn mật khẩu chung 1234.
+
+Cách xử lý:
+  default_password_from_cccd: 4 số cuối CCCD; chưa có / không đủ 4 số → 4 số cuối MSNV.
+  Áp dụng: seed_worker_accounts, HR unlock/reset, import GenusSuite.
+  Đổi mật khẩu mới không được trùng mật khẩu mặc định của chính NV đó.
+
+Test:
+  tests/test_worker_default_password.py
+  tests/test_worker_lock_security.py::test_unlock_reset_password_uses_cccd_last4
+  tests/test_worker_login.py
+
+[QA-04] Nghỉ nửa ngày = 0.5 ngày công — 2026-08-16
+-------------------------------------------------
+Triệu chứng:
+  Đơn nghỉ nửa ngày trừ sổ 0.5 nhưng bảng công / lương cộng cứng 1 ngày.
+
+Cách xử lý:
+  Cột attendance_days.leave_days; duyệt phép ghi 0.5/1.0 theo from_half/to_half.
+  aggregate_month_details + rebuild timesheet dùng leave_days (ABS 0.5, WT còn 0.5).
+
+Test:
+  tests/test_leave_requests_36.py::test_bulk_approve_half_day_leave_days
+  tests/test_timesheet_month_details_35.py::test_aggregate_half_day_leave_not_full_day
+
+[QA-06] Tính lương N+1 / chống bấm trùng — 2026-08-16
+----------------------------------------------------
+Triệu chứng:
+  POST calculate query từng NV (phụ cấp, phép, phạt, thưởng, PIT). Bấm đúp chạy song song.
+
+Cách xử lý:
+  Prefetch batch trước vòng NV. PayrollRun status=running + HTTP 409 nếu đang tính (<15 phút).
+
+Test:
+  tests/test_payroll_calculate.py::test_calculate_rejects_when_run_already_running
+  (suite calculate / benchmark vẫn pass)
+
+[QA-07] GET Tổng Quan / bảng công không ghi kỳ lương — 2026-08-16
+----------------------------------------------------------------
+Triệu chứng:
+  ensure_pay_period UPDATE divisor + commit mỗi lần mở trang khi status=open.
+
+Cách xử lý:
+  ensure_pay_period(..., refresh_open=False) mặc định. Chỉ True khi tính lương / rebuild.
+
+Test:
+  tests/test_timesheet.py::test_get_timesheets_does_not_refresh_open_divisor
+
+[QA-08] OT Chủ nhật trùng ST + OT_EXT — 2026-08-16
+-------------------------------------------------
+Triệu chứng:
+  timesheet_month_details cộng cả OT_EXT và ST/HT cho cùng giờ CN/lễ.
+
+Cách xử lý:
+  ot_type weekend/holiday → chỉ ST/HT, bỏ OT và OT_EXT.
+
+Test:
+  tests/test_timesheet_month_details_35.py::test_aggregate_sunday_ot_not_also_ot_ext
+
+[QA-09] Ảnh hồ sơ path tuyệt đối ngoài upload — 2026-08-16
+--------------------------------------------------------
+Triệu chứng:
+  _employee_photo_file thử Path(photo_path) tuyệt đối trước → đọc file ngoài thư mục upload.
+
+Cách xử lý:
+  Chỉ lấy file theo basename trong employee_photos (và documents/violations cùng pattern).
+
+Test:
+  tests/test_employee_photo_path.py
+
+[QA-10] Duyệt phép không cộng lại bảng công — 2026-08-16
+-------------------------------------------------------
+Triệu chứng:
+  bulk_decide ghi leave_code nhưng không rebuild timesheet → ngày công trên lưới cũ.
+
+Cách xử lý:
+  Sau commit duyệt, rebuild_timesheets các tháng phủ from_date–to_date (recalc_days=False).
+
+Test:
+  tests/test_leave_requests_36.py::test_bulk_approve_half_day_leave_days (đọc details sau duyệt)
+
+[QA-11] API web không timeout — 2026-08-16
+-----------------------------------------
+Triệu chứng:
+  apiFetch / workerFetch treo nếu API chậm.
+
+Cách xử lý:
+  AbortSignal.timeout(60_000) trên apiFetch, workerFetch, login.
+
+[QA-12] JSON mở khóa trả new_password — 2026-08-16
+-------------------------------------------------
+Triệu chứng:
+  UnlockResetPasswordOut.new_password lộ mật khẩu trên JSON (log proxy).
+
+Cách xử lý:
+  Bỏ field new_password. HR vẫn thấy mật khẩu trong detail (toast màn hình).
+
+Test:
+  tests/test_worker_lock_security.py
+

@@ -78,3 +78,25 @@ def test_calculate_wd_for_fixture_employee(client, db):
     )
     assert listed.status_code == 200
     assert any(p["employee_code"] == "5290" for p in listed.json())
+
+
+def test_calculate_rejects_when_run_already_running(client, db):
+    """QA-06: đang tính lương thì bấm lại → 409, không chạy song song."""
+    from datetime import datetime, timezone
+
+    from app.modules.attendance.timesheet import ensure_pay_period
+    from app.modules.payroll.models import PayrollRun
+
+    pay = ensure_pay_period(db, "2025-10")
+    db.add(
+        PayrollRun(
+            pay_period_id=pay.id,
+            status="running",
+            started_at=datetime.now(timezone.utc),
+            message="Đang tính…",
+        )
+    )
+    db.commit()
+    res = client.post("/api/payroll/periods/2025-10/calculate", headers=_hr_headers(client))
+    assert res.status_code == 409
+    assert "đang tính lương" in res.json()["detail"].lower()

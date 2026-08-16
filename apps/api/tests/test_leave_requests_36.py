@@ -12,9 +12,12 @@ def _hr_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _worker_headers(client, code="5290", password="1234"):
+def _worker_headers(client, code="5290", password=None):
+    from tests.worker_auth import default_login_password
+
     token = client.post(
-        "/api/worker/login", json={"employee_code": code, "password": password}
+        "/api/worker/login",
+        json={"employee_code": code, "password": password or default_login_password(code)},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -94,6 +97,59 @@ def test_bulk_approve_applies_leave_code(client, db):
         .one()
     )
     assert row.leave_code == "ALE"
+
+
+def test_bulk_approve_half_day_leave_days(client, db):
+    """QA-04: nghỉ nửa ngày ghi leave_days=0.5 và ABS_ALE = 0.5, không cứng 1 ngày."""
+    headers = _worker_headers(client, "5290")
+    created = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-23",
+            "to_date": "2025-10-23",
+            "from_half": True,
+            "to_half": False,
+            "reason": "Nửa ngày phép",
+            "submit": True,
+        },
+    )
+    assert created.status_code == 200, created.text
+    assert float(created.json()["total_days"]) == 0.5
+    hr = _hr_headers(client)
+    decide = client.post(
+        "/api/attendance/leave-requests/bulk-decide",
+        headers=hr,
+        json={
+            "request_ids": [created.json()["id"]],
+            "action": "approve",
+            "decided_note": "OK nửa ngày",
+        },
+    )
+    assert decide.status_code == 200, decide.text
+    assert decide.json()["approved_count"] == 1
+
+    from app.modules.mdm.models import Employee
+
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    row = (
+        db.query(AttendanceDay)
+        .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == date(2025, 10, 23))
+        .one()
+    )
+    assert row.leave_code == "ALE"
+    assert float(row.leave_days) == 0.5
+
+    details = client.get(
+        "/api/attendance/timesheets/details",
+        headers=hr,
+        params={"period": "2025-10", "employee_code": "5290"},
+    )
+    assert details.status_code == 200, details.text
+    abs_ale = [r for r in details.json() if r["category"] == "ABS_ALE"]
+    assert abs_ale
+    assert float(abs_ale[0]["days"]) == 0.5
 
 
 def test_bulk_reject(client):

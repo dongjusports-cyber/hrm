@@ -167,3 +167,48 @@ def test_aggregate_unit(db):
     )
     buckets2 = aggregate_month_details([], [adj], emp)
     assert buckets2[("official", "ABS_ALE")]["days"] == Decimal("2.00")
+
+
+def test_aggregate_half_day_leave_not_full_day(db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    day = AttendanceDay(
+        employee_id=emp.id,
+        work_date=date(2025, 10, 23),
+        is_workday=True,
+        punch_count=2,
+        worked_hours=Decimal("4"),
+        leave_code="ALE",
+        leave_days=Decimal("0.5"),
+        ot_minutes=0,
+        ot_on_books_minutes=0,
+        ot_external_minutes=0,
+        ot_type="weekday",
+        segment="official",
+    )
+    buckets = aggregate_month_details([day], [], emp)
+    assert buckets[("official", "ABS_ALE")]["days"] == Decimal("0.50")
+    assert buckets[("official", "WT")]["days"] == Decimal("0.50")
+
+
+def test_aggregate_sunday_ot_not_also_ot_ext(db):
+    """QA-08: Chủ nhật chỉ ST, không cộng OT_EXT trùng giờ."""
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    day = AttendanceDay(
+        employee_id=emp.id,
+        work_date=date(2025, 10, 5),
+        is_workday=False,
+        punch_count=2,
+        worked_hours=Decimal("4"),
+        ot_minutes=240,
+        ot_on_books_minutes=0,
+        ot_external_minutes=240,
+        ot_type="weekend",
+        sunday_hours=Decimal("4"),
+        holiday_hours=Decimal("0"),
+        segment="official",
+    )
+    buckets = aggregate_month_details([day], [], emp)
+    assert ("official", "ST") in buckets
+    assert buckets[("official", "ST")]["hours"] == Decimal("4.00")
+    assert ("official", "OT_EXT") not in buckets
+    assert ("official", "OT") not in buckets

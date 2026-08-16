@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -22,8 +23,8 @@ from app.modules.attendance.annual_leave_ledger import sync_accrual_batch
 from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets, seed_leave_types
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
-from app.modules.mdm.models import Employee
-from app.modules.mdm.service import resolve_tax_dependent_count
+from app.modules.mdm.models import Employee, EmployeeFamilyMember
+from app.modules.mdm.service import _is_dependent_effective, resolve_tax_dependent_count
 from app.modules.payroll.engine_allowances import (
     AllowanceInput,
     AllowanceTypeView,
@@ -39,7 +40,7 @@ from app.modules.payroll.engine_leave_pay import (
 from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay
 from app.modules.payroll.engine_wd import WdSalaryInput, compute_wd_salary
 from app.modules.payroll.adjustments import sums_for_employee
-from app.modules.payroll.employee_bonuses import get_bonus_for_period, mark_bonuses_applied
+from app.modules.payroll.employee_bonuses import BonusLine, BonusResult, get_bonus_for_period
 from app.modules.payroll.attendance_penalty import (
     AttendanceDayPenaltyView,
     LeaveAdjustmentView,
@@ -47,9 +48,11 @@ from app.modules.payroll.attendance_penalty import (
 )
 from app.modules.payroll.models import (
     EmployeeAllowanceAssignment,
+    EmployeeBonus,
     PayComponent,
     PayrollRun,
     Payslip,
+    PayslipAdjustment,
     PayslipComponent,
     PolicySnapshot,
 )
@@ -257,6 +260,172 @@ def _monthly_map(db: Session, emp_id: UUID) -> dict[str, Decimal]:
     return out
 
 
+def _monthly_maps_batch(db: Session, emp_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    out: dict[UUID, dict[str, Decimal]] = {eid: {} for eid in emp_ids}
+    if not emp_ids:
+        return out
+    rows = (
+        db.query(EmployeeAllowanceAssignment, PayComponent)
+        .join(PayComponent, PayComponent.id == EmployeeAllowanceAssignment.allowance_type_id)
+        .filter(
+            EmployeeAllowanceAssignment.employee_id.in_(emp_ids),
+            PayComponent.is_active.is_(True),
+        )
+        .all()
+    )
+    for asg, at in rows:
+        out.setdefault(asg.employee_id, {})[at.code] = (
+            D(asg.amount) if asg.amount is not None else D(at.default_amount)
+        )
+    return out
+
+
+def _leave_days_from_loaded(
+    details: list[TimesheetMonthDetail],
+    leave_adjs: list[TimesheetAdjustment],
+) -> dict[str, Decimal]:
+    out: dict[str, Decimal] = {}
+    for r in details:
+        if r.category.startswith("ABS_") and r.days is not None and D(r.days) > 0:
+            code = r.category[4:]
+            out[code] = out.get(code, ZERO) + D(r.days)
+    if out:
+        return out
+    for r in leave_adjs:
+        if r.leave_code and r.days is not None:
+            code = r.leave_code.strip().upper()
+            out[code] = out.get(code, ZERO) + D(r.days)
+    return out
+
+
+def _detail_days_from_loaded(details: list[TimesheetMonthDetail]) -> dict[str, Decimal]:
+    out: dict[str, Decimal] = {}
+    for r in details:
+        if r.days is not None and D(r.days) > 0:
+            out[r.category] = out.get(r.category, ZERO) + D(r.days)
+    return out
+
+
+def _day_views_from_loaded(rows: list[AttendanceDay]) -> list[AttendanceDayPenaltyView]:
+    ordered = sorted(rows, key=lambda r: r.work_date)
+    return [
+        AttendanceDayPenaltyView(
+            work_date=r.work_date,
+            is_workday=bool(r.is_workday),
+            leave_code=r.leave_code,
+            late_minutes=int(r.late_minutes or 0),
+            early_minutes=int(r.early_minutes or 0),
+            punch_count=int(r.punch_count or 0),
+            first_in=r.first_in,
+            last_out=r.last_out,
+            worked_hours=D(r.worked_hours),
+        )
+        for r in ordered
+    ]
+
+
+def _leave_adj_views_from_loaded(rows: list[TimesheetAdjustment]) -> list[LeaveAdjustmentView]:
+    out: list[LeaveAdjustmentView] = []
+    for r in rows:
+        if r.leave_code and r.days is not None and D(r.days) > 0:
+            out.append(LeaveAdjustmentView(leave_code=r.leave_code, days=D(r.days)))
+    return out
+
+
+def _bonus_results_batch(db: Session, pay_period_id: UUID) -> dict[UUID, BonusResult]:
+    rows = (
+        db.query(EmployeeBonus)
+        .filter(EmployeeBonus.pay_period_id == pay_period_id)
+        .order_by(EmployeeBonus.seq_times.asc())
+        .all()
+    )
+    by_emp: dict[UUID, list[BonusLine]] = defaultdict(list)
+    totals: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
+    for row in rows:
+        amt = money_vnd(D(row.bonus_amount))
+        if amt <= 0:
+            continue
+        by_emp[row.employee_id].append(
+            BonusLine(
+                bonus_id=row.id,
+                bonus_code=row.bonus_code,
+                seq_times=int(row.seq_times),
+                amount=amt,
+                reason=row.reason or row.bonus_code,
+            )
+        )
+        totals[row.employee_id] += amt
+    out: dict[UUID, BonusResult] = {}
+    for eid, lines in by_emp.items():
+        out[eid] = BonusResult(total=money_vnd(totals[eid]), lines=lines)
+    return out
+
+
+def _sums_batch(
+    db: Session, pay_period_id: UUID
+) -> dict[UUID, tuple[Decimal, Decimal, list[dict]]]:
+    rows = (
+        db.query(PayslipAdjustment).filter(PayslipAdjustment.pay_period_id == pay_period_id).all()
+    )
+    out: dict[UUID, tuple[Decimal, Decimal, list[dict]]] = {}
+    addon_map: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
+    deduct_map: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
+    detail_map: dict[UUID, list[dict]] = defaultdict(list)
+    for r in rows:
+        amt = money_vnd(D(r.amount))
+        if r.kind == "addon":
+            addon_map[r.employee_id] += amt
+        else:
+            deduct_map[r.employee_id] += amt
+        detail_map[r.employee_id].append(
+            {"id": str(r.id), "kind": r.kind, "reason": r.reason, "amount": str(amt)}
+        )
+    eids = set(addon_map) | set(deduct_map) | set(detail_map)
+    for eid in eids:
+        out[eid] = (addon_map[eid], deduct_map[eid], detail_map[eid])
+    return out
+
+
+def _tax_dep_counts_batch(
+    db: Session, emp_ids: list[UUID], *, as_of: date
+) -> dict[UUID, int]:
+    counts: dict[UUID, int] = {eid: 0 for eid in emp_ids}
+    if not emp_ids:
+        return counts
+    rows = (
+        db.query(EmployeeFamilyMember)
+        .filter(EmployeeFamilyMember.employee_id.in_(emp_ids))
+        .all()
+    )
+    for r in rows:
+        if _is_dependent_effective(r, as_of):
+            counts[r.employee_id] = counts.get(r.employee_id, 0) + 1
+    return counts
+
+
+def _reject_concurrent_calculate(db: Session, pay: PayPeriod) -> None:
+    """QA-06: không cho hai lần «Tính lương» chồng lên cùng kỳ."""
+    running = (
+        db.query(PayrollRun)
+        .filter(PayrollRun.pay_period_id == pay.id, PayrollRun.status == "running")
+        .all()
+    )
+    now = datetime.now(timezone.utc)
+    stale_after = timedelta(minutes=15)
+    for run in running:
+        started = run.started_at
+        if started is not None and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if started is not None and now - started < stale_after:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Trợ Lý AI: đang tính lương kỳ này — vui lòng đợi xong rồi bấm lại.",
+            )
+        run.status = "error"
+        run.finished_at = now
+        run.message = "Timeout — lần tính trước chưa xong, đã thay bằng lần mới."
+
+
 def _type_views(db: Session) -> list[AllowanceTypeView]:
     seed_allowance_types(db)
     rows = db.query(PayComponent).filter(PayComponent.is_active.is_(True)).all()
@@ -417,7 +586,7 @@ def compute_employee_payslip(
 
 
 def calculate_period(db: Session, period: str, *, actor: User | None = None) -> CalculateResult:
-    pay = ensure_pay_period(db, period)
+    pay = ensure_pay_period(db, period, refresh_open=True)
     if pay.status == "locked":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -432,230 +601,299 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
             ),
         )
 
-    rebuild_timesheets(db, period, recalc_days=True)
-    pay = ensure_pay_period(db, period)
-    # Bút toán tích lũy phép ghi ở đây (đường lệnh, 1 lần/kỳ). Đường đọc — danh sách NV,
-    # phiếu lương — chỉ tính suy ra, không ghi sổ.
-    sync_accrual_batch(db, as_of=pay.date_to or date.today())
-    _purge_ineligible_draft_payslips(db, pay)
-
-    pkg, payload = _active_policy(db)
-    snapshot = PolicySnapshot(
-        pay_period_id=pay.id,
-        package_id=pkg.id if pkg else None,
-        payload=payload,
-    )
-    db.add(snapshot)
-    db.flush()
-
+    _reject_concurrent_calculate(db, pay)
     run = PayrollRun(
         pay_period_id=pay.id,
         status="running",
         started_at=datetime.now(timezone.utc),
-        policy_snapshot_id=snapshot.id,
-        message="Đang tính wd_salary + phụ cấp…",
+        message="Đang tổng hợp bảng công…",
     )
     db.add(run)
-    db.flush()
+    db.commit()
+    db.refresh(run)
 
-    rule = get_work_week(db)
-    holidays = frozenset(h.date for h in db.query(Holiday).all())
-    work_weekdays = tuple(int(x) for x in rule.work_weekdays)
-    type_views = _type_views(db)
-    leave_types = _leave_type_pay_meta(db)
+    try:
+        rebuild_timesheets(db, period, recalc_days=True)
+        pay = ensure_pay_period(db, period, refresh_open=True)
+        # Bút toán tích lũy phép ghi ở đây (đường lệnh, 1 lần/kỳ). Đường đọc — danh sách NV,
+        # phiếu lương — chỉ tính suy ra, không ghi sổ.
+        sync_accrual_batch(db, as_of=pay.date_to or date.today())
+        _purge_ineligible_draft_payslips(db, pay)
 
-    timesheets = (
-        db.query(TimesheetMonth, Employee)
-        .join(Employee, Employee.id == TimesheetMonth.employee_id)
-        .filter(TimesheetMonth.pay_period_id == pay.id, Employee.deleted_at.is_(None))
-        .all()
-    )
-
-    computed = 0
-    for ts, emp in timesheets:
-        if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
-            continue
-        slip = (
-            db.query(Payslip)
-            .filter(Payslip.pay_period_id == pay.id, Payslip.employee_id == emp.id)
-            .one_or_none()
+        pkg, payload = _active_policy(db)
+        snapshot = PolicySnapshot(
+            pay_period_id=pay.id,
+            package_id=pkg.id if pkg else None,
+            payload=payload,
         )
-        if slip is not None and slip.status in ("published", "confirmed", "locked"):
-            continue
+        db.add(snapshot)
+        db.flush()
+        run.policy_snapshot_id = snapshot.id
+        run.message = "Đang tính wd_salary + phụ cấp…"
 
-        monthly = _monthly_map(db, emp.id)
-        sal_allow = _sal_allow_monthly(monthly)
-        leave_days = _leave_days_by_code(db, pay.id, emp.id, ts.id)
-        detail_days = _detail_days_by_category(db, ts.id)
+        rule = get_work_week(db)
+        holidays = frozenset(h.date for h in db.query(Holiday).all())
+        work_weekdays = tuple(int(x) for x in rule.work_weekdays)
+        type_views = _type_views(db)
+        leave_types = _leave_type_pay_meta(db)
 
-        wd_inp = WdSalaryInput(
-            contract_salary=emp.contract_salary,
-            probation_salary=emp.probation_salary,
-            salary_divisor=pay.salary_divisor,
-            worked_days=ts.worked_days,
-            al_days=ts.al_days,
-            period_from=pay.date_from,
-            period_to=pay.date_to,
-            contract_signed_at=emp.contract_signed_at,
-            work_weekdays=work_weekdays,
-            holiday_dates=holidays,
-            sal_allow=sal_allow,
+        timesheets = (
+            db.query(TimesheetMonth, Employee)
+            .join(Employee, Employee.id == TimesheetMonth.employee_id)
+            .filter(TimesheetMonth.pay_period_id == pay.id, Employee.deleted_at.is_(None))
+            .all()
         )
-        wd_res = compute_wd_salary(wd_inp)
-        leave_res = compute_leave_pay(
-            LeavePayInput(
+
+        emp_ids = [emp.id for _, emp in timesheets]
+        ts_ids = [ts.id for ts, _ in timesheets]
+        monthly_by_emp = _monthly_maps_batch(db, emp_ids)
+        details_by_ts: dict[UUID, list[TimesheetMonthDetail]] = defaultdict(list)
+        if ts_ids:
+            for det in (
+                db.query(TimesheetMonthDetail)
+                .filter(TimesheetMonthDetail.timesheet_month_id.in_(ts_ids))
+                .all()
+            ):
+                details_by_ts[det.timesheet_month_id].append(det)
+        leave_adjs_by_emp: dict[UUID, list[TimesheetAdjustment]] = defaultdict(list)
+        for adj in (
+            db.query(TimesheetAdjustment)
+            .filter(
+                TimesheetAdjustment.pay_period_id == pay.id,
+                TimesheetAdjustment.kind == "leave",
+            )
+            .all()
+        ):
+            leave_adjs_by_emp[adj.employee_id].append(adj)
+        days_by_emp: dict[UUID, list[AttendanceDay]] = defaultdict(list)
+        for day in (
+            db.query(AttendanceDay)
+            .filter(
+                AttendanceDay.work_date >= pay.date_from,
+                AttendanceDay.work_date <= pay.date_to,
+            )
+            .all()
+        ):
+            days_by_emp[day.employee_id].append(day)
+        slip_map = {
+            s.employee_id: s
+            for s in db.query(Payslip).filter(Payslip.pay_period_id == pay.id).all()
+        }
+        bonus_map = _bonus_results_batch(db, pay.id)
+        empty_bonus = BonusResult(total=ZERO, lines=[])
+        sums_map = _sums_batch(db, pay.id)
+        dep_map = _tax_dep_counts_batch(db, emp_ids, as_of=pay.date_to)
+        penalties = payload.get("attendance_penalties") or {}
+        computed_emp_ids: list[UUID] = []
+
+        computed = 0
+        for ts, emp in timesheets:
+            if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
+                continue
+            slip = slip_map.get(emp.id)
+            if slip is not None and slip.status in ("published", "confirmed", "locked"):
+                continue
+
+            monthly = monthly_by_emp.get(emp.id) or {}
+            sal_allow = _sal_allow_monthly(monthly)
+            leave_days = _leave_days_from_loaded(
+                details_by_ts.get(ts.id, []),
+                leave_adjs_by_emp.get(emp.id, []),
+            )
+            detail_days = _detail_days_from_loaded(details_by_ts.get(ts.id, []))
+
+            wd_inp = WdSalaryInput(
                 contract_salary=emp.contract_salary,
                 probation_salary=emp.probation_salary,
-                sal_allow=sal_allow,
-                salary_divisor=pay.salary_divisor,
-                wd_context=wd_inp,
-                leave_days_by_code=leave_days,
-                leave_types=leave_types,
-            )
-        )
-        penalty_sum = _penalty_summary_for_employee(db, pay, emp, payload)
-        allow_res = compute_allowances(
-            AllowanceInput(
                 salary_divisor=pay.salary_divisor,
                 worked_days=ts.worked_days,
-                late_count=penalty_sum.late_count,
-                early_count=penalty_sum.early_count,
-                penalty_absent_days=penalty_sum.penalty_absent_days,
-                join_date=emp.join_date,
-                as_of=pay.date_to,
-                policy=payload,
-                monthly_by_code=monthly,
-                types=type_views,
-                child_count_under_6=0,
-                leave_days_by_code=leave_days,
-                detail_days_by_category=detail_days,
-                penalty_audit=penalty_sum.detail,
-                suppress_allowances=should_zero_probation_allowances(
-                    payload,
-                    contract_signed_at=emp.contract_signed_at,
-                    period_to=pay.date_to,
+                al_days=ts.al_days,
+                period_from=pay.date_from,
+                period_to=pay.date_to,
+                contract_signed_at=emp.contract_signed_at,
+                work_weekdays=work_weekdays,
+                holiday_dates=holidays,
+                sal_allow=sal_allow,
+            )
+            wd_res = compute_wd_salary(wd_inp)
+            leave_res = compute_leave_pay(
+                LeavePayInput(
+                    contract_salary=emp.contract_salary,
+                    probation_salary=emp.probation_salary,
+                    sal_allow=sal_allow,
+                    salary_divisor=pay.salary_divisor,
+                    wd_context=wd_inp,
+                    leave_days_by_code=leave_days,
+                    leave_types=leave_types,
+                )
+            )
+            penalty_sum = summarize_attendance_penalties(
+                _day_views_from_loaded(days_by_emp.get(emp.id, [])),
+                _leave_adj_views_from_loaded(leave_adjs_by_emp.get(emp.id, [])),
+                contract_signed_at=emp.contract_signed_at,
+                penalties=penalties,
+            )
+            allow_res = compute_allowances(
+                AllowanceInput(
+                    salary_divisor=pay.salary_divisor,
+                    worked_days=ts.worked_days,
+                    late_count=penalty_sum.late_count,
+                    early_count=penalty_sum.early_count,
+                    penalty_absent_days=penalty_sum.penalty_absent_days,
+                    join_date=emp.join_date,
+                    as_of=pay.date_to,
+                    policy=payload,
+                    monthly_by_code=monthly,
+                    types=type_views,
+                    child_count_under_6=0,
+                    leave_days_by_code=leave_days,
+                    detail_days_by_category=detail_days,
+                    penalty_audit=penalty_sum.detail,
+                    suppress_allowances=should_zero_probation_allowances(
+                        payload,
+                        contract_signed_at=emp.contract_signed_at,
+                        period_to=pay.date_to,
+                    ),
+                )
+            )
+            ot_res = compute_ot_pay(
+                OtInput(
+                    contract_salary=emp.contract_salary,
+                    salary_divisor=pay.salary_divisor,
+                    allowance_lines=allow_res.lines,
+                    attend_full_monthly=allow_res.attend_full_monthly,
+                    hours=OtHours(
+                        weekday=D(ts.ot_hours_weekday),
+                        weekend=D(ts.ot_hours_weekend),
+                        holiday=D(ts.ot_hours_holiday),
+                    ),
+                    policy=payload,
+                )
+            )
+            other_adj, other_ded, adj_detail = sums_map.get(emp.id, (ZERO, ZERO, []))
+            bonus_res = bonus_map.get(emp.id, empty_bonus)
+            gross = money_vnd(
+                wd_res.wd_salary
+                + leave_res.leave_pay_total
+                + allow_res.allowance_total
+                + ot_res.ot_pay
+                + other_adj
+                + bonus_res.total
+            )
+            dep_count = dep_map.get(emp.id, 0)
+            ins_res = compute_insurance_and_net(
+                InsuranceInput(
+                    si_contribution_base=ot_res.si_contribution_base,
+                    si_enrolled=bool(emp.si_enrolled),
+                    si_base_override=emp.si_base_override,
+                    union_fee_override=emp.union_fee_override,
+                    gross=gross,
+                    other_deductions=other_ded,
+                    other_adjustments=other_adj,
+                    policy=payload,
+                    tax_dependent_count=dep_count,
+                    pit_enrolled=bool(getattr(emp, "pit_enrolled", True)),
+                )
+            )
+
+            if slip is None:
+                slip = Payslip(pay_period_id=pay.id, employee_id=emp.id)
+                db.add(slip)
+                slip_map[emp.id] = slip
+
+            slip.policy_snapshot_id = snapshot.id
+            slip.wd_salary = wd_res.wd_salary
+            slip.allowance_total = allow_res.allowance_total
+            slip.ot_pay = ot_res.ot_pay
+            slip.other_adjustments = other_adj
+            slip.gross = gross
+            slip.taxable_income = ins_res.taxable_income
+            slip.bhxh = ins_res.bhxh
+            slip.bhyt = ins_res.bhyt
+            slip.bhtn = ins_res.bhtn
+            slip.union_fee = ins_res.union_fee
+            slip.other_deductions = ins_res.other_deductions
+            slip.pit_amount = ins_res.pit_amount
+            slip.net = ins_res.net
+            slip.status = "draft"
+            slip.lines = {
+                "phase": "P4.8+bonus",
+                "wd": wd_res.detail,
+                "leave_pay": leave_res.detail,
+                "attendance_penalty": penalty_sum.detail,
+                "allowances": allow_res.detail,
+                "attend_keep_percent": allow_res.attend_keep_percent,
+                "attend_full_monthly": str(allow_res.attend_full_monthly),
+                "ot": ot_res.detail,
+                "bonus": {
+                    "total": str(bonus_res.total),
+                    "lines": [
+                        {
+                            "code": ln.bonus_code,
+                            "seq_times": ln.seq_times,
+                            "amount": str(ln.amount),
+                            "reason": ln.reason,
+                        }
+                        for ln in bonus_res.lines
+                    ],
+                },
+                "si_contribution_base": str(ot_res.si_contribution_base),
+                "insurance": ins_res.detail,
+                "adjustments": adj_detail,
+                "other_adjustments": str(other_adj),
+                "other_deductions": str(other_ded),
+                "note": "WD + lương nghỉ + PC + OT + điều chỉnh + BH/CD + TNCN(policy) → net.",
+            }
+            db.flush()
+            replace_payslip_components(
+                db,
+                slip.id,
+                build_component_drafts(
+                    wd_inp=wd_inp,
+                    wd_res=wd_res,
+                    leave_res=leave_res,
+                    allow_res=allow_res,
+                    ot_res=ot_res,
+                    ins_res=ins_res,
+                    adj_detail=adj_detail,
+                    bonus_res=bonus_res,
                 ),
             )
-        )
-        ot_res = compute_ot_pay(
-            OtInput(
-                contract_salary=emp.contract_salary,
-                salary_divisor=pay.salary_divisor,
-                allowance_lines=allow_res.lines,
-                attend_full_monthly=allow_res.attend_full_monthly,
-                hours=OtHours(
-                    weekday=D(ts.ot_hours_weekday),
-                    weekend=D(ts.ot_hours_weekend),
-                    holiday=D(ts.ot_hours_holiday),
-                ),
-                policy=payload,
-            )
-        )
-        other_adj, other_ded, adj_detail = sums_for_employee(db, pay.id, emp.id)
-        bonus_res = get_bonus_for_period(db, emp.id, pay.id)
-        gross = money_vnd(
-            wd_res.wd_salary
-            + leave_res.leave_pay_total
-            + allow_res.allowance_total
-            + ot_res.ot_pay
-            + other_adj
-            + bonus_res.total
-        )
-        dep_count = resolve_tax_dependent_count(db, emp.id, as_of=pay.date_to)
-        ins_res = compute_insurance_and_net(
-            InsuranceInput(
-                si_contribution_base=ot_res.si_contribution_base,
-                si_enrolled=bool(emp.si_enrolled),
-                si_base_override=emp.si_base_override,
-                union_fee_override=emp.union_fee_override,
-                gross=gross,
-                other_deductions=other_ded,
-                other_adjustments=other_adj,
-                policy=payload,
-                tax_dependent_count=dep_count,
-                pit_enrolled=bool(getattr(emp, "pit_enrolled", True)),
-            )
-        )
+            computed_emp_ids.append(emp.id)
+            computed += 1
 
-        if slip is None:
-            slip = Payslip(pay_period_id=pay.id, employee_id=emp.id)
-            db.add(slip)
+        if computed_emp_ids:
+            applied_at = datetime.now(timezone.utc)
+            db.query(EmployeeBonus).filter(
+                EmployeeBonus.pay_period_id == pay.id,
+                EmployeeBonus.employee_id.in_(computed_emp_ids),
+                EmployeeBonus.applied_at.is_(None),
+            ).update({EmployeeBonus.applied_at: applied_at}, synchronize_session=False)
 
-        slip.policy_snapshot_id = snapshot.id
-        slip.wd_salary = wd_res.wd_salary
-        slip.allowance_total = allow_res.allowance_total
-        slip.ot_pay = ot_res.ot_pay
-        slip.other_adjustments = other_adj
-        slip.gross = gross
-        slip.taxable_income = ins_res.taxable_income
-        slip.bhxh = ins_res.bhxh
-        slip.bhyt = ins_res.bhyt
-        slip.bhtn = ins_res.bhtn
-        slip.union_fee = ins_res.union_fee
-        slip.other_deductions = ins_res.other_deductions
-        slip.pit_amount = ins_res.pit_amount
-        slip.net = ins_res.net
-        slip.status = "draft"
-        slip.lines = {
-            "phase": "P4.8+bonus",
-            "wd": wd_res.detail,
-            "leave_pay": leave_res.detail,
-            "attendance_penalty": penalty_sum.detail,
-            "allowances": allow_res.detail,
-            "attend_keep_percent": allow_res.attend_keep_percent,
-            "attend_full_monthly": str(allow_res.attend_full_monthly),
-            "ot": ot_res.detail,
-            "bonus": {
-                "total": str(bonus_res.total),
-                "lines": [
-                    {
-                        "code": ln.bonus_code,
-                        "seq_times": ln.seq_times,
-                        "amount": str(ln.amount),
-                        "reason": ln.reason,
-                    }
-                    for ln in bonus_res.lines
-                ],
-            },
-            "si_contribution_base": str(ot_res.si_contribution_base),
-            "insurance": ins_res.detail,
-            "adjustments": adj_detail,
-            "other_adjustments": str(other_adj),
-            "other_deductions": str(other_ded),
-            "note": "WD + lương nghỉ + PC + OT + điều chỉnh + BH/CD + TNCN(policy) → net.",
-        }
-        db.flush()
-        replace_payslip_components(
-            db,
-            slip.id,
-            build_component_drafts(
-                wd_inp=wd_inp,
-                wd_res=wd_res,
-                leave_res=leave_res,
-                allow_res=allow_res,
-                ot_res=ot_res,
-                ins_res=ins_res,
-                adj_detail=adj_detail,
-                bonus_res=bonus_res,
-            ),
+        _purge_ineligible_draft_payslips(db, pay)
+
+        run.employee_count = computed
+        run.status = "success"
+        run.finished_at = datetime.now(timezone.utc)
+        pit_on = bool((payload or {}).get("pit_enabled", False))
+        run.message = (
+            f"Đã tính đủ phiếu (WD+nghỉ+PC+OT+BH/CD"
+            f"{'+TNCN' if pit_on else ''}→net) cho {computed} NV kỳ {period} "
+            f"(divisor={pay.salary_divisor})."
         )
-        mark_bonuses_applied(db, emp.id, pay.id)
-        computed += 1
+        if pay.status == "open":
+            pay.status = "calculating"
+        db.commit()
+    except Exception:
+        db.rollback()
+        stuck = db.get(PayrollRun, run.id)
+        if stuck is not None and stuck.status == "running":
+            stuck.status = "error"
+            stuck.finished_at = datetime.now(timezone.utc)
+            stuck.message = "Tính lương thất bại."
+            db.commit()
+        raise
 
-    _purge_ineligible_draft_payslips(db, pay)
-
-    run.employee_count = computed
-    run.status = "success"
-    run.finished_at = datetime.now(timezone.utc)
-    pit_on = bool((payload or {}).get("pit_enabled", False))
-    run.message = (
-        f"Đã tính đủ phiếu (WD+nghỉ+PC+OT+BH/CD"
-        f"{'+TNCN' if pit_on else ''}→net) cho {computed} NV kỳ {period} "
-        f"(divisor={pay.salary_divisor})."
-    )
-    if pay.status == "open":
-        pay.status = "calculating"
-    db.commit()
     db.refresh(run)
     if actor is not None:
         write_audit(

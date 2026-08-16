@@ -54,6 +54,10 @@ class AttendanceDay(Base):
     leave_code: Mapped[str | None] = mapped_column(
         String(40), ForeignKey("leave_types.code", ondelete="SET NULL"), nullable=True
     )
+    # QA-04: 1.0 cả ngày / 0.5 nửa ngày (from_half / to_half). Không dùng khi leave_code trống.
+    leave_days: Mapped[Decimal] = mapped_column(
+        Numeric(4, 2), default=Decimal("1"), nullable=False
+    )
     source: Mapped[str] = mapped_column(String(10), default="machine", nullable=False)
     night_hours: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"), nullable=False)
     sunday_hours: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"), nullable=False)

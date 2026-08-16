@@ -66,14 +66,14 @@ export function WorkerLoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              placeholder="Lần đầu: 1234"
+              placeholder="Lần đầu: 4 số cuối CCCD"
               required
             />
           </label>
 
           <p className="login-hint">
-            Lần đầu đăng nhập dùng mật khẩu <strong>1234</strong>, hệ thống sẽ yêu cầu đổi mật khẩu
-            mới.
+            Lần đầu đăng nhập dùng <strong>4 số cuối CCCD</strong> (nếu chưa có CCCD:{" "}
+            <strong>4 số cuối MSNV</strong>). Hệ thống sẽ yêu cầu đổi mật khẩu mới.
           </p>
           {typeof window !== "undefined" && window.location.hostname !== "localhost" && (
             <p className="login-hint login-hint-muted">

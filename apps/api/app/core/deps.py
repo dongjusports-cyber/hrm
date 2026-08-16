@@ -152,3 +152,16 @@ def get_current_worker(
 
 
 CurrentWorker = Annotated[User, Depends(get_current_worker)]
+
+
+def require_worker_password_changed(worker: CurrentWorker) -> User:
+    """Chặn phiếu lương / khiếu nại khi chưa đổi mật khẩu mặc định (QA-03)."""
+    if worker.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Trợ Lý AI: vui lòng đổi mật khẩu trước khi xem phiếu lương.",
+        )
+    return worker
+
+
+WorkerPasswordOk = Annotated[User, Depends(require_worker_password_changed)]

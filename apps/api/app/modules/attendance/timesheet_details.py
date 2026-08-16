@@ -29,6 +29,19 @@ def _abs_category(leave_code: str) -> str:
     return f"ABS_{leave_code.strip().upper()}"
 
 
+def leave_days_on_day(d: AttendanceDay) -> Decimal:
+    """Số ngày nghỉ ghi trên dòng công — 1.0 mặc định, 0.5 nếu nửa ngày (QA-04)."""
+    if not d.leave_code:
+        return ZERO
+    raw = getattr(d, "leave_days", None)
+    if raw is None:
+        return Decimal("1")
+    val = Decimal(str(raw))
+    if val <= 0:
+        return Decimal("1")
+    return val
+
+
 def aggregate_month_details(
     day_rows: list[AttendanceDay],
     adj_rows: list[TimesheetAdjustment],
@@ -49,19 +62,38 @@ def aggregate_month_details(
 
     for d in day_rows:
         seg = d.segment or fallback_seg
+        leave_d = leave_days_on_day(d)
         if d.leave_code:
-            add(seg, _abs_category(d.leave_code), days=Decimal("1"))
+            add(seg, _abs_category(d.leave_code), days=leave_d)
+            remaining = Decimal("1") - leave_d
+            if remaining > 0 and d.is_workday and Decimal(d.worked_hours or 0) > 0:
+                add(seg, "WT", days=remaining)
         elif d.is_workday and Decimal(d.worked_hours or 0) > 0:
             add(seg, "WT", days=Decimal("1"))
 
-        if (d.ot_on_books_minutes or 0) > 0:
-            add(seg, "OT", hours=_hours(d.ot_on_books_minutes))
-        if (d.ot_external_minutes or 0) > 0:
-            add(seg, "OT_EXT", hours=_hours(d.ot_external_minutes))
-        if d.sunday_hours and d.sunday_hours > 0:
-            add(seg, "ST", hours=Decimal(d.sunday_hours))
-        if d.holiday_hours and d.holiday_hours > 0:
-            add(seg, "HT", hours=Decimal(d.holiday_hours))
+        # QA-08: CN/lễ chỉ ST/HT — không cộng thêm OT_EXT (trùng giờ).
+        ot_kind = (d.ot_type or "").strip().lower()
+        if ot_kind == "weekend":
+            st_h = Decimal(d.sunday_hours or 0)
+            if st_h <= 0 and (d.ot_minutes or 0) > 0:
+                st_h = _hours(d.ot_minutes)
+            if st_h > 0:
+                add(seg, "ST", hours=st_h)
+        elif ot_kind == "holiday":
+            ht_h = Decimal(d.holiday_hours or 0)
+            if ht_h <= 0 and (d.ot_minutes or 0) > 0:
+                ht_h = _hours(d.ot_minutes)
+            if ht_h > 0:
+                add(seg, "HT", hours=ht_h)
+        else:
+            if (d.ot_on_books_minutes or 0) > 0:
+                add(seg, "OT", hours=_hours(d.ot_on_books_minutes))
+            if (d.ot_external_minutes or 0) > 0:
+                add(seg, "OT_EXT", hours=_hours(d.ot_external_minutes))
+            if d.sunday_hours and d.sunday_hours > 0:
+                add(seg, "ST", hours=Decimal(d.sunday_hours))
+            if d.holiday_hours and d.holiday_hours > 0:
+                add(seg, "HT", hours=Decimal(d.holiday_hours))
         if d.ot_night_hours and d.ot_night_hours > 0:
             add(seg, "OT_NIGHT", hours=Decimal(d.ot_night_hours))
         # Ca đêm tắt mặc định — gom vào NT30 khi có dữ liệu (NT45/NT60 bổ sung sau).

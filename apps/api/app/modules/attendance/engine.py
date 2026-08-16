@@ -337,7 +337,8 @@ def calculate_day(
         ot = int((last_out - first_in).total_seconds() // 60)
         if ot < 0:
             ot = 0
-        ot_external = ot
+        # CN/lễ vào phiếu lương (hệ số 2,0 / 3,0) — không nhét vào OT ngoài ATM 1,5
+        ot_external = 0
         ot_on_books = 0
         ot_type = "holiday" if work_date in schedule.holiday_dates else "weekend"
         worked = Decimal("0")

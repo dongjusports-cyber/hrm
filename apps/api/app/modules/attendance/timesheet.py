@@ -28,7 +28,11 @@ from app.modules.attendance.schemas import (
     TimesheetMonthDetailOut,
     TimesheetMonthOut,
 )
-from app.modules.attendance.timesheet_details import aggregate_month_details, sync_timesheet_month_details
+from app.modules.attendance.timesheet_details import (
+    aggregate_month_details,
+    leave_days_on_day,
+    sync_timesheet_month_details,
+)
 from app.modules.calendar.service import compute_divisor
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -143,7 +147,12 @@ def parse_period(period: str) -> tuple[int, int]:
     return year, month
 
 
-def ensure_pay_period(db: Session, period: str) -> PayPeriod:
+def ensure_pay_period(db: Session, period: str, *, refresh_open: bool = False) -> PayPeriod:
+    """Lấy kỳ lương; tạo nếu chưa có.
+
+    QA-07: GET (Tổng Quan / bảng công) không ghi lại divisor. Chỉ làm mới khi
+    `refresh_open=True` (tính lương, rebuild bảng công).
+    """
     year, month = parse_period(period)
     row = db.query(PayPeriod).filter(PayPeriod.year == year, PayPeriod.month == month).one_or_none()
     last_day = calendar.monthrange(year, month)[1]
@@ -174,7 +183,7 @@ def ensure_pay_period(db: Session, period: str) -> PayPeriod:
         else:
             db.refresh(row)
         return row
-    if row.status == "open":
+    if refresh_open and row.status == "open":
         row.official_work_days = div.official_work_days
         row.salary_divisor = div.salary_divisor
         row.date_from = date_from
@@ -217,7 +226,7 @@ def _purge_ineligible_timesheets(db: Session, pay: PayPeriod) -> int:
 def rebuild_timesheets(
     db: Session, period: str, *, recalc_days: bool = True
 ) -> RebuildTimesheetResult:
-    pay = ensure_pay_period(db, period)
+    pay = ensure_pay_period(db, period, refresh_open=True)
     _assert_open(pay)
     seed_leave_types(db)
     _purge_ineligible_timesheets(db, pay)
@@ -289,16 +298,23 @@ def rebuild_timesheets(
         ot_we = ZERO
         ot_h = ZERO
         for d in day_rows:
+            leave_d = leave_days_on_day(d)
             if d.is_workday and Decimal(d.worked_hours or 0) > 0:
-                worked += Decimal("1")
+                if leave_d >= 1:
+                    pass
+                elif leave_d > 0:
+                    worked += Decimal("1") - leave_d
+                else:
+                    worked += Decimal("1")
             if d.ot_on_books_minutes > 0:
                 ot_w += _hours(d.ot_on_books_minutes)
-            if d.ot_external_minutes > 0:
-                ot_ext += _hours(d.ot_external_minutes)
-            elif d.ot_minutes > 0 and d.ot_type == "weekend":
+            # Ưu tiên loại ngày: CN/lễ không bị OT ngoài «nuốt» giờ (QA-01)
+            if d.ot_type == "weekend" and (d.ot_minutes or 0) > 0:
                 ot_we += _hours(d.ot_minutes)
-            elif d.ot_minutes > 0 and d.ot_type == "holiday":
+            elif d.ot_type == "holiday" and (d.ot_minutes or 0) > 0:
                 ot_h += _hours(d.ot_minutes)
+            elif (d.ot_external_minutes or 0) > 0:
+                ot_ext += _hours(d.ot_external_minutes)
 
         penalty_sum = summarize_attendance_penalties(
             _day_penalty_views(day_rows),

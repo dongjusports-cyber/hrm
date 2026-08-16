@@ -25,7 +25,9 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
   const token = getAccessToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${getApiBase()}${path}`, { ...init, headers });
+  const timeout = AbortSignal.timeout(60_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  const res = await fetch(`${getApiBase()}${path}`, { ...init, headers, signal });
   if (res.status === 401) {
     clearAuth();
   }
@@ -41,6 +43,7 @@ export async function loginRequest(username: string, password: string): Promise<
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
+    signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -1267,7 +1270,6 @@ export type UnlockResetPasswordResult = {
   detail: string;
   employee_id: string;
   employee_code: string;
-  new_password: string;
   account_status: "active" | "locked" | "resigned";
   account_status_label: string;
 };

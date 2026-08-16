@@ -7,7 +7,7 @@ from app.modules.attendance.models import TimesheetMonth
 from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import Payslip
-from app.modules.worker.service import DEFAULT_WORKER_PASSWORD
+from tests.worker_auth import unlocked_worker_headers
 
 
 def _hr_headers(client):
@@ -18,11 +18,7 @@ def _hr_headers(client):
 
 
 def _worker_headers(client, code="5290"):
-    token = client.post(
-        "/api/worker/login",
-        json={"employee_code": code, "password": DEFAULT_WORKER_PASSWORD},
-    ).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return unlocked_worker_headers(client, code)
 
 
 def _calc_and_publish(client, db, code="5290"):

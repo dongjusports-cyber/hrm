@@ -41,6 +41,7 @@ import xlrd
 
 from app.core.database import SessionLocal
 from app.core.security import hash_password
+from app.modules.worker.service import default_worker_password
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.audit.models import AuditLog
 from app.modules.core.models import User
@@ -434,13 +435,13 @@ def run(dry_run: bool = False) -> None:
                     summary=f"MSNV {msnv} ({employees_by_msnv[msnv].full_name}): {cls['leave_note']}",
                 )
 
-        print("Tạo tài khoản Worker (MSNV / 1234, bắt đổi mật khẩu lần đầu)...")
+        print("Tạo tài khoản Worker (MSNV / 4 số cuối CCCD hoặc MSNV, bắt đổi mật khẩu lần đầu)...")
         for msnv, emp in employees_by_msnv.items():
             db.add(
                 User(
                     username=msnv,
                     full_name=emp.full_name,
-                    password_hash=hash_password("1234"),
+                    password_hash=hash_password(default_worker_password(emp)),
                     role="worker",
                     employee_id=emp.id,
                     must_change_password=True,

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
-from app.core.deps import CurrentWorker, DbSession
+from app.core.deps import CurrentWorker, DbSession, WorkerPasswordOk
 from app.modules.attendance.schemas import LeaveRequestCreate, LeaveRequestOut, LeaveTypeOut
 from app.modules.dispute import service as dispute_svc
 from app.modules.dispute.schemas import DisputeCreateRequest, DisputeOut, DisputeReasonOut
@@ -44,20 +44,20 @@ def worker_change_password(
 
 
 @router.get("/payslips", response_model=list[WorkerPayslipListOut])
-def worker_payslips(worker: CurrentWorker, db: DbSession) -> list[WorkerPayslipListOut]:
+def worker_payslips(worker: WorkerPasswordOk, db: DbSession) -> list[WorkerPayslipListOut]:
     return payslip_svc.list_worker_payslips(db, worker)
 
 
 @router.get("/payslips/{payslip_id}", response_model=WorkerPayslipDetailOut)
 def worker_payslip_detail(
-    payslip_id: UUID, worker: CurrentWorker, db: DbSession
+    payslip_id: UUID, worker: WorkerPasswordOk, db: DbSession
 ) -> WorkerPayslipDetailOut:
     return payslip_svc.get_worker_payslip(db, worker, payslip_id)
 
 
 @router.post("/payslips/{payslip_id}/confirm", response_model=WorkerPayslipDetailOut)
 def worker_payslip_confirm(
-    payslip_id: UUID, worker: CurrentWorker, db: DbSession
+    payslip_id: UUID, worker: WorkerPasswordOk, db: DbSession
 ) -> WorkerPayslipDetailOut:
     """P4.2 — xác nhận đúng → khóa phiếu (không khiếu nại)."""
     return payslip_svc.confirm_worker_payslip(db, worker, payslip_id)
@@ -73,7 +73,7 @@ def worker_dispute_reasons(_worker: CurrentWorker) -> list[DisputeReasonOut]:
 def worker_payslip_dispute(
     payslip_id: UUID,
     body: DisputeCreateRequest,
-    worker: CurrentWorker,
+    worker: WorkerPasswordOk,
     db: DbSession,
 ) -> DisputeOut:
     """P4.3 — gửi khiếu nại → ticket + badge nhắc HR."""

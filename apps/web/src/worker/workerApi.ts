@@ -13,7 +13,9 @@ async function workerFetch(path: string, init: RequestInit = {}): Promise<Respon
   }
   const token = getWorkerToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(`${getApiBase()}${path}`, { ...init, headers });
+  const timeout = AbortSignal.timeout(60_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  const res = await fetch(`${getApiBase()}${path}`, { ...init, headers, signal });
   if (res.status === 401) clearWorkerAuth();
   return res;
 }
@@ -25,6 +27,7 @@ export async function workerLogin(employee_code: string, password: string): Prom
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ employee_code, password }),
+      signal: AbortSignal.timeout(60_000),
     });
   } catch {
     const host =

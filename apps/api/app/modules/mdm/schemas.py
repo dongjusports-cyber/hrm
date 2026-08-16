@@ -320,7 +320,6 @@ class UnlockResetPasswordOut(BaseModel):
     detail: str
     employee_id: UUID
     employee_code: str
-    new_password: str
     account_status: Literal["active", "locked", "resigned"]
     account_status_label: str
 

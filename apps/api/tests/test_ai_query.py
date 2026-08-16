@@ -5,7 +5,7 @@ from decimal import Decimal
 from app.modules.attendance.models import TimesheetMonth
 from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets
 from app.modules.mdm.models import Employee
-from app.modules.worker.service import DEFAULT_WORKER_PASSWORD
+from tests.worker_auth import unlocked_worker_headers
 
 
 def _admin_headers(client):
@@ -23,11 +23,7 @@ def _hr_headers(client):
 
 
 def _worker_headers(client, code="5290"):
-    token = client.post(
-        "/api/worker/login",
-        json={"employee_code": code, "password": DEFAULT_WORKER_PASSWORD},
-    ).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return unlocked_worker_headers(client, code)
 
 
 def _calc_publish_dispute(client, db) -> str:
@@ -146,6 +142,35 @@ def test_ai_query_dispute_review(client, db):
     detail = client.get(f"/api/disputes/{dispute_id}", headers=_hr_headers(client)).json()
     assert detail["status"] == "ai_reviewed"
     assert detail["ai_summary"]
+
+
+def test_ai_query_dispute_forbidden_without_payroll_or_dispute(client, db):
+    """QA-05: chỉ có ai_query + chấm công — không được đọc lương trong khiếu nại."""
+    dispute_id = _calc_publish_dispute(client, db)
+    created = client.post(
+        "/api/users",
+        headers=_admin_headers(client),
+        json={
+            "username": "tk.chamcong",
+            "full_name": "Nguyen Cham Cong",
+            "password": "ChamCong@123456",
+            "modules": ["timekeeping", "overview"],
+            "permissions": ["ai_query"],
+            "must_change_password": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    token = client.post(
+        "/api/auth/login",
+        json={"username": "tk.chamcong", "password": "ChamCong@123456"},
+    ).json()["access_token"]
+    res = client.post(
+        "/api/ai/query",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"dispute_id": dispute_id, "message": ""},
+    )
+    assert res.status_code == 403, res.text
+    assert "không có quyền rà soát khiếu nại" in res.json()["detail"]
 
 
 def test_ai_settings_admin(client):

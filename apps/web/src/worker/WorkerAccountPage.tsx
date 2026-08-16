@@ -8,7 +8,7 @@ export function WorkerAccountPage() {
   const { worker } = useWorkerAuth();
   const navigate = useNavigate();
   const forced = Boolean(worker?.must_change_password);
-  const [current, setCurrent] = useState(forced ? "1234" : "");
+  const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function WorkerAccountPage() {
 
       {forced && (
         <p className="worker-banner">
-          Lần đầu đăng nhập: hãy đặt mật khẩu mới (ít nhất 6 ký tự), khác <strong>1234</strong>, rồi
+          Lần đầu đăng nhập: hãy đặt mật khẩu mới (ít nhất 8 ký tự), khác 4 số cuối CCCD/MSNV, rồi
           mới xem phiếu lương.
         </p>
       )}

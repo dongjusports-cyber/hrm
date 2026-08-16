@@ -73,8 +73,32 @@ def _assert_no_overlap(
         )
 
 
+def _leave_days_for_date(req: LeaveRequest, cur: date) -> Decimal:
+    """1.0 cả ngày; 0.5 nếu ngày đầu from_half hoặc ngày cuối to_half (QA-04)."""
+    days = Decimal("1")
+    if cur == req.from_date and req.from_half:
+        days -= Decimal("0.5")
+    if cur == req.to_date and req.to_half:
+        days -= Decimal("0.5")
+    if days <= 0:
+        days = Decimal("0.5")
+    return days
+
+
+def _months_covering(from_date: date, to_date: date) -> list[str]:
+    out: list[str] = []
+    y, m = from_date.year, from_date.month
+    while (y, m) <= (to_date.year, to_date.month):
+        out.append(f"{y:04d}-{m:02d}")
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+    return out
+
+
 def _apply_approved_leave(db: Session, req: LeaveRequest) -> None:
-    """Gán leave_code lên attendance_days (không đụng dòng is_locked)."""
+    """Gán leave_code + leave_days lên attendance_days (không đụng dòng is_locked)."""
     cur = req.from_date
     while cur <= req.to_date:
         row = (
@@ -87,6 +111,7 @@ def _apply_approved_leave(db: Session, req: LeaveRequest) -> None:
             db.add(row)
         if not row.is_locked:
             row.leave_code = req.leave_type_code
+            row.leave_days = _leave_days_for_date(req, cur)
             row.source = "import"
         cur += timedelta(days=1)
 
@@ -226,6 +251,7 @@ def bulk_decide_leave_requests(
     skipped: list[dict] = []
     note = (decided_note or "").strip()
     now = _now()
+    rebuild_periods: set[str] = set()
 
     for rid in request_ids:
         pair = by_id.get(rid)
@@ -266,6 +292,7 @@ def bulk_decide_leave_requests(
                     days=req.total_days,
                     entry_date=req.from_date,
                 )
+            rebuild_periods.update(_months_covering(req.from_date, req.to_date))
             approved += 1
         else:
             req.status = "rejected"
@@ -275,6 +302,15 @@ def bulk_decide_leave_requests(
         req.decided_note = note
 
     db.commit()
+    # QA-10: cộng lại bảng công tháng sau khi duyệt phép (leave_code đã ghi lên ngày).
+    if rebuild_periods:
+        from app.modules.attendance.timesheet import rebuild_timesheets
+
+        for period in sorted(rebuild_periods):
+            try:
+                rebuild_timesheets(db, period, recalc_days=False)
+            except HTTPException:
+                pass
     msg = f"Đã duyệt {approved}, từ chối {rejected} đơn."
     if skipped:
         msg += f" Bỏ qua {len(skipped)} đơn."

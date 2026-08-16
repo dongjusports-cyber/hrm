@@ -86,7 +86,7 @@ def test_apply_calc_sunday_hours():
         early_minutes=0,
         ot_minutes=240,
         ot_on_books_minutes=0,
-        ot_external_minutes=240,
+        ot_external_minutes=0,
         ot_type="weekend",
         punch_count=2,
         is_workday=False,
@@ -152,6 +152,8 @@ def test_recalculate_sunday_hours(client):
     assert day["ot_type"] == "weekend"
     assert float(day["sunday_hours"]) == 4.0
     assert float(day["holiday_hours"]) == 0.0
+    assert int(day["ot_external_minutes"]) == 0
+    assert int(day["ot_minutes"]) == 240
 
 
 def test_locked_row_not_overwritten(client, db):

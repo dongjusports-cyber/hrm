@@ -268,7 +268,7 @@ export function EmployeesPage() {
     }
     const okConfirm = window.confirm(
       `Reset mật khẩu cho ${emp.full_name} (MSNV ${emp.employee_code})?\n` +
-        `Mật khẩu mới = 1234 (bắt buộc đổi lần đăng nhập sau).`,
+        `Mật khẩu mới = 4 số cuối CCCD (chưa có CCCD thì 4 số cuối MSNV). Bắt buộc đổi lần đăng nhập sau.`,
     );
     if (!okConfirm) return;
     setBusyId(emp.id);

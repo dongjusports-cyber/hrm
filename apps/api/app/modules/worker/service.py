@@ -1,4 +1,4 @@
-"""Worker auth — MSNV + mật khẩu mặc định 1234, khóa 3 lần, chặn nghỉ việc."""
+"""Worker auth — MSNV + mật khẩu mặc định 4 số cuối CCCD/MSNV, khóa 3 lần."""
 
 from __future__ import annotations
 
@@ -17,13 +17,37 @@ from app.modules.mdm.models import Employee
 from app.modules.worker.schemas import WorkerOut, WorkerTokenResponse
 
 MAX_FAILED = 3
-# Mật khẩu mặc định lần đầu — bắt buộc đổi sau khi đăng nhập
-DEFAULT_WORKER_PASSWORD = "1234"
 MSG_INACTIVE = "Tài khoản đã ngưng hoạt động do nhân sự đã nghỉ việc."
 MSG_LOCKED = (
     "Tài khoản đã bị khóa do nhập sai mật khẩu 3 lần. "
     "Vui lòng liên hệ phòng Nhân sự (HR) để mở khóa."
 )
+
+
+def _digits_only(value: str | None) -> str:
+    return "".join(ch for ch in (value or "") if ch.isdigit())
+
+
+def default_password_from_cccd(id_number: str | None, employee_code: str = "") -> str:
+    """Mật khẩu mặc định: 4 số cuối CCCD; chưa có CCCD thì 4 số cuối MSNV."""
+    cccd_digits = _digits_only(id_number)
+    if len(cccd_digits) >= 4:
+        return cccd_digits[-4:]
+    code_digits = _digits_only(employee_code)
+    if len(code_digits) >= 4:
+        return code_digits[-4:]
+    if code_digits:
+        return code_digits.zfill(4)
+    return "0000"
+
+
+def default_worker_password(emp: Employee) -> str:
+    return default_password_from_cccd(emp.id_number, emp.employee_code)
+
+
+def default_worker_reset_password(emp: Employee) -> str:
+    """HR mở khóa / tạo tài khoản — bắt buộc đổi lần đăng nhập sau."""
+    return default_worker_password(emp)
 
 
 def worker_to_out(user: User, employee_code: str) -> WorkerOut:
@@ -110,10 +134,15 @@ def change_worker_password(
             status_code=400,
             detail=f"Trợ Lý AI xin chào {user.full_name}, mật khẩu hiện tại không đúng.",
         )
-    if new_password.strip() == DEFAULT_WORKER_PASSWORD:
+    emp = _employee_for_user(db, user)
+    default_pw = default_worker_password(emp) if emp is not None else ""
+    if new_password.strip() == default_pw:
         raise HTTPException(
             status_code=400,
-            detail="Trợ Lý AI: vui lòng chọn mật khẩu mới khác mật khẩu mặc định 1234.",
+            detail=(
+                "Trợ Lý AI: vui lòng chọn mật khẩu mới khác mật khẩu mặc định "
+                "(4 số cuối CCCD hoặc MSNV)."
+            ),
         )
     if len(new_password) < 6:
         raise HTTPException(
@@ -125,19 +154,8 @@ def change_worker_password(
     db.commit()
 
 
-def default_worker_reset_password() -> str:
-    """HR mở khóa / seed — mật khẩu mặc định 1234, bắt buộc đổi lần sau."""
-    return DEFAULT_WORKER_PASSWORD
-
-
-def default_password_from_cccd(id_number: str | None) -> str:
-    """Giữ tương thích cũ — ưu tiên mật khẩu mặc định 1234."""
-    _ = id_number
-    return DEFAULT_WORKER_PASSWORD
-
-
 def seed_worker_accounts(db: Session) -> int:
-    """Tạo tài khoản worker cho NV (MSNV = username, mật khẩu 1234)."""
+    """Tạo tài khoản worker cho NV (MSNV = username, mật khẩu 4 số cuối CCCD/MSNV)."""
     created = 0
     employees = db.query(Employee).filter(Employee.deleted_at.is_(None)).all()
     for emp in employees:
@@ -152,7 +170,7 @@ def seed_worker_accounts(db: Session) -> int:
             User(
                 username=emp.employee_code,
                 full_name=emp.full_name,
-                password_hash=hash_password(DEFAULT_WORKER_PASSWORD),
+                password_hash=hash_password(default_worker_password(emp)),
                 role="worker",
                 employee_id=emp.id,
                 must_change_password=True,

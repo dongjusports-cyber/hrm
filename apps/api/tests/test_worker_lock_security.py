@@ -2,7 +2,8 @@
 
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
-from app.modules.worker.service import DEFAULT_WORKER_PASSWORD
+from app.modules.worker.service import default_password_from_cccd
+from tests.worker_auth import default_login_password
 
 
 def _hr_headers(client):
@@ -32,7 +33,7 @@ def test_worker_lock_after_3_failures(client, db):
 
     still = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": DEFAULT_WORKER_PASSWORD},
+        json={"employee_code": code, "password": default_login_password(code)},
     )
     assert still.status_code == 423
 
@@ -43,11 +44,35 @@ def test_worker_lock_after_3_failures(client, db):
         headers=_hr_headers(client),
     )
     assert unlock.status_code == 200, unlock.text
-    assert unlock.json()["new_password"] == DEFAULT_WORKER_PASSWORD
+    body = unlock.json()
+    assert "new_password" not in body
+    expect_pw = default_password_from_cccd(emp.id_number, emp.employee_code)
+    assert f"Mật khẩu mới: {expect_pw}" in body["detail"]
 
     ok = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": DEFAULT_WORKER_PASSWORD},
+        json={"employee_code": code, "password": default_login_password(code)},
+    )
+    assert ok.status_code == 200, ok.text
+
+
+def test_unlock_reset_password_uses_cccd_last4(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.id_number = "001234567890"
+    db.commit()
+
+    unlock = client.post(
+        f"/api/employees/{emp.id}/unlock-reset-password",
+        headers=_hr_headers(client),
+    )
+    assert unlock.status_code == 200, unlock.text
+    body = unlock.json()
+    assert "new_password" not in body
+    assert "Mật khẩu mới: 7890" in body["detail"]
+
+    ok = client.post(
+        "/api/worker/login",
+        json={"employee_code": "5290", "password": "7890"},
     )
     assert ok.status_code == 200, ok.text
 
@@ -65,7 +90,7 @@ def test_resigned_worker_cannot_login(client, db):
 
     res = client.post(
         "/api/worker/login",
-        json={"employee_code": "1514", "password": DEFAULT_WORKER_PASSWORD},
+        json={"employee_code": "1514", "password": default_login_password("1514")},
     )
     assert res.status_code == 403
     assert res.json()["detail"] == "Tài khoản đã ngưng hoạt động do nhân sự đã nghỉ việc."

@@ -167,31 +167,50 @@ ALLOWED_DOC_TYPE_CODES = frozenset(
 CATEGORIES = {"direct", "prod_indirect", "admin_indirect"}
 
 
-def _photo_dir() -> Path:
+def _photo_dir(*, create: bool = True) -> Path:
     root = Path(get_settings().upload_dir).expanduser().resolve() / "employee_photos"
-    root.mkdir(parents=True, exist_ok=True)
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
     return root
 
 
-def _employee_photo_file(emp: Employee) -> Path | None:
-    """Tìm file ảnh NV trên đĩa.
+def _is_under_root(root: Path, candidate: Path) -> bool:
+    try:
+        resolved = candidate.resolve()
+        root_r = root.resolve()
+        return resolved == root_r or root_r in resolved.parents
+    except OSError:
+        return False
 
-    photo_path trong DB có thể là tên file (chuẩn) hoặc path tuyệt đối Windows
-    do script import chạy trên host — API Docker/Linux phải resolve qua upload_dir.
-    """
-    if not emp.photo_path:
+
+def _safe_file_under(root: Path, stored: str | Path) -> Path | None:
+    """Chỉ trả file nếu nằm trong root (QA-09 — không theo path tuyệt đối ngoài thư mục upload)."""
+    raw = Path(stored)
+    name = raw.name
+    if not name or name in {".", ".."}:
         return None
-    stored = Path(emp.photo_path)
-    root = _photo_dir()
-    for candidate in (
-        stored,
-        root / stored.name,
-        root / f"{emp.id}.jpg",
-        root / f"{emp.id}.jpeg",
-        root / f"{emp.id}.png",
-    ):
-        if candidate.is_file():
-            return candidate
+    candidate = root / name
+    try:
+        if not candidate.is_file():
+            return None
+    except OSError:
+        return None
+    if not _is_under_root(root, candidate):
+        return None
+    return candidate.resolve()
+
+
+def _employee_photo_file(emp: Employee) -> Path | None:
+    """Tìm file ảnh NV trên đĩa — chỉ trong thư mục employee_photos."""
+    root = _photo_dir(create=False)
+    if emp.photo_path:
+        found = _safe_file_under(root, emp.photo_path)
+        if found is not None:
+            return found
+    for name in (f"{emp.id}.jpg", f"{emp.id}.jpeg", f"{emp.id}.png", f"{emp.id}.webp"):
+        found = _safe_file_under(root, name)
+        if found is not None:
+            return found
     return None
 
 
@@ -1003,7 +1022,7 @@ def update_employee(db: Session, emp_id: UUID, body: EmployeeUpdate) -> Employee
 def unlock_and_reset_worker_password(
     db: Session, emp_id: UUID, actor: User
 ) -> UnlockResetPasswordOut:
-    """HR mở khóa + đặt lại mật khẩu Worker + 4 số cuối CCCD."""
+    """HR mở khóa + đặt lại mật khẩu Worker (4 số cuối CCCD, không có thì 4 số cuối MSNV)."""
     emp = (
         db.query(Employee)
         .options(joinedload(Employee.team).joinedload(Team.department))
@@ -1018,7 +1037,7 @@ def unlock_and_reset_worker_password(
             detail="Trợ Lý AI: nhân viên đã nghỉ việc — không mở khóa đăng nhập.",
         )
 
-    new_password = default_worker_reset_password()
+    new_password = default_worker_reset_password(emp)
     user = _worker_user_for_employee(db, emp)
     if user is None:
         user = User(
@@ -1063,7 +1082,6 @@ def unlock_and_reset_worker_password(
         ),
         employee_id=emp.id,
         employee_code=emp.employee_code,
-        new_password=new_password,
         account_status=acct["account_status"],
         account_status_label=acct["account_status_label"],
     )
@@ -1104,10 +1122,10 @@ def upload_employee_photo(
 
     ext = PHOTO_TYPES[ctype]
     dest = _photo_dir() / f"{emp.id}{ext}"
-    # xóa ảnh cũ khác đuôi
+    # xóa ảnh cũ khác đuôi — chỉ trong thư mục upload
     if emp.photo_path:
-        old = Path(emp.photo_path)
-        if old.is_file() and old.resolve() != dest.resolve():
+        old = _safe_file_under(_photo_dir(), emp.photo_path)
+        if old is not None and old != dest.resolve():
             try:
                 old.unlink()
             except OSError:
@@ -1787,10 +1805,10 @@ def delete_violation(db: Session, emp_id: UUID, violation_id: UUID, *, actor: Us
     if row is None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy biên bản vi phạm.")
     if row.attachment_path:
-        path = Path(row.attachment_path)
-        if path.is_file():
+        old = _safe_file_under(_violation_dir(emp.id), row.attachment_path)
+        if old is not None:
             try:
-                path.unlink()
+                old.unlink()
             except OSError:
                 pass
     db.delete(row)
@@ -1821,10 +1839,11 @@ def resolve_violation_attachment(db: Session, emp_id: UUID, violation_id: UUID) 
     if row is None or not row.attachment_path:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không có file biên bản.")
     path = Path(row.attachment_path)
-    if not path.is_file():
+    safe = _safe_file_under(_violation_dir(emp.id), path)
+    if safe is None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy file biên bản.")
-    ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    return path, ctype
+    ctype = mimetypes.guess_type(safe.name)[0] or "application/octet-stream"
+    return safe, ctype
 
 
 def list_violation_board(db: Session) -> list[EmployeeViolationBoardItem]:
@@ -1969,10 +1988,10 @@ def delete_document(db: Session, emp_id: UUID, document_id: UUID, *, actor: User
     if row is None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy hồ sơ giấy.")
     if row.file_path:
-        path = Path(row.file_path)
-        if path.is_file():
+        old = _safe_file_under(_document_dir(emp.id), row.file_path)
+        if old is not None:
             try:
-                path.unlink()
+                old.unlink()
             except OSError:
                 pass
     db.delete(row)
@@ -2003,10 +2022,11 @@ def resolve_document_file(db: Session, emp_id: UUID, document_id: UUID) -> tuple
     if row is None or not row.file_path:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không có file hồ sơ.")
     path = Path(row.file_path)
-    if not path.is_file():
+    safe = _safe_file_under(_document_dir(emp.id), path)
+    if safe is None:
         raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy file hồ sơ.")
-    ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    return path, ctype
+    ctype = mimetypes.guess_type(safe.name)[0] or "application/octet-stream"
+    return safe, ctype
 
 
 # --- 5.2 labour_contracts ---

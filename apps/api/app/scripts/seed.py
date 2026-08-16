@@ -11,7 +11,7 @@ from app.modules.calendar import models as calendar_models  # noqa: F401
 from app.modules.calendar.service import seed_calendar
 from app.modules.mdm import models as mdm_models  # noqa: F401
 from app.modules.mdm.service import seed_mdm
-from app.modules.worker.service import DEFAULT_WORKER_PASSWORD, seed_worker_accounts
+from app.modules.worker.service import default_password_from_cccd, seed_worker_accounts
 from app.modules.dispute import models as dispute_models  # noqa: F401
 from app.modules.payroll import models as payroll_models  # noqa: F401
 from app.modules.ai import models as ai_models  # noqa: F401
@@ -38,7 +38,10 @@ def main() -> None:
         print("Seed xong:", result, "policy=", pkg.name, "mdm=", mdm, "workers=", workers)
         print("Admin đăng nhập bằng ADMIN_USERNAME / ADMIN_PASSWORD trong .env")
         print("User demo: hr.demo / HrDemo@123456 (7 module, không Cấu Hình)")
-        print(f"Worker demo: MSNV 5290 / {DEFAULT_WORKER_PASSWORD} (cổng /worker)")
+        print(
+            "Worker demo: MSNV 5290 / "
+            f"{default_password_from_cccd(None, '5290')} (4 số cuối CCCD hoặc MSNV, cổng /worker)"
+        )
     finally:
         db.close()
 

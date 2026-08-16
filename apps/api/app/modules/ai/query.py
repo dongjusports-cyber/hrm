@@ -26,6 +26,7 @@ from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
 from app.modules.dispute.reasons import REASON_LABELS
+from app.modules.dispute.service import user_can_view_disputes
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import Payslip, PolicySnapshot
 
@@ -129,6 +130,14 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
     context_block = ""
     kind = "chat"
     if body.dispute_id is not None:
+        if not user_can_view_disputes(user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trợ Lý AI xin chào {user.full_name}, "
+                    "bạn không có quyền rà soát khiếu nại lương."
+                ),
+            )
         dispute, context_block = _dispute_context(db, body.dispute_id)
         kind = "dispute_review"
         if not message:

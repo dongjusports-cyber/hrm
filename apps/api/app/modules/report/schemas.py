@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
+from app.modules.ai.schemas import TodoCardOut
+
 
 class ManpowerBucket(BaseModel):
     category: str
@@ -63,14 +65,4 @@ class OverviewOut(BaseModel):
     turnover_rate_pct: Decimal | None
     recent_alerts: list[dict]
     by_department: list[DeptKpiRow]
-    todo_cards: list["TodoCardOut"] = []
-
-
-class TodoCardOut(BaseModel):
-    key: str
-    title: str
-    body: str
-    count: int
-    target_module: str
-    href: str
-    priority: int = 100
+    todo_cards: list[TodoCardOut] = []

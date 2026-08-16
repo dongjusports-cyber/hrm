@@ -4,44 +4,10 @@ NO KY THUAT — DJ-HRM (sua 1 lan sau)
 Danh sach loi da biet, CHUA sua. User yeu cau ghi no — khong code voi.
 
 --------------------------------------------------------------------------------
-[REP-OV001] Tong Quan khong hien thi — GET /api/reports/overview HTTP 500
+[REP-OV001] Tong Quan HTTP 500 — DA SUA 2026-08-16 (QA-02)
 --------------------------------------------------------------------------------
-Phat hien: 2026-08-15
-Trang thai: CHUA SUA (no ky thuat)
-
-Trieu chung:
-  - Portal van co o «Tong Quan»
-  - Vao /m/overview → «Dang tai…» hoac banner loi, KPI/bieu do khong ra
-
-Nguyen nhan (da xac nhan tren VPS):
-  GET /api/reports/overview?period=YYYY-MM → 500
-
-  Log djhrm-api:
-    ValidationError: OverviewOut.todo_cards.0
-    Input should be valid dict or instance of TodoCardOut
-    input_value=TodoCardOut(key='expiring_contracts'...)  ← tu ai/schemas
-    OverviewOut mong doi TodoCardOut tu report/schemas  ← HAI class trung ten
-
-  Hai file:
-    apps/api/app/modules/ai/schemas.py       → TodoCardOut (compute_todo_cards)
-    apps/api/app/modules/report/schemas.py     → TodoCardOut (OverviewOut)
-
-  Chi loi khi todo_cards KHONG RONG (VPS co HD sap het han).
-  pytest local pass vi test DB thuong todo_cards=[].
-
-Huong sua (1 lan, gom het):
-  1. Giu MOT TodoCardOut — import tu ai/schemas vao report (hoac nguoc lai), xoa ban trung.
-  2. Hoac: todo_cards=[c.model_dump() for c in cards] trong report/service.py overview().
-  3. Test moi: overview co expiring contract → status 200 + todo_cards.length >= 1
-     (test hien tai test_overview_includes_todo_cards chi check key ton tai, khong seed HD).
-
-  Tuy chon UI (cung dot sua): OverviewPage.tsx chua render todo_cards — chi KPI + HC/OT.
-
-Kiem tra sau khi sua:
-  curl /api/reports/overview?period=2026-08 (VPS) → 200
-  Mo web /m/overview → 4 the KPI + HC/OT theo bo phan
-
-Ghi nho AI: user noi «Tong Quan khong hien thi» → check API 500 truoc, khong doan JSON/cache.
+Chuyen sang Thien-Admin/LOI-DA-SUA.txt muc [QA-02] / [REP-OV001].
+Giu MOT TodoCardOut tu ai/schemas; test overview co HD het han → 200.
 
 --------------------------------------------------------------------------------
 (chen them muc no moi o day, gom dot sua sau)

@@ -46,6 +46,38 @@ def test_rebuild_timesheet_from_punches(client):
     assert float(row["ot_hours_weekday"]) == 0.0  # 17:05 < 17:15 (ot_split grace)
 
 
+def test_rebuild_sunday_ot_goes_to_weekend_not_external(client):
+    """QA-01: Chủ nhật 4 giờ → ot_hours_weekend, không vào OT ngoài ATM."""
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-05T08:00:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-05T12:00:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    rebuild = client.post(
+        "/api/attendance/timesheets/rebuild",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert rebuild.status_code == 200, rebuild.text
+    sheets = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert sheets.status_code == 200
+    row = next(r for r in sheets.json() if r["employee_code"] == "5290")
+    assert float(row["ot_hours_weekend"]) == 4.0
+    assert float(row["ot_hours_holiday"]) == 0.0
+    assert float(row["ot_hours_external"]) == 0.0
+    assert float(row["ot_hours_weekday"]) == 0.0
+
+
 def test_manual_leave_and_ot_adjustment(client):
     headers = _hr_headers(client)
     leaves = client.get("/api/attendance/leave-types", headers=headers)
@@ -115,3 +147,23 @@ def test_pay_period_oct_2025_divisor(client):
     body = res.json()
     assert body["status"] == "open"
     assert float(body["salary_divisor"]) == 26.0
+
+
+def test_get_timesheets_does_not_refresh_open_divisor(client, db):
+    """QA-07: mở bảng công (GET) không UPDATE lại kỳ lương đang mở."""
+    from decimal import Decimal
+
+    from app.modules.attendance.models import PayPeriod
+    from app.modules.attendance.timesheet import ensure_pay_period
+
+    pay = ensure_pay_period(db, "2025-10", refresh_open=True)
+    pay.salary_divisor = Decimal("99")
+    db.commit()
+
+    headers = _hr_headers(client)
+    res = client.get("/api/attendance/timesheets", headers=headers, params={"period": "2025-10"})
+    assert res.status_code == 200, res.text
+
+    db.expire_all()
+    again = db.query(PayPeriod).filter(PayPeriod.id == pay.id).one()
+    assert Decimal(again.salary_divisor) == Decimal("99")

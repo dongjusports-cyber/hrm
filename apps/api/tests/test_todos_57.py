@@ -62,3 +62,27 @@ def test_overview_includes_todo_cards(client, db):
     res = client.get("/api/reports/overview", headers=headers, params={"period": period})
     assert res.status_code == 200
     assert "todo_cards" in res.json()
+
+
+def test_overview_ok_when_todo_cards_nonempty(client, db):
+    """QA-02 / REP-OV001: HĐ sắp hết hạn → overview 200, không 500 vì TodoCardOut trùng."""
+    headers = _hr_headers(client)
+    emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
+    today = date.today()
+    db.add(
+        LabourContract(
+            employee_id=emp.id,
+            contract_type_code="HD1",
+            start_date=today - timedelta(days=200),
+            end_date=today + timedelta(days=20),
+            base_salary=8335000,
+            status="active",
+        )
+    )
+    db.commit()
+    period = f"{today.year:04d}-{today.month:02d}"
+    res = client.get("/api/reports/overview", headers=headers, params={"period": period})
+    assert res.status_code == 200, res.text
+    cards = res.json()["todo_cards"]
+    assert len(cards) >= 1
+    assert any(c["key"] == "expiring_contracts_60d" for c in cards)
