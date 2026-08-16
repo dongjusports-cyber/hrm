@@ -1,5 +1,5 @@
 /* PWA Worker — cache shell để cài lên màn hình ĐT. */
-const CACHE = "dj-hrm-worker-v3";
+const CACHE = "dj-hrm-worker-v4";
 const ASSETS = [
   "/",
   "/worker/login",

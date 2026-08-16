@@ -34,6 +34,81 @@ def _classify(code: str, kind: str, leave_codes: frozenset[str]) -> str:
     return "allowance"
 
 
+def _classify_worker_section(code: str, kind: str, leave_codes: frozenset[str]) -> str:
+    """Worker mobile — tách ngày nghỉ (section II) khỏi công/OT (section I)."""
+    if kind == "deduction" or code in DEDUCTION_CODES:
+        return "deduction"
+    if code in WORK_CODES:
+        return "work"
+    if code in leave_codes:
+        return "leave"
+    return "allowance"
+
+
+def _day_target(salary_divisor: Decimal | None, unit: str | None) -> Decimal | None:
+    if salary_divisor is None or salary_divisor <= 0 or not unit:
+        return None
+    u = unit.lower()
+    if u in ("day", "ngày", "days"):
+        return salary_divisor
+    return None
+
+
+def _worker_line_dict(
+    comp_row,
+    pc,
+    salary_divisor: Decimal | None,
+    *,
+    deduction: bool = False,
+) -> dict:
+    label = pc.name
+    if comp_row.note:
+        label = f"{label} — {comp_row.note}"
+    amt = comp_row.amount
+    if deduction:
+        amt = abs(amt)
+    return {
+        "label": label,
+        "amount": amt,
+        "quantity": comp_row.quantity,
+        "unit": comp_row.unit,
+        "target": _day_target(salary_divisor, comp_row.unit),
+    }
+
+
+def _sum_line_amounts(lines: list[dict]) -> Decimal | None:
+    if not lines:
+        return None
+    return sum(Decimal(str(ln["amount"])) for ln in lines)
+
+
+def group_payslip_worker_sections(
+    db: Session, payslip_id: UUID, salary_divisor: Decimal | None
+) -> tuple[list[dict], list[dict], list[dict], list[dict]] | None:
+    """Nhóm phiếu worker: công / nghỉ / phụ cấp / khấu trừ (WK-I003)."""
+    rows = list_payslip_components(db, payslip_id)
+    if not rows:
+        return None
+    leave_codes = _leave_codes(db)
+    work_lines: list[dict] = []
+    leave_lines: list[dict] = []
+    allowance_lines: list[dict] = []
+    deduction_lines: list[dict] = []
+    for comp_row, pc in rows:
+        bucket = _classify_worker_section(comp_row.component_code, pc.kind, leave_codes)
+        if bucket == "deduction":
+            deduction_lines.append(
+                _worker_line_dict(comp_row, pc, salary_divisor, deduction=True)
+            )
+        elif bucket == "work":
+            work_lines.append(_worker_line_dict(comp_row, pc, salary_divisor))
+        elif bucket == "leave":
+            leave_lines.append(_worker_line_dict(comp_row, pc, salary_divisor))
+        else:
+            allowance_lines.append(_worker_line_dict(comp_row, pc, salary_divisor))
+    return work_lines, leave_lines, allowance_lines, deduction_lines
+
+
 def _component_out(row, pc) -> PayslipComponentOut:
     return PayslipComponentOut(
         id=row.id,

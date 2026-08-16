@@ -313,3 +313,30 @@ Test (đã pass):
 
 Ghi nhớ AI: worker portal ≠ portal HR — tách nền body; đổi CSS worker thì bump sw cache.
 
+[WK-I003] Phiếu lương mobile layout Genus (5 section, thiếu → —) — 2026-08-16
+----------------------------------------------------------------------
+Mục tiêu:
+  B1 — giao diện gần bảng lương chi tiết GenusSuite trên điện thoại; thiếu dữ liệu hiện «—».
+
+Cách làm (read-only — không đụng tính lương / xác nhận / khiếu nại):
+  API:
+  - payslip_detail.group_payslip_worker_sections: tách công / nghỉ / phụ cấp / khấu trừ
+  - PayslipLineOut: label, amount, quantity, unit, target (TV = salary_divisor cho ĐVT ngày)
+  - WorkerPayslipDetailOut: header (bộ phận, tổ, chức vụ, lương TV/CB — không ngày vào),
+    taxable_income, subtotal mỗi section, phép năm (còn lại; hiện tại/đã dùng = null → —)
+  Web:
+  - WorkerPayslipPage: I–V section + bảng Mô tả/ĐVT/TV/CT/Tiền
+  - workerPayslipDisplay.tsx: format — khi null
+  - sw.js dj-hrm-worker-v4
+
+Quy tắc hiển thị:
+  - Field/API null → UI «—»; có số → hiện số (kể 0 đ)
+  - Lương TV/CB: chỉ hiện khi > 0, else —
+  - Sau khi engine/J2 bổ sung dòng → tự hiện, không sửa UI
+
+Test (đã pass):
+  cd apps/api && py -3.12 -m pytest tests/test_worker_payslips.py -q
+  cd apps/web && npm run build
+
+LOI: WK-I002 (nền xanh), WK-I001 (3 accordion).
+

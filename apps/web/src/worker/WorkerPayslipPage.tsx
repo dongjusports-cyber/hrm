@@ -9,6 +9,13 @@ import {
   type WorkerPayslipDetail,
 } from "./workerApi";
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from "../shared/formatDate";
+import {
+  formatWorkerQty,
+  formatWorkerVnd,
+  periodTitle,
+  WorkerPayslipHeaderGrid,
+  WorkerPayslipSectionTable,
+} from "./workerPayslipDisplay";
 
 const STATUS_VI: Record<string, string> = {
   published: "Chờ xác nhận",
@@ -18,22 +25,13 @@ const STATUS_VI: Record<string, string> = {
   expired: "Hết hạn xác nhận",
 };
 
-function formatVnd(v: string | number): string {
-  const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n.toLocaleString("vi-VN") + " đ";
-}
-
-/** Chi tiết phiếu — confirm P4.2 · khiếu nại P4.3 (không AI). */
+/** Chi tiết phiếu Genus-style — confirm P4.2 · khiếu nại P4.3 (WK-I003). */
 export function WorkerPayslipPage() {
   const { payslipId = "" } = useParams();
   const [slip, setSlip] = useState<WorkerPayslipDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [openWork, setOpenWork] = useState(true);
-  const [openAllowance, setOpenAllowance] = useState(false);
-  const [openDeduct, setOpenDeduct] = useState(false);
   const [showDispute, setShowDispute] = useState(false);
   const [reasons, setReasons] = useState<DisputeReason[]>([]);
   const [reasonCode, setReasonCode] = useState("");
@@ -131,29 +129,20 @@ export function WorkerPayslipPage() {
   }
 
   return (
-    <div className="worker-page worker-payslip-detail">
+    <div className="worker-page worker-payslip-detail worker-payslip-genus">
       <header className="worker-detail-head">
         <Link to="/worker" className="worker-back">
           ← Phiếu lương
         </Link>
-        <p className="worker-hello">Kỳ {slip.period}</p>
+        <h1 className="worker-slip-doc-title">
+          Bảng lương chi tiết tháng {periodTitle(slip.period)}
+        </h1>
         <span className={`worker-status worker-status-${slip.status}`}>
           {STATUS_VI[slip.status] ?? slip.status}
         </span>
       </header>
 
-      <section className="worker-net-hero" aria-label="Thực lãnh">
-        <p>Thực lãnh</p>
-        <h1>{formatVnd(slip.net)}</h1>
-        <p className="worker-gross-hint">Tổng thu nhập {formatVnd(slip.gross)}</p>
-        {(slip.worked_days != null || slip.al_days != null) && (
-          <p className="worker-days-hint">
-            Công {slip.worked_days ?? "—"}
-            {slip.al_days != null ? ` · AL ${slip.al_days}` : ""}
-            {slip.rem_days != null ? ` · REM ${slip.rem_days}` : ""}
-          </p>
-        )}
-      </section>
+      <WorkerPayslipHeaderGrid slip={slip} />
 
       <p className="worker-hint">{slip.message}</p>
       {ticketCode && (
@@ -162,68 +151,67 @@ export function WorkerPayslipPage() {
         </p>
       )}
 
-      <div className="worker-accordion">
-        <button
-          type="button"
-          className="worker-acc-head"
-          aria-expanded={openWork}
-          onClick={() => setOpenWork((v) => !v)}
-        >
-          Công &amp; nghỉ phép
-        </button>
-        {openWork && (
-          <ul className="worker-money-list">
-            {slip.work_lines.map((line) => (
-              <li key={line.label}>
-                <span>{line.label}</span>
-                <strong>{formatVnd(line.amount)}</strong>
-              </li>
-            ))}
-          </ul>
-        )}
+      <WorkerPayslipSectionTable
+        title="I. Ngày công — tiền lương"
+        lines={slip.work_lines}
+        subtotalLabel="Lương ngày công"
+        subtotal={slip.work_subtotal}
+      />
+
+      <WorkerPayslipSectionTable
+        title="II. Ngày nghỉ"
+        lines={slip.leave_lines}
+        subtotalLabel="Lương ngày nghỉ"
+        subtotal={slip.leave_subtotal}
+      />
+
+      <WorkerPayslipSectionTable
+        title="III. Các khoản trợ cấp"
+        lines={slip.allowance_lines}
+        subtotalLabel="Tổng trợ cấp"
+        subtotal={slip.allowance_subtotal}
+      />
+
+      <div className="worker-slip-summary-block">
+        <div className="worker-slip-summary-row">
+          <span>Tổng thu nhập</span>
+          <strong>{formatWorkerVnd(slip.gross)}</strong>
+        </div>
+        <div className="worker-slip-summary-row">
+          <span>Thu nhập chịu thuế</span>
+          <strong>{formatWorkerVnd(slip.taxable_income)}</strong>
+        </div>
       </div>
 
-      <div className="worker-accordion">
-        <button
-          type="button"
-          className="worker-acc-head"
-          aria-expanded={openAllowance}
-          onClick={() => setOpenAllowance((v) => !v)}
-        >
-          Phụ cấp
-        </button>
-        {openAllowance && (
-          <ul className="worker-money-list">
-            {slip.allowance_lines.map((line) => (
-              <li key={line.label}>
-                <span>{line.label}</span>
-                <strong>{formatVnd(line.amount)}</strong>
-              </li>
-            ))}
-          </ul>
-        )}
+      <WorkerPayslipSectionTable
+        title="IV. Các khoản khấu trừ"
+        lines={slip.deduction_lines}
+        subtotalLabel="Tổng khấu trừ"
+        subtotal={slip.deduction_subtotal}
+      />
+
+      <div className="worker-slip-net-block" aria-label="Thực lãnh">
+        <span>Thực lãnh</span>
+        <strong>{formatWorkerVnd(slip.net)}</strong>
       </div>
 
-      <div className="worker-accordion">
-        <button
-          type="button"
-          className="worker-acc-head"
-          aria-expanded={openDeduct}
-          onClick={() => setOpenDeduct((v) => !v)}
-        >
-          Khấu trừ
-        </button>
-        {openDeduct && (
-          <ul className="worker-money-list">
-            {slip.deduction_lines.map((line) => (
-              <li key={line.label}>
-                <span>{line.label}</span>
-                <strong>{formatVnd(line.amount)}</strong>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <section className="worker-slip-section worker-slip-al-section" aria-label="Phép năm">
+        <h2 className="worker-slip-section-title">V. Phép năm</h2>
+        <div className="worker-slip-al-grid">
+          <div>
+            <span>Phép năm hiện tại</span>
+            <strong>{formatWorkerQty(slip.annual_leave_entitled)}</strong>
+          </div>
+          <div>
+            <span>Phép năm đã dùng</span>
+            <strong>{formatWorkerQty(slip.annual_leave_used)}</strong>
+          </div>
+          <div>
+            <span>Phép năm còn lại</span>
+            <strong>{formatWorkerQty(slip.annual_leave_remaining)}</strong>
+          </div>
+        </div>
+      </section>
 
       {actionError && <p className="worker-error">{actionError}</p>}
 

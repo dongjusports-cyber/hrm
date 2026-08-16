@@ -49,7 +49,13 @@ export type WorkerPayslipListItem = {
   confirm_deadline: string | null;
 };
 
-export type MoneyLine = { label: string; amount: string | number };
+export type PayslipLine = {
+  label: string;
+  amount: string | number;
+  quantity: string | number | null;
+  unit: string | null;
+  target: string | number | null;
+};
 
 export type WorkerPayslipDetail = {
   id: string;
@@ -57,19 +63,35 @@ export type WorkerPayslipDetail = {
   status: string;
   employee_code: string;
   full_name: string;
+  department_name: string | null;
+  team_name: string | null;
+  position_title: string | null;
+  probation_salary: string | number | null;
+  contract_salary: string | number | null;
   net: string | number;
   gross: string | number;
+  taxable_income: string | number;
   wd_salary: string | number;
   allowance_total: string | number;
   ot_pay: string | number;
+  other_adjustments: string | number;
   worked_days: string | number | null;
   al_days: string | number | null;
   rem_days: string | number | null;
+  salary_divisor: string | number | null;
+  work_subtotal: string | number | null;
+  leave_subtotal: string | number | null;
+  allowance_subtotal: string | number | null;
+  deduction_subtotal: string | number | null;
+  annual_leave_entitled: string | number | null;
+  annual_leave_used: string | number | null;
+  annual_leave_remaining: string | number | null;
   confirm_deadline: string | null;
   confirmed_at: string | null;
-  work_lines: MoneyLine[];
-  allowance_lines: MoneyLine[];
-  deduction_lines: MoneyLine[];
+  work_lines: PayslipLine[];
+  leave_lines: PayslipLine[];
+  allowance_lines: PayslipLine[];
+  deduction_lines: PayslipLine[];
   can_confirm: boolean;
   can_dispute: boolean;
   message: string;

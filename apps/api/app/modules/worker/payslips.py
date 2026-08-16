@@ -3,20 +3,31 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.modules.attendance.annual_leave_ledger import annual_leave_remaining
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Employee, Team
 from app.modules.payroll.models import Payslip
-from app.modules.payroll.payslip_detail import group_payslip_money_lines
-from app.modules.worker.schemas import WorkerPayslipDetailOut, WorkerPayslipListOut
+from app.modules.payroll.payslip_detail import (
+    _day_target,
+    _sum_line_amounts,
+    group_payslip_worker_sections,
+)
+from app.modules.worker.schemas import PayslipLineOut, WorkerPayslipDetailOut, WorkerPayslipListOut
 
 # CN chỉ thấy phiếu đã phát hành trở đi — không thấy draft
 VISIBLE = ("published", "confirmed", "disputed", "resolved", "expired")
+
+_EMPLOYEE_LOAD = (
+    joinedload(Employee.team).joinedload(Team.department),
+    joinedload(Employee.position),
+)
 
 
 def _require_employee(worker: User) -> UUID:
@@ -79,6 +90,7 @@ def get_worker_payslip(db: Session, worker: User, payslip_id: UUID) -> WorkerPay
         db.query(Payslip, PayPeriod, Employee, TimesheetMonth)
         .join(PayPeriod, PayPeriod.id == Payslip.pay_period_id)
         .join(Employee, Employee.id == Payslip.employee_id)
+        .options(_EMPLOYEE_LOAD)
         .outerjoin(
             TimesheetMonth,
             (TimesheetMonth.pay_period_id == Payslip.pay_period_id)
@@ -112,6 +124,7 @@ def confirm_worker_payslip(
         db.query(Payslip, PayPeriod, Employee, TimesheetMonth)
         .join(PayPeriod, PayPeriod.id == Payslip.pay_period_id)
         .join(Employee, Employee.id == Payslip.employee_id)
+        .options(_EMPLOYEE_LOAD)
         .outerjoin(
             TimesheetMonth,
             (TimesheetMonth.pay_period_id == Payslip.pay_period_id)
@@ -160,25 +173,72 @@ def confirm_worker_payslip(
     return _to_detail(slip, pay, emp, ts, db)
 
 
-def _fallback_money_lines(slip: Payslip) -> tuple[list[dict], list[dict], list[dict]]:
-    """Hồi quy khi chưa có payslip_components — tách work / allowance / deduction."""
+def _line_out(raw: dict) -> PayslipLineOut:
+    return PayslipLineOut(
+        label=raw["label"],
+        amount=raw["amount"],
+        quantity=raw.get("quantity"),
+        unit=raw.get("unit"),
+        target=raw.get("target"),
+    )
+
+
+def _fallback_worker_sections(
+    slip: Payslip, pay: PayPeriod, ts: TimesheetMonth | None
+) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Hồi quy khi chưa có payslip_components."""
+    divisor = pay.salary_divisor if pay.salary_divisor > 0 else None
+    wd_qty = ts.worked_days if ts else None
     work = [
-        {"label": "Lương ngày công", "amount": slip.wd_salary},
-        {"label": "Tăng ca (OT)", "amount": slip.ot_pay},
+        {
+            "label": "Lương ngày công",
+            "amount": slip.wd_salary,
+            "quantity": wd_qty,
+            "unit": "day" if wd_qty is not None else None,
+            "target": _day_target(divisor, "day"),
+        },
+        {
+            "label": "Tăng ca (OT)",
+            "amount": slip.ot_pay,
+            "quantity": None,
+            "unit": None,
+            "target": None,
+        },
     ]
+    leave: list[dict] = []
+    if ts and ts.al_days and ts.al_days > 0:
+        leave.append(
+            {
+                "label": "Nghỉ phép năm",
+                "amount": Decimal("0"),
+                "quantity": ts.al_days,
+                "unit": "day",
+                "target": _day_target(divisor, "day"),
+            }
+        )
     allowance = [
-        {"label": "Phụ cấp", "amount": slip.allowance_total},
-        {"label": "Điều chỉnh khác", "amount": slip.other_adjustments},
+        {"label": "Phụ cấp", "amount": slip.allowance_total, "quantity": None, "unit": None, "target": None},
+        {
+            "label": "Điều chỉnh khác",
+            "amount": slip.other_adjustments,
+            "quantity": None,
+            "unit": None,
+            "target": None,
+        },
     ]
     deductions = [
-        {"label": "BHXH", "amount": slip.bhxh},
-        {"label": "BHYT", "amount": slip.bhyt},
-        {"label": "BHTN", "amount": slip.bhtn},
-        {"label": "Công đoàn", "amount": slip.union_fee},
-        {"label": "Khấu trừ khác", "amount": slip.other_deductions},
-        {"label": "TNCN", "amount": slip.pit_amount},
+        {"label": "BHXH", "amount": slip.bhxh, "quantity": None, "unit": None, "target": None},
+        {"label": "BHYT", "amount": slip.bhyt, "quantity": None, "unit": None, "target": None},
+        {"label": "BHTN", "amount": slip.bhtn, "quantity": None, "unit": None, "target": None},
+        {"label": "Công đoàn", "amount": slip.union_fee, "quantity": None, "unit": None, "target": None},
+        {"label": "Khấu trừ khác", "amount": slip.other_deductions, "quantity": None, "unit": None, "target": None},
+        {"label": "TNCN", "amount": slip.pit_amount, "quantity": None, "unit": None, "target": None},
     ]
-    return work, allowance, deductions
+    return work, leave, allowance, deductions
+
+
+def _header_salary(value: Decimal) -> Decimal | None:
+    return value if value > 0 else None
 
 
 def _detail_message(slip: Payslip) -> str:
@@ -196,14 +256,18 @@ def _detail_message(slip: Payslip) -> str:
 def _to_detail(
     slip: Payslip, pay: PayPeriod, emp: Employee, ts: TimesheetMonth | None, db: Session | None = None
 ) -> WorkerPayslipDetailOut:
-    if db is not None:
-        grouped = group_payslip_money_lines(db, slip.id)
-    else:
-        grouped = None
+    divisor = pay.salary_divisor if pay.salary_divisor > 0 else None
+    grouped = group_payslip_worker_sections(db, slip.id, divisor) if db is not None else None
     if grouped:
-        work, allowance, deductions = grouped
+        work, leave, allowance, deductions = grouped
     else:
-        work, allowance, deductions = _fallback_money_lines(slip)
+        work, leave, allowance, deductions = _fallback_worker_sections(slip, pay, ts)
+
+    dept = emp.department
+    al_remaining = (
+        annual_leave_remaining(db, emp.id, pay.date_to or date.today()) if db is not None else None
+    )
+
     can_confirm, can_dispute = _action_flags(slip)
     return WorkerPayslipDetailOut(
         id=slip.id,
@@ -211,8 +275,14 @@ def _to_detail(
         status=slip.status,
         employee_code=emp.employee_code,
         full_name=emp.full_name,
+        department_name=dept.name if dept else None,
+        team_name=emp.team.name if emp.team else None,
+        position_title=emp.position_title or (emp.position.name if emp.position else None),
+        probation_salary=_header_salary(emp.probation_salary),
+        contract_salary=_header_salary(emp.contract_salary),
         net=slip.net,
         gross=slip.gross,
+        taxable_income=slip.taxable_income,
         wd_salary=slip.wd_salary,
         allowance_total=slip.allowance_total,
         ot_pay=slip.ot_pay,
@@ -223,14 +293,23 @@ def _to_detail(
         union_fee=slip.union_fee,
         other_deductions=slip.other_deductions,
         pit_amount=slip.pit_amount,
+        salary_divisor=divisor,
         worked_days=ts.worked_days if ts else None,
         al_days=ts.al_days if ts else None,
         rem_days=ts.rem_days if ts else None,
+        work_subtotal=_sum_line_amounts(work),
+        leave_subtotal=_sum_line_amounts(leave),
+        allowance_subtotal=_sum_line_amounts(allowance),
+        deduction_subtotal=_sum_line_amounts(deductions),
+        annual_leave_entitled=None,
+        annual_leave_used=None,
+        annual_leave_remaining=al_remaining,
         confirm_deadline=slip.confirm_deadline,
         confirmed_at=slip.confirmed_at,
-        work_lines=work,
-        allowance_lines=allowance,
-        deduction_lines=deductions,
+        work_lines=[_line_out(ln) for ln in work],
+        leave_lines=[_line_out(ln) for ln in leave],
+        allowance_lines=[_line_out(ln) for ln in allowance],
+        deduction_lines=[_line_out(ln) for ln in deductions],
         can_confirm=can_confirm,
         can_dispute=can_dispute,
         message=_detail_message(slip),

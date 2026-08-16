@@ -41,6 +41,16 @@ class MoneyLine(BaseModel):
     amount: Decimal
 
 
+class PayslipLineOut(BaseModel):
+    """Dòng phiếu worker — SL/ĐVT/TV khi có; thiếu → null (UI hiện —)."""
+
+    label: str
+    amount: Decimal
+    quantity: Decimal | None = None
+    unit: str | None = None
+    target: Decimal | None = None
+
+
 class WorkerPayslipListOut(BaseModel):
     id: UUID
     period: str
@@ -56,8 +66,14 @@ class WorkerPayslipDetailOut(BaseModel):
     status: str
     employee_code: str
     full_name: str
+    department_name: str | None = None
+    team_name: str | None = None
+    position_title: str | None = None
+    probation_salary: Decimal | None = None
+    contract_salary: Decimal | None = None
     net: Decimal
     gross: Decimal
+    taxable_income: Decimal
     wd_salary: Decimal
     allowance_total: Decimal
     ot_pay: Decimal
@@ -68,14 +84,23 @@ class WorkerPayslipDetailOut(BaseModel):
     union_fee: Decimal
     other_deductions: Decimal
     pit_amount: Decimal
+    salary_divisor: Decimal | None = None
     worked_days: Decimal | None = None
     al_days: Decimal | None = None
     rem_days: Decimal | None = None
+    work_subtotal: Decimal | None = None
+    leave_subtotal: Decimal | None = None
+    allowance_subtotal: Decimal | None = None
+    deduction_subtotal: Decimal | None = None
+    annual_leave_entitled: Decimal | None = None
+    annual_leave_used: Decimal | None = None
+    annual_leave_remaining: Decimal | None = None
     confirm_deadline: date | None = None
     confirmed_at: datetime | None = None
-    work_lines: list[MoneyLine]
-    allowance_lines: list[MoneyLine]
-    deduction_lines: list[MoneyLine]
+    work_lines: list[PayslipLineOut]
+    leave_lines: list[PayslipLineOut]
+    allowance_lines: list[PayslipLineOut]
+    deduction_lines: list[PayslipLineOut]
     can_confirm: bool
     can_dispute: bool
     message: str
