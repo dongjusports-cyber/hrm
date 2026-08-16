@@ -14,6 +14,7 @@ import {
   type EmployeeFormState,
   type ProfileTab,
 } from "./employeeFormState";
+import { WtRegimePanel } from "./WtRegimePanel";
 
 type Props = {
   form: EmployeeFormState;
@@ -547,8 +548,10 @@ export function EmployeeProfileCompactFields({
   teams,
   positions = [],
   allowancePanel,
+  employeeId,
 }: Omit<Props, "tab" | "isNew" | "fieldLayout"> & {
   allowancePanel?: AllowanceColProps;
+  employeeId?: string;
 }) {
   const col = "column" as const;
   return (
@@ -679,7 +682,10 @@ export function EmployeeProfileCompactFields({
           />
         </section>
 
-        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-insurance">
+        <section
+          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
+          aria-labelledby="emp-sec-insurance"
+        >
           <h3 id="emp-sec-insurance" className="emp-form-section-title">
             Bảo hiểm & Ngân hàng
           </h3>
@@ -693,6 +699,7 @@ export function EmployeeProfileCompactFields({
             fieldLayout={col}
             insuranceChecksFirst
           />
+          {employeeId ? <WtRegimePanel employeeId={employeeId} embedded /> : null}
         </section>
       </div>
     </div>

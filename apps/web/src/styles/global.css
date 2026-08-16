@@ -1231,6 +1231,56 @@ a {
   scrollbar-gutter: stable;
 }
 
+.emp-wt-regime-block {
+  padding: 6px 6px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  flex-shrink: 0;
+}
+
+.emp-form-section-row-sync > .emp-wt-regime-block {
+  margin-top: auto;
+}
+
+.wt-regime-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wt-regime-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.76rem;
+}
+
+.wt-regime-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.wt-regime-list li:first-child {
+  border-top: none;
+}
+
+.wt-regime-active .wt-regime-info {
+  color: #0f766e;
+}
+
+.wt-regime-done .wt-regime-info {
+  color: var(--ink-muted, #64748b);
+}
+
 .emp-allow-block-title {
   margin: 0 0 4px;
   font-size: 0.76rem;

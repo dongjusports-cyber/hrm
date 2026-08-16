@@ -29,9 +29,9 @@ function isActive(r: EmployeeWtRegime): boolean {
   return r.date_from <= today && today <= r.date_to;
 }
 
-type Props = { employeeId: string };
+type Props = { employeeId: string; embedded?: boolean };
 
-export function WtRegimePanel({ employeeId }: Props) {
+export function WtRegimePanel({ employeeId, embedded = false }: Props) {
   const [rows, setRows] = useState<EmployeeWtRegime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +102,14 @@ export function WtRegimePanel({ employeeId }: Props) {
     }
   }
 
-  return (
-    <section className="emp-form-section emp-form-section-col wt-regime-panel">
-      <h3 className="emp-form-section-title">Chế độ về sớm</h3>
+  const title = embedded ? (
+    <h4 className="emp-allow-block-title">Chế độ về sớm</h4>
+  ) : (
+    <h3 className="emp-form-section-title">Chế độ về sớm</h3>
+  );
 
+  const body = (
+    <>
       {error && <p className="form-error">{error}</p>}
       {ok && <p className="form-ok">{ok}</p>}
 
@@ -172,6 +176,22 @@ export function WtRegimePanel({ employeeId }: Props) {
           ))}
         </ul>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="emp-wt-regime-block" aria-label="Chế độ về sớm">
+        {title}
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <section className="emp-form-section emp-form-section-col wt-regime-panel">
+      {title}
+      {body}
     </section>
   );
 }
