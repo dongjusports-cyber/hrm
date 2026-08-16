@@ -27,6 +27,8 @@ type Props = {
   /** column = 1 cột trong panel hồ sơ overlay */
   fieldLayout?: "grid" | "column";
   fieldErrors?: Record<string, string>;
+  /** Hồ sơ compact: tách field cuối để căn đáy cột với ô phụ cấp / chế độ về sớm */
+  compactPart?: "full" | "main" | "anchor";
 };
 
 function fieldErrorMsg(fieldErrors: Record<string, string> | undefined, field: string) {
@@ -456,7 +458,7 @@ function AllowanceAddForm({
   }
 
   return (
-    <div className="emp-allow-add-block" aria-label="Thêm phụ cấp">
+    <div className="emp-allow-add-block emp-profile-bottom-panel" aria-label="Thêm phụ cấp">
       <h4 className="emp-allow-block-title">Thêm phụ cấp</h4>
       <div className="emp-allow-add emp-allow-add-col">
         <label className="field">
@@ -514,7 +516,7 @@ function AllowanceListDisplay({
   }, [allowances]);
 
   return (
-    <div className="emp-allow-list-block" aria-label="Danh sách phụ cấp">
+    <div className="emp-allow-list-block emp-profile-bottom-panel" aria-label="Danh sách phụ cấp">
       <h4 className="emp-allow-block-title">Phụ cấp</h4>
       <div className="emp-allow-list-scroll" ref={scrollRef}>
         <ul className="dept-list emp-allow-list emp-allow-list-compact">
@@ -564,25 +566,27 @@ export function EmployeeProfileCompactFields({
           <h3 id="emp-sec-work" className="emp-form-section-title">
             Công việc
           </h3>
-          <div className="emp-fields-col">
-            {teamSelect(form, setForm, departments, teams)}
-            {positionSelect(form, setForm, positions)}
-            <label className="field">
-              <span>Ngày vào</span>
-              <input
-                type="date"
-                value={form.join_date}
-                onChange={(e) => setForm({ ...form, join_date: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Ngày nghỉ</span>
-              <input
-                type="date"
-                value={form.resign_date}
-                onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
-              />
-            </label>
+          <div className="emp-fields-col-main">
+            <div className="emp-fields-col">
+              {teamSelect(form, setForm, departments, teams)}
+              {positionSelect(form, setForm, positions)}
+              <label className="field">
+                <span>Ngày vào</span>
+                <input
+                  type="date"
+                  value={form.join_date}
+                  onChange={(e) => setForm({ ...form, join_date: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Ngày nghỉ</span>
+                <input
+                  type="date"
+                  value={form.resign_date}
+                  onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
+                />
+              </label>
+            </div>
           </div>
           {allowancePanel ? (
             <AllowanceAddForm
@@ -604,40 +608,42 @@ export function EmployeeProfileCompactFields({
           <h3 id="emp-sec-salary" className="emp-form-section-title">
             Lương
           </h3>
-          <div className="emp-fields-col">
-            <label className="field">
-              <span>Ngày ký HĐ</span>
-              <input
-                type="date"
-                value={form.contract_signed_at}
-                onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
-              />
-            </label>
-            <label className="field emp-field-money">
-              <span>Lương HĐ</span>
-              <input
-                value={form.contract_salary}
-                onChange={(e) => setForm({ ...form, contract_salary: e.target.value })}
-                required
-              />
-            </label>
-            <label className="field emp-field-money">
-              <span>Lương thử việc</span>
-              <input
-                value={form.probation_salary}
-                onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Kênh lương</span>
-              <select
-                value={form.pay_channel}
-                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
-              >
-                <option value="ATM">ATM</option>
-                <option value="CASH">Tiền mặt</option>
-              </select>
-            </label>
+          <div className="emp-fields-col-main">
+            <div className="emp-fields-col">
+              <label className="field">
+                <span>Ngày ký HĐ</span>
+                <input
+                  type="date"
+                  value={form.contract_signed_at}
+                  onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
+                />
+              </label>
+              <label className="field emp-field-money">
+                <span>Lương HĐ</span>
+                <input
+                  value={form.contract_salary}
+                  onChange={(e) => setForm({ ...form, contract_salary: e.target.value })}
+                  required
+                />
+              </label>
+              <label className="field emp-field-money">
+                <span>Lương thử việc</span>
+                <input
+                  value={form.probation_salary}
+                  onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Kênh lương</span>
+                <select
+                  value={form.pay_channel}
+                  onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
+                >
+                  <option value="ATM">ATM</option>
+                  <option value="CASH">Tiền mặt</option>
+                </select>
+              </label>
+            </div>
           </div>
           {allowancePanel ? (
             <AllowanceListDisplay
@@ -656,6 +662,18 @@ export function EmployeeProfileCompactFields({
           <h3 id="emp-sec-personal" className="emp-form-section-title">
             Cá nhân
           </h3>
+          <div className="emp-fields-col-main">
+            <EmployeeProfileTabFields
+              form={form}
+              setForm={setForm}
+              tab="personal"
+              isNew={false}
+              departments={departments}
+              teams={teams}
+              fieldLayout={col}
+              compactPart="main"
+            />
+          </div>
           <EmployeeProfileTabFields
             form={form}
             setForm={setForm}
@@ -664,13 +682,29 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
+            compactPart="anchor"
           />
         </section>
 
-        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-address">
+        <section
+          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
+          aria-labelledby="emp-sec-address"
+        >
           <h3 id="emp-sec-address" className="emp-form-section-title">
             Cư trú & giấy tờ
           </h3>
+          <div className="emp-fields-col-main">
+            <EmployeeProfileTabFields
+              form={form}
+              setForm={setForm}
+              tab="address"
+              isNew={false}
+              departments={departments}
+              teams={teams}
+              fieldLayout={col}
+              compactPart="main"
+            />
+          </div>
           <EmployeeProfileTabFields
             form={form}
             setForm={setForm}
@@ -679,6 +713,7 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
+            compactPart="anchor"
           />
         </section>
 
@@ -689,16 +724,18 @@ export function EmployeeProfileCompactFields({
           <h3 id="emp-sec-insurance" className="emp-form-section-title">
             Bảo hiểm & Ngân hàng
           </h3>
-          <EmployeeProfileTabFields
-            form={form}
-            setForm={setForm}
-            tab="insurance"
-            isNew={false}
-            departments={departments}
-            teams={teams}
-            fieldLayout={col}
-            insuranceChecksFirst
-          />
+          <div className="emp-fields-col-main">
+            <EmployeeProfileTabFields
+              form={form}
+              setForm={setForm}
+              tab="insurance"
+              isNew={false}
+              departments={departments}
+              teams={teams}
+              fieldLayout={col}
+              insuranceChecksFirst
+            />
+          </div>
           {employeeId ? <WtRegimePanel employeeId={employeeId} embedded /> : null}
         </section>
       </div>
@@ -727,9 +764,23 @@ export function EmployeeProfileTabFields({
   positions = [],
   fieldLayout = "grid",
   insuranceChecksFirst = false,
+  compactPart = "full",
 }: Props & { insuranceChecksFirst?: boolean }) {
   const fieldsClass = fieldLayout === "column" ? "emp-fields-col" : "emp-fields-grid";
   if (tab === "personal") {
+    if (compactPart === "anchor") {
+      return (
+        <LookupSelect
+          groupCode="education_level"
+          label="Trình độ"
+          value={form.education_code}
+          onChange={(code) => setForm({ ...form, education_code: code })}
+          className="field emp-profile-anchor-field"
+        />
+      );
+    }
+
+    const showEducation = compactPart === "full";
     return (
       <div className={fieldsClass}>
         <label className="field">
@@ -786,17 +837,31 @@ export function EmployeeProfileTabFields({
           value={form.religion_code}
           onChange={(code) => setForm({ ...form, religion_code: code })}
         />
-        <LookupSelect
-          groupCode="education_level"
-          label="Trình độ"
-          value={form.education_code}
-          onChange={(code) => setForm({ ...form, education_code: code })}
-        />
+        {showEducation ? (
+          <LookupSelect
+            groupCode="education_level"
+            label="Trình độ"
+            value={form.education_code}
+            onChange={(code) => setForm({ ...form, education_code: code })}
+          />
+        ) : null}
       </div>
     );
   }
 
   if (tab === "address") {
+    if (compactPart === "anchor") {
+      return (
+        <label className="field emp-profile-anchor-field">
+          <span>Liên hệ khẩn</span>
+          <input
+            value={form.urgent_contact}
+            onChange={(e) => setForm({ ...form, urgent_contact: e.target.value })}
+          />
+        </label>
+      );
+    }
+
     return (
       <div className={fieldsClass}>
         <label className="field">
@@ -840,13 +905,15 @@ export function EmployeeProfileTabFields({
           value={form.birth_place_code}
           onChange={(code) => setForm({ ...form, birth_place_code: code })}
         />
-        <label className="field">
-          <span>Liên hệ khẩn</span>
-          <input
-            value={form.urgent_contact}
-            onChange={(e) => setForm({ ...form, urgent_contact: e.target.value })}
-          />
-        </label>
+        {compactPart === "full" ? (
+          <label className="field">
+            <span>Liên hệ khẩn</span>
+            <input
+              value={form.urgent_contact}
+              onChange={(e) => setForm({ ...form, urgent_contact: e.target.value })}
+            />
+          </label>
+        ) : null}
       </div>
     );
   }

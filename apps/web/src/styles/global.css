@@ -1115,13 +1115,14 @@ a {
 .emp-profile-compact {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin-top: 0;
+  --emp-bottom-panel-min-h: 168px;
 }
 
 .emp-profile-cols {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   align-items: stretch;
 }
 
@@ -1187,7 +1188,7 @@ a {
 
 .emp-allow-add-block,
 .emp-allow-list-block {
-  padding: 6px 6px 4px;
+  padding: 5px 5px 4px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #f8fafc;
@@ -1200,7 +1201,7 @@ a {
   flex-shrink: 0;
 }
 
-/* 3 cột đầu cùng chiều cao — đáy Thêm / Phụ cấp / Trình độ ngang hàng */
+/* 5 cột cùng chiều cao — đáy ô phụ cấp / Trình độ / chế độ về sớm ngang hàng */
 .emp-profile-compact .emp-form-section-row-sync {
   height: 100%;
   display: flex;
@@ -1208,16 +1209,27 @@ a {
   min-height: 0;
 }
 
-.emp-form-section-row-sync > .emp-allow-add-block {
+.emp-form-section-row-sync > .emp-fields-col-main {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.emp-profile-anchor-field {
   margin-top: auto;
   flex-shrink: 0;
 }
 
-/* Ô phụ cấp giãn xuống tới hàng Trình độ; thay đổi danh sách không làm nhảy layout */
-.emp-form-section-row-sync > .emp-allow-list-block {
+.emp-profile-bottom-panel {
   margin-top: auto;
+  flex-shrink: 0;
+  min-height: var(--emp-bottom-panel-min-h);
+}
+
+.emp-form-section-row-sync > .emp-profile-bottom-panel.emp-allow-list-block {
   flex: 1 1 0;
-  min-height: 0;
+  min-height: var(--emp-bottom-panel-min-h);
   overflow: hidden;
   contain: layout;
 }
@@ -1232,25 +1244,29 @@ a {
 }
 
 .emp-wt-regime-block {
-  padding: 6px 6px 4px;
+  padding: 5px 5px 4px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #f8fafc;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-height: 0;
-  flex-shrink: 0;
-}
-
-.emp-form-section-row-sync > .emp-wt-regime-block {
-  margin-top: auto;
 }
 
 .wt-regime-form {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
+}
+
+.wt-regime-form .wt-regime-add-btn {
+  align-self: stretch;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  margin-top: 2px;
 }
 
 .wt-regime-list {
@@ -1289,9 +1305,8 @@ a {
   flex-shrink: 0;
 }
 
-/* Chỉ danh sách cuộn — form thêm ở cột Công việc, không đẩy nút Thêm */
+/* Chỉ danh sách cuộn — form thêm ở cột Công việc (ngoài layout sync hàng) */
 .emp-allow-list-scroll {
-  max-height: min(160px, 22vh);
   overflow-y: auto;
   overflow-x: hidden;
   flex-shrink: 1;
@@ -1384,25 +1399,21 @@ a {
 .emp-profile-compact .emp-form-section {
   background: #fff;
   height: fit-content;
-  padding: 5px 6px;
+  padding: 4px 5px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
 }
 
-/* Ghi đè fit-content — 3 cột sync theo chiều cao cột Cá nhân (Trình độ) */
+/* Ghi đè fit-content — 5 cột sync theo chiều cao hàng */
 .emp-profile-compact .emp-form-section.emp-form-section-row-sync {
   height: 100%;
 }
 
-/* Cột 4–5 không kéo cao hàng; chiều cao hàng = 3 cột đầu */
-.emp-profile-cols-weighted > .emp-form-section-col:not(.emp-form-section-row-sync) {
-  align-self: start;
-}
-
 .emp-profile-compact .emp-form-section-title {
-  font-size: 0.8rem;
-  margin: 0 0 5px;
+  font-size: 0.78rem;
+  margin: 0 0 4px;
   padding: 0;
+  line-height: 1.2;
 }
 
 .emp-field-money input {

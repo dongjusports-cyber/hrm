@@ -144,7 +144,7 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
           <span>Ghi chú</span>
           <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => void onAdd()}>
+        <button type="button" className="btn-primary btn-sm wt-regime-add-btn" disabled={busy} onClick={() => void onAdd()}>
           Thêm chế độ
         </button>
       </div>
@@ -181,7 +181,7 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
 
   if (embedded) {
     return (
-      <div className="emp-wt-regime-block" aria-label="Chế độ về sớm">
+      <div className="emp-wt-regime-block emp-profile-bottom-panel" aria-label="Chế độ về sớm">
         {title}
         {body}
       </div>
