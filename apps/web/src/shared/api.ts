@@ -2038,6 +2038,8 @@ export type AttendanceDay = {
   ot_type?: string | null;
   punch_count: number;
   is_workday?: boolean;
+  sunday_hours?: string | number;
+  holiday_hours?: string | number;
 };
 
 export async function fetchAttendanceDays(params: {

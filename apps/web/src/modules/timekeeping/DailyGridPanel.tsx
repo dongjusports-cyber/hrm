@@ -18,6 +18,7 @@ import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
+import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 
 type RowWithEdit = AttendanceDayGridRow & { _edit_in?: string; _edit_out?: string };
 
@@ -260,10 +261,27 @@ export function DailyGridPanel({
           p.value != null && Number(p.value) > 0 ? Number(p.value).toFixed(2) : "",
       },
       {
+        field: "late_minutes",
+        headerName: "Trễ",
+        width: 52,
+        editable: false,
+        headerTooltip: "Đi trễ — bấm vào sau 08:00 (phút). Thai sản/nuôi con không đổi luật này.",
+        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+      },
+      {
+        field: "early_minutes",
+        headerName: "Sớm",
+        width: 52,
+        editable: false,
+        headerTooltip: "Về sớm — bấm ra trước hết ca (phút). Thai sản/nuôi con về đúng giờ được phép thì 0.",
+        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+      },
+      {
         field: "ot_minutes",
         headerName: "Tăng ca sổ",
         width: 76,
         editable: false,
+        headerTooltip: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:15).",
         valueGetter: (p) => p.data?.ot_on_books_minutes ?? 0,
         valueFormatter: (p) => formatOtHours(Number(p.value)),
       },
@@ -272,15 +290,27 @@ export function DailyGridPanel({
         headerName: "Tăng ca ngoài",
         width: 88,
         editable: false,
+        headerTooltip: "Tăng ca trả ATM riêng — sau 20:00 T3/T5, hoặc sau 17:00 ngày khác.",
         valueGetter: (p) => p.data?.ot_external_minutes ?? 0,
         valueFormatter: (p) => formatOtHours(Number(p.value)),
       },
       {
-        field: "holiday_hours",
-        headerName: "Lễ",
-        width: 52,
+        colId: "ot_weekend",
+        headerName: "OT CN",
+        width: 72,
         editable: false,
-        valueFormatter: (p) => (Number(p.value) > 0 ? String(p.value) : ""),
+        headerTooltip: "Tăng ca Chủ nhật — không cộng cột Công; tính hệ số 2 khi lương.",
+        valueGetter: (p) => (p.data ? weekendOtMinutes(p.data) : 0),
+        valueFormatter: (p) => formatOtHours(Number(p.value)),
+      },
+      {
+        colId: "ot_holiday",
+        headerName: "OT lễ",
+        width: 64,
+        editable: false,
+        headerTooltip: "Tăng ca ngày lễ — không cộng cột Công; tính hệ số 3 khi lương.",
+        valueGetter: (p) => (p.data ? holidayOtMinutes(p.data) : 0),
+        valueFormatter: (p) => formatOtHours(Number(p.value)),
       },
       {
         field: "leave_code",

@@ -26,6 +26,7 @@ import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDat
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { formatOtHours } from "../../shared/formatOtHours";
+import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
@@ -38,15 +39,17 @@ import { disabledTitle } from "../../shared/disabledHint";
 type MainView = "daily" | "monthly";
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
-  daily: "Kiểm và sửa công cả xưởng theo một ngày — bấm tiêu đề Vào/Ra để xếp thiếu chấm.",
-  monthly: "Tổng hợp công cả tháng — một dòng một nhân viên.",
+  daily: "Kiểm công một ngày: Công · trễ/sớm · tăng ca sổ/ngoài · OT CN/lễ. CN đi làm hiện OT CN, không cộng Công.",
+  monthly: "Tổng hợp tháng — một dòng một NV. Cột Công = giờ/8. OT CN tách khỏi tăng ca sổ.",
 };
 
 const TK_HEADER_TIPS = {
   al: "Nghỉ phép năm",
   rem: "Nghỉ theo mã REM",
-  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00",
-  otExt: "Tăng ca trả riêng — sau 20:00 hoặc ngày khác T3/T5",
+  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:15)",
+  otExt: "Tăng ca trả ATM riêng — sau 20:00 T3/T5, hoặc sau 17:00 ngày khác T3/T5",
+  otWeekend: "Tăng ca Chủ nhật — không cộng cột Công; hệ số 2 khi tính lương",
+  otHoliday: "Tăng ca ngày lễ — không cộng cột Công; hệ số 3 khi tính lương",
 } as const;
 
 type CalendarRow = {
@@ -59,6 +62,8 @@ type CalendarRow = {
   ot: number;
   otOnBooks: number;
   otExternal: number;
+  otWeekend: number;
+  otHoliday: number;
   punches: number;
   firstIn: string;
   lastOut: string;
@@ -160,6 +165,8 @@ function buildCalendar(
       ot: missingPunch ? 0 : (day?.ot_minutes ?? 0),
       otOnBooks: missingPunch ? 0 : (day?.ot_on_books_minutes ?? 0),
       otExternal: missingPunch ? 0 : (day?.ot_external_minutes ?? 0),
+      otWeekend: missingPunch ? 0 : weekendOtMinutes(day ?? {}),
+      otHoliday: missingPunch ? 0 : holidayOtMinutes(day ?? {}),
       punches,
       firstIn: cellTime(day?.first_in),
       lastOut: cellTime(day?.last_out),
@@ -474,6 +481,22 @@ export function TimekeepingPage() {
         headerTooltip: TK_HEADER_TIPS.otExt,
         valueFormatter: (p) => formatOtHours(Number(p.value) * 60),
       },
+      {
+        field: "ot_hours_weekend",
+        headerName: "OT CN",
+        width: 72,
+        filter: false,
+        headerTooltip: TK_HEADER_TIPS.otWeekend,
+        valueFormatter: (p) => formatOtHours(Number(p.value) * 60),
+      },
+      {
+        field: "ot_hours_holiday",
+        headerName: "OT lễ",
+        width: 68,
+        filter: false,
+        headerTooltip: TK_HEADER_TIPS.otHoliday,
+        valueFormatter: (p) => formatOtHours(Number(p.value) * 60),
+      },
     ],
     [pickEmployee],
   );
@@ -595,7 +618,9 @@ export function TimekeepingPage() {
                   <th>Trễ</th>
                   <th>Sớm</th>
                   <th title="Tăng ca trên sổ lương chính (Th3/Th5, trước 20h)">Tăng ca sổ</th>
-                  <th title="Tăng ca trả riêng">Tăng ca ngoài</th>
+                  <th title="Tăng ca trả ATM riêng">Tăng ca ngoài</th>
+                  <th title="Tăng ca Chủ nhật — không cộng Công">OT CN</th>
+                  <th title="Tăng ca ngày lễ — không cộng Công">OT lễ</th>
                   <th title="Cảnh báo">!</th>
                 </tr>
               </thead>
@@ -627,6 +652,12 @@ export function TimekeepingPage() {
                     </td>
                     <td className={!row.otExternal ? "tk-cell-empty tk-ot-ext" : "tk-ot-ext"}>
                       {formatOtHours(row.otExternal)}
+                    </td>
+                    <td className={!row.otWeekend ? "tk-cell-empty" : ""}>
+                      {formatOtHours(row.otWeekend)}
+                    </td>
+                    <td className={!row.otHoliday ? "tk-cell-empty" : ""}>
+                      {formatOtHours(row.otHoliday)}
                     </td>
                     <td className="tk-day-flag-cell">
                       {row.oddPunch ? (
@@ -890,7 +921,7 @@ export function TimekeepingPage() {
                 {selected.employee_code} · {selected.full_name}
               </strong>
               <span className="tk-active-stats">
-                Công {selected.worked_days} · phép {selected.al_days} · trễ {selected.late_count}
+                {`Công ${selected.worked_days} · phép ${selected.al_days} · trễ ${selected.late_count} · OT CN ${fmtNum(selected.ot_hours_weekend, 2)}h`}
               </span>
               <div className="tk-active-actions">
                 <button type="button" className="btn-primary btn-sm" onClick={() => setDetailOpen(true)}>
@@ -962,7 +993,7 @@ export function TimekeepingPage() {
         }
         subtitle={
           selected
-            ? `Kỳ ${period} · công ${selected.worked_days} · phép ${selected.al_days} · nghỉ REM ${selected.rem_days} · trễ ${selected.late_count} · sớm ${selected.early_count} · tăng ca ${selected.ot_hours_weekday} giờ`
+            ? `Kỳ ${period} · công ${selected.worked_days} · phép ${selected.al_days} · trễ ${selected.late_count} · sớm ${selected.early_count} · sổ ${fmtNum(selected.ot_hours_weekday, 2)}h · ngoài ${fmtNum(selected.ot_hours_external, 2)}h · OT CN ${fmtNum(selected.ot_hours_weekend, 2)}h · OT lễ ${fmtNum(selected.ot_hours_holiday, 2)}h`
             : undefined
         }
         onClose={closeDetail}
