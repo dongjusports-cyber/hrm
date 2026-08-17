@@ -224,38 +224,44 @@ def _purge_ineligible_timesheets(db: Session, pay: PayPeriod) -> int:
 
 
 def rebuild_timesheets(
-    db: Session, period: str, *, recalc_days: bool = True
+    db: Session,
+    period: str,
+    *,
+    recalc_days: bool = True,
+    employee_id: UUID | None = None,
 ) -> RebuildTimesheetResult:
     pay = ensure_pay_period(db, period, refresh_open=True)
     _assert_open(pay)
     seed_leave_types(db)
-    _purge_ineligible_timesheets(db, pay)
+    if employee_id is None:
+        _purge_ineligible_timesheets(db, pay)
 
     if recalc_days:
         from app.modules.attendance.service import recalculate_days
 
         recalculate_days(db, date_from=pay.date_from, date_to=pay.date_to)
 
-    employees = (
-        db.query(Employee)
-        .filter(Employee.deleted_at.is_(None), Employee.status == "active")
-        .all()
+    emp_q = db.query(Employee).filter(Employee.deleted_at.is_(None))
+    if employee_id is not None:
+        emp_q = emp_q.filter(Employee.id == employee_id)
+    else:
+        emp_q = emp_q.filter(Employee.status == "active")
+    employees = emp_q.all()
+    days_q = db.query(AttendanceDay).filter(
+        AttendanceDay.work_date >= pay.date_from,
+        AttendanceDay.work_date <= pay.date_to,
     )
-    days = (
-        db.query(AttendanceDay)
-        .filter(
-            AttendanceDay.work_date >= pay.date_from,
-            AttendanceDay.work_date <= pay.date_to,
-        )
-        .all()
-    )
+    if employee_id is not None:
+        days_q = days_q.filter(AttendanceDay.employee_id == employee_id)
+    days = days_q.all()
     by_emp_days: dict[UUID, list[AttendanceDay]] = {}
     for d in days:
         by_emp_days.setdefault(d.employee_id, []).append(d)
 
-    adjustments = (
-        db.query(TimesheetAdjustment).filter(TimesheetAdjustment.pay_period_id == pay.id).all()
-    )
+    adj_q = db.query(TimesheetAdjustment).filter(TimesheetAdjustment.pay_period_id == pay.id)
+    if employee_id is not None:
+        adj_q = adj_q.filter(TimesheetAdjustment.employee_id == employee_id)
+    adjustments = adj_q.all()
     by_emp_adj: dict[UUID, list[TimesheetAdjustment]] = {}
     for a in adjustments:
         by_emp_adj.setdefault(a.employee_id, []).append(a)

@@ -564,3 +564,21 @@ Test:
   apps/api py -3.12 -m pytest tests/test_worker_mobile_punch.py -q -> 10 passed
   apps/web npm run build -> OK
 
+[WK-PUNCH003] Chấm ĐT không hiện trên lưới — phải bấm Đồng bộ máy — 2026-08-17
+---------------------------------------------------------------------------
+Triệu chứng:
+  App báo đã chấm (có mã DJ-XXXXXX) nhưng Chấm Công HR trống, phải bấm
+  Đồng bộ / Load công từ máy vân tay mới thấy.
+
+Nguyên nhân:
+  Giờ ĐT đã ghi attendance_punches nhưng tính ngày công bị nuốt lỗi;
+  bảng tháng chỉ rebuild khi Agent Mitapro chạy. ĐT không đi qua máy.
+
+Cách xử lý:
+  - Commit giờ chấm trước, rồi recalculate_days + rebuild timesheet 1 NV.
+  - Lưới Chấm Công tự tải lại mỗi 20 giây (không đè khi đang sửa ô).
+
+Test:
+  tests/test_worker_mobile_punch.py::test_mobile_punch_updates_day_grid_without_mitapro
+  apps/api py -3.12 -m pytest tests/test_worker_mobile_punch.py -q -> 11 passed
+

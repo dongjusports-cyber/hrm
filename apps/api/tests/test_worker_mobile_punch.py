@@ -199,3 +199,43 @@ def test_get_config_does_not_insert_row(client, db):
     assert res.json()["department_codes"] == ["03"]
     assert res.json()["persisted"] is False
     assert db.get(MobilePunchSettings, 1) is None
+
+
+def test_mobile_punch_updates_day_grid_without_mitapro(client, db):
+    """Chấm ĐT vào lưới công ngay — không cần Đồng bộ máy vân tay."""
+    from datetime import datetime as dt
+
+    from app.modules.attendance.engine import VN_TZ
+
+    _assign_dept(db, "1732", "03", "Main Office")
+    client.put(
+        "/api/config/mobile-punch",
+        headers=_admin(client),
+        json={"mode": "allowlist", "department_codes": ["03"], "require_photo": False},
+    )
+    res = client.post(
+        "/api/worker/punches",
+        headers=unlocked_worker_headers(client, "1732"),
+        json={"device_id": "test-phone"},
+    )
+    assert res.status_code == 200, res.text
+    today = dt.now(VN_TZ).date().isoformat()
+    grid = client.get(
+        "/api/attendance/days/grid",
+        headers=_admin(client),
+        params={"date": today},
+    )
+    assert grid.status_code == 200, grid.text
+    row = next(r for r in grid.json() if r["employee_code"] == "1732")
+    assert (row.get("punch_count") or 0) >= 1
+    assert row.get("first_in") or row.get("last_out")
+
+    period = today[:7]
+    sheets = client.get(
+        "/api/attendance/timesheets",
+        headers=_admin(client),
+        params={"period": period},
+    )
+    assert sheets.status_code == 200, sheets.text
+    sheet = next((r for r in sheets.json() if r["employee_code"] == "1732"), None)
+    assert sheet is not None

@@ -6,9 +6,10 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
@@ -329,19 +330,32 @@ def create_worker_punch(
         db.rollback()
         raise HTTPException(status_code=409, detail=MSG_DUP) from exc
 
-    try:
-        from app.modules.attendance.service import recalculate_days
-
-        day = now.date()
-        recalculate_days(db, day, day, employee_code)
-    except Exception:
-        log.exception("mobile punch recalc failed code=%s", employee_code)
-
+    # Commit giờ chấm trước — lưới công đọc từ attendance_days, không từ máy vân tay.
     db.commit()
     db.refresh(punch)
+    try:
+        _apply_mobile_punch_attendance(db, emp.id, employee_code, now.date())
+    except Exception:
+        log.exception("mobile punch attendance apply failed code=%s", employee_code)
+
     return WorkerPunchOut(
         id=punch.id,
         punch_time=punch.punch_time,
         verify_code=verify_code,
         detail=f"Đã ghi giờ chấm công. Mã xác minh {verify_code}.",
     )
+
+
+def _apply_mobile_punch_attendance(
+    db: Session, employee_id: UUID, employee_code: str, work_date: date
+) -> None:
+    """Tính ngày công + dòng tháng ngay — không chờ Đồng bộ Mitapro."""
+    from app.modules.attendance.service import recalculate_days
+    from app.modules.attendance.timesheet import rebuild_timesheets
+
+    recalculate_days(db, work_date, work_date, employee_code)
+    period = f"{work_date.year:04d}-{work_date.month:02d}"
+    try:
+        rebuild_timesheets(db, period, recalc_days=False, employee_id=employee_id)
+    except HTTPException:
+        log.info("mobile punch: skip month rebuild (kỳ khóa) code=%s", employee_code)

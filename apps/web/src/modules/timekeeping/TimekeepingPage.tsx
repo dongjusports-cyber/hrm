@@ -289,6 +289,21 @@ export function TimekeepingPage() {
   }, [reload]);
 
   useEffect(() => {
+    function refreshLive() {
+      if (document.visibilityState !== "visible") return;
+      if (document.querySelector(".ag-cell-inline-editing")) return;
+      setDailyGridRefresh((n) => n + 1);
+      void reload();
+    }
+    const id = window.setInterval(refreshLive, 20_000);
+    document.addEventListener("visibilitychange", refreshLive);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", refreshLive);
+    };
+  }, [reload]);
+
+  useEffect(() => {
     if (!selected || !pay) {
       setEmpDays([]);
       return;
