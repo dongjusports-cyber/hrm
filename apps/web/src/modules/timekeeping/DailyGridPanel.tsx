@@ -95,6 +95,9 @@ export function DailyGridPanel({
   const [toast, setToast] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi<AttendanceDayGridRow> | null>(null);
   const didInitialSortRef = useRef(false);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const filterKeyRef = useRef(`${workDate}|${needsOnly}|${departmentId}`);
   const [bulkLeave, setBulkLeave] = useState("ALE");
   const [bulkIn, setBulkIn] = useState("08:00");
   const [bulkOut, setBulkOut] = useState("17:00");
@@ -104,7 +107,11 @@ export function DailyGridPanel({
   const colPrefs = useMemo(() => createAgGridColumnPrefs(TK_DAILY_GRID_COLS), []);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    const nextFilter = `${workDate}|${needsOnly}|${departmentId}`;
+    const filterChanged = filterKeyRef.current !== nextFilter;
+    filterKeyRef.current = nextFilter;
+    const isInitial = rowsRef.current.length === 0 || filterChanged;
+    if (isInitial) setLoading(true);
     setError(null);
     try {
       const list = await fetchAttendanceDaysGrid({
