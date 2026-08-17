@@ -90,6 +90,30 @@ def test_validate_rejects_bad_msnv_and_salary(client):
     assert "min" in codes
 
 
+def test_validate_empty_name_returns_vietnamese_not_500(client):
+    headers = _hr_headers(client)
+    res = client.post(
+        "/api/employees/validate",
+        headers=headers,
+        json={
+            "is_new": True,
+            "payload": {
+                "employee_code": "9011",
+                "full_name": "",
+                "contract_salary": "0",
+                "pay_channel": "CASH",
+            },
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["ok"] is False
+    msgs = " ".join(i["message"] for i in body["issues"])
+    assert "Họ tên" in msgs
+    assert "Please fill" not in msgs
+    assert "Internal Server Error" not in msgs
+
+
 def test_create_rejects_zero_salary(client):
     headers = _hr_headers(client)
     res = client.post(

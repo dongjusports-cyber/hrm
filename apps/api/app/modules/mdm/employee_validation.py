@@ -10,6 +10,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.modules.mdm.models import Employee, Team
@@ -438,6 +439,30 @@ def validate_employee_update(
     )
 
 
+def _issues_from_pydantic(exc: ValidationError) -> list[ValidationIssue]:
+    """Validate form dở — không 500; đổi lỗi schema thành tiếng Việt."""
+    field_empty = {
+        "full_name": "Trợ Lý AI: Họ tên không được để trống.",
+        "employee_code": "Trợ Lý AI: MSNV không được để trống.",
+    }
+    issues: list[ValidationIssue] = []
+    for err in exc.errors():
+        loc = err.get("loc") or ()
+        field = str(loc[-1] if loc else "payload")
+        typ = str(err.get("type") or "invalid")
+        if typ in ("string_too_short", "missing", "value_error.missing") and field in field_empty:
+            msg = field_empty[field]
+            code = "required"
+        else:
+            raw = str(err.get("msg") or "dữ liệu không hợp lệ.")
+            msg = raw if raw.startswith("Trợ Lý AI") else f"Trợ Lý AI: {raw}"
+            code = typ
+        issues.append(ValidationIssue(field, code, "error", msg))
+    return issues or [
+        ValidationIssue("payload", "invalid", "error", "Trợ Lý AI: dữ liệu không hợp lệ."),
+    ]
+
+
 def validate_employee_payload(
     db: Session,
     *,
@@ -446,11 +471,17 @@ def validate_employee_payload(
     payload: dict,
 ) -> list[ValidationIssue]:
     if is_new:
-        body = EmployeeCreate.model_validate(payload)
+        try:
+            body = EmployeeCreate.model_validate(payload)
+        except ValidationError as exc:
+            return _issues_from_pydantic(exc)
         return validate_employee_create(db, body)
     if employee_id is None:
         raise HTTPException(status_code=400, detail="Trợ Lý AI: thiếu employee_id khi kiểm tra cập nhật.")
-    body = EmployeeUpdate.model_validate(payload)
+    try:
+        body = EmployeeUpdate.model_validate(payload)
+    except ValidationError as exc:
+        return _issues_from_pydantic(exc)
     return validate_employee_update(db, employee_id, body)
 
 

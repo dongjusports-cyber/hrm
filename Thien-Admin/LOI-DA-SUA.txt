@@ -656,6 +656,7 @@ Cách xử lý:
   - Tổng hợp tháng al_days lấy từ ABS_ALE (lưới ngày + điều chỉnh).
   - Gán phép/ghi chú trên ô: source=manual.
   - Form tạo NV noValidate — lỗi tiếng Việt từ API.
+  - POST /employees/validate không còn 500 khi họ tên rỗng (Pydantic).
   - Tính lương / Phát hành: cảnh báo phiếu âm và điều chỉnh chưa tính lại.
 
 Test:
