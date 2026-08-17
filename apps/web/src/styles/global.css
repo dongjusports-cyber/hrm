@@ -6042,6 +6042,18 @@ body.worker-surface {
   filter: grayscale(1);
 }
 
+.worker-punch-camera-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .worker-punch-hint {
   margin: 10px 0 0;
   color: #64748b;

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchWorkerMe, fetchWorkerPayslips, type WorkerPayslipListItem } from "./workerApi";
 import { clearWorkerAuth, useWorkerAuth } from "./workerAuthStore";
 import { PWAInstallPrompt } from "./PWAInstallPrompt";
+import { WorkerFacePunchButton } from "./WorkerFacePunchButton";
 
 const STATUS_VI: Record<string, string> = {
   published: "Chờ xác nhận",
@@ -100,15 +101,7 @@ export function WorkerHomePage() {
       </section>
 
       <nav className="worker-nav">
-        {worker?.can_mobile_punch ? (
-          <Link to="/worker/punch" className="worker-btn-primary">
-            Chấm công
-          </Link>
-        ) : (
-          <button type="button" className="worker-btn-primary" disabled>
-            Chấm công
-          </button>
-        )}
+        <WorkerFacePunchButton />
         <Link to="/worker/leave" className="worker-btn-primary">
           Xin nghỉ phép
         </Link>
@@ -116,12 +109,6 @@ export function WorkerHomePage() {
           Tài khoản
         </Link>
       </nav>
-      {!worker?.can_mobile_punch && (
-        <p className="worker-punch-hint">
-          {worker?.punch_blocked_reason ||
-            "Đang thử nghiệm tại Main Office. Bộ phận khác vẫn chấm bằng máy vân tay."}
-        </p>
-      )}
     </div>
   );
 }
