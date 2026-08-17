@@ -74,7 +74,11 @@ _SINGLE_FLAGS = {0, False, "0"}
 def default_xlsx_path() -> Path:
     root = Path(__file__).resolve().parents[4]
     folder = root / "HIEN_PHAP" / "Dữ liệu công nhân"
-    matches = sorted(folder.glob("*bổ sung*.xlsx")) + sorted(folder.glob("*bo sung*.xlsx"))
+    matches = sorted(
+        p
+        for p in list(folder.glob("*bổ sung*.xlsx")) + list(folder.glob("*bo sung*.xlsx"))
+        if not p.name.startswith("~$")
+    )
     if not matches:
         matches = [p for p in folder.glob("*.xlsx") if "b" in p.name.lower()]
     if not matches:

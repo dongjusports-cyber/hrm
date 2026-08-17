@@ -29,7 +29,11 @@ def _ssh() -> tuple[str, str]:
 
 
 def _find_xlsx() -> Path:
-    matches = sorted(XLSX_DIR.glob("*bổ sung*.xlsx")) + sorted(XLSX_DIR.glob("*bo sung*.xlsx"))
+    matches = sorted(
+        p
+        for p in list(XLSX_DIR.glob("*bổ sung*.xlsx")) + list(XLSX_DIR.glob("*bo sung*.xlsx"))
+        if not p.name.startswith("~$")
+    )
     if not matches:
         raise SystemExit(f"Không thấy file Thông tin bổ sung .xlsx trong {XLSX_DIR}")
     return matches[0]
