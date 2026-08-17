@@ -1,4 +1,4 @@
-"""Chấm công điện thoại — allowlist Main Office, GPS, ảnh."""
+"""Chấm công điện thoại — allowlist Main Office, GPS, mã xác minh."""
 
 from sqlalchemy.orm import Session
 
@@ -6,12 +6,7 @@ from app.modules.mdm.models import Employee, Team
 from app.modules.mdm.service import get_or_create_department_by_code
 from tests.worker_auth import unlocked_worker_headers
 
-TINY_JPEG_B64 = (
-    "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP////////////////////////////////////"
-    "//////////////////////////////////////////////////wAARCAABAAEDASIAAhEB"
-    "AxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADA"
-    "MBAAIQAxAAAAH/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AH//2Q=="
-)
+TINY_HASH = "a" * 64
 
 
 def _admin(client):
@@ -72,6 +67,7 @@ def test_main_office_can_punch(client, db):
     )
     assert res.status_code == 200, res.text
     assert res.json()["source"] == "mobile"
+    assert str(res.json()["verify_code"]).startswith("DJ-")
 
     again = client.post(
         "/api/worker/punches",
@@ -174,9 +170,11 @@ def test_photo_required(client, db):
     ok = client.post(
         "/api/worker/punches",
         headers=unlocked_worker_headers(client, "1732"),
-        json={"photo_base64": TINY_JPEG_B64},
+        json={"photo_hash": TINY_HASH},
     )
     assert ok.status_code == 200, ok.text
+    assert ok.json()["verify_code"].startswith("DJ-")
+    assert "Mã xác minh" in ok.json()["detail"]
 
 
 def test_hr_cannot_change_mobile_punch_config(client):

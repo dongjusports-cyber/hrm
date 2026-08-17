@@ -218,6 +218,7 @@ export type WorkerPunchResult = {
   id: number;
   punch_time: string;
   source: string;
+  verify_code: string;
   detail: string;
 };
 
@@ -225,7 +226,7 @@ export async function submitWorkerPunch(body: {
   latitude?: number | null;
   longitude?: number | null;
   accuracy_m?: number | null;
-  photo_base64?: string | null;
+  photo_hash?: string | null;
   device_id?: string | null;
 }): Promise<WorkerPunchResult> {
   const res = await workerFetch("/api/worker/punches", {

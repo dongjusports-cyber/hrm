@@ -3,13 +3,16 @@ import { Link, Navigate } from "react-router-dom";
 import { fetchWorkerMe, submitWorkerPunch } from "./workerApi";
 import { useWorkerAuth } from "./workerAuthStore";
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Không đọc được ảnh."));
-    reader.readAsDataURL(file);
-  });
+async function sha256Hex(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function previewUrl(file: File): string {
+  return URL.createObjectURL(file);
 }
 
 function getPosition(): Promise<GeolocationPosition> {
@@ -27,9 +30,11 @@ function getPosition(): Promise<GeolocationPosition> {
 export function WorkerPunchPage() {
   const { worker } = useWorkerAuth();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [verifyCode, setVerifyCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -38,6 +43,12 @@ export function WorkerPunchPage() {
       .catch(() => null)
       .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   if (ready && worker && worker.can_mobile_punch === false) {
     return <Navigate to="/worker" replace />;
@@ -48,8 +59,10 @@ export function WorkerPunchPage() {
     setBusy(true);
     setError(null);
     setOk(null);
+    setVerifyCode(null);
     try {
-      if (!photo) throw new Error("Chụp mặt để chấm công.");
+      if (!file) throw new Error("Chụp mặt để lấy mã xác minh.");
+      const photo_hash = await sha256Hex(file);
       let latitude: number | undefined;
       let longitude: number | undefined;
       let accuracy_m: number | undefined;
@@ -63,11 +76,14 @@ export function WorkerPunchPage() {
         latitude,
         longitude,
         accuracy_m,
-        photo_base64: photo,
+        photo_hash,
         device_id: navigator.userAgent.slice(0, 64),
       });
       setOk(result.detail);
-      setPhoto(null);
+      setVerifyCode(result.verify_code);
+      setFile(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(null);
       if (fileRef.current) fileRef.current.value = "";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chấm công thất bại.");
@@ -90,13 +106,13 @@ export function WorkerPunchPage() {
       </header>
 
       <p className="worker-empty">
-        Máy vân tay vẫn dùng bình thường. Điện thoại chỉ ghi thêm giờ khi bạn đang ở nhà máy.
+        Ảnh chỉ dùng trên máy bạn để tạo mã. Máy chủ nhận mã xác minh (~64 ký tự), không nhận file ảnh.
       </p>
 
       <form className="worker-section worker-leave-form" onSubmit={(ev) => void onSubmit(ev)}>
-        <h2>Chụp mặt + vị trí</h2>
+        <h2>Chụp mặt lấy mã</h2>
         <label>
-          Ảnh mặt (camera trước)
+          Camera trước
           <input
             ref={fileRef}
             type="file"
@@ -104,24 +120,25 @@ export function WorkerPunchPage() {
             capture="user"
             required
             onChange={(ev) => {
-              const file = ev.target.files?.[0];
-              if (!file) {
-                setPhoto(null);
-                return;
-              }
-              void fileToDataUrl(file).then(setPhoto).catch((err: unknown) => {
-                setError(err instanceof Error ? err.message : "Không đọc ảnh.");
-              });
+              const next = ev.target.files?.[0] ?? null;
+              if (preview) URL.revokeObjectURL(preview);
+              setFile(next);
+              setPreview(next ? previewUrl(next) : null);
             }}
           />
         </label>
-        {photo ? (
-          <img className="worker-punch-preview" src={photo} alt="Ảnh sẽ gửi" />
+        {preview ? (
+          <img className="worker-punch-preview" src={preview} alt="Xem trên máy, không gửi lên server" />
         ) : null}
         {error && <p className="worker-error">{error}</p>}
         {ok && <p className="worker-banner">{ok}</p>}
+        {verifyCode && (
+          <p className="worker-verify-code" aria-label="Mã xác minh">
+            {verifyCode}
+          </p>
+        )}
         <button type="submit" className="worker-btn-primary" disabled={busy}>
-          {busy ? "Đang gửi…" : "Chấm công"}
+          {busy ? "Đang gửi mã…" : "Chấm công"}
         </button>
       </form>
     </div>

@@ -179,7 +179,7 @@ export function MobilePunchSettingsPage() {
             checked={requirePhoto}
             onChange={(e) => setRequirePhoto(e.target.checked)}
           />
-          Bắt buộc chụp mặt
+          Bắt buộc chụp mặt (chỉ gửi mã SHA-256, không gửi ảnh)
         </label>
 
         {error && <p className="worker-error">{error}</p>}

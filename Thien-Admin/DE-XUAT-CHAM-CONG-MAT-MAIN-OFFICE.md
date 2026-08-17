@@ -124,7 +124,7 @@ Một trang nhỏ, quyền admin (hoặc HR được ủy quyền):
 - Cấu Hình → Chấm công ĐT (`mode` off / allowlist / all, mã bộ phận, MSNV thêm, GPS).
 - `GET /api/worker/me` → `can_mobile_punch`, `punch_blocked_reason` (không ghi DB).
 - Nút Chấm công trên trang chủ worker: luôn hiện; mờ khi không được.
-- `POST /api/worker/punches` — 403 ngoài allowlist; GPS khi đã đặt tọa độ; ảnh lưu `data/uploads/worker_punches/`.
+- `POST /api/worker/punches` — 403 ngoài allowlist; GPS khi đã đặt tọa độ; **không lưu ảnh**, chỉ `photo_hash` + mã `DJ-XXXXXX`.
 
 Còn lại: so khớp AI mặt, cột nguồn máy/ĐT trên lưới HR, deploy VPS + điền GPS nhà máy.
 

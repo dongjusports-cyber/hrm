@@ -1,24 +1,20 @@
-"""Chấm công điện thoại — allowlist bộ phận + GPS + ảnh. GET không ghi DB."""
+"""Chấm công điện thoại — allowlist + GPS + mã xác minh (không gửi ảnh). GET không ghi DB."""
 
 from __future__ import annotations
 
-import base64
-import binascii
+import hashlib
 import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
-from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import get_settings
 from app.modules.attendance.engine import VN_TZ
 from app.modules.config.models import MobilePunchSettings
 from app.modules.integration.models import AttendancePunch
@@ -30,14 +26,14 @@ DEFAULT_MODE = "allowlist"
 DEFAULT_DEPT_CODES = ["03"]
 DEFAULT_RADIUS_M = 200
 COOLDOWN_SECONDS = 60
-MAX_PHOTO_BYTES = 1_500_000
 MODES = frozenset({"off", "allowlist", "all"})
+PHOTO_HASH_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 MSG_OFF = "Chấm công điện thoại đang tắt. Vui lòng chấm bằng máy vân tay."
 MSG_PILOT = "Đang thử nghiệm tại Main Office. Bộ phận khác vẫn chấm bằng máy vân tay."
 MSG_NO_GPS = "Bật vị trí (GPS) để chấm công tại nhà máy."
 MSG_OUTSIDE = "Bạn đang ngoài nhà máy. Chỉ chấm công khi có mặt tại xưởng."
-MSG_NO_PHOTO = "Chụp mặt để chấm công."
+MSG_NO_HASH = "Chụp mặt để lấy mã xác minh. Ảnh không gửi lên máy chủ."
 MSG_COOLDOWN = "Vừa chấm xong. Đợi 1 phút rồi chấm lại."
 MSG_DUP = "Giờ chấm này đã ghi. Đợi giây lát rồi thử lại."
 MSG_NO_EMP = "Trợ Lý AI: không tìm thấy hồ sơ nhân viên."
@@ -70,7 +66,7 @@ class WorkerPunchIn(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     accuracy_m: float | None = None
-    photo_base64: str | None = None
+    photo_hash: str | None = Field(default=None, max_length=64)
     device_id: str | None = Field(default=None, max_length=64)
 
 
@@ -78,6 +74,7 @@ class WorkerPunchOut(BaseModel):
     id: int
     punch_time: datetime
     source: str = "mobile"
+    verify_code: str
     detail: str
 
 
@@ -241,34 +238,16 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * asin(sqrt(min(1.0, a)))
 
 
-def _decode_photo(raw: str) -> bytes:
-    s = raw.strip()
-    if not s:
-        raise HTTPException(status_code=400, detail=MSG_NO_PHOTO)
-    if s.lower().startswith("data:") and "," in s:
-        s = s.split(",", 1)[1]
-    s = re.sub(r"\s+", "", s)
-    try:
-        data = base64.b64decode(s, validate=False)
-    except (binascii.Error, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Ảnh chấm công không đọc được.") from exc
-    if len(data) < 24 or len(data) > MAX_PHOTO_BYTES:
-        raise HTTPException(status_code=400, detail="Ảnh chấm công quá nhỏ hoặc quá lớn.")
-    jpeg = data[:3] == b"\xff\xd8\xff"
-    png = data[:8] == b"\x89PNG\r\n\x1a\n"
-    if not jpeg and not png:
-        raise HTTPException(status_code=400, detail="Ảnh phải là JPEG hoặc PNG.")
-    return data
+def _norm_photo_hash(value: str | None) -> str:
+    h = (value or "").strip().lower()
+    if not PHOTO_HASH_RE.fullmatch(h):
+        raise HTTPException(status_code=400, detail=MSG_NO_HASH)
+    return h
 
 
-def _save_photo(employee_code: str, data: bytes) -> str:
-    ext = ".png" if data[:8] == b"\x89PNG\r\n\x1a\n" else ".jpg"
-    root = Path(get_settings().upload_dir).expanduser().resolve() / "worker_punches" / employee_code
-    root.mkdir(parents=True, exist_ok=True)
-    name = f"{datetime.now(VN_TZ).strftime('%Y%m%dT%H%M%S')}_{uuid4().hex[:8]}{ext}"
-    path = root / name
-    path.write_bytes(data)
-    return str(path.relative_to(Path(get_settings().upload_dir).expanduser().resolve()))
+def make_verify_code(employee_code: str, punch_time: datetime, photo_hash: str) -> str:
+    raw = f"{employee_code}|{punch_time.isoformat()}|{photo_hash}".encode()
+    return "DJ-" + hashlib.sha256(raw).hexdigest()[:6].upper()
 
 
 def load_employee(db: Session, user_emp: Employee | None) -> Employee | None:
@@ -302,13 +281,9 @@ def create_worker_punch(
         if dist > cfg.gps_radius_m:
             raise HTTPException(status_code=403, detail=MSG_OUTSIDE)
 
-    photo_rel: str | None = None
-    if cfg.require_photo:
-        if not body.photo_base64:
-            raise HTTPException(status_code=400, detail=MSG_NO_PHOTO)
-        photo_rel = _save_photo(employee_code, _decode_photo(body.photo_base64))
-    elif body.photo_base64:
-        photo_rel = _save_photo(employee_code, _decode_photo(body.photo_base64))
+    photo_hash: str | None = None
+    if cfg.require_photo or body.photo_hash:
+        photo_hash = _norm_photo_hash(body.photo_hash)
 
     now = datetime.now(VN_TZ)
     cutoff = now - timedelta(seconds=COOLDOWN_SECONDS)
@@ -324,7 +299,10 @@ def create_worker_punch(
     if recent:
         raise HTTPException(status_code=429, detail=MSG_COOLDOWN)
 
-    raw: dict[str, Any] = {"channel": "worker_app"}
+    verify_code = make_verify_code(employee_code, now, photo_hash or "none")
+    raw: dict[str, Any] = {"channel": "worker_app", "verify_code": verify_code}
+    if photo_hash:
+        raw["photo_hash"] = photo_hash
     if body.latitude is not None:
         raw["lat"] = body.latitude
         raw["lng"] = body.longitude
@@ -334,8 +312,6 @@ def create_worker_punch(
             raw["distance_m"] = round(
                 haversine_m(cfg.gps_lat or 0, cfg.gps_lng or 0, body.latitude, body.longitude), 1
             )
-    if photo_rel:
-        raw["photo"] = photo_rel
 
     punch = AttendancePunch(
         employee_code=employee_code,
@@ -366,5 +342,6 @@ def create_worker_punch(
     return WorkerPunchOut(
         id=punch.id,
         punch_time=punch.punch_time,
-        detail="Đã ghi giờ chấm công điện thoại.",
+        verify_code=verify_code,
+        detail=f"Đã ghi giờ chấm công. Mã xác minh {verify_code}.",
     )

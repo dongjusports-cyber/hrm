@@ -97,7 +97,7 @@ Gian hay gặp: ảnh in, nhờ bạn bấm hộ, giả GPS. Bước 1 chặn n�
 
 ## 6. Việc chưa làm / đã làm bước 1
 
-Đã code (2026-08-17): `POST /api/worker/punches`, allowlist Main Office, Cấu Hình GPS, ảnh trên VPS (`data/uploads/worker_punches/`). Xem `DE-XUAT-CHAM-CONG-MAT-MAIN-OFFICE.md`.
+Đã code (2026-08-17): `POST /api/worker/punches`, allowlist Main Office, GPS. Điện thoại **không gửi ảnh** — chỉ gửi SHA-256 + mã `DJ-XXXXXX`.
 
 Còn: cột nguồn máy/ĐT trên lưới HR; AI so khớp mặt; deploy + điền GPS.
 
