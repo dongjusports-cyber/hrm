@@ -95,6 +95,8 @@ def _resolve_in_out_from_times(
     - Trước giờ vào ca: mọi lần bấm = thử vào (giữ sớm nhất).
     - Từ giờ vào ca đến trước nghỉ trưa (morning_end): vẫn coi là vào, không coi mốc sau là ra.
     - Từ nghỉ trưa trở đi: mốc muộn nhất = ra (nhiều lần bấm chiều gom một).
+    - Không có giờ vào buổi sáng nhưng có ≥2 mốc sau nghỉ trưa, cách nhau ≥60 phút
+      (vd. 12:30 + 17:07): mốc sớm = vào, mốc muộn = ra — công buổi chiều, ghi nhận đi trễ.
     """
     shift_start = combine_vn(work_date, schedule.morning_start)
     depart_after = combine_vn(work_date, schedule.morning_end)
@@ -113,7 +115,12 @@ def _resolve_in_out_from_times(
     if not departures:
         return first_in, None
 
-    last_out = departures[-1]
+    last_out = max(departures)
+    # Nghỉ sáng / vào muộn sau 12:00: đừng nuốt mốc sớm thành «chỉ có giờ ra».
+    if first_in is None and len(departures) >= 2:
+        earliest = min(departures)
+        if (last_out - earliest).total_seconds() >= 60 * 60:
+            first_in = earliest
     return first_in, last_out
 
 

@@ -120,6 +120,35 @@ def test_single_punch_in_only_records_first_in():
     assert r.ot_minutes == 0
 
 
+def test_afternoon_only_pair_half_day_and_late():
+    """Nghỉ sáng, bấm 12:30 + 17:07 — công 4h (0.5 ngày), ghi nhận đi trễ."""
+    d = date(2026, 8, 15)
+    punches = [
+        datetime(2026, 8, 15, 12, 30, 0, tzinfo=VN),
+        datetime(2026, 8, 15, 17, 7, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out == punches[1]
+    assert r.punch_count == 2
+    assert r.worked_hours == Decimal("4.0000")
+    assert r.late_minutes == 270
+    assert r.early_minutes == 0
+
+
+def test_two_close_afternoon_exits_stay_out_only():
+    """Hai lần bấm ra gần nhau — không bị biến thành vào+ra."""
+    d = date(2026, 8, 15)
+    punches = [
+        datetime(2026, 8, 15, 17, 7, 0, tzinfo=VN),
+        datetime(2026, 8, 15, 17, 10, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in is None
+    assert r.last_out == punches[1]
+    assert r.worked_hours == Decimal("0")
+
+
 def test_double_tap_deduped_to_single_out():
     d = date(2026, 8, 7)
     punches = [
