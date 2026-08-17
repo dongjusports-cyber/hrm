@@ -3033,13 +3033,14 @@ def _recalc_after_regime_change(db: Session, emp: Employee, r: EmployeeWtRegime)
     range = [max(date_from, today) .. min(date_to, today)] → chỉ ngày hôm nay khi
     regime đang hiệu lực; regime tương lai bỏ qua. Ngày is_locked engine tự bỏ qua.
     """
-    from app.modules.attendance.service import recalculate_days
+    from app.modules.attendance.service import recalculate_days, reapply_wt_on_manual_days
 
     today = date.today()
     lo = max(r.date_from, today)
     hi = min(r.date_to, today)
     if lo <= hi:
         recalculate_days(db, lo, hi, emp.employee_code)
+        reapply_wt_on_manual_days(db, emp.employee_code, lo, hi)
 
 
 def list_wt_regimes(db: Session, emp_id: UUID) -> list[EmployeeWtRegimeOut]:

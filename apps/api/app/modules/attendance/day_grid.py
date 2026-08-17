@@ -9,7 +9,11 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
+from app.modules.attendance.day_enrich import (
+    apply_calc_to_day_row,
+    resolve_work_shift_id,
+    wt_hours_early_on,
+)
 from app.modules.attendance.engine import VN_TZ, calculate_day, combine_vn, to_vn
 from app.modules.attendance.models import AttendanceDay, LeaveType, WorkShift
 from app.modules.attendance.shift_schedule import timing_from_shift
@@ -303,7 +307,13 @@ def patch_day_cell(
         shift_id = resolve_work_shift_id(db, emp, work_date)
         timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
         calc = calculate_day(
-            punches, work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+            punches,
+            work_date,
+            timing.schedule,
+            ot_split=load_ot_split_policy(db),
+            ot_start=timing.ot_start_time,
+            wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+            standard_hours=timing.standard_hours,
         )
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         row.source = "manual"
@@ -419,7 +429,13 @@ def bulk_patch_days(
                 shift_id = resolve_work_shift_id(db, emp, work_date)
                 timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
                 calc = calculate_day(
-                    [fi, lo], work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+                    [fi, lo],
+                    work_date,
+                    timing.schedule,
+                    ot_split=load_ot_split_policy(db),
+                    ot_start=timing.ot_start_time,
+                    wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+                    standard_hours=timing.standard_hours,
                 )
                 apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
                 row.source = "manual"

@@ -15,6 +15,7 @@ from app.modules.attendance.day_enrich import (
     apply_calc_to_day_row,
     build_shift_cache,
     resolve_work_shift_id,
+    wt_hours_early_on,
 )
 from app.modules.attendance.engine import VN_TZ, Schedule, calculate_day, to_vn
 from app.modules.attendance.models import AttendanceDay, WorkShift
@@ -210,6 +211,64 @@ def recalculate_days(
         skipped_unknown_codes=skipped,
         message=msg,
     )
+
+
+def reapply_wt_on_manual_days(
+    db: Session,
+    employee_code: str,
+    date_from: date,
+    date_to: date,
+) -> int:
+    """Tính lại ngày HR chấm tay khi gán/sửa chế độ về sớm.
+
+    recalculate_days bỏ qua source=manual (tránh nuốt giờ tay). Gán thai sản /
+    nuôi con sau khi đã sửa lưới vẫn phải cộng giờ về sớm vào công.
+    """
+    emp = (
+        db.query(Employee)
+        .filter(Employee.employee_code == employee_code.strip(), Employee.deleted_at.is_(None))
+        .one_or_none()
+    )
+    if emp is None or date_to < date_from:
+        return 0
+    schedule = _load_schedule(db)
+    ot_split = load_ot_split_policy(db)
+    days = (
+        db.query(AttendanceDay)
+        .filter(
+            AttendanceDay.employee_id == emp.id,
+            AttendanceDay.work_date >= date_from,
+            AttendanceDay.work_date <= date_to,
+            AttendanceDay.is_locked.is_(False),
+            AttendanceDay.source == "manual",
+            AttendanceDay.first_in.isnot(None),
+            AttendanceDay.last_out.isnot(None),
+        )
+        .all()
+    )
+    n = 0
+    for row in days:
+        shift_id = resolve_work_shift_id(db, emp, row.work_date)
+        timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
+        punches = [to_vn(row.first_in), to_vn(row.last_out)]
+        src = row.source
+        leave = row.leave_code
+        calc = calculate_day(
+            punches,
+            row.work_date,
+            timing.schedule,
+            ot_split=ot_split,
+            ot_start=timing.ot_start_time,
+            wt_hours_early=wt_hours_early_on(db, emp.id, row.work_date),
+            standard_hours=timing.standard_hours,
+        )
+        apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
+        row.source = src
+        row.leave_code = leave
+        n += 1
+    if n:
+        db.commit()
+    return n
 
 
 def list_days(

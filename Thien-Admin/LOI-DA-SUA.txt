@@ -663,3 +663,27 @@ Test:
   apps/api pytest tests/test_attendance_day_grid_37.py -q
   apps/web npx tsc -b
 
+[QA-HR002] Quy trình kín: thai sản trên lưới tay + phiếu WD nhầm SL phép — 2026-08-17
+------------------------------------------------------------------------------------
+Triệu chứng (test 1 loạt: tạo NV, thôi việc, phép, thai sản/nuôi con, chấm công, tính lương, phiếu):
+  1) HR chấm tay 08:00–16:00 rồi gán Thai sản 1h: ngày vẫn 7h / về sớm 60p.
+     Tính lương bỏ qua source=manual nên chế độ về sớm không vào công.
+  2) NV chỉ nghỉ phép, 0 ngày công: phiếu vẫn có dòng «Lương ngày công» với SL = số ngày phép.
+
+Nguyên nhân:
+  - patch_day_cell / bulk / review không truyền wt_hours_early vào calculate_day.
+  - _recalc_after_regime_change gọi recalculate_days — hàm này bỏ qua source=manual.
+  - _wd_parts: khi official_amount=0 vẫn emit WD với quantity=paid_days (gồm AL).
+
+Cách xử lý:
+  - Chấm/sửa giờ tay: áp hours_early của chế độ hiệu lực ngày đó.
+  - Gán/sửa/chấm dứt regime: tính lại cả ngày manual từ giờ vào/ra đã lưu (giữ source).
+  - Phiếu: chỉ in dòng WD khi official_amount > 0.
+
+Xoá nhân viên: API không DELETE hồ sơ. Đường gỡ khỏi «đang làm» là Thủ tục thôi việc
+(tab Thôi việc + Tái tuyển).
+
+Test:
+  apps/api pytest tests/test_hr_workflow_payroll_accuracy.py -q
+  → 2 passed (công thức WD/ALE/FLE + BH + chuyên cần/đi lại + net; phiếu 3 khối).
+
