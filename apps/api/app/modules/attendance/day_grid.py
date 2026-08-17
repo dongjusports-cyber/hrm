@@ -281,6 +281,12 @@ def patch_day_cell(
     elif note is not None:
         row.note = note.strip()
 
+    leave_or_note = leave_code is not None or note is not None or clear_note
+    if leave_or_note and first_in is None and last_out is None:
+        row.source = "manual"
+        row.edited_by_user_id = user.id
+        row.edited_at = datetime.now(tz=VN_TZ)
+
     if first_in is not None or last_out is not None:
         fi = to_vn(first_in) if first_in is not None else (to_vn(row.first_in) if row.first_in else None)
         lo = to_vn(last_out) if last_out is not None else (to_vn(row.last_out) if row.last_out else None)

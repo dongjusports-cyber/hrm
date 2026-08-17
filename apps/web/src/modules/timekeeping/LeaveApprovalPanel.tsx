@@ -9,7 +9,7 @@ import {
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
 import { formatDeptTeam } from "../../shared/formatOrg";
 
-export function LeaveApprovalPanel() {
+export function LeaveApprovalPanel({ onChanged }: { onChanged?: () => void }) {
   const [rows, setRows] = useState<LeaveRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -109,6 +109,7 @@ export function LeaveApprovalPanel() {
       setOk(res.message);
       if (res.skipped.length) setSkipped(res.skipped);
       await load();
+      onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Duyệt thất bại.");
     } finally {
@@ -161,6 +162,7 @@ export function LeaveApprovalPanel() {
             suppressRowClickSelection
             onGridReady={(e) => setGridApi(e.api)}
             defaultColDef={{ sortable: true, resizable: true, filter: false }}
+            animateRows={false}
           />
         )}
       </div>

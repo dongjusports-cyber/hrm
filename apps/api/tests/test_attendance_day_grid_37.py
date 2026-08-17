@@ -253,3 +253,26 @@ def test_locked_row_skipped_in_bulk(client, db):
     assert res.status_code == 200
     skipped = res.json()["skipped"]
     assert any(s["employee_code"] == "5290" for s in skipped)
+
+
+def test_grid_ale_updates_timesheet_al_days(client):
+    """HR gán phép năm trên lưới ngày → tổng hợp tháng cột phép = 1 (không chỉ điều chỉnh tay)."""
+    headers = _hr_headers(client)
+    res = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={"employee_code": "1732", "work_date": "2025-10-06", "leave_code": "ALE"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["leave_code"] == "ALE"
+    assert body["source"] == "manual"
+
+    sheets = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert sheets.status_code == 200, sheets.text
+    row = next(r for r in sheets.json() if r["employee_code"] == "1732")
+    assert float(row["al_days"]) == 1.0

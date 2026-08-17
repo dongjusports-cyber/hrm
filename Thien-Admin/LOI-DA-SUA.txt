@@ -642,3 +642,23 @@ Cách xử lý:
 Test:
   apps/api pytest tests/test_attendance_day_grid_37.py -q
 
+[QA-HR001] HR thao tác: duyệt phép / gán phép / tạo NV / phát hành lương âm — 2026-08-17
+--------------------------------------------------------------------------------
+Triệu chứng (thao tác như HR trên Cloud, 361 NV):
+  1) Công nhân gửi đơn phép — Chấm công không có chỗ duyệt (panel đã viết nhưng không gắn).
+  2) Gán «Nghỉ phép năm» trên lưới ngày: phiếu có dòng ALE nhưng cột phép tháng = 0.
+  3) Tạo NV thiếu trường: Chrome hiện «Please fill out this field» tiếng Anh.
+  4) Tính lương tháng gần như không chấm công → 361/361 phiếu thực lãnh âm;
+     phát hành không cảnh báo; lưu điều chỉnh rồi phát hành luôn (thiếu Tính lại).
+
+Cách xử lý:
+  - Tab «Duyệt phép» trên Chấm công (LeaveApprovalPanel).
+  - Tổng hợp tháng al_days lấy từ ABS_ALE (lưới ngày + điều chỉnh).
+  - Gán phép/ghi chú trên ô: source=manual.
+  - Form tạo NV noValidate — lỗi tiếng Việt từ API.
+  - Tính lương / Phát hành: cảnh báo phiếu âm và điều chỉnh chưa tính lại.
+
+Test:
+  apps/api pytest tests/test_attendance_day_grid_37.py -q
+  apps/web npx tsc -b
+

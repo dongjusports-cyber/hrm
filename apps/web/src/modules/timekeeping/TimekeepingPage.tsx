@@ -6,6 +6,7 @@ import {
   fetchAttendanceDays,
   fetchDepartments,
   fetchIntegrationStatus,
+  fetchLeaveRequests,
   fetchLeaveTypes,
   fetchPayPeriod,
   fetchTimesheets,
@@ -29,6 +30,7 @@ import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
+import { LeaveApprovalPanel } from "./LeaveApprovalPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
 import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
@@ -36,11 +38,12 @@ import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 
-type MainView = "daily" | "monthly";
+type MainView = "daily" | "monthly" | "leave";
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
   daily: "Kiểm công một ngày: Công · trễ/sớm · tăng ca sổ/ngoài · OT CN/lễ. CN đi làm hiện OT CN, không cộng Công.",
   monthly: "Tổng hợp tháng — một dòng một NV. Cột Công = giờ/8. OT CN tách khỏi tăng ca sổ.",
+  leave: "Đơn phép công nhân gửi từ điện thoại — chọn dòng rồi Duyệt / Từ chối.",
 };
 
 const TK_HEADER_TIPS = {
@@ -212,6 +215,7 @@ export function TimekeepingPage() {
   const [otExternalOpen, setOtExternalOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [dailySummary, setDailySummary] = useState<DailyGridSummary>({ total: 0, needsAction: 0 });
+  const [leavePending, setLeavePending] = useState(0);
   const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
   const [gridApi, setGridApi] = useState<{ ensureIndexVisible: (i: number) => void } | null>(
     null,
@@ -249,11 +253,12 @@ export function TimekeepingPage() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [st, pp, sheets, lt] = await Promise.all([
+      const [st, pp, sheets, lt, pendingLeaves] = await Promise.all([
         fetchIntegrationStatus(),
         fetchPayPeriod(period),
         fetchTimesheets(period),
         fetchLeaveTypes(),
+        fetchLeaveRequests({ status: "submitted" }).catch(() => []),
       ]);
       setStatus(st);
       setPay(pp);
@@ -265,6 +270,7 @@ export function TimekeepingPage() {
       });
       setRows(sheets);
       setLeaves(lt);
+      setLeavePending(pendingLeaves.length);
       void fetchDepartments()
         .then((depts) => setDepartments(depts.filter((d) => d.is_active !== false)))
         .catch(() => {});
@@ -860,6 +866,10 @@ export function TimekeepingPage() {
                   {" · "}
                   mẫu số {pay.salary_divisor} · <strong>{labelPeriodStatus(pay.status)}</strong>
                 </>
+              ) : mainView === "leave" ? (
+                <>
+                  {leavePending} đơn phép chờ duyệt
+                </>
               ) : (
                 <>
                   {filtered.length}/{rows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
@@ -886,6 +896,7 @@ export function TimekeepingPage() {
               [
                 ["daily", "Kiểm theo ngày"],
                 ["monthly", "Tổng hợp tháng"],
+                ["leave", leavePending ? `Duyệt phép (${leavePending})` : "Duyệt phép"],
               ] as const
             ).map(([view, label]) => (
               <button
@@ -931,6 +942,17 @@ export function TimekeepingPage() {
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
+            />
+          </div>
+        ) : mainView === "leave" ? (
+          <div className="tk-stack tk-stack-panel">
+            <LeaveApprovalPanel
+              onChanged={() => {
+                void fetchLeaveRequests({ status: "submitted" })
+                  .then((list) => setLeavePending(list.length))
+                  .catch(() => {});
+                setDailyGridRefresh((n) => n + 1);
+              }}
             />
           </div>
         ) : (
