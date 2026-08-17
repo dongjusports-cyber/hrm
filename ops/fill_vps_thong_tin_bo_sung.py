@@ -77,7 +77,7 @@ def main() -> None:
             "docker exec djhrm-api python -m app.scripts.import_thong_tin_bo_sung --xlsx /tmp/bo_sung.xlsx",
             timeout=600,
         )
-        _exec(client, "docker exec -w /app djhrm-api python /tmp/count_fill.py")
+        _exec(client, "docker exec -w /app -e PYTHONPATH=/app djhrm-api python /tmp/count_fill.py")
         _exec(client, "rm -rf /tmp/bo_sung /tmp/bo_sung.tar.gz")
     finally:
         client.close()
