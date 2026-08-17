@@ -36,6 +36,13 @@ if not exist ".env" (
 )
 
 echo Tao virtualenv + cai thu vien...
+if exist ".venv\Scripts\python.exe" (
+  .venv\Scripts\python.exe -c "print(1)" >nul 2>&1
+  if errorlevel 1 (
+    echo .venv hong ^(copy tu may khac / Dongju Spots Pro^) — xoa va tao lai.
+    rmdir /s /q ".venv"
+  )
+)
 if not exist ".venv\Scripts\python.exe" python -m venv .venv
 call .venv\Scripts\pip install -r requirements.txt
 if errorlevel 1 (

@@ -5,10 +5,11 @@ Folder 122 — USB sang may nha may (.122)
   env-LOCAL-123.txt     .env test Docker .123
   env-VPS.txt           .env production VPS
 
+  00-TAO-PYTHON-LOCAL.bat         Xoa .venv copy tu .123, tao Python local
   01-KIEM-TRA-ODBC.bat
-  02-GHEP-ENV.bat                 Copy .env vao D:\dj-hrm\apps\agent\
+  02-GHEP-ENV.bat                 Copy .env vao folder agent (GIU .env neu da co)
   03-CHAY-AGENT-NEN.bat           Chay tay (cua so CMD)
-  04-CAI-TU-CHAY-KHI-MO-MAY.bat   Cai 1 lan: dang nhap la chay ngam
+  04-CAI-TU-CHAY-KHI-MO-MAY.bat   Cai 1 lan: Run as administrator
   05-TAT-TU-CHAY.bat              Go tu-chay
 
   (kem 04-cai-tu-chay.ps1 / 05-tat-tu-chay.ps1 — bat goi, khong can mo tay)

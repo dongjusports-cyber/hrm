@@ -2,11 +2,8 @@
 chcp 65001 >nul
 title [122] Ghep file .env vao agent
 cd /d "%~dp0"
-
-set "AGENT=D:\dj-hrm\apps\agent"
-if not exist "%AGENT%\dj_agent\main.py" (
-  echo LOI: Khong thay %AGENT%
-  echo Sua duong dan AGENT trong file .bat neu may .122 dat khac D:\dj-hrm
+call "%~dp0_tim-agent.cmd"
+if not defined AGENT (
   pause
   exit /b 1
 )

@@ -18,10 +18,12 @@
   BƯỚC 2 — TRÊN MÁY .122 (lần đầu hoặc đổi cấu hình)
 --------------------------------------------------------------------------------
 
+  0.  00-TAO-PYTHON-LOCAL.bat       → BẮT BUỘC nếu báo "No Python at ... Dongju Spots Pro"
+                                      (xóa .venv copy từ .123, tạo Python mới; GIỮ .env)
   1.  01-KIEM-TRA-ODBC.bat          → xem máy có ODBC 17 hay 18 (đọc HUONG-DAN-ODBC.txt)
   2.  02-GHEP-ENV.bat               → dán file .env vào D:\dj-hrm\apps\agent\
   3.  03-CHAY-AGENT-NEN.bat         → chạy tay (cửa sổ CMD, Ctrl+C để dừng)
-  4.  04-CAI-TU-CHAY-KHI-MO-MAY.bat → CÀI MỘT LẦN: mở máy / đăng nhập là agent chạy ngầm
+  4.  04-CAI-TU-CHAY-KHI-MO-MAY.bat → CÀI MỘT LẦN (chuột phải / Run as administrator)
   5.  05-TAT-TU-CHAY.bat            → gỡ tự-chạy (nếu cần)
 
   Sau bước 4: không cần bấm 03 mỗi sáng. Tắt máy thì agent tự dừng.
@@ -57,8 +59,9 @@
   KHÔNG xóa file .env trên .122 (hoặc chạy lại 02-GHEP-ENV.bat sau khi copy).
 
   Bỏ qua folder:  .venv   __pycache__   .pytest_cache
+  (copy .venv từ .123 sẽ lỗi "No Python at ... Dongju Spots Pro")
 
-  Sau đó trên .122 chạy:  D:\dj-hrm\apps\agent\CAI_AGENT_HR122.bat  (một lần)
+  Sau đó trên .122 chạy:  00-TAO-PYTHON-LOCAL.bat  rồi  04-CAI-TU-CHAY-KHI-MO-MAY.bat
 
 --------------------------------------------------------------------------------
   PRODUCTION (VPS) — sau này
