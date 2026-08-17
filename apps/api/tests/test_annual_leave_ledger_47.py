@@ -7,6 +7,7 @@ from app.modules.attendance.annual_leave_ledger import (
     annual_leave_remaining,
     annual_leave_remaining_batch,
     ensure_ledger,
+    entitled_days_per_year,
     ledger_balance_from_entries,
     record_leave_use,
     sync_accrual,
@@ -15,9 +16,20 @@ from app.modules.attendance.models import AnnualLeaveEntry, LeaveRequest
 from app.modules.mdm.models import Employee
 
 
+def test_entitled_14_plus_1_per_5_years():
+    emp = Employee(employee_code="1519", full_name="X", join_date=date(2015, 3, 26))
+    assert entitled_days_per_year(emp, date(2026, 8, 17), 14, 5) == 16
+    newbie = Employee(employee_code="x", full_name="Y", join_date=date(2026, 1, 10))
+    assert entitled_days_per_year(newbie, date(2026, 8, 17), 14, 5) == 14
+    five = Employee(employee_code="y", full_name="Z", join_date=date(2021, 8, 17))
+    assert entitled_days_per_year(five, date(2026, 8, 17), 14, 5) == 15
+    almost = Employee(employee_code="z", full_name="W", join_date=date(2021, 8, 18))
+    assert entitled_days_per_year(almost, date(2026, 8, 17), 14, 5) == 14
+
+
 def test_accrual_through_august_matches_22_7(db):
     emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
-    emp.join_date = date(2010, 1, 1)
+    emp.join_date = date(2024, 1, 1)
     db.commit()
 
     as_of = date(2025, 8, 31)
@@ -52,7 +64,7 @@ def test_balance_equals_sum_of_entries(db):
 
 def test_remaining_subtracts_pending_submitted(db):
     emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
-    emp.join_date = date(2010, 1, 1)
+    emp.join_date = date(2024, 1, 1)
     db.commit()
 
     sync_accrual(db, emp, date(2025, 8, 31))
@@ -74,7 +86,7 @@ def test_remaining_subtracts_pending_submitted(db):
 
 def test_remaining_batch_matches_single(db):
     emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
-    emp.join_date = date(2010, 1, 1)
+    emp.join_date = date(2024, 1, 1)
     db.commit()
 
     as_of = date(2025, 8, 31)

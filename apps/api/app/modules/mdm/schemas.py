@@ -496,6 +496,50 @@ class EmployeeViolationBoardItem(BaseModel):
     last_occurred_at: datetime | None = None
 
 
+class AnnualLeaveMonthDays(BaseModel):
+    jan: str = "0"
+    feb: str = "0"
+    mar: str = "0"
+    apr: str = "0"
+    may: str = "0"
+    jun: str = "0"
+    jul: str = "0"
+    aug: str = "0"
+    sep: str = "0"
+    oct: str = "0"
+    nov: str = "0"
+    dec: str = "0"
+
+
+class AnnualLeaveGridRow(BaseModel):
+    employee_id: str | None = None
+    employee_code: str
+    full_name: str
+    department: str = ""
+    team: str = ""
+    join_date: date | None = None
+    al_days: str
+    used: str
+    unused: str
+    accrued_months: int = 0
+    curr_al: str = "0"
+    curr_remaining: str = "0"
+    used_by_month: AnnualLeaveMonthDays
+
+
+class AnnualLeaveGridOut(BaseModel):
+    year: int | None = None
+    report_date: date | None = None
+    source_file: str | None = None
+    source_label: str
+    missing: bool = False
+    notes: list[str] = Field(default_factory=list)
+    employee_count: int = 0
+    matched_in_db: int = 0
+    accrued_through_month: int = 0
+    employees: list[AnnualLeaveGridRow] = Field(default_factory=list)
+
+
 class EmployeeDocumentCreate(BaseModel):
     doc_type: str = Field(default="other", max_length=40)
     title: str = Field(min_length=1, max_length=200)

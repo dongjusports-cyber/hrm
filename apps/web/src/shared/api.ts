@@ -1656,6 +1656,56 @@ export async function fetchViolationBoard(): Promise<EmployeeViolationBoardItem[
   return res.json();
 }
 
+export type AnnualLeaveMonthDays = {
+  jan: string;
+  feb: string;
+  mar: string;
+  apr: string;
+  may: string;
+  jun: string;
+  jul: string;
+  aug: string;
+  sep: string;
+  oct: string;
+  nov: string;
+  dec: string;
+};
+
+export type AnnualLeaveGridRow = {
+  employee_id: string | null;
+  employee_code: string;
+  full_name: string;
+  department: string;
+  team: string;
+  join_date: string | null;
+  al_days: string;
+  used: string;
+  unused: string;
+  accrued_months: number;
+  curr_al: string;
+  curr_remaining: string;
+  used_by_month: AnnualLeaveMonthDays;
+};
+
+export type AnnualLeaveGrid = {
+  year: number | null;
+  report_date: string | null;
+  source_file: string | null;
+  source_label: string;
+  missing: boolean;
+  notes: string[];
+  employee_count: number;
+  matched_in_db: number;
+  accrued_through_month: number;
+  employees: AnnualLeaveGridRow[];
+};
+
+export async function fetchAnnualLeaveGrid(): Promise<AnnualLeaveGrid> {
+  const res = await apiFetch("/api/employees/annual-leave");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export async function fetchEmployeeViolations(empId: string): Promise<EmployeeViolation[]> {
   const res = await apiFetch(`/api/employees/${empId}/violations`);
   if (!res.ok) throw new Error(await readError(res));

@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.core.deps import AdminUser, DbSession, require_module
 from app.modules.core.models import User
+from app.modules.mdm import annual_leave_snapshot as al_snap
 from app.modules.mdm import service
 from app.modules.mdm.export_employees import export_employees_channel
 from app.modules.mdm.import_excel import import_employees_xlsx
@@ -50,6 +51,7 @@ from app.modules.mdm.schemas import (
     EmployeeUpdate,
     EmployeeValidateRequest,
     EmployeeValidateResult,
+    AnnualLeaveGridOut,
     EmployeeViolationBoardItem,
     EmployeeViolationCreate,
     EmployeeViolationOut,
@@ -225,6 +227,13 @@ def apply_salary_raise(
 @router.get("/employees/violation-board", response_model=list[EmployeeViolationBoardItem])
 def get_violation_board(_user: HrUser, db: DbSession) -> list[EmployeeViolationBoardItem]:
     return service.list_violation_board(db)
+
+
+@router.get("/employees/annual-leave", response_model=AnnualLeaveGridOut)
+def get_annual_leave_grid(_user: HrUser, db: DbSession) -> AnnualLeaveGridOut:
+    """Lưới phép năm — đọc file trích GenuSuite, không ghi sổ (GET read-only)."""
+    payload = al_snap.attach_employee_ids(db, al_snap.load_snapshot())
+    return AnnualLeaveGridOut.model_validate(payload)
 
 
 @router.post("/employees/transfer-team/preview", response_model=TransferTeamPreview)

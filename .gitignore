@@ -59,6 +59,8 @@ apps/api/data/*.db
 
 # Dữ liệu lương gốc GenusSuite dùng để nạp dữ liệu test (PII thật)
 apps/api/data/genussuite_2026/
+# Snapshot phép năm GenuSuite (PII) — Docker .123 đọc file này
+apps/api/data/annual_leave/*.json
 
 # Tài liệu & DDL/dữ liệu gốc GenusSuite dùng để tham chiếu nghiệp vụ (PII thật)
 HIEN_PHAP/*

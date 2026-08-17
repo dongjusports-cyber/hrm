@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
+  fetchAnnualLeaveGrid,
   fetchEmployees,
   fetchViolationBoard,
   type Employee,
@@ -15,7 +16,7 @@ type HubTile = {
   name: string;
   description: string;
   to: string;
-  countKey?: "employees" | "violations" | "none";
+  countKey?: "employees" | "violations" | "annualLeave" | "none";
   countFn?: (rows: Employee[]) => number;
 };
 
@@ -79,6 +80,13 @@ const TILES: HubTile[] = [
     countKey: "none",
   },
   {
+    key: "annual-leave",
+    name: "Phép năm",
+    description: "Lưới ngày phép 2026 — nguồn GenuSuite 17/8",
+    to: "/m/hr/annual-leave",
+    countKey: "annualLeave",
+  },
+  {
     key: "movements",
     name: "Biến động",
     description: "Chuyển tổ · lương · vi phạm — một lưới",
@@ -130,6 +138,7 @@ export function HrHomePage() {
     }
   });
   const [violationPeople, setViolationPeople] = useState(0);
+  const [annualLeaveCount, setAnnualLeaveCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -160,6 +169,13 @@ export function HrHomePage() {
       .catch(() => {
         /* đếm phụ — không chặn hub */
       });
+    void fetchAnnualLeaveGrid()
+      .then((data) => {
+        if (!cancelled && !data.missing) setAnnualLeaveCount(data.employee_count);
+      })
+      .catch(() => {
+        /* đếm phụ — không chặn hub */
+      });
     return () => {
       cancelled = true;
     };
@@ -168,6 +184,7 @@ export function HrHomePage() {
 
   function tileCount(tile: HubTile): number | null {
     if (tile.countKey === "violations") return violationPeople;
+    if (tile.countKey === "annualLeave") return annualLeaveCount;
     if (tile.countKey === "employees" && tile.countFn) return tile.countFn(rows);
     return null;
   }

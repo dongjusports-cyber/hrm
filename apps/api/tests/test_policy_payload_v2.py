@@ -20,6 +20,8 @@ def test_default_payload_has_22_12_blocks():
     assert pen["exempt_requires_hours_lt"] == 8
     assert pen["exempt_requires_punch"] is True
     assert "probation" in p and "annual_leave" in p and "rounding" in p
+    assert p["annual_leave"]["days_per_year"] == 14
+    assert p["annual_leave"]["extra_day_every_years"] == 5
 
 
 def test_validate_rejects_legacy_exempt_leave_codes():

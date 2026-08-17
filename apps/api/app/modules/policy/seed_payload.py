@@ -148,6 +148,8 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "days_per_year": 14,
 
+        "extra_day_every_years": 5,
+
         "accrual_mode": "monthly_prorated",
 
         "accrual_round_digits": 2,

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "report_date": "2026-08-17",
+  "year": 2026,
+  "notes": ["fixture test"],
+  "employees": [
+    {
+      "employee_code": "5118",
+      "full_name": "CAO THỊ NGỌC DUNG",
+      "department": "Completion",
+      "team": "Packing",
+      "join_date": "2015-03-02",
+      "al_days": "16",
+      "used": "5",
+      "unused": "11",
+      "used_by_month": {
+        "jan": "0",
+        "feb": "1",
+        "mar": "1",
+        "apr": "0",
+        "may": "0",
+        "jun": "2",
+        "jul": "1",
+        "aug": "0",
+        "sep": "0",
+        "oct": "0",
+        "nov": "0",
+        "dec": "0"
+      }
+    },
+    {
+      "employee_code": "9999",
+      "full_name": "NV TEST PHEP",
+      "department": "HR & Admin",
+      "team": "HR/Admin Staff",
+      "join_date": "2020-01-15",
+      "al_days": "14",
+      "used": "0",
+      "unused": "14",
+      "used_by_month": {
+        "jan": "0",
+        "feb": "0",
+        "mar": "0",
+        "apr": "0",
+        "may": "0",
+        "jun": "0",
+        "jul": "0",
+        "aug": "0",
+        "sep": "0",
+        "oct": "0",
+        "nov": "0",
+        "dec": "0"
+      }
+    }
+  ]
+}

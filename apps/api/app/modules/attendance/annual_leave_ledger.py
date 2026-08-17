@@ -21,22 +21,51 @@ KIND_ADJUST = "adjust"
 KIND_PAYOUT = "payout"
 
 
-def _annual_days_per_year(db: Session) -> int:
-    fallback = int(default_payload()["annual_leave"]["days_per_year"])
+def _al_policy(db: Session) -> tuple[int, int]:
+    """(mốc NV mới, số năm thì +1 ngày). Thiếu key trên gói cũ → 14 và 5."""
+    fallback_base = int(default_payload()["annual_leave"]["days_per_year"])
+    fallback_every = int(default_payload()["annual_leave"].get("extra_day_every_years") or 5)
     pkg = (
         db.query(PolicyPackage)
         .filter(PolicyPackage.is_active.is_(True))
         .order_by(PolicyPackage.effective_from.desc())
         .first()
     )
+    base, every = fallback_base, fallback_every
     if pkg and isinstance(pkg.payload, dict):
         al = pkg.payload.get("annual_leave")
         if isinstance(al, dict):
             try:
-                return int(al.get("days_per_year", fallback))
+                base = int(al.get("days_per_year", fallback_base))
             except (TypeError, ValueError):
-                pass
-    return fallback
+                base = fallback_base
+            raw_every = al.get("extra_day_every_years", fallback_every)
+            try:
+                every = int(raw_every) if raw_every not in (None, "") else fallback_every
+            except (TypeError, ValueError):
+                every = fallback_every
+    return base, max(0, every)
+
+
+def _annual_days_per_year(db: Session) -> int:
+    """Mốc phép NV mới (không gồm thâm niên)."""
+    return _al_policy(db)[0]
+
+
+def entitled_days_per_year(emp: Employee, as_of: date, base: int, extra_every: int) -> int:
+    """Mốc năm = 14 + 1 mỗi đủ 5 năm thâm niên (theo ngày vào)."""
+    if extra_every <= 0 or emp.join_date is None:
+        return base
+    years = as_of.year - emp.join_date.year
+    if (as_of.month, as_of.day) < (emp.join_date.month, emp.join_date.day):
+        years -= 1
+    years = max(0, years)
+    return base + years // extra_every
+
+
+def entitled_days_for(db: Session, emp: Employee, as_of: date) -> int:
+    base, every = _al_policy(db)
+    return entitled_days_per_year(emp, as_of, base, every)
 
 
 def _signed_days(kind: str, days: Decimal) -> Decimal:
@@ -171,7 +200,7 @@ def sync_accrual(db: Session, emp: Employee, as_of: date) -> AnnualLeaveLedger:
     months = _accrual_months(emp, as_of)
     if months <= 0:
         return ledger
-    days_per_year = _annual_days_per_year(db)
+    days_per_year = entitled_days_for(db, emp, as_of)
     target = (Decimal(months) * Decimal(days_per_year) / Decimal(12)).quantize(
         Q2, rounding=ROUND_HALF_UP
     )
@@ -309,7 +338,7 @@ def annual_leave_remaining_batch(
         return {}
     as_of = as_of or date.today()
     year = as_of.year
-    days_per_year = _annual_days_per_year(db)
+    base, extra_every = _al_policy(db)
 
     employees = {
         e.id: e for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
@@ -332,7 +361,10 @@ def annual_leave_remaining_batch(
             out[emp_id] = Decimal("0")
             continue
         closing = _closing_with_unrecorded_accrual(
-            ledger_by_emp.get(emp_id), emp, as_of, days_per_year
+            ledger_by_emp.get(emp_id),
+            emp,
+            as_of,
+            entitled_days_per_year(emp, as_of, base, extra_every),
         )
         pending = pending_map.get(emp_id, Decimal("0"))
         remaining = (closing - pending).quantize(Q2, rounding=ROUND_HALF_UP)
@@ -352,7 +384,7 @@ def sync_accrual_batch(
     """
     as_of = as_of or date.today()
     year = as_of.year
-    days_per_year = _annual_days_per_year(db)
+    base, extra_every = _al_policy(db)
 
     emp_query = db.query(Employee).filter(Employee.deleted_at.is_(None))
     if employee_ids is not None:
@@ -406,6 +438,7 @@ def sync_accrual_batch(
         months = _accrual_months(emp, as_of)
         if months <= 0:
             continue
+        days_per_year = entitled_days_per_year(emp, as_of, base, extra_every)
         delta = (
             _target_accrued(emp, as_of, days_per_year) - Decimal(str(ledger.accrued))
         ).quantize(Q2, rounding=ROUND_HALF_UP)

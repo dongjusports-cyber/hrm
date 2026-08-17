@@ -22,6 +22,7 @@ const ROUTES: CommandItem[] = [
   { id: "hr", label: "Nhân Sự", to: "/m/hr", pinId: "hr" },
   { id: "hr-all", label: "Danh sách nhân viên", to: "/m/hr/lists/all", pinId: "hr-all" },
   { id: "hr-contracts", label: "Hợp đồng lao động", to: "/m/hr/contracts", pinId: "hr-contracts" },
+  { id: "hr-annual-leave", label: "Phép năm", to: "/m/hr/annual-leave", pinId: "hr-annual-leave" },
   { id: "hr-family", label: "Thân nhân & giảm trừ", to: "/m/hr/family", pinId: "hr-family" },
   { id: "hr-movements", label: "Biến động HR", to: "/m/hr/movements", pinId: "hr-movements" },
   { id: "hr-resign", label: "Thôi việc", to: "/m/hr/resignation", pinId: "hr-resign" },
