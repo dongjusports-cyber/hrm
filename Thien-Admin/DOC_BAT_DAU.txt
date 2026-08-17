@@ -55,6 +55,10 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
   File:  07-KEO-BACKUP-VE.bat
     → Kéo bản sao bảng lương/chấm công từ VPS về thư mục backups\ (USB)
 
+  File:  08-CHUAN-USB-122.bat
+    → Máy .123: gói folder USB-122-AGENT (Agent cho máy .122)
+    → Copy folder đó sang USB. Máy .122: xóa cũ, dán D:\122-AGENT, chạy 01 → 02 → 04
+
 --------------------------------------------------------------------------------
   TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
 --------------------------------------------------------------------------------

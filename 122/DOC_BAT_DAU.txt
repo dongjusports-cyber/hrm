@@ -1,86 +1,50 @@
 ================================================================================
-  THƯ MỤC 122 — CHỈ DÙNG TRÊN MÁY NHÀ MÁY (.122)
-  File này được TẠO trên máy .123 (sửa code) rồi copy USB sang .122
+  MAY .122 — CAI AGENT SACH (1 FOLDER)
+  Copy tu USB:  USB-122-AGENT  →  D:\122-AGENT
 ================================================================================
 
-  BỐN CHỖ — KHÔNG NHẦM
-
-    .123   = máy bạn: Cursor, sửa code, GitHub, deploy VPS
-             (C:\DATA\HRM\dj-hrm\dj-hrm)  — KHÔNG cài Mitapro, KHÔNG chạy Agent
-
-    GitHub = kho code
-
-    VPS    = https://hrm.dongju-v.com  — chạy thật + DB công nhân
-
-    .122   = máy nhà máy: Mitapro + SQL + Agent
-             — CHỈ double-click file .bat trong folder này
-             — KHÔNG sửa code, KHÔNG Git, KHÔNG deploy
-
-  Luồng công:  vân tay → Mitapro (.122) → Agent (.122) → VPS
-               điện thoại → VPS (không qua .122)
+  .123 = sua code / GitHub / deploy     (KHONG chay file trong folder nay)
+  .122 = Mitapro + Agent                (CHI may nay chay file .bat)
 
 --------------------------------------------------------------------------------
-  BƯỚC 1 — USB (làm trên máy .123, rồi mang sang .122)
+  TREN MAY .122 — XOA CU ROI DAN MOI
 --------------------------------------------------------------------------------
 
-  Copy folder   122\   (toàn bộ)  →  USB
+  1. Xoa het:
+       D:\dj-hrm
+       D:\122
+       Desktop\122
+       moi folder agent / 122 cu
 
-  Trên máy .122: dán vào Desktop hoặc  D:\122\  (tùy bạn)
-
---------------------------------------------------------------------------------
-  BƯỚC 2 — TRÊN MÁY .122 (lần đầu hoặc đổi cấu hình)
---------------------------------------------------------------------------------
-
-  0.  00-TAO-PYTHON-LOCAL.bat       → BẮT BUỘC nếu báo "No Python at ... Dongju Spots Pro"
-                                      (xóa .venv copy từ .123, tạo Python mới; GIỮ .env)
-  1.  01-KIEM-TRA-ODBC.bat          → xem máy có ODBC 17 hay 18 (đọc HUONG-DAN-ODBC.txt)
-  2.  02-GHEP-ENV.bat               → dán file .env vào D:\dj-hrm\apps\agent\
-  3.  03-CHAY-AGENT-NEN.bat         → chạy tay (cửa sổ CMD, Ctrl+C để dừng)
-  4.  04-CAI-TU-CHAY-KHI-MO-MAY.bat → CÀI MỘT LẦN (chuột phải / Run as administrator)
-  5.  05-TAT-TU-CHAY.bat            → gỡ tự-chạy (nếu cần)
-
-  Sau bước 4: không cần bấm 03 mỗi sáng. Tắt máy thì agent tự dừng.
-  Agent tự đẩy công về VPS mỗi 2 phút — không cần bấm Đồng bộ trên web.
-  Log ngầm: D:\dj-hrm\apps\agent\agent.log
-
-  Lưu ý: agent dùng tài khoản Windows để đọc SQL Mitapro, nên chạy khi
-  user đã đăng nhập (máy nhà máy thường tự đăng nhập). Không chạy kiểu
-  SERVICE/SYSTEM lúc boot — SQL sẽ không đọc được.
-
-  Agent code đã có sẵn tại:  D:\dj-hrm\apps\agent\
-  (nếu thiếu code → xem mục "Cập nhật code agent" bên dưới)
+  2. Copy CA folder  USB-122-AGENT  tu USB
+     Doi ten / dan thanh:   D:\122-AGENT
+     (ben trong da co: 01 02 03 04 05 + folder agent)
 
 --------------------------------------------------------------------------------
-  BƯỚC 3 — XEM CÔNG (trình duyệt → VPS, không phải máy .123)
+  CHAY 3 FILE (THEO SO)
 --------------------------------------------------------------------------------
 
-  Mở https://hrm.dongju-v.com  → Chấm công.
-  Agent .122 tự đẩy mỗi 2 phút. Nút Đồng bộ chỉ khi kéo lại tháng cũ.
+  01-KIEM-TRA-ODBC.bat
+      Can thay "ODBC Driver 17" hoac "18". Chua co → cai tu Microsoft.
+
+  02-CAI-DAT.bat
+      Tao Python TREN MAY .122, cai thu vien, thu day 1 lan len VPS.
+      Can Python 3.12 (python.org — tick Add to PATH) neu may chua co.
+
+  04-CAI-TU-CHAY.bat
+      Chuot phai → Run as administrator.
+      Sau do Agent chay ngam moi 2 phut. Khong can bam Dong bo tren web.
+
+  (03-CHAY-THU.bat = thu them 1 lan neu muon)
+  (05-TAT-TU-CHAY.bat = go tu-chay)
 
 --------------------------------------------------------------------------------
-  CẬP NHẬT CODE AGENT (code mới từ máy .123 → USB → .122)
+  KIEM TRA
 --------------------------------------------------------------------------------
 
-  Copy từ .123 sang USB (ngoài folder 122):
+  Trinh duyet:  https://hrm.dongju-v.com  → Cham cong
+  Doi ~2 phut. Cong may van tay phai hien. Khong can bam Dong bo.
 
-    C:\DATA\HRM\dj-hrm\dj-hrm\apps\agent\
-
-  Dán đè lên .122:
-
-    D:\dj-hrm\apps\agent\
-
-  KHÔNG xóa file .env trên .122 (hoặc chạy lại 02-GHEP-ENV.bat sau khi copy).
-
-  Bỏ qua folder:  .venv   __pycache__   .pytest_cache
-  (copy .venv từ .123 sẽ lỗi "No Python at ... Dongju Spots Pro")
-
-  Sau đó trên .122 chạy:  00-TAO-PYTHON-LOCAL.bat  rồi  04-CAI-TU-CHAY-KHI-MO-MAY.bat
-
---------------------------------------------------------------------------------
-  PRODUCTION (VPS) — sau này
---------------------------------------------------------------------------------
-
-  Dùng file:  env-VPS.txt  → chạy 02-GHEP-ENV.bat  (chọn VPS khi hỏi)
-  hoặc sửa tay .env:  DJ_API_BASE_URL=https://hrm.dongju-v.com
+  Log:  D:\122-AGENT\agent\agent.log
 
 ================================================================================

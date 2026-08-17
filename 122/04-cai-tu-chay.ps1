@@ -1,33 +1,20 @@
 param(
-  [string]$AgentDir = ""
+  [Parameter(Mandatory = $true)]
+  [string]$AgentDir
 )
 
 $ErrorActionPreference = "Stop"
-
-if (-not $AgentDir) {
-  foreach ($c in @("D:\dj-hrm\apps\agent", "D:\dj-hrm\agent")) {
-    if (Test-Path (Join-Path $c "dj_agent\main.py")) {
-      $AgentDir = $c
-      break
-    }
-  }
-}
-if (-not $AgentDir -or -not (Test-Path (Join-Path $AgentDir "dj_agent\main.py"))) {
-  throw "LOI: khong thay folder agent (dj_agent\main.py)."
-}
-
-$pyExe = Join-Path $AgentDir ".venv\Scripts\python.exe"
+$AgentDir = $AgentDir.TrimEnd("\")
 $pyw = Join-Path $AgentDir ".venv\Scripts\pythonw.exe"
+$pyExe = Join-Path $AgentDir ".venv\Scripts\python.exe"
 if (-not (Test-Path $pyExe)) {
-  throw "LOI: chua co .venv — chay 00-TAO-PYTHON-LOCAL.bat"
+  throw "LOI: chua chay 02-CAI-DAT.bat"
 }
 & $pyExe -c "print(1)" | Out-Null
 if ($LASTEXITCODE -ne 0) {
-  throw "LOI: .venv copy tu may .123. Chay 00-TAO-PYTHON-LOCAL.bat"
+  throw "LOI: .venv hong. Chay lai 02-CAI-DAT.bat"
 }
-if (-not (Test-Path $pyw)) {
-  $pyw = $pyExe
-}
+if (-not (Test-Path $pyw)) { $pyw = $pyExe }
 
 $taskName = "DJ-HRM-Agent-122"
 $action = New-ScheduledTaskAction -Execute $pyw -Argument "-m dj_agent.main" -WorkingDirectory $AgentDir
@@ -47,6 +34,5 @@ $settings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($logon, $watch) -Settings $settings -Force | Out-Null
 Start-ScheduledTask -TaskName $taskName
-Write-Host "XONG. Agent dang chay ngam (Task Scheduler: $taskName)."
+Write-Host "XONG. Task: $taskName"
 Write-Host "Folder: $AgentDir"
-Write-Host "Tu dong: luc dang nhap + moi 5 phut neu chet."
