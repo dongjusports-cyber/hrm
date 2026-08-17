@@ -12,6 +12,7 @@ import { PolicyEditorPage } from "./modules/config/PolicyEditorPage";
 import { PolicyPackagePage } from "./modules/config/PolicyPackagePage";
 import { UsersPage } from "./modules/config/UsersPage";
 import { AiSettingsPage } from "./modules/config/AiSettingsPage";
+import { MobilePunchSettingsPage } from "./modules/config/MobilePunchSettingsPage";
 import { AuditLogPage } from "./modules/config/AuditLogPage";
 import { DepartmentsPage } from "./modules/config/DepartmentsPage";
 import { KpiConfigPage } from "./modules/config/KpiConfigPage";
@@ -50,6 +51,7 @@ import { WorkerHomePage } from "./worker/WorkerHomePage";
 import { WorkerLeavePage } from "./worker/WorkerLeavePage";
 import { WorkerLoginPage } from "./worker/WorkerLoginPage";
 import { WorkerPayslipPage } from "./worker/WorkerPayslipPage";
+import { WorkerPunchPage } from "./worker/WorkerPunchPage";
 
 export default function App() {
   const { open, message, close } = useDeniedStore();
@@ -81,6 +83,14 @@ export default function App() {
           element={
             <RequireWorker>
               <WorkerLeavePage />
+            </RequireWorker>
+          }
+        />
+        <Route
+          path="/worker/punch"
+          element={
+            <RequireWorker>
+              <WorkerPunchPage />
             </RequireWorker>
           }
         />
@@ -130,6 +140,7 @@ export default function App() {
           <Route path="kpi" element={<KpiConfigPage />} />
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="ai" element={<AiSettingsPage />} />
+          <Route path="mobile-punch" element={<MobilePunchSettingsPage />} />
           <Route path="audit-log" element={<AuditLogPage />} />
           <Route path="agent" element={<Navigate to="/m/timekeeping" replace />} />
           <Route path=":sectionKey" element={<ConfigPlaceholder />} />

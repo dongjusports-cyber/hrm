@@ -532,3 +532,21 @@ Test:
   apps/web npm run build -> OK
   Mở /worker/login trên VPS + ĐT sau khi deploy sw.js v7.
 
+[WK-PUNCH001] Chấm công điện thoại — Main Office, nút mờ xưởng — 2026-08-17
+---------------------------------------------------------------------------
+Triệu chứng / yêu cầu:
+  Hiện nút Chấm công cả công ty; chỉ Main Office (mã 03) bấm được; xưởng nút mờ.
+  Ông Định test xong: một công tắc mở tất cả. Khóa trên server.
+
+Cách xử lý:
+  - mobile_punch_settings: mode off|allowlist|all, department_codes, extra_msnv, GPS
+  - GET /api/worker/me: can_mobile_punch (không ghi DB)
+  - POST /api/worker/punches: 403 ngoài allowlist; GPS khi đã đặt tọa độ; ảnh uploads
+  - Cấu Hình → Chấm công ĐT (admin)
+  - App: nút mờ + chữ giải thích; /worker/punch chụp mặt
+
+Test:
+  apps/api py -3.12 -m pytest tests/test_worker_mobile_punch.py tests/test_worker_login.py -q
+    -> 17 passed
+  apps/web npm run build -> OK
+

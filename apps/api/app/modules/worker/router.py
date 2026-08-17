@@ -10,6 +10,7 @@ from app.modules.dispute import service as dispute_svc
 from app.modules.dispute.schemas import DisputeCreateRequest, DisputeOut, DisputeReasonOut
 from app.modules.worker import payslips as payslip_svc
 from app.modules.worker import service as worker_service
+from app.modules.config.mobile_punch import WorkerPunchIn, WorkerPunchOut, create_worker_punch
 from app.modules.worker.schemas import (
     MessageOut,
     WorkerChangePasswordRequest,
@@ -29,8 +30,8 @@ def worker_login(body: WorkerLoginRequest, db: DbSession) -> WorkerTokenResponse
 
 
 @router.get("/me", response_model=WorkerOut)
-def worker_me(worker: CurrentWorker) -> WorkerOut:
-    return worker_service.worker_to_out(worker, worker.username)
+def worker_me(worker: CurrentWorker, db: DbSession) -> WorkerOut:
+    return worker_service.worker_to_out(db, worker)
 
 
 @router.post("/change-password", response_model=MessageOut)
@@ -121,3 +122,15 @@ def worker_leave_request_create(
         submit=body.submit,
     )
     return LeaveRequestOut.model_validate(row)
+
+
+@router.post("/punches", response_model=WorkerPunchOut)
+def worker_mobile_punch(
+    body: WorkerPunchIn,
+    worker: WorkerPasswordOk,
+    db: DbSession,
+) -> WorkerPunchOut:
+    emp = worker_service._employee_for_user(db, worker)
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Trợ Lý AI: không tìm thấy hồ sơ nhân viên.")
+    return create_worker_punch(db, emp=emp, employee_code=emp.employee_code, body=body)

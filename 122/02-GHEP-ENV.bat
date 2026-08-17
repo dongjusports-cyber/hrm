@@ -45,5 +45,5 @@ if exist "%AGENT%\.venv\Scripts\python.exe" (
 )
 
 echo.
-echo XONG. Chay tiep: 03-CHAY-AGENT-NEN.bat
+echo XONG. Chay tiep: 04-CAI-TU-CHAY-KHI-MO-MAY.bat  (hoac 03 neu chi muon chay tay)
 pause

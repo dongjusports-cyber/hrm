@@ -16,6 +16,7 @@ import argparse
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from dj_agent.config import get_settings
 from dj_agent.odbc_util import odbc_setup_hint, resolve_odbc_conn_str
@@ -25,10 +26,18 @@ from dj_agent.sync_loop import process_pending, run_forever, run_once
 
 
 def _setup_logging() -> None:
+    log_file = Path(__file__).resolve().parent.parent / "agent.log"
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stderr)]
+    try:
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
+    except OSError:
+        pass
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
+        handlers=handlers,
+        force=True,
     )
 
 

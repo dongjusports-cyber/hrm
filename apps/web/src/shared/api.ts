@@ -2478,6 +2478,35 @@ export async function updateAiSettings(body: {
   return res.json();
 }
 
+export type MobilePunchSettings = {
+  mode: "off" | "allowlist" | "all";
+  department_codes: string[];
+  extra_msnv: string[];
+  gps_lat: number | null;
+  gps_lng: number | null;
+  gps_radius_m: number;
+  require_photo: boolean;
+  gps_enforced: boolean;
+  persisted: boolean;
+};
+
+export async function fetchMobilePunchSettings(): Promise<MobilePunchSettings> {
+  const res = await apiFetch("/api/config/mobile-punch");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function updateMobilePunchSettings(
+  body: Partial<MobilePunchSettings> & { clear_gps?: boolean },
+): Promise<MobilePunchSettings> {
+  const res = await apiFetch("/api/config/mobile-punch", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export type Payslip = {
   id: string;
   pay_period_id: string;

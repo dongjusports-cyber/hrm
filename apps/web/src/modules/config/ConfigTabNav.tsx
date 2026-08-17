@@ -9,6 +9,7 @@ const TABS = [
   { to: "/m/config/permissions", label: "Phân quyền" },
   { to: "/m/config/journal", label: "Nhật ký" },
   { to: "/m/config/ai", label: "AI Gemini" },
+  { to: "/m/config/mobile-punch", label: "Chấm công ĐT" },
 ];
 
 export function ConfigTabNav() {

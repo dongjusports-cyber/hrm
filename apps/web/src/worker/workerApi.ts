@@ -1,5 +1,5 @@
 import { getApiBase } from "../shared/apiBase";
-import { clearWorkerAuth, getWorkerToken, setWorkerAuth, type WorkerUser } from "./workerAuthStore";
+import { clearWorkerAuth, getWorkerToken, patchWorkerUser, setWorkerAuth, type WorkerUser } from "./workerAuthStore";
 
 async function readError(res: Response): Promise<string> {
   const data = await res.json().catch(() => ({}));
@@ -205,3 +205,34 @@ export async function submitWorkerLeaveRequest(body: {
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
+
+export async function fetchWorkerMe(): Promise<WorkerUser> {
+  const res = await workerFetch("/api/worker/me");
+  if (!res.ok) throw new Error(await readError(res));
+  const worker = (await res.json()) as WorkerUser;
+  patchWorkerUser(worker);
+  return worker;
+}
+
+export type WorkerPunchResult = {
+  id: number;
+  punch_time: string;
+  source: string;
+  detail: string;
+};
+
+export async function submitWorkerPunch(body: {
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
+  photo_base64?: string | null;
+  device_id?: string | null;
+}): Promise<WorkerPunchResult> {
+  const res = await workerFetch("/api/worker/punches", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+

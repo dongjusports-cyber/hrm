@@ -6,6 +6,10 @@ export type WorkerUser = {
   full_name: string;
   must_change_password: boolean;
   employee_id: string | null;
+  department_code?: string | null;
+  can_mobile_punch?: boolean;
+  punch_blocked_reason?: string | null;
+  gps_required?: boolean;
 };
 
 type State = {

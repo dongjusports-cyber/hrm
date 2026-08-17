@@ -28,7 +28,7 @@ User **không** muốn Git/SSH/remote phức tạp. Mọi thao tác vận hành 
 
 - **Tối:** Cursor Cloud test + push GitHub (`PROMPT-TOI-CLOUD.txt`)
 - **Sáng:** `Thien-Admin\02-DONG-BO-SANG.bat`
-- **.122:** `122\03-CHAY-AGENT-NEN.bat` (CMD mở) + HR bấm Đồng bộ trên web
+- **.122:** lần đầu `122\04-CAI-TU-CHAY-KHI-MO-MAY.bat` (sau đó tự chạy ngầm khi đăng nhập) + HR bấm Đồng bộ trên web
 
 ## Khi thêm tính năng mới
 

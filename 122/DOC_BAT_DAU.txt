@@ -18,9 +18,18 @@
   BƯỚC 2 — TRÊN MÁY .122 (lần đầu hoặc đổi cấu hình)
 --------------------------------------------------------------------------------
 
-  1.  01-KIEM-TRA-ODBC.bat     → xem máy có ODBC 17 hay 18 (đọc HUONG-DAN-ODBC.txt)
-  2.  02-GHEP-ENV.bat          → dán file .env vào D:\dj-hrm\apps\agent\
-  3.  03-CHAY-AGENT-NEN.bat    → chạy agent nền (cửa sổ CMD để mở)
+  1.  01-KIEM-TRA-ODBC.bat          → xem máy có ODBC 17 hay 18 (đọc HUONG-DAN-ODBC.txt)
+  2.  02-GHEP-ENV.bat               → dán file .env vào D:\dj-hrm\apps\agent\
+  3.  03-CHAY-AGENT-NEN.bat         → chạy tay (cửa sổ CMD, Ctrl+C để dừng)
+  4.  04-CAI-TU-CHAY-KHI-MO-MAY.bat → CÀI MỘT LẦN: mở máy / đăng nhập là agent chạy ngầm
+  5.  05-TAT-TU-CHAY.bat            → gỡ tự-chạy (nếu cần)
+
+  Sau bước 4: không cần bấm 03 mỗi sáng. Tắt máy thì agent tự dừng.
+  Log ngầm: D:\dj-hrm\apps\agent\agent.log
+
+  Lưu ý: agent dùng tài khoản Windows để đọc SQL Mitapro, nên chạy khi
+  user đã đăng nhập (máy nhà máy thường tự đăng nhập). Không chạy kiểu
+  SERVICE/SYSTEM lúc boot — SQL sẽ không đọc được.
 
   Agent code đã có sẵn tại:  D:\dj-hrm\apps\agent\
   (nếu thiếu code → xem mục "Cập nhật code agent" bên dưới)

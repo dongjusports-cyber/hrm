@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import (
     AUDIENCE_WORKER,
@@ -13,7 +13,8 @@ from app.core.security import (
     verify_password,
 )
 from app.modules.core.models import User
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Employee, Team
+from app.modules.config.mobile_punch import employee_dept_code, get_effective_settings, punch_eligibility
 from app.modules.worker.schemas import WorkerOut, WorkerTokenResponse
 
 MAX_FAILED = 3
@@ -50,28 +51,29 @@ def default_worker_reset_password(emp: Employee) -> str:
     return default_worker_password(emp)
 
 
-def worker_to_out(user: User, employee_code: str) -> WorkerOut:
+def worker_to_out(db: Session, user: User, employee_code: str | None = None) -> WorkerOut:
+    code = (employee_code or user.username or "").strip()
+    emp = _employee_for_user(db, user)
+    allowed, reason = punch_eligibility(db, emp, code)
+    gps_required = get_effective_settings(db).gps_enforced
     return WorkerOut(
         id=user.id,
-        employee_code=employee_code,
+        employee_code=code,
         full_name=user.full_name,
         must_change_password=user.must_change_password,
-        employee_id=user.employee_id,
+        employee_id=user.employee_id if user.employee_id else (emp.id if emp else None),
+        department_code=employee_dept_code(emp),
+        can_mobile_punch=allowed,
+        punch_blocked_reason=None if allowed else reason,
+        gps_required=gps_required,
     )
 
 
 def _employee_for_user(db: Session, user: User) -> Employee | None:
+    q = db.query(Employee).options(joinedload(Employee.team).joinedload(Team.department))
     if user.employee_id is None:
-        return (
-            db.query(Employee)
-            .filter(Employee.employee_code == user.username, Employee.deleted_at.is_(None))
-            .first()
-        )
-    return (
-        db.query(Employee)
-        .filter(Employee.id == user.employee_id, Employee.deleted_at.is_(None))
-        .first()
-    )
+        return q.filter(Employee.employee_code == user.username, Employee.deleted_at.is_(None)).first()
+    return q.filter(Employee.id == user.employee_id, Employee.deleted_at.is_(None)).first()
 
 
 def _assert_worker_may_login(db: Session, user: User) -> None:
@@ -122,7 +124,7 @@ def authenticate_worker(db: Session, employee_code: str, password: str) -> Worke
     return WorkerTokenResponse(
         access_token=create_access_token(user.id, "worker", AUDIENCE_WORKER),
         refresh_token=create_refresh_token(user.id, AUDIENCE_WORKER),
-        worker=worker_to_out(user, code),
+        worker=worker_to_out(db, user, code),
     )
 
 

@@ -23,6 +23,10 @@ class WorkerOut(BaseModel):
     full_name: str
     must_change_password: bool
     employee_id: UUID | None
+    department_code: str | None = None
+    can_mobile_punch: bool = False
+    punch_blocked_reason: str | None = None
+    gps_required: bool = False
 
 
 class WorkerTokenResponse(BaseModel):

@@ -3,6 +3,12 @@
 from fastapi import APIRouter
 
 from app.core.deps import AdminUser, CurrentUser, DbSession
+from app.modules.config.mobile_punch import (
+    MobilePunchSettingsOut,
+    MobilePunchSettingsUpdate,
+    settings_out,
+    update_settings,
+)
 from app.modules.config.models import PortalTab
 from app.modules.config.portal_tabs import DEFAULT_PORTAL_TABS
 from app.modules.config.tabs_service import (
@@ -72,3 +78,17 @@ def config_tabs_put(
 def config_tabs_reset(admin: AdminUser, db: DbSession) -> list[TabAdminOut]:
     """Admin — khôi phục tên/thứ tự seed Hiến pháp."""
     return reset_tabs_seed_names(db, admin)
+
+
+@router.get("/config/mobile-punch", response_model=MobilePunchSettingsOut, tags=["config"])
+def config_mobile_punch_get(_admin: AdminUser, db: DbSession) -> MobilePunchSettingsOut:
+    return settings_out(db)
+
+
+@router.put("/config/mobile-punch", response_model=MobilePunchSettingsOut, tags=["config"])
+def config_mobile_punch_put(
+    body: MobilePunchSettingsUpdate,
+    _admin: AdminUser,
+    db: DbSession,
+) -> MobilePunchSettingsOut:
+    return update_settings(db, body)

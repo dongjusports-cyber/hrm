@@ -95,12 +95,16 @@ Gian hay gặp: ảnh in, nhờ bạn bấm hộ, giả GPS. Bước 1 chặn n�
 
 ---
 
-## 6. Việc chưa làm (khi code Bước 1)
+## 6. Việc chưa làm / đã làm bước 1
 
-- API worker: `POST /api/worker/punches` (token công nhân, không dùng `AGENT_TOKEN`).
-- Cấu hình tọa độ nhà máy + bán kính (Cấu Hình, không hard-code).
-- Lưu ảnh chấm (không commit Git; thư mục trên VPS).
-- Lưới Chấm Công: cột nguồn `máy` / `ĐT` để HR phân biệt.
-- Test: bấm máy + ĐT trong 1 phút = 1 lần vào; chấm ngoài GPS = từ chối.
+Đã code (2026-08-17): `POST /api/worker/punches`, allowlist Main Office, Cấu Hình GPS, ảnh trên VPS (`data/uploads/worker_punches/`). Xem `DE-XUAT-CHAM-CONG-MAT-MAIN-OFFICE.md`.
 
-**Chưa deploy, chưa đổi DB production** cho đến khi Chủ bảo làm bước 1.
+Còn: cột nguồn máy/ĐT trên lưới HR; AI so khớp mặt; deploy + điền GPS.
+
+---
+
+## 7. Mở dần theo bộ phận (đề xuất 2026-08-17)
+
+App **hiện nút Chấm công cho cả công ty**. Chỉ Main Office (`03`) bấm được; xưởng **nút mờ**. Khi ông Định test xong: một công tắc «Mở cho tất cả».
+
+Chi tiết: `Thien-Admin/DE-XUAT-CHAM-CONG-MAT-MAIN-OFFICE.md`

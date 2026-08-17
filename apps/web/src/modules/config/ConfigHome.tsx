@@ -37,6 +37,11 @@ const ADMIN_TILES = [
     name: "AI Gemini",
     description: "Model Gemini · API key · hạn mức hỏi/ngày",
   },
+  {
+    key: "mobile-punch",
+    name: "Chấm công điện thoại",
+    description: "Mờ nút xưởng · mở Main Office · một công tắc mở tất cả",
+  },
 ];
 
 /** Cấu Hình Lv2 — 6 tab Quản trị theo 23§23.4 (5.6). */

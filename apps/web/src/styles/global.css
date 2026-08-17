@@ -6037,7 +6037,32 @@ body.worker-surface {
 
 .worker-btn:disabled,
 .worker-btn-primary:disabled {
-  opacity: 0.7;
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(1);
+}
+
+.worker-punch-hint {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.worker-punch-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #e2e8f0;
+}
+
+.mobile-punch-modes,
+.mobile-punch-depts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
 }
 
 .worker-btn-secondary {
@@ -6116,6 +6141,9 @@ body.worker-surface {
 
 .worker-nav {
   margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .worker-home,
