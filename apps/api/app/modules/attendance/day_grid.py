@@ -19,9 +19,52 @@ from app.modules.attendance.service import _load_schedule, list_days
 from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets, seed_leave_types
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
+from app.modules.integration.models import AttendancePunch
 from app.modules.mdm.models import Department, Employee, Team
 
 ACTIVE_EMP = ("active", "probation")
+
+
+def ensure_manual_punches(
+    db: Session,
+    emp: Employee,
+    first_in: datetime | None,
+    last_out: datetime | None,
+) -> None:
+    """Ghi giờ HR sửa vào attendance_punches — tính lương/recalc không nuốt mốc tay."""
+    candidates: list[tuple[datetime, str]] = []
+    if first_in is not None:
+        candidates.append((to_vn(first_in), "IN"))
+    if last_out is not None:
+        lo = to_vn(last_out)
+        if not candidates or lo != candidates[0][0]:
+            candidates.append((lo, "OUT"))
+    if not candidates:
+        return
+    day = candidates[0][0].date()
+    existing = (
+        db.query(AttendancePunch)
+        .filter(
+            AttendancePunch.employee_code == emp.employee_code,
+            AttendancePunch.punch_time >= combine_vn(day, time.min),
+            AttendancePunch.punch_time <= combine_vn(day, time(23, 59, 59)),
+        )
+        .all()
+    )
+    seen = {int(to_vn(p.punch_time).timestamp()) for p in existing}
+    for t, direction in candidates:
+        if int(t.timestamp()) in seen:
+            continue
+        db.add(
+            AttendancePunch(
+                employee_code=emp.employee_code,
+                employee_id=emp.id,
+                punch_time=t,
+                direction=direction,
+                source="manual",
+            )
+        )
+        seen.add(int(t.timestamp()))
 
 
 def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
@@ -260,6 +303,7 @@ def patch_day_cell(
         row.source = "manual"
         row.edited_by_user_id = user.id
         row.edited_at = datetime.now(tz=VN_TZ)
+        ensure_manual_punches(db, emp, fi, lo)
         if note is not None and not clear_note:
             row.note = note.strip()
 
@@ -375,6 +419,7 @@ def bulk_patch_days(
                 row.source = "manual"
                 row.edited_by_user_id = user.id
                 row.edited_at = datetime.now(tz=VN_TZ)
+                ensure_manual_punches(db, emp, fi, lo)
                 if note:
                     row.note = note.strip()
         db.commit()

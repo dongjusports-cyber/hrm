@@ -25,10 +25,27 @@
      → Connect GitHub → đăng nhập dongjusports-cyber
      → Chọn repo: dongjusports-cyber/hrm (quyền read-write)
 
-  2. Cloud Environment (repo đã có sẵn config)
-     https://cursor.com/dashboard/cloud-agents
-     → New environment → repo hrm
-     → Build (chạy ops/cloud/install.sh — Postgres test + pytest)
+  2. Cloud Environment — BUILD (sau khi đã sửa environment.json)
+     Mở:  https://cursor.com/dashboard/cloud-agents
+
+     Lần đầu (chưa có môi trường):
+       → Environments → New environment
+       → Repo: dongjusports-cyber/hrm   Branch: main
+       → Create / Build
+
+     Đã có môi trường (sửa file xong, lỗi parse ports):
+       → Tab Environments
+       → Chọn môi trường DJ HRM (repo hrm)
+       → Tab Builds → Rebuild / Build
+       → Đợi đến khi Status = Ready / Success
+         (cài Postgres test + Python + npm — khoảng 5–15 phút)
+
+     Thành công khi thấy:
+       • Không còn "Failed to parse environment.json"
+       • Log có dòng: [install] Xong
+       • Agents có thể chat / chạy test
+
+     Nếu Build fail: copy dòng lỗi đỏ, hỏi AI trên máy .123.
 
   3. Default settings
      • Default repository: dongjusports-cyber/hrm

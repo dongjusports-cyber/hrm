@@ -622,3 +622,23 @@ Test:
   apps/agent pytest tests/test_agent_unit.py -> 8 passed
   apps/api tests/test_mitapro_ingest.py::test_duplicate_push_still_rebuilds_attendance_days
 
+[TK-P002] Bổ sung công Enter hiện lưới nhưng tính lương không nhận — 2026-08-17
+--------------------------------------------------------------------------------
+Triệu chứng:
+  MSNV 1519 ngày 7 và 11/08: HR Enter bổ sung giờ ra, lưới hiện công,
+  bấm tính lương thì không cộng ngày đó.
+
+Nguyên nhân:
+  Máy chỉ có 1 mốc vào (07:38), worked_hours=0. HR sửa ô Ra chỉ ghi
+  attendance_days (source=manual), KHÔNG ghi attendance_punches.
+  Tính lương gọi rebuild_timesheets(recalc_days=True) → tính lại từ
+  vân tay → nuốt giờ ra, source trả máy, ngày công = 0.
+
+Cách xử lý:
+  - patch/bulk giờ tay: ghi thêm punch source=manual.
+  - recalculate_days: bỏ qua dòng source=manual (giống is_locked).
+  - HR phải nhập giờ RA (vd. 17:00), chỉ giờ vào không thành ngày công.
+
+Test:
+  apps/api pytest tests/test_attendance_day_grid_37.py -q
+

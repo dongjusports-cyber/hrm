@@ -132,6 +132,62 @@ def test_patch_day_cell_out_keeps_existing_in(client):
     assert "T08:00" in body["first_in"]
 
 
+def test_hr_supplement_out_survives_recalculate(client):
+    """1519-style: máy chỉ có vào — HR Enter giờ ra — tính lại/tính lương không nuốt công."""
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "1514", "punch_time": "2025-10-07T07:38:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    client.post(
+        "/api/attendance/recalculate",
+        headers=headers,
+        json={"from": "2025-10-07", "to": "2025-10-07", "employee_code": "1514"},
+    )
+    before = client.get(
+        "/api/attendance/days",
+        headers=headers,
+        params={"from": "2025-10-07", "to": "2025-10-07", "employee_code": "1514"},
+    ).json()[0]
+    assert float(before["worked_hours"]) == 0
+    assert before["last_out"] is None
+
+    patched = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-07",
+            "last_out": "2025-10-07T17:00:00+07:00",
+            "note": "Bổ sung công tay",
+        },
+    )
+    assert patched.status_code == 200, patched.text
+    assert float(patched.json()["worked_hours"]) == 8.0
+    assert patched.json()["source"] == "manual"
+
+    client.post(
+        "/api/attendance/recalculate",
+        headers=headers,
+        json={"from": "2025-10-07", "to": "2025-10-07", "employee_code": "1514"},
+    )
+    after = client.get(
+        "/api/attendance/days",
+        headers=headers,
+        params={"from": "2025-10-07", "to": "2025-10-07", "employee_code": "1514"},
+    ).json()[0]
+    assert float(after["worked_hours"]) == 8.0
+    assert after["last_out"] is not None
+    assert "T17:00" in after["last_out"]
+    assert after["note"] == "Bổ sung công tay"
+    assert after["source"] == "manual"
+
+
 def test_bulk_set_leave_preview_and_apply(client, db):
     headers = _hr_headers(client)
     preview = client.post(

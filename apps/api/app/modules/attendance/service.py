@@ -173,7 +173,7 @@ def recalculate_days(
     for (code, wd), times in grouped.items():
         emp = employees[code]
         row = day_map.get((emp.id, wd))
-        if row is not None and row.is_locked:
+        if row is not None and (row.is_locked or row.source == "manual"):
             continue
         if emp.team_id is None:
             shift_id = ADMIN_SHIFT_CODE
