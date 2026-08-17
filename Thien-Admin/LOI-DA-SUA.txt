@@ -622,3 +622,28 @@ Test:
   apps/agent pytest tests/test_agent_unit.py -> 8 passed
   apps/api tests/test_mitapro_ingest.py::test_duplicate_push_still_rebuilds_attendance_days
 
+[TK-S001] Tab Chấm công — gõ MSNV bị khựng, số NV hiện trước lưới — 2026-08-17
+-------------------------------------------------------------------------------
+Triệu chứng:
+  Ô tìm MSNV: gõ xong phải đợi, rồi mới hiện «N nhân viên», rồi mới hiện lưới.
+
+Nguyên nhân:
+  1) Mỗi phím gõ setState trang cha → re-render AG Grid ~360 dòng (khựng khi nhập).
+  2) Debounce 250ms + delay 120ms đếm NV → hai nhịp «số NV rồi lưới»
+     (setDailySummary làm cha render lại, panel không memo).
+  3) Lưới ngày chỉ mount sau Promise.all (timesheets + COUNT punch + leave types).
+  4) AG Grid bị tháo khi «Đang tải…» rồi mount lại sau khi có data.
+  5) GET ensure_pay_period gọi compute_divisor dù kỳ đã có; seed_leave_types commit mọi GET.
+
+Cách xử lý:
+  - Ô tìm giữ state local; cha chỉ nhận query sau 80ms / Enter.
+  - memo DailyGridPanel; bỏ delay 120ms; overlay tải, không unmount lưới.
+  - reload: setPay xong là mount lưới ngày; timesheets/status chạy song song.
+  - Precompute HH:mm khi nạp dòng (tránh toLocaleTimeString lúc sort).
+  - ensure_pay_period chỉ compute_divisor khi tạo kỳ / rebuild.
+  - seed_leave_types chỉ commit khi thêm mã mới.
+
+Test:
+  apps/web npm test -- employeeSearch
+  apps/api pytest tests/test_attendance_day_grid_37.py tests/test_timesheet.py -q
+

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { CellEditingStoppedEvent, CellValueChangedEvent, ColDef, GridApi } from "ag-grid-community";
 import {
@@ -18,9 +18,15 @@ import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
+import { employeeMatchesQuery } from "./employeeSearch";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 
-type RowWithEdit = AttendanceDayGridRow & { _edit_in?: string; _edit_out?: string };
+type RowWithEdit = AttendanceDayGridRow & {
+  _edit_in?: string;
+  _edit_out?: string;
+  _disp_in?: string;
+  _disp_out?: string;
+};
 
 function hhmm(iso: string | null | undefined): string {
   return formatTimeHHMM(iso, "");
@@ -50,7 +56,17 @@ function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): Atten
   };
   delete merged._edit_in;
   delete merged._edit_out;
+  merged._disp_in = hhmm(merged.first_in);
+  merged._disp_out = hhmm(merged.last_out);
   return merged;
+}
+
+function withDisplayTimes(row: AttendanceDayGridRow): RowWithEdit {
+  return {
+    ...row,
+    _disp_in: hhmm(row.first_in),
+    _disp_out: hhmm(row.last_out),
+  };
 }
 
 export type DailyGridSummary = {
@@ -77,7 +93,7 @@ function applyDefaultSort(api: GridApi<AttendanceDayGridRow>) {
   });
 }
 
-export function DailyGridPanel({
+function DailyGridPanelInner({
   workDate,
   periodLocked,
   leaves,
@@ -119,7 +135,7 @@ export function DailyGridPanel({
         needs_action_only: needsOnly,
         department_id: departmentId || undefined,
       });
-      setRows(list);
+      setRows(list.map(withDisplayTimes));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải lưới ngày công.");
     } finally {
@@ -140,15 +156,10 @@ export function DailyGridPanel({
   const initialLoading = loading && rows.length === 0;
   const refreshing = loading && rows.length > 0;
 
-  const filteredRows = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (r) =>
-        r.employee_code.toLowerCase().includes(needle) ||
-        (r.full_name ?? "").toLowerCase().includes(needle),
-    );
-  }, [rows, searchQuery]);
+  const filteredRows = useMemo(
+    () => rows.filter((r) => employeeMatchesQuery(r, searchQuery)),
+    [rows, searchQuery],
+  );
 
   const summary = useMemo((): DailyGridSummary => {
     const total = filteredRows.length;
@@ -158,9 +169,9 @@ export function DailyGridPanel({
 
   useEffect(() => {
     if (!onSummaryChange) return;
-    const timer = window.setTimeout(() => onSummaryChange(summary), 120);
-    return () => window.clearTimeout(timer);
-  }, [summary, onSummaryChange]);
+    if (initialLoading) return;
+    onSummaryChange(summary);
+  }, [summary, onSummaryChange, initialLoading]);
 
   const cols = useMemo<ColDef<AttendanceDayGridRow>[]>(
     () => [
@@ -227,7 +238,7 @@ export function DailyGridPanel({
           if (d?._edit_in != null && String(d._edit_in).trim() !== "") {
             return parseGridTimeInput(String(d._edit_in)) ?? String(d._edit_in);
           }
-          return hhmm(d?.first_in);
+          return d?._disp_in ?? hhmm(d?.first_in);
         },
         valueSetter: (p) => {
           if (!p.data) return false;
@@ -250,7 +261,7 @@ export function DailyGridPanel({
           if (d?._edit_out != null && String(d._edit_out).trim() !== "") {
             return parseGridTimeInput(String(d._edit_out)) ?? String(d._edit_out);
           }
-          return hhmm(d?.last_out);
+          return d?._disp_out ?? hhmm(d?.last_out);
         },
         valueSetter: (p) => {
           if (!p.data) return false;
@@ -545,73 +556,70 @@ export function DailyGridPanel({
           }
         }}
       >
-        {initialLoading ? (
-          <p className="field-hint tk-daily-loading">Đang tải…</p>
-        ) : (
-          <>
-            <AgGridReact
-              rowData={filteredRows}
-              columnDefs={cols}
-              getRowId={(p) => p.data.employee_code}
-              localeText={AG_GRID_LOCALE_VI}
-              headerHeight={32}
-              rowHeight={36}
-              animateRows={false}
-              rowSelection="multiple"
-              suppressRowClickSelection
-              singleClickEdit
-              stopEditingWhenCellsLoseFocus
-              onGridReady={(p) => {
-                setGridApi(p.api);
-                const restored = colPrefs.restore(p.api);
-                if (!restored && !didInitialSortRef.current) {
-                  applyDefaultSort(p.api);
-                }
-                didInitialSortRef.current = true;
-              }}
-              {...colPrefs.handlers}
-              onCellDoubleClicked={(e) => {
-                if (e.colDef.field === "full_name" && e.data && onPickEmployee) {
-                  onPickEmployee(e.data);
-                }
-              }}
-              onCellValueChanged={(e) => void onCellChanged(e)}
-              onCellEditingStopped={(e: CellEditingStoppedEvent<AttendanceDayGridRow>) => {
-                const col = e.colDef.colId;
-                if (col !== "first_in" && col !== "last_out") return;
-                if (!e.data) return;
-                const pending =
-                  col === "first_in"
-                    ? (e.data as RowWithEdit)._edit_in
-                    : (e.data as RowWithEdit)._edit_out;
-                const typed = String(pending ?? e.newValue ?? "").trim();
-                void saveTimeCell(e.data, col, typed);
-              }}
-              getRowClass={(p) => {
-                const f = p.data?.row_flag;
-                if (f && f !== "ok" && f !== "off") return `tk-grid-flag-${f}`;
-                return undefined;
-              }}
-              defaultColDef={{
-                sortable: true,
-                resizable: true,
-                filter: false,
-                suppressHeaderMenuButton: false,
-              }}
-            />
-            {refreshing && (
-              <div className="tk-daily-refresh-overlay" aria-hidden="true">
-                <span className="field-hint">Đang cập nhật…</span>
-              </div>
-            )}
-            {toast && (
-              <div className="tk-daily-toast-host" role="status" aria-live="polite">
-                <p className="form-ok fs-sheet-banner">{toast}</p>
-              </div>
-            )}
-          </>
+        <AgGridReact
+          rowData={filteredRows}
+          columnDefs={cols}
+          getRowId={(p) => p.data.employee_code}
+          localeText={AG_GRID_LOCALE_VI}
+          headerHeight={32}
+          rowHeight={36}
+          animateRows={false}
+          rowSelection="multiple"
+          suppressRowClickSelection
+          singleClickEdit
+          stopEditingWhenCellsLoseFocus
+          onGridReady={(p) => {
+            setGridApi(p.api);
+            const restored = colPrefs.restore(p.api);
+            if (!restored && !didInitialSortRef.current) {
+              applyDefaultSort(p.api);
+            }
+            didInitialSortRef.current = true;
+          }}
+          {...colPrefs.handlers}
+          onCellDoubleClicked={(e) => {
+            if (e.colDef.field === "full_name" && e.data && onPickEmployee) {
+              onPickEmployee(e.data);
+            }
+          }}
+          onCellValueChanged={(e) => void onCellChanged(e)}
+          onCellEditingStopped={(e: CellEditingStoppedEvent<AttendanceDayGridRow>) => {
+            const col = e.colDef.colId;
+            if (col !== "first_in" && col !== "last_out") return;
+            if (!e.data) return;
+            const pending =
+              col === "first_in"
+                ? (e.data as RowWithEdit)._edit_in
+                : (e.data as RowWithEdit)._edit_out;
+            const typed = String(pending ?? e.newValue ?? "").trim();
+            void saveTimeCell(e.data, col, typed);
+          }}
+          getRowClass={(p) => {
+            const f = p.data?.row_flag;
+            if (f && f !== "ok" && f !== "off") return `tk-grid-flag-${f}`;
+            return undefined;
+          }}
+          defaultColDef={{
+            sortable: true,
+            resizable: true,
+            filter: false,
+            suppressHeaderMenuButton: false,
+          }}
+        />
+        {(initialLoading || refreshing) && (
+          <div className="tk-daily-refresh-overlay" aria-hidden="true">
+            <span className="field-hint">{initialLoading ? "Đang tải…" : "Đang cập nhật…"}</span>
+          </div>
+        )}
+        {toast && (
+          <div className="tk-daily-toast-host" role="status" aria-live="polite">
+            <p className="form-ok fs-sheet-banner">{toast}</p>
+          </div>
         )}
       </div>
     </div>
   );
 }
+
+export const DailyGridPanel = memo(DailyGridPanelInner);
+DailyGridPanel.displayName = "DailyGridPanel";

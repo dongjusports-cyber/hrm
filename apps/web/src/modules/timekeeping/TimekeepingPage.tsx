@@ -29,6 +29,7 @@ import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
+import { employeeMatchesQuery, findEmployeeByQuery } from "./employeeSearch";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
 import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
@@ -93,6 +94,52 @@ const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
 function defaultPeriod(): string {
   return currentPayPeriod();
+}
+
+const SEARCH_DEBOUNCE_MS = 80;
+
+function TkSearchInput({
+  resetToken,
+  onQuery,
+  onTyped,
+}: {
+  resetToken: number;
+  onQuery: (q: string) => void;
+  onTyped: (q: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const onQueryRef = useRef(onQuery);
+  const onTypedRef = useRef(onTyped);
+  onQueryRef.current = onQuery;
+  onTypedRef.current = onTyped;
+
+  useEffect(() => {
+    if (resetToken === 0) return;
+    setValue("");
+    onTypedRef.current("");
+    onQueryRef.current("");
+  }, [resetToken]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => onQueryRef.current(value.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+
+  return (
+    <label className="tk-search tk-search-compact">
+      <span className="sr-only">Tìm MSNV hoặc họ tên</span>
+      <input
+        placeholder="MSNV hoặc họ tên…"
+        data-hotkey-search
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          setValue(next);
+          onTypedRef.current(next);
+        }}
+      />
+    </label>
+  );
 }
 
 function parseYmd(s: string): Date {
@@ -182,7 +229,8 @@ function buildCalendar(
 export function TimekeepingPage() {
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
-  const [gridSearch, setGridSearch] = useState("");
+  const typedQRef = useRef("");
+  const [searchReset, setSearchReset] = useState(0);
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [pay, setPay] = useState<PayPeriod | null>(null);
   const [rows, setRows] = useState<TimesheetMonth[]>([]);
@@ -221,10 +269,9 @@ export function TimekeepingPage() {
   const timesheetRowsRef = useRef(rows);
   timesheetRowsRef.current = rows;
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setGridSearch(q.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [q]);
+  const onTypedSearch = useCallback((value: string) => {
+    typedQRef.current = value;
+  }, []);
 
   const loadEmpDays = useCallback(
     async (code: string, dateFrom: string, dateTo: string) => {
@@ -249,13 +296,8 @@ export function TimekeepingPage() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [st, pp, sheets, lt] = await Promise.all([
-        fetchIntegrationStatus(),
-        fetchPayPeriod(period),
-        fetchTimesheets(period),
-        fetchLeaveTypes(),
-      ]);
-      setStatus(st);
+      const sheetsP = fetchTimesheets(period);
+      const [pp, lt] = await Promise.all([fetchPayPeriod(period), fetchLeaveTypes()]);
       setPay(pp);
       setGridDate((prev) => {
         if (prev >= pp.date_from && prev <= pp.date_to) return prev;
@@ -263,11 +305,15 @@ export function TimekeepingPage() {
         if (today >= pp.date_from && today <= pp.date_to) return today;
         return pp.date_from;
       });
-      setRows(sheets);
       setLeaves(lt);
+      void fetchIntegrationStatus()
+        .then(setStatus)
+        .catch(() => {});
       void fetchDepartments()
         .then((depts) => setDepartments(depts.filter((d) => d.is_active !== false)))
         .catch(() => {});
+      const sheets = await sheetsP;
+      setRows(sheets);
       setSelected((prev) => {
         if (!prev) return null;
         return sheets.find((s) => s.id === prev.id) ?? null;
@@ -303,15 +349,10 @@ export function TimekeepingPage() {
     void loadEmpDays(selected.employee_code, pay.date_from, pay.date_to);
   }, [selected, pay, loadEmpDays]);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (r) =>
-        r.employee_code.toLowerCase().includes(needle) ||
-        (r.full_name ?? "").toLowerCase().includes(needle),
-    );
-  }, [rows, q]);
+  const filtered = useMemo(
+    () => rows.filter((r) => employeeMatchesQuery(r, q)),
+    [rows, q],
+  );
 
   const pickEmployee = useCallback((row: TimesheetMonth) => {
     setSelected(row);
@@ -362,20 +403,9 @@ export function TimekeepingPage() {
   });
 
   const applySearchSelect = useCallback(
-    (opts?: { exactOnly?: boolean }) => {
-      const needle = q.trim();
-      if (!needle) return false;
-      const lower = needle.toLowerCase();
-      const exact = rows.find((r) => r.employee_code.toLowerCase() === lower);
-      const match =
-        exact ??
-        (opts?.exactOnly
-          ? undefined
-          : filtered.find(
-              (r) =>
-                r.employee_code.toLowerCase() === lower ||
-                r.employee_code.toLowerCase().startsWith(lower),
-            ) ?? filtered[0]);
+    (needle: string, opts?: { exactOnly?: boolean }) => {
+      if (!needle.trim()) return false;
+      const match = findEmployeeByQuery(rows, needle, opts);
       if (!match) {
         setError(`Không tìm thấy MSNV / tên khớp «${needle}».`);
         return false;
@@ -385,12 +415,14 @@ export function TimekeepingPage() {
       if (idx >= 0) gridApi?.ensureIndexVisible(idx);
       return true;
     },
-    [q, rows, filtered, gridApi, pickEmployee],
+    [rows, filtered, gridApi, pickEmployee],
   );
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
-    if (mainView === "monthly") applySearchSelect();
+    const needle = typedQRef.current.trim();
+    setQ(needle);
+    if (mainView === "monthly") applySearchSelect(needle);
   }
 
   const columnDefs = useMemo<ColDef<TimesheetMonth>[]>(
@@ -763,22 +795,14 @@ export function TimekeepingPage() {
               </select>
             </label>
           ) : null}
-          <label className="tk-search tk-search-compact">
-            <span className="sr-only">Tìm MSNV hoặc họ tên</span>
-            <input
-              placeholder="MSNV hoặc họ tên…"
-              data-hotkey-search
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
+          <TkSearchInput resetToken={searchReset} onQuery={setQ} onTyped={onTypedSearch} />
           {mainView === "monthly" ? (
             <button
               type="button"
               className="btn-ghost-dark btn-compact"
               disabled={busy || !q.trim()}
               title={disabledTitle(!q.trim(), "Nhập MSNV hoặc họ tên trước")}
-              onClick={() => applySearchSelect()}
+              onClick={() => applySearchSelect(typedQRef.current.trim() || q)}
             >
               Xem tháng
             </button>
@@ -788,6 +812,7 @@ export function TimekeepingPage() {
               type="button"
               className="btn-ghost-dark btn-compact"
               onClick={() => {
+                setSearchReset((n) => n + 1);
                 setQ("");
                 clearSelection();
               }}
@@ -926,7 +951,7 @@ export function TimekeepingPage() {
               workDate={gridDate}
               periodLocked={pay.status === "locked"}
               leaves={leaves}
-              searchQuery={gridSearch}
+              searchQuery={q}
               departmentId={departmentId}
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}

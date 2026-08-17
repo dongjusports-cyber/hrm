@@ -111,6 +111,7 @@ def _adj_penalty_views(adj_rows: list[TimesheetAdjustment]) -> list[LeaveAdjustm
 
 
 def seed_leave_types(db: Session) -> None:
+    added = False
     for code, name, pct, si, bonus, worked, doc, max_days in LEAVE_SEED:
         row = db.get(LeaveType, code)
         if row is None:
@@ -128,7 +129,9 @@ def seed_leave_types(db: Session) -> None:
                     max_days_per_year=max_days,
                 )
             )
-    db.commit()
+            added = True
+    if added:
+        db.commit()
 
 
 def parse_period(period: str) -> tuple[int, int]:
@@ -159,8 +162,9 @@ def ensure_pay_period(db: Session, period: str, *, refresh_open: bool = False) -
     last_day = calendar.monthrange(year, month)[1]
     date_from = date(year, month, 1)
     date_to = date(year, month, last_day)
-    div = compute_divisor(db, year, month)
+    # GET (lưới công / timesheet) không tính lại divisor — chỉ khi tạo kỳ mới hoặc rebuild.
     if row is None:
+        div = compute_divisor(db, year, month)
         row = PayPeriod(
             year=year,
             month=month,
@@ -185,6 +189,7 @@ def ensure_pay_period(db: Session, period: str, *, refresh_open: bool = False) -
             db.refresh(row)
         return row
     if refresh_open and row.status == "open":
+        div = compute_divisor(db, year, month)
         row.official_work_days = div.official_work_days
         row.salary_divisor = div.salary_divisor
         row.date_from = date_from
