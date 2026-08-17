@@ -39,6 +39,8 @@ def main() -> None:
         print(
             f"Ghi JSON snapshot: {merge_stats['updated']} cập nhật / "
             f"{merge_stats['files']} khớp file, thiếu JSON {merge_stats['missing_json']}"
+            f" | phụ cấp {merge_stats.get('allowances', 0)}"
+            f" | mặc định GT/dt/tg {merge_stats.get('identity_all', 0)}"
         )
 
     write_extract(records, out, xlsx_path=xlsx, merge_stats=merge_stats)

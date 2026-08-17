@@ -6,10 +6,14 @@ from pathlib import Path
 from openpyxl import Workbook
 
 from app.scripts.thong_tin_bo_sung import (
+    DEFAULT_ETHNICITY,
+    DEFAULT_NATIONALITY,
+    DEFAULT_RELIGION,
     apply_supplement_to_mapping,
     load_supplement,
     resolve_gender_flag,
     resolve_marital_status,
+    split_pccc_hse,
     _bank_account,
     _prefer_longer_id,
 )
@@ -130,6 +134,53 @@ def test_load_supplement_from_fixture_xlsx(tmp_path: Path):
             None,
         ]
     )
+    ws3 = wb.create_sheet("03")
+    ws3.append(["BASIC SALARY SUMMARY REPORT"])
+    ws3.append([])
+    ws3.append(
+        [
+            "NO",
+            "DEPARTMENT",
+            "GROUP",
+            "EMP ID",
+            "FULL NAME",
+            "JOIN DATE",
+            "POSITION",
+            "PRO SALARY",
+            "BASIC SALARY",
+            "PCCC+HSE_AMT",
+            "POS_AMT",
+            "TOXIC_AMT",
+            "INDUS_AMT",
+            "TRANS_AMT",
+            "TECH_AMT",
+            "OTHER_AMT",
+            "TOTAL",
+            "UNION",
+        ]
+    )
+    ws3.append(
+        [
+            1,
+            "HR & Admin",
+            "HR/Admin Staff",
+            1496,
+            "LÊ KIỀU NHƯ",
+            "27/02/2015",
+            "Staff",
+            4080000,
+            7885000,
+            50000,
+            0,
+            0,
+            600000,
+            800000,
+            500000,
+            300000,
+            0,
+            "N",
+        ]
+    )
     wb.save(path)
     wb.close()
 
@@ -139,5 +190,37 @@ def test_load_supplement_from_fixture_xlsx(tmp_path: Path):
     assert recs["1496"]["gender"] == "F"
     assert recs["1496"]["phone"] == "0908275468"
     assert recs["1496"]["bank_account"] == "060227267677"
+    assert recs["1496"]["education_code"] == "EDUCATION_LEVEL008"
+    assert recs["1496"]["nationality_code"] == DEFAULT_NATIONALITY
+    assert recs["1496"]["ethnicity_code"] == DEFAULT_ETHNICITY
+    assert recs["1496"]["religion_code"] == DEFAULT_RELIGION
+    codes = {a["component_code"]: a["amount"] for a in recs["1496"]["allowances"]}
+    assert codes["HSE"] == "50000.00"
+    assert codes["ATTEND"] == "600000.00"
+    assert codes["TRANSPORT"] == "800000.00"
+    assert codes["TECH"] == "500000.00"
+    assert codes["OTHER"] == "300000.00"
+    assert "PCCC" not in codes
     assert recs["1514"]["marital_status"] == "single"
     assert recs["1514"]["children_count"] == 0
+
+
+def test_split_pccc_hse():
+    from decimal import Decimal
+
+    assert split_pccc_hse(Decimal("50000")) == {"HSE": Decimal("50000")}
+    assert split_pccc_hse(Decimal("882000")) == {"PCCC": Decimal("882000")}
+    assert split_pccc_hse(Decimal("932000")) == {
+        "HSE": Decimal("50000"),
+        "PCCC": Decimal("882000"),
+    }
+
+
+def test_education_overwrite_and_identity_defaults():
+    dest = {"education_code": "EDUCATION_LEVEL003", "nationality_code": None}
+    rec = {"education_code": "EDUCATION_LEVEL008"}
+    apply_supplement_to_mapping(dest, rec)
+    assert dest["education_code"] == "EDUCATION_LEVEL008"
+    assert dest["nationality_code"] == DEFAULT_NATIONALITY
+    assert dest["ethnicity_code"] == DEFAULT_ETHNICITY
+    assert dest["religion_code"] == DEFAULT_RELIGION

@@ -2,9 +2,11 @@
 
 Sheet:
   «giới tính- hôn nhân» — giới tính (0 nữ / 1 nam), hôn nhân (0 độc thân, -1/1 đã kết hôn), số con
-  «02» — hồ sơ (STK cột Ngân hàng, SĐT, CCCD, BHXH, địa chỉ, học vấn…)
-  «03» — phụ cấp (không nạp ở bước này; đã có import_allowances_salary_summary)
+  «02» — hồ sơ; cột M (Education) = trình độ
+  «03» — phụ cấp cố định (PCCC+HSE, chức vụ, độc hại, chuyên cần, đi lại, tay nghề, khác)
   «01» — bảng lương T8/2026 (không nạp vào hồ sơ)
+
+Mặc định toàn bộ NV: quốc tịch Việt Nam, dân tộc Kinh, tôn giáo Không.
 
 Chạy:
   python -m app.scripts.extract_thong_tin_bo_sung
@@ -35,8 +37,34 @@ from app.scripts.import_employee_list_1108 import (
     _norm,
     _parse_vn_date,
 )
+from app.modules.payroll.seed_allowances import normalize_legacy_allowance_amount
 
 SKIP_TEST_CODES = {"1604", "1718", "8851"}
+
+DEFAULT_NATIONALITY = "NATIONALITY001"  # Việt Nam
+DEFAULT_ETHNICITY = "ETHNICITY001"  # Kinh
+DEFAULT_RELIGION = "RELIGION001"  # Không
+
+HSE_DEFAULT = Decimal("50000")
+PCCC_HSE_COMBINED = Decimal("932000")
+MANAGED_ALLOWANCE_CODES = (
+    "ATTEND",
+    "TRANSPORT",
+    "POSITION",
+    "TOXIC",
+    "PCCC",
+    "HSE",
+    "TECH",
+    "OTHER",
+)
+SHEET03_FIXED_COLS: list[tuple[int, str]] = [
+    (10, "POSITION"),
+    (11, "TOXIC"),
+    (12, "ATTEND"),
+    (13, "TRANSPORT"),
+    (14, "TECH"),
+    (15, "OTHER"),
+]
 
 # VBA/Excel Boolean True = -1; header ghi 1 = đã kết hôn.
 _MARRIED_FLAGS = {-1, 1, True, "1", "-1"}
@@ -98,6 +126,63 @@ def _as_decimal(raw: Any) -> Decimal | None:
     except Exception:
         return None
     return n if n > 0 else None
+
+
+def _allowance_amount(raw: Any) -> Decimal:
+    if raw in ("", None):
+        return Decimal("0")
+    try:
+        n = Decimal(str(raw).strip().replace(",", ""))
+    except Exception:
+        return Decimal("0")
+    return n if n > 0 else Decimal("0")
+
+
+def split_pccc_hse(amt: Decimal) -> dict[str, Decimal]:
+    """Sheet 03 cột PCCC+HSE_AMT → mã PCCC / HSE riêng (quy ước CTY 2026-08)."""
+    if amt <= 0:
+        return {}
+    if amt == HSE_DEFAULT:
+        return {"HSE": HSE_DEFAULT}
+    if amt == PCCC_HSE_COMBINED:
+        return {"HSE": HSE_DEFAULT, "PCCC": amt - HSE_DEFAULT}
+    return {"PCCC": amt}
+
+
+def parse_sheet03_allowances(row: tuple[Any, ...]) -> dict[str, Decimal]:
+    amounts = {code: Decimal("0") for code in MANAGED_ALLOWANCE_CODES}
+    for col, code in SHEET03_FIXED_COLS:
+        raw = row[col] if len(row) > col else None
+        amt = _allowance_amount(raw)
+        if code in ("ATTEND", "TRANSPORT"):
+            amt = normalize_legacy_allowance_amount(code, amt) or amt
+        amounts[code] = amt
+    split = split_pccc_hse(_allowance_amount(row[9] if len(row) > 9 else None))
+    amounts["PCCC"] = split.get("PCCC", Decimal("0"))
+    amounts["HSE"] = split.get("HSE", Decimal("0"))
+    return amounts
+
+
+def allowances_as_json(amounts: dict[str, Decimal]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for code in MANAGED_ALLOWANCE_CODES:
+        amt = amounts.get(code) or Decimal("0")
+        if amt > 0:
+            items.append({"component_code": code, "amount": f"{amt:.2f}", "meta": None})
+    return items
+
+
+def apply_default_identity(dest: dict[str, Any]) -> list[str]:
+    changed: list[str] = []
+    for field, val in (
+        ("nationality_code", DEFAULT_NATIONALITY),
+        ("ethnicity_code", DEFAULT_ETHNICITY),
+        ("religion_code", DEFAULT_RELIGION),
+    ):
+        if dest.get(field) != val:
+            dest[field] = val
+            changed.append(field)
+    return changed
 
 
 def resolve_marital_status(raw: Any) -> str | None:
@@ -255,6 +340,21 @@ def load_supplement(xlsx_path: Path) -> dict[str, dict[str, Any]]:
                     rec["temporary_address"] = rec["permanent_address"]
                 if rec.get("contract_start"):
                     rec["contract_signed_at"] = rec["contract_start"]
+                rec["nationality_code"] = DEFAULT_NATIONALITY
+                rec["ethnicity_code"] = DEFAULT_ETHNICITY
+                rec["religion_code"] = DEFAULT_RELIGION
+
+        if "03" in wb.sheetnames:
+            for i, row in enumerate(wb["03"].iter_rows(values_only=True)):
+                if i < 3:
+                    continue
+                code = _msnv(row[3] if row else None)
+                if not code or code in SKIP_TEST_CODES:
+                    continue
+                rec = by_code.setdefault(code, {"employee_code": code})
+                amounts = parse_sheet03_allowances(row)
+                rec["allowance_amounts"] = amounts
+                rec["allowances"] = allowances_as_json(amounts)
         return by_code
     finally:
         wb.close()
@@ -267,7 +367,6 @@ OVERWRITE_FIELDS = ("gender", "marital_status", "children_count")
 FILL_IF_EMPTY_FIELDS = (
     "phone",
     "bank_account",
-    "education_code",
     "permanent_address",
     "temporary_address",
     "id_number",
@@ -276,7 +375,6 @@ FILL_IF_EMPTY_FIELDS = (
     "birth_date",
     "birth_place_code",
     "join_date",
-    "nationality_code",
     "pay_channel",
     "position_title",
     "contract_signed_at",
@@ -299,6 +397,13 @@ def apply_supplement_to_mapping(dest: dict[str, Any], rec: dict[str, Any]) -> li
         if dest.get(field) != val:
             dest[field] = val
             changed.append(field)
+
+    if rec.get("education_code"):
+        if dest.get("education_code") != rec["education_code"]:
+            dest["education_code"] = rec["education_code"]
+            changed.append("education_code")
+
+    changed.extend(apply_default_identity(dest))
 
     si = _prefer_longer_id(dest.get("si_book_no"), rec.get("si_book_no"))
     if si and dest.get("si_book_no") != si:
@@ -350,6 +455,18 @@ def apply_supplement_to_employee(emp: Any, rec: dict[str, Any]) -> list[str]:
             setattr(emp, field, val)
             changed.append(field)
 
+    if rec.get("education_code") and emp.education_code != rec["education_code"]:
+        emp.education_code = rec["education_code"]
+        changed.append("education_code")
+    for field, val in (
+        ("nationality_code", DEFAULT_NATIONALITY),
+        ("ethnicity_code", DEFAULT_ETHNICITY),
+        ("religion_code", DEFAULT_RELIGION),
+    ):
+        if getattr(emp, field, None) != val:
+            setattr(emp, field, val)
+            changed.append(field)
+
     si = _prefer_longer_id(getattr(emp, "si_book_no", None), rec.get("si_book_no"))
     if si and emp.si_book_no != si:
         emp.si_book_no = si
@@ -383,7 +500,15 @@ def apply_supplement_to_employee(emp: Any, rec: dict[str, Any]) -> list[str]:
 
 def merge_into_snapshots(records: dict[str, dict[str, Any]], snapshot_dir: Path) -> dict[str, int]:
     emp_dir = snapshot_dir / "employees"
-    stats = {"files": 0, "updated": 0, "missing_json": 0, "skipped_test": 0}
+    stats = {
+        "files": 0,
+        "updated": 0,
+        "missing_json": 0,
+        "skipped_test": 0,
+        "identity_all": 0,
+        "allowances": 0,
+    }
+    touched: set[str] = set()
     for code, rec in records.items():
         if code in SKIP_TEST_CODES:
             stats["skipped_test"] += 1
@@ -395,6 +520,14 @@ def merge_into_snapshots(records: dict[str, dict[str, Any]], snapshot_dir: Path)
         snap = json.loads(path.read_text(encoding="utf-8"))
         profile = snap.setdefault("profile", {})
         changed = apply_supplement_to_mapping(profile, rec)
+        if rec.get("allowances") is not None:
+            existing = snap.get("allowances") or []
+            kept = [a for a in existing if a.get("component_code") not in MANAGED_ALLOWANCE_CODES]
+            incoming = rec["allowances"]
+            if kept + incoming != existing:
+                snap["allowances"] = kept + incoming
+                changed.append("allowances")
+                stats["allowances"] += 1
         stats["files"] += 1
         if changed:
             snap["profile"] = profile
@@ -403,6 +536,22 @@ def merge_into_snapshots(records: dict[str, dict[str, Any]], snapshot_dir: Path)
                 encoding="utf-8",
             )
             stats["updated"] += 1
+        touched.add(code)
+
+    for path in emp_dir.glob("*.json"):
+        code = path.stem
+        if code in SKIP_TEST_CODES or code in touched:
+            continue
+        snap = json.loads(path.read_text(encoding="utf-8"))
+        profile = snap.setdefault("profile", {})
+        ident = apply_default_identity(profile)
+        if ident:
+            snap["profile"] = profile
+            path.write_text(
+                json.dumps(snap, ensure_ascii=False, indent=2, default=_json_default) + "\n",
+                encoding="utf-8",
+            )
+            stats["identity_all"] += 1
     return stats
 
 

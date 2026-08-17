@@ -10,9 +10,9 @@ Overlay **Hồ sơ nhân viên** (full screen) — các tab/ cột:
 |------|------------|---------|
 | Công việc | Một phần | Tổ, chức vụ, ngày vào — thường đã có |
 | Lương | Một phần | Lương HĐ, phụ cấp — thường đã có |
-| **Cá nhân** | **Thường trống / thiếu** | Giới tính, ngày sinh, SĐT, hôn nhân, số con, trình độ… |
-| **Cư trú & giấy tờ** | **Thường trống / thiếu** | Quốc tịch, địa chỉ, CCCD, ngày/nơi cấp |
-| **Bảo hiểm & Ngân hàng** | **Một phần trống** | TK NH thường có; sổ BHXH hay thiếu |
+| **Cá nhân** | Đã nạp 14.08 | GT, NS, SĐT, hôn nhân, số con, trình độ; dân tộc Kinh / tôn giáo Không |
+| **Cư trú & giấy tờ** | Một phần | Quốc tịch VN; địa chỉ, CCCD thường đã có |
+| **Bảo hiểm & Ngân hàng** | Một phần | TK NH thường có; sổ BHXH hay thiếu |
 
 Mở NV trên web → vùng giữa **Cá nhân / Cư trú** có thể **trống** vì DB chưa nhập — **không phải lỗi layout**, chờ HR điền.
 
@@ -52,21 +52,25 @@ Nguồn bổ sung 14.08 (`Thông tin bổ sung  14.08.26.xlsx`) đã nạp vào 
 | Hôn nhân | **354/454** (256 đã kết hôn, 98 độc thân) |
 | Có con | **175** NV |
 | Điện thoại | **358/454** |
-| Dân tộc, tôn giáo, liên hệ khẩn | vẫn thiếu (Excel không có) |
+| Quốc tịch Việt Nam / dân tộc Kinh / tôn giáo Không | **451/454** (bỏ NV test) |
+| Trình độ (sheet 02 cột M) | **350/454** |
+| Phụ cấp sheet 03 | Chuyên cần + đi lại ~354; tay nghề 188; độc hại; chức vụ 44; HSE/PCCC tách |
 
-MSNV **8852** có trong Excel nhưng chưa có file JSON / chưa có trên portal.
+MSNV **8852** có trong Excel nhưng chưa có file JSON snapshot local.
 
 ## Nguồn bổ sung
 
 1. **`Thông tin bổ sung  14.08.26.xlsx`** (thư mục này) — hôn nhân, số con, STK, SĐT, hồ sơ sheet 02.
 2. **`HIEN_PHAP/Thông tin danh sách nhân viên/`** — GenusSuite 14.08 + ảnh.
-3. **Nhập tay** trên web: dân tộc, tôn giáo, liên hệ khẩn.
+3. **Nhập tay** trên web: liên hệ khẩn (nếu có).
 
 ## Việc kỹ thuật (sau khi HR có dữ liệu)
 
 - [x] Nạp hôn nhân / số con / SĐT từ Excel 14.08
-- [ ] Dân tộc, tôn giáo, liên hệ khẩn — chờ HR
-- [ ] (Tuỳ chọn) Import lại DB test: `import_employee_snapshots`
+- [x] Quốc tịch Việt Nam, dân tộc Kinh, tôn giáo Không
+- [x] Trình độ học vấn sheet 02 cột M
+- [x] Phụ cấp sheet 03 (PCCC/HSE, chức vụ, độc hại, chuyên cần, đi lại, tay nghề, khác)
+- [ ] Liên hệ khẩn — chờ HR
 
 ## NV test — bỏ qua khi bổ sung
 

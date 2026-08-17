@@ -81,7 +81,7 @@ def main() -> None:
         _exec(client, "rm -rf /tmp/bo_sung /tmp/bo_sung.tar.gz")
     finally:
         client.close()
-    print("XONG — F5 Portal → Nhân sự, mở vài MSNV kiểm tra hôn nhân / số con / SĐT.")
+    print("XONG — F5 Portal → Nhân sự, kiểm tra phụ cấp / quốc tịch / dân tộc / tôn giáo / trình độ.")
 
 
 if __name__ == "__main__":
