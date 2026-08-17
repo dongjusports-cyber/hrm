@@ -514,3 +514,21 @@ Cách xử lý:
 Test:
   tests/test_worker_lock_security.py
 
+[WK-BLANK001] App công nhân màn hình trắng sau cập nhật code — 2026-08-17
+---------------------------------------------------------------------------
+Triệu chứng:
+  Điện thoại mở PWA /worker hoặc /worker/login → màn trắng, không có form đăng nhập.
+
+Nguyên nhân:
+  sw.js cache-first lưu HTML cũ (index.html trỏ bundle JS hash cũ). Sau deploy GitHub,
+  file JS mới hash khác → trình duyệt 404 → React không mount → màn trắng.
+
+Cách xử lý:
+  - sw.js v7: network-first cho navigate + /assets/*; chỉ cache icon/manifest.
+  - Trên ĐT (ngay): xóa app PWA → cài lại, hoặc Chrome → Site settings → Clear data.
+  - Dev .123: main.tsx đã unregister SW; mở http://IP:5173/worker/login (không localhost).
+
+Test:
+  apps/web npm run build -> OK
+  Mở /worker/login trên VPS + ĐT sau khi deploy sw.js v7.
+
