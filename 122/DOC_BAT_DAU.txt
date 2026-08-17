@@ -1,13 +1,26 @@
 ================================================================================
-  THƯ MỤC 122 — COPY USB → MÁY NHÀ MÁY (.122)
-  Tạo trên máy .123:  C:\DATA\HRM\dj-hrm\dj-hrm\122\
+  THƯ MỤC 122 — CHỈ DÙNG TRÊN MÁY NHÀ MÁY (.122)
+  File này được TẠO trên máy .123 (sửa code) rồi copy USB sang .122
 ================================================================================
 
-  Mục đích: bạn copy cả folder "122" vào USB, dán sang máy .122, chạy vài file .bat
-  — không cần share mạng .123 ↔ .122.
+  BỐN CHỖ — KHÔNG NHẦM
+
+    .123   = máy bạn: Cursor, sửa code, GitHub, deploy VPS
+             (C:\DATA\HRM\dj-hrm\dj-hrm)  — KHÔNG cài Mitapro, KHÔNG chạy Agent
+
+    GitHub = kho code
+
+    VPS    = https://hrm.dongju-v.com  — chạy thật + DB công nhân
+
+    .122   = máy nhà máy: Mitapro + SQL + Agent
+             — CHỈ double-click file .bat trong folder này
+             — KHÔNG sửa code, KHÔNG Git, KHÔNG deploy
+
+  Luồng công:  vân tay → Mitapro (.122) → Agent (.122) → VPS
+               điện thoại → VPS (không qua .122)
 
 --------------------------------------------------------------------------------
-  BƯỚC 1 — USB
+  BƯỚC 1 — USB (làm trên máy .123, rồi mang sang .122)
 --------------------------------------------------------------------------------
 
   Copy folder   122\   (toàn bộ)  →  USB
@@ -38,14 +51,14 @@
   (nếu thiếu code → xem mục "Cập nhật code agent" bên dưới)
 
 --------------------------------------------------------------------------------
-  BƯỚC 3 — TRÊN MÁY .123 (bạn)
+  BƯỚC 3 — XEM CÔNG (trình duyệt → VPS, không phải máy .123)
 --------------------------------------------------------------------------------
 
-  Portal → Chấm công: lưới tự cập nhật (agent đẩy mỗi 2 phút).
-  Nút Đồng bộ chỉ dùng khi muốn kéo lại cả tháng / khoảng ngày cũ.
+  Mở https://hrm.dongju-v.com  → Chấm công.
+  Agent .122 tự đẩy mỗi 2 phút. Nút Đồng bộ chỉ khi kéo lại tháng cũ.
 
 --------------------------------------------------------------------------------
-  CẬP NHẬT CODE AGENT (khi cần bản mới từ .123)
+  CẬP NHẬT CODE AGENT (code mới từ máy .123 → USB → .122)
 --------------------------------------------------------------------------------
 
   Copy từ .123 sang USB (ngoài folder 122):

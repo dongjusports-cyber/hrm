@@ -17,6 +17,16 @@ User **không** muốn Git/SSH/remote phức tạp. Mọi thao tác vận hành 
 5. **Không bắt user bật WinRM/SSH** giữa .123 ↔ .122 — agent .122 **tự poll API**.
 6. **Secret** chỉ trong `ops/THONG_TIN_VPS.txt` (local gitignore) — không đưa vào rule/chat công khai.
 
+## Ba máy + GitHub (KHÓA — không nhầm)
+
+| Máy | Việc |
+|-----|------|
+| **.123** | Local sửa code (Cursor) → GitHub → deploy VPS. Path: `C:\DATA\HRM\dj-hrm\dj-hrm`. **Không** Mitapro, **không** Agent. |
+| **.122** | Máy nhà máy: Mitapro + Agent. USB `122\`, chỉ `.bat`. **Không** sửa code, **không** Git. |
+| **VPS** | Portal + DB thật. Agent .122 đẩy công về đây. |
+
+Copy USB: folder `122\` + (khi cần) `apps\agent\` **không kèm `.venv`**. File `.env` trên .122 **không đè**.
+
 ## Thư mục chuẩn (repo)
 
 | Thư mục | Máy | Mục đích |
@@ -27,8 +37,8 @@ User **không** muốn Git/SSH/remote phức tạp. Mọi thao tác vận hành 
 ## Luồng hàng ngày (nhắc user ngắn gọn)
 
 - **Tối:** Cursor Cloud test + push GitHub (`PROMPT-TOI-CLOUD.txt`)
-- **Sáng:** `Thien-Admin\02-DONG-BO-SANG.bat`
-- **.122:** lần đầu `122\04-CAI-TU-CHAY-KHI-MO-MAY.bat` (sau đó tự chạy ngầm khi đăng nhập) + HR bấm Đồng bộ trên web
+- **Sáng:** `Thien-Admin\02-DONG-BO-SANG.bat` (VPS + máy .123)
+- **.122:** Agent tự chạy khi đăng nhập (`04-CAI-TU-CHAY-KHI-MO-MAY.bat` cài 1 lần). Không bấm Đồng bộ mỗi ngày.
 
 ## Khi thêm tính năng mới
 

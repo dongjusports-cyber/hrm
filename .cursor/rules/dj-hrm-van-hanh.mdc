@@ -6,13 +6,20 @@ alwaysApply: true
 
 # DJ-HRM — vận hành (cập nhật 2026-08-15)
 
-## Ba nơi
+## Ba nơi code + một máy nhà máy (KHÔNG NHẦM)
 
-| Nơi | Vai trò |
-|-----|---------|
-| **GitHub** `dongjusports-cyber/hrm` branch `main` | Source of truth code |
-| **VPS** https://hrm.dongju-v.com — `/opt/dj-hrm` | Production + DB 359 NV |
-| **Máy .123** `C:\DATA\HRM\dj-hrm\dj-hrm` | Dev / Cursor ban ngày |
+| Nơi | Máy / chỗ | Việc DUY NHẤT |
+|-----|-----------|----------------|
+| **.123** | `C:\DATA\HRM\dj-hrm\dj-hrm` (Cursor, user Dongju Spots Pro) | Sửa code, GitHub, deploy VPS. **Không** cài Mitapro. **Không** chạy Agent. |
+| **GitHub** | `dongjusports-cyber/hrm` branch `main` | Code chuẩn |
+| **VPS** | https://hrm.dongju-v.com `/opt/dj-hrm` | Production + DB 359 NV |
+| **.122** | Máy nhà máy (USB folder `122\`) | **Mitapro + SQL + Agent.** Chỉ double-click `.bat`. **Không** sửa code, **không** Git, **không** deploy. |
+
+Luồng công: máy vân tay → Mitapro (.122) → Agent (.122) → VPS.  
+Điện thoại → VPS trực tiếp. Không ghi SQL .122.
+
+**Cấm:** copy folder `.venv` từ .123 sang .122 (Python .123 = `Dongju Spots Pro`, .122 không có).  
+**Cấm:** bảo user chạy Agent trên .123 hoặc mở Cursor trên .122.
 
 **DB production chỉ trên VPS** — không sync 3 chiều. Cloud Agent **không** SSH VPS.
 

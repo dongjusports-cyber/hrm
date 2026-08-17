@@ -70,11 +70,13 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
   BA BẢN PHẦN MỀM — HIỂU NHANH
 --------------------------------------------------------------------------------
 
-  GitHub     = code chuẩn (AI push sau khi sửa)
+  GitHub     = code chuẩn (AI push sau khi sửa trên .123)
   VPS        = chạy thật + dữ liệu 359 công nhân
-  Máy .123   = dev/test (DB Docker riêng, KHÔNG tự đồng bộ DB từ VPS)
+  Máy .123   = sửa code / GitHub / deploy (KHÔNG Mitapro, KHÔNG Agent)
+  Máy .122   = Mitapro + Agent (USB folder 122\ — chỉ .bat)
 
-  → Ba nơi cùng PHIÊN BẢN CODE khi bạn chạy 02-DONG-BO-SANG.bat
+  → .123 + VPS cùng PHIÊN BẢN CODE khi bạn chạy 02-DONG-BO-SANG.bat
+  → Agent .122 copy USB khi AI bảo cập nhật agent (không kéo Git)
 
 --------------------------------------------------------------------------------
   THÔNG TIN THÊM (mật khẩu VPS, portal…)

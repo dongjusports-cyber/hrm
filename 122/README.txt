@@ -1,4 +1,6 @@
-Folder 122 — USB sang may nha may (.122)
+Folder 122 — CHI dung tren may nha may (.122)
+
+  May .123 = sua code / GitHub / deploy. May .122 = Mitapro + Agent.
 
   DOC_BAT_DAU.txt       Doc truoc
   HUONG-DAN-ODBC.txt    ODBC 17/18 la gi, kiem tra o dau
