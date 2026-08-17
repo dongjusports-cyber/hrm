@@ -636,7 +636,9 @@ Nguyên nhân:
   5) GET ensure_pay_period gọi compute_divisor dù kỳ đã có; seed_leave_types commit mọi GET.
 
 Cách xử lý:
-  - Ô tìm giữ state local; cha chỉ nhận query sau 80ms / Enter.
+  - Ô tìm giữ state local; lọc lưới qua external filter (không thay rowData 360 dòng).
+  - Gõ 4 số MSNV dồn: startTransition, không debounce — debounce gom 1 lần rồi
+    thay rowData = khựng ngay sau khi thả phím (gõ chậm không thấy).
   - memo DailyGridPanel; bỏ delay 120ms; overlay tải, không unmount lưới.
   - reload: setPay xong là mount lưới ngày; timesheets/status chạy song song.
   - Precompute HH:mm khi nạp dòng (tránh toLocaleTimeString lúc sort).

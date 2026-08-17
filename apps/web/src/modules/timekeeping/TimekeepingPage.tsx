@@ -1,7 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef, GridApi, RowClickedEvent } from "ag-grid-community";
+import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
 import {
   fetchAttendanceDays,
   fetchDepartments,
@@ -96,8 +96,6 @@ function defaultPeriod(): string {
   return currentPayPeriod();
 }
 
-const SEARCH_DEBOUNCE_MS = 80;
-
 function TkSearchInput({
   resetToken,
   onQuery,
@@ -120,11 +118,6 @@ function TkSearchInput({
     onQueryRef.current("");
   }, [resetToken]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => onQueryRef.current(value.trim()), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [value]);
-
   return (
     <label className="tk-search tk-search-compact">
       <span className="sr-only">Tìm MSNV hoặc họ tên</span>
@@ -136,6 +129,9 @@ function TkSearchInput({
           const next = e.target.value;
           setValue(next);
           onTypedRef.current(next);
+          // HR gõ 4 số MSNV dồn: không debounce. Debounce gom 1 lần rồi thay
+          // rowData 360 dòng = khựng ngay sau khi thả phím. Lọc lưới là transition.
+          startTransition(() => onQueryRef.current(next.trim()));
         }}
       />
     </label>
@@ -261,9 +257,6 @@ export function TimekeepingPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [dailySummary, setDailySummary] = useState<DailyGridSummary>({ total: 0, needsAction: 0 });
   const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
-  const [gridApi, setGridApi] = useState<{ ensureIndexVisible: (i: number) => void } | null>(
-    null,
-  );
   const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
   const timesheetRowsRef = useRef(rows);
@@ -402,6 +395,18 @@ export function TimekeepingPage() {
     clearSelection();
   });
 
+  const monthlySearchRef = useRef(q);
+  monthlySearchRef.current = q;
+  const isMonthlyFilterPresent = useCallback(() => monthlySearchRef.current.trim().length > 0, []);
+  const doesMonthlyFilterPass = useCallback((node: IRowNode<TimesheetMonth>) => {
+    if (!node.data) return false;
+    return employeeMatchesQuery(node.data, monthlySearchRef.current);
+  }, []);
+
+  useEffect(() => {
+    monthlyGridApiRef.current?.onFilterChanged();
+  }, [q]);
+
   const applySearchSelect = useCallback(
     (needle: string, opts?: { exactOnly?: boolean }) => {
       if (!needle.trim()) return false;
@@ -411,11 +416,17 @@ export function TimekeepingPage() {
         return false;
       }
       pickEmployee(match);
-      const idx = filtered.findIndex((r) => r.id === match.id);
-      if (idx >= 0) gridApi?.ensureIndexVisible(idx);
+      const api = monthlyGridApiRef.current;
+      if (api) {
+        let shown = -1;
+        api.forEachNodeAfterFilterAndSort((node, index) => {
+          if (shown < 0 && node.data?.id === match.id) shown = index;
+        });
+        if (shown >= 0) api.ensureIndexVisible(shown);
+      }
       return true;
     },
-    [rows, filtered, gridApi, pickEmployee],
+    [rows, pickEmployee],
   );
 
   function onSearchSubmit(e: FormEvent) {
@@ -963,19 +974,21 @@ export function TimekeepingPage() {
             <section className="tk-grid-section tk-grid-primary">
               <div className="tk-grid-wrap ag-theme-quartz">
                 <AgGridReact<TimesheetMonth>
-                  rowData={filtered}
+                  rowData={rows}
                   columnDefs={columnDefs}
                   localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}
                   animateRows={false}
                   suppressHorizontalScroll
+                  isExternalFilterPresent={isMonthlyFilterPresent}
+                  doesExternalFilterPass={doesMonthlyFilterPass}
                   onRowClicked={onRowClicked}
                   onGridReady={(e) => {
                     monthlyGridApiRef.current = e.api;
-                    setGridApi(e.api);
                     if (!monthlyColPrefs.restore(e.api)) {
                       e.api.sizeColumnsToFit();
                     }
+                    e.api.onFilterChanged();
                   }}
                   {...monthlyColPrefs.handlers}
                   getRowClass={(p) =>

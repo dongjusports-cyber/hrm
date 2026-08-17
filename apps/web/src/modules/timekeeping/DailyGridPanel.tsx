@@ -1,6 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
-import type { CellEditingStoppedEvent, CellValueChangedEvent, ColDef, GridApi } from "ag-grid-community";
+import type {
+  CellEditingStoppedEvent,
+  CellValueChangedEvent,
+  ColDef,
+  GridApi,
+  IRowNode,
+} from "ag-grid-community";
 import {
   bulkPatchAttendanceDays,
   fetchAttendanceDaysGrid,
@@ -153,19 +159,29 @@ function DailyGridPanelInner({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  const searchRef = useRef(searchQuery);
+  searchRef.current = searchQuery;
+
+  const isExternalFilterPresent = useCallback(() => searchRef.current.trim().length > 0, []);
+  const doesExternalFilterPass = useCallback((node: IRowNode<AttendanceDayGridRow>) => {
+    if (!node.data) return false;
+    return employeeMatchesQuery(node.data, searchRef.current);
+  }, []);
+
+  useEffect(() => {
+    gridApi?.onFilterChanged();
+  }, [searchQuery, gridApi]);
+
   const initialLoading = loading && rows.length === 0;
   const refreshing = loading && rows.length > 0;
 
-  const filteredRows = useMemo(
-    () => rows.filter((r) => employeeMatchesQuery(r, searchQuery)),
-    [rows, searchQuery],
-  );
-
   const summary = useMemo((): DailyGridSummary => {
-    const total = filteredRows.length;
-    const needsAction = filteredRows.filter((r) => r.needs_action).length;
-    return { total, needsAction };
-  }, [filteredRows]);
+    const matched = rows.filter((r) => employeeMatchesQuery(r, searchQuery));
+    return {
+      total: matched.length,
+      needsAction: matched.filter((r) => r.needs_action).length,
+    };
+  }, [rows, searchQuery]);
 
   useEffect(() => {
     if (!onSummaryChange) return;
@@ -557,7 +573,7 @@ function DailyGridPanelInner({
         }}
       >
         <AgGridReact
-          rowData={filteredRows}
+          rowData={rows}
           columnDefs={cols}
           getRowId={(p) => p.data.employee_code}
           localeText={AG_GRID_LOCALE_VI}
@@ -568,6 +584,8 @@ function DailyGridPanelInner({
           suppressRowClickSelection
           singleClickEdit
           stopEditingWhenCellsLoseFocus
+          isExternalFilterPresent={isExternalFilterPresent}
+          doesExternalFilterPass={doesExternalFilterPass}
           onGridReady={(p) => {
             setGridApi(p.api);
             const restored = colPrefs.restore(p.api);
@@ -575,6 +593,7 @@ function DailyGridPanelInner({
               applyDefaultSort(p.api);
             }
             didInitialSortRef.current = true;
+            p.api.onFilterChanged();
           }}
           {...colPrefs.handlers}
           onCellDoubleClicked={(e) => {

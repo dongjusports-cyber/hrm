@@ -23,8 +23,9 @@ describe("employeeMatchesQuery", () => {
 });
 
 describe("findEmployeeByQuery", () => {
-  it("prefers exact MSNV over prefix", () => {
-    expect(findEmployeeByQuery(rows, "1514")?.employee_code).toBe("1514");
+  it("matches a 4-digit MSNV typed in one burst", () => {
+    expect(findEmployeeByQuery(rows, "5290")?.employee_code).toBe("5290");
+    expect(rows.filter((r) => employeeMatchesQuery(r, "5290"))).toHaveLength(1);
   });
 
   it("falls back to prefix then first filtered", () => {
