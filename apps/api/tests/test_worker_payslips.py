@@ -88,6 +88,10 @@ def test_worker_sees_only_published(client, db):
     assert len(d["work_lines"]) == 5
     assert d["employee_code"] == "5290"
     assert "taxable_income" in d
+    assert d["annual_leave_entitled"] is not None
+    assert Decimal(str(d["annual_leave_entitled"])) > 0
+    assert d["annual_leave_used"] is not None
+    assert d["annual_leave_remaining"] is not None
 
     from uuid import UUID
 

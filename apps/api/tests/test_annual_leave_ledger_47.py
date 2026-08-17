@@ -6,13 +6,14 @@ from decimal import Decimal
 from app.modules.attendance.annual_leave_ledger import (
     annual_leave_remaining,
     annual_leave_remaining_batch,
+    annual_leave_snapshot,
     ensure_ledger,
     entitled_days_per_year,
     ledger_balance_from_entries,
     record_leave_use,
     sync_accrual,
 )
-from app.modules.attendance.models import AnnualLeaveEntry, LeaveRequest
+from app.modules.attendance.models import AnnualLeaveEntry, AnnualLeaveLedger, LeaveRequest
 from app.modules.mdm.models import Employee
 
 
@@ -104,3 +105,40 @@ def test_ensure_ledger_idempotent(db):
     a = ensure_ledger(db, emp.id, 2025)
     b = ensure_ledger(db, emp.id, 2025)
     assert a.id == b.id
+
+
+def test_snapshot_read_only_and_used_after_leave(db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.join_date = date(2024, 1, 1)
+    db.commit()
+    as_of = date(2025, 8, 31)
+
+    before = (
+        db.query(AnnualLeaveLedger)
+        .filter(AnnualLeaveLedger.employee_id == emp.id, AnnualLeaveLedger.year == 2025)
+        .count()
+    )
+    entitled, used, remaining = annual_leave_snapshot(db, emp.id, as_of)
+    after = (
+        db.query(AnnualLeaveLedger)
+        .filter(AnnualLeaveLedger.employee_id == emp.id, AnnualLeaveLedger.year == 2025)
+        .count()
+    )
+    assert after == before
+    assert entitled > 0
+    assert used >= 0
+    assert remaining >= 0
+
+    sync_accrual(db, emp, as_of)
+    record_leave_use(
+        db,
+        employee_id=emp.id,
+        leave_request_id=emp.id,
+        days=Decimal("2.00"),
+        entry_date=date(2025, 8, 10),
+    )
+    db.commit()
+    entitled2, used2, remaining2 = annual_leave_snapshot(db, emp.id, as_of)
+    assert used2 == used + Decimal("2.00")
+    assert remaining2 == remaining - Decimal("2.00")
+    assert entitled2 == entitled

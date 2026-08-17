@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.attendance.annual_leave_ledger import annual_leave_remaining
+from app.modules.attendance.annual_leave_ledger import annual_leave_snapshot
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee, Team
@@ -24,6 +24,7 @@ from app.modules.payroll.payslip_genus_template import (
     apply_genus_deduction_template,
     apply_genus_leave_template,
     apply_genus_work_template,
+    fill_missing_day_quantity,
 )
 from app.modules.worker.schemas import PayslipLineOut, WorkerPayslipDetailOut, WorkerPayslipListOut
 
@@ -296,10 +297,18 @@ def _to_detail(
     allowance = apply_genus_allowance_template(allowance_raw, divisor)
     deductions = apply_genus_deduction_template(deductions_raw, divisor)
 
+    # Tháng có payslip_components (T8): cột CT phụ cấp/ngày công thiếu quantity → ngày công thực tế.
+    # Tháng không có dòng chi tiết (T1–T7): không đụng, giữ fallback.
+    if grouped and ts is not None:
+        fill_missing_day_quantity(work, ts.worked_days)
+        fill_missing_day_quantity(allowance, ts.worked_days)
+
     dept = emp.department
-    al_remaining = (
-        annual_leave_remaining(db, emp.id, pay.date_to or date.today()) if db is not None else None
-    )
+    al_entitled = al_used = al_remaining = None
+    if db is not None:
+        al_entitled, al_used, al_remaining = annual_leave_snapshot(
+            db, emp.id, pay.date_to or date.today()
+        )
 
     can_confirm, can_dispute = _action_flags(slip)
     return WorkerPayslipDetailOut(
@@ -334,8 +343,8 @@ def _to_detail(
         leave_subtotal=leave_subtotal,
         allowance_subtotal=allowance_subtotal,
         deduction_subtotal=deduction_subtotal,
-        annual_leave_entitled=None,
-        annual_leave_used=None,
+        annual_leave_entitled=al_entitled,
+        annual_leave_used=al_used,
         annual_leave_remaining=al_remaining,
         confirm_deadline=slip.confirm_deadline,
         confirmed_at=slip.confirmed_at,

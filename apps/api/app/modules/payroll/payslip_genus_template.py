@@ -201,3 +201,21 @@ def apply_genus_allowance_template(lines: list[dict], salary_divisor: Decimal | 
 
 def apply_genus_deduction_template(lines: list[dict], salary_divisor: Decimal | None) -> list[dict]:
     return apply_genus_template(lines, DEDUCTION_SLOTS, salary_divisor)
+
+
+_DAY_UNITS = frozenset({"day", "days", "ngày"})
+
+
+def fill_missing_day_quantity(lines: list[dict], worked_days: Decimal | None) -> None:
+    """Cột CT (ngày) — chỉ điền khi đã có tiền mà engine chưa ghi quantity.
+
+    Không đụng dòng trống («—») và không ghi đè số ngày đã có.
+    """
+    if worked_days is None:
+        return
+    for ln in lines:
+        if ln.get("amount") is None:
+            continue
+        unit = str(ln.get("unit") or "").lower()
+        if unit in _DAY_UNITS and ln.get("quantity") is None:
+            ln["quantity"] = worked_days

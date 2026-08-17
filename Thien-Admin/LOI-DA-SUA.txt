@@ -356,6 +356,24 @@ Test:
   cd apps/api && py -3.12 -m pytest tests/test_worker_payslips.py -q
   cd apps/web && npm run build
 
+[WK-I005] Phiếu lương mobile T8 — phép năm + số ngày CT — 2026-08-17
+----------------------------------------------------------------------
+Triệu chứng:
+  Section V chỉ có «còn lại»; «hiện tại» / «đã dùng» luôn «—».
+  Cột CT làm tròn 23.04 → 23; phụ cấp T8 có tiền nhưng CT «—».
+
+Cách xử lý (chỉ hiển thị; không tính lại T1–T7):
+  - annual_leave_snapshot: định mức / used / remaining — GET read-only
+  - formatWorkerQty: tối đa 2 số thập phân (vi-VN)
+  - fill_missing_day_quantity khi có payslip_components (T8)
+  - sw.js dj-hrm-worker-v8
+
+Test:
+  tests/test_worker_payslips.py
+  tests/test_payslip_genus_template.py
+  tests/test_annual_leave_ledger_47.py::test_snapshot_read_only_and_used_after_leave
+  apps/web npm test -- workerPayslipDisplay
+
 [QA-01] OT Chủ nhật / lễ vào phiếu lương (hệ số 2,0 / 3,0) — 2026-08-16
 ----------------------------------------------------------------------
 Triệu chứng:

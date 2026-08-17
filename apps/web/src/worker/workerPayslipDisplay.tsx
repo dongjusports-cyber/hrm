@@ -13,7 +13,7 @@ export function formatWorkerQty(v: string | number | null | undefined): string {
   if (v == null || v === "") return EMPTY;
   const n = Number(v);
   if (Number.isNaN(n)) return EMPTY;
-  return Math.round(n).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+  return n.toLocaleString("vi-VN", { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 }
 
 export function formatWorkerUnit(unit: string | null | undefined): string {

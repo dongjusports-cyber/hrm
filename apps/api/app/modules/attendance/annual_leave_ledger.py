@@ -473,6 +473,36 @@ def annual_leave_remaining(db: Session, employee_id: UUID, as_of: date | None = 
     return annual_leave_remaining_batch(db, [employee_id], as_of).get(employee_id, Decimal("0"))
 
 
+def annual_leave_snapshot(
+    db: Session, employee_id: UUID, as_of: date | None = None
+) -> tuple[Decimal, Decimal, Decimal]:
+    """(định mức năm, đã dùng, còn lại) — CHỈ ĐỌC, không INSERT/UPDATE sổ.
+
+    Dùng trên GET phiếu lương. «Đã dùng» lấy `ledger.used` nếu có sổ; không có sổ → 0.
+    «Còn lại» cùng công thức `annual_leave_remaining` (suy ra tích lũy chưa ghi).
+    """
+    as_of = as_of or date.today()
+    year = as_of.year
+    emp = db.get(Employee, employee_id)
+    zero = Decimal("0").quantize(Q2)
+    if emp is None:
+        return zero, zero, zero
+    entitled = Decimal(entitled_days_for(db, emp, as_of)).quantize(Q2, rounding=ROUND_HALF_UP)
+    remaining = annual_leave_remaining(db, employee_id, as_of)
+    ledger = (
+        db.query(AnnualLeaveLedger)
+        .filter(
+            AnnualLeaveLedger.employee_id == employee_id,
+            AnnualLeaveLedger.year == year,
+        )
+        .one_or_none()
+    )
+    used = (
+        Decimal(str(ledger.used)).quantize(Q2, rounding=ROUND_HALF_UP) if ledger is not None else zero
+    )
+    return entitled, used, remaining
+
+
 def verify_annual_leave_nghiem_thu_47(
     db: Session,
     *,
