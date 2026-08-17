@@ -238,8 +238,19 @@ def patch_day_cell(
     elif note is not None:
         row.note = note.strip()
 
-    if first_in is not None and last_out is not None:
-        punches = [to_vn(first_in), to_vn(last_out)]
+    if first_in is not None or last_out is not None:
+        fi = to_vn(first_in) if first_in is not None else (to_vn(row.first_in) if row.first_in else None)
+        lo = to_vn(last_out) if last_out is not None else (to_vn(row.last_out) if row.last_out else None)
+        punches: list[datetime] = []
+        if fi is not None:
+            punches.append(fi)
+        if lo is not None and lo != fi:
+            punches.append(lo)
+        if not punches:
+            raise HTTPException(
+                status_code=400,
+                detail="Trợ Lý AI: cần giờ vào hoặc giờ ra khi sửa thời gian.",
+            )
         shift_id = resolve_work_shift_id(db, emp, work_date)
         timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
         calc = calculate_day(
@@ -251,11 +262,6 @@ def patch_day_cell(
         row.edited_at = datetime.now(tz=VN_TZ)
         if note is not None and not clear_note:
             row.note = note.strip()
-    elif first_in is not None or last_out is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Trợ Lý AI: cần đủ giờ vào và giờ ra khi sửa thời gian.",
-        )
 
     db.commit()
     db.refresh(row)

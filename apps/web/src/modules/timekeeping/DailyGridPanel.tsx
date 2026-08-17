@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
-import type { CellValueChangedEvent, ColDef, GridApi } from "ag-grid-community";
+import type { CellEditingStoppedEvent, CellValueChangedEvent, ColDef, GridApi } from "ag-grid-community";
 import {
   bulkPatchAttendanceDays,
   fetchAttendanceDaysGrid,
@@ -17,14 +17,12 @@ import { formatLeaveLabel, leaveTypesForPicker } from "../../shared/formatLeave"
 import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
+import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
+
+type RowWithEdit = AttendanceDayGridRow & { _edit_in?: string; _edit_out?: string };
 
 function hhmm(iso: string | null | undefined): string {
   return formatTimeHHMM(iso, "");
-}
-
-function toIsoTime(workDate: string, hhmmVal: string): string | null {
-  if (!hhmmVal || !/^\d{2}:\d{2}$/.test(hhmmVal)) return null;
-  return `${workDate}T${hhmmVal}:00+07:00`;
 }
 
 function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): AttendanceDayGridRow {
@@ -43,12 +41,15 @@ function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): Atten
     early > 0 ||
     (punches > 0 && punches % 2 === 1) ||
     Boolean(day.is_workday && punches === 0 && !leaveCode);
-  return {
+  const merged: RowWithEdit = {
     ...row,
     ...day,
     needs_action,
     row_flag,
   };
+  delete merged._edit_in;
+  delete merged._edit_out;
+  return merged;
 }
 
 export type DailyGridSummary = {
@@ -213,10 +214,16 @@ export function DailyGridPanel({
         headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
-        valueGetter: (p) => hhmm(p.data?.first_in),
+        valueGetter: (p) => {
+          const d = p.data as RowWithEdit | undefined;
+          if (d?._edit_in != null && String(d._edit_in).trim() !== "") {
+            return parseGridTimeInput(String(d._edit_in)) ?? String(d._edit_in);
+          }
+          return hhmm(d?.first_in);
+        },
         valueSetter: (p) => {
           if (!p.data) return false;
-          (p.data as AttendanceDayGridRow & { _edit_in?: string })._edit_in = p.newValue;
+          (p.data as RowWithEdit)._edit_in = p.newValue;
           return true;
         },
         cellEditor: "agTextCellEditor",
@@ -230,10 +237,16 @@ export function DailyGridPanel({
         headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
-        valueGetter: (p) => hhmm(p.data?.last_out),
+        valueGetter: (p) => {
+          const d = p.data as RowWithEdit | undefined;
+          if (d?._edit_out != null && String(d._edit_out).trim() !== "") {
+            return parseGridTimeInput(String(d._edit_out)) ?? String(d._edit_out);
+          }
+          return hhmm(d?.last_out);
+        },
         valueSetter: (p) => {
           if (!p.data) return false;
-          (p.data as AttendanceDayGridRow & { _edit_out?: string })._edit_out = p.newValue;
+          (p.data as RowWithEdit)._edit_out = p.newValue;
           return true;
         },
         cellEditor: "agTextCellEditor",
@@ -292,45 +305,64 @@ export function DailyGridPanel({
     applyDefaultSort(gridApi);
   }
 
+  async function applyCellPatch(
+    row: AttendanceDayGridRow,
+    patchBody: Parameters<typeof patchAttendanceDayCell>[0],
+  ) {
+    const code = row.employee_code;
+    const day = await patchAttendanceDayCell(patchBody);
+    const merged = applyDayToGridRow(row, day);
+    setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
+    gridApi?.applyTransaction({ update: [merged] });
+    setToast(`Đã lưu ${code}`);
+  }
+
+  async function saveTimeCell(row: AttendanceDayGridRow, col: "first_in" | "last_out", editedRaw: string) {
+    if (periodLocked) return;
+    const typed = String(editedRaw ?? "").trim();
+    if (!typed) return;
+    const existing =
+      col === "first_in" ? hhmm(row.first_in) : hhmm(row.last_out);
+    const parsed = parseGridTimeInput(typed);
+    if (parsed && parsed === existing) return;
+    const patch = buildDayTimePatch({
+      workDate,
+      col,
+      editedRaw: typed,
+      existingInHHmm: hhmm(row.first_in),
+      existingOutHHmm: hhmm(row.last_out),
+    });
+    if (!patch.ok) {
+      setError(patch.error);
+      return;
+    }
+    try {
+      setError(null);
+      await applyCellPatch(row, {
+        employee_code: row.employee_code,
+        work_date: workDate,
+        first_in: patch.first_in,
+        last_out: patch.last_out,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lưu ô thất bại.");
+      await load();
+    }
+  }
+
   async function onCellChanged(e: CellValueChangedEvent<AttendanceDayGridRow>) {
     if (periodLocked || !e.data) return;
-    const code = e.data.employee_code;
     const col = e.colDef.field ?? e.colDef.colId;
+    if (col === "first_in" || col === "last_out") return;
+    if (col !== "leave_code" && col !== "note") return;
     try {
-      let patchBody: Parameters<typeof patchAttendanceDayCell>[0] = {
-        employee_code: code,
+      const patchBody: Parameters<typeof patchAttendanceDayCell>[0] = {
+        employee_code: e.data.employee_code,
         work_date: workDate,
       };
-      if (col === "leave_code" || col === "note") {
-        if (col === "leave_code") patchBody.leave_code = String(e.newValue ?? "");
-        if (col === "note") patchBody.note = String(e.newValue ?? "");
-      } else if (col === "first_in" || col === "last_out") {
-        const row = e.data;
-        const edited = String(e.newValue ?? "").trim();
-        if (!edited) return;
-        const inStr =
-          col === "first_in"
-            ? edited
-            : hhmm(row.first_in) ||
-              String((row as AttendanceDayGridRow & { _edit_in?: string })._edit_in ?? "").trim();
-        const outStr =
-          col === "last_out"
-            ? edited
-            : hhmm(row.last_out) ||
-              String((row as AttendanceDayGridRow & { _edit_out?: string })._edit_out ?? "").trim();
-        if (!inStr || !outStr) return;
-        const fi = toIsoTime(workDate, inStr);
-        const lo = toIsoTime(workDate, outStr);
-        if (!fi || !lo) return;
-        patchBody = { ...patchBody, first_in: fi, last_out: lo };
-      } else {
-        return;
-      }
-      const day = await patchAttendanceDayCell(patchBody);
-      const merged = applyDayToGridRow(e.data, day);
-      setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
-      gridApi?.applyTransaction({ update: [merged] });
-      setToast(`Đã lưu ${code}`);
+      if (col === "leave_code") patchBody.leave_code = String(e.newValue ?? "");
+      if (col === "note") patchBody.note = String(e.newValue ?? "");
+      await applyCellPatch(e.data, patchBody);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu ô thất bại.");
       await load();
@@ -395,8 +427,8 @@ export function DailyGridPanel({
           const inT = parts[1]?.trim();
           const outT = parts[2]?.trim();
           if (!code || !inT || !outT) continue;
-          const fi = toIsoTime(workDate, inT.length === 5 ? inT : inT.slice(0, 5));
-          const lo = toIsoTime(workDate, outT.length === 5 ? outT : outT.slice(0, 5));
+          const fi = toIsoTime(workDate, parseGridTimeInput(inT) ?? inT);
+          const lo = toIsoTime(workDate, parseGridTimeInput(outT) ?? outT);
           if (!fi || !lo) continue;
           await patchAttendanceDayCell({
             employee_code: code,
@@ -507,6 +539,17 @@ export function DailyGridPanel({
                 }
               }}
               onCellValueChanged={(e) => void onCellChanged(e)}
+              onCellEditingStopped={(e: CellEditingStoppedEvent<AttendanceDayGridRow>) => {
+                const col = e.colDef.colId;
+                if (col !== "first_in" && col !== "last_out") return;
+                if (!e.data) return;
+                const pending =
+                  col === "first_in"
+                    ? (e.data as RowWithEdit)._edit_in
+                    : (e.data as RowWithEdit)._edit_out;
+                const typed = String(pending ?? e.newValue ?? "").trim();
+                void saveTimeCell(e.data, col, typed);
+              }}
               getRowClass={(p) => {
                 const f = p.data?.row_flag;
                 if (f && f !== "ok" && f !== "off") return `tk-grid-flag-${f}`;

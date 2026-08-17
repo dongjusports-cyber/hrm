@@ -126,6 +126,8 @@ Một trang nhỏ, quyền admin (hoặc HR được ủy quyền):
 - Nút Chấm công trên trang chủ worker: luôn hiện; mờ khi không được.
 - `POST /api/worker/punches` — 403 ngoài allowlist; GPS khi đã đặt tọa độ; **không lưu ảnh**, chỉ `photo_hash` + mã `DJ-XXXXXX`.
 
-Còn lại: so khớp AI mặt, cột nguồn máy/ĐT trên lưới HR, deploy VPS + điền GPS nhà máy.
+Còn lại: cột nguồn máy/ĐT trên lưới HR, deploy VPS + điền GPS nhà máy.
+
+**Không đuổi VNeID / Sacombank Pay.** Máy vân tay vẫn chính; ĐT là thêm. Khi siết Main Office: liveness nháy/quay **trên web** (xem `Y-TUONG-CHAM-CONG-DIEN-THOAI.md` §8) — xem xét sau, chưa code.
 
 **Chưa deploy production** cho đến khi điền tọa độ nhà máy trên Cấu Hình.

@@ -108,3 +108,13 @@ Còn: cột nguồn máy/ĐT trên lưới HR; AI so khớp mặt; deploy + đi�
 App **hiện nút Chấm công cho cả công ty**. Chỉ Main Office (`03`) bấm được; xưởng **nút mờ**. Khi ông Định test xong: một công tắc «Mở cho tất cả».
 
 Chi tiết: `Thien-Admin/DE-XUAT-CHAM-CONG-MAT-MAIN-OFFICE.md`
+
+---
+
+## 8. Quyết định 2026-08-17 — không đuổi VNeID / ngân hàng
+
+**Chủ:** máy vân tay **vẫn chính**; điện thoại là nguồn **thêm**. Không tích hợp VNeID, CCCD chip, Sacombank Pay hay SDK eKYC trả phí.
+
+Khi cần siết Main Office (chống ảnh in / nhờ người): **bước nháy mắt / quay đầu trên web** (camera trong trang, `getUserMedia`) là đủ. Vẫn **không** gửi ảnh lên server. Không phải Face ID / VNeID.
+
+**Trạng thái:** ghi nhận để xem xét sau — **chưa viết code** liveness. Làm khi văn phòng chạy ổn và Chủ bảo siết.

@@ -82,6 +82,56 @@ def test_patch_day_cell_times(client):
     assert body["source"] == "manual"
 
 
+def test_patch_day_cell_in_only(client):
+    """HR sửa một ô Vào (thiếu Ra) — Enter phải lưu, không 400."""
+    headers = _hr_headers(client)
+    VN = timezone(timedelta(hours=7))
+    res = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-05",
+            "first_in": datetime(2025, 10, 5, 8, 0, tzinfo=VN).isoformat(),
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["punch_count"] == 1
+    assert body["first_in"] is not None
+    assert body["source"] == "manual"
+
+
+def test_patch_day_cell_out_keeps_existing_in(client):
+    headers = _hr_headers(client)
+    VN = timezone(timedelta(hours=7))
+    both = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-06",
+            "first_in": datetime(2025, 10, 6, 8, 0, tzinfo=VN).isoformat(),
+            "last_out": datetime(2025, 10, 6, 17, 0, tzinfo=VN).isoformat(),
+        },
+    )
+    assert both.status_code == 200, both.text
+    res = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-06",
+            "last_out": datetime(2025, 10, 6, 18, 0, tzinfo=VN).isoformat(),
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["punch_count"] == 2
+    assert body["last_out"].startswith("2025-10-06T18:00")
+    assert "T08:00" in body["first_in"]
+
+
 def test_bulk_set_leave_preview_and_apply(client, db):
     headers = _hr_headers(client)
     preview = client.post(
