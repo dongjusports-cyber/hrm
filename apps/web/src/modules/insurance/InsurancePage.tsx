@@ -175,10 +175,11 @@ export function InsurancePage() {
         {tab === "insurance" && (
           <>
             {error && <p className="banner-warn">{error}</p>}
-            {loading ? (
+            {loading && !summary ? (
               <p className="field-hint">Đang tải…</p>
             ) : summary ? (
               <>
+                {loading && <p className="field-hint">Đang cập nhật…</p>}
                 <p className="field-hint">
                   TNCN trong kỳ:{" "}
                   {summary.pit_enabled_in_snapshot === true
@@ -218,6 +219,7 @@ export function InsurancePage() {
                     rowData={rows}
                     columnDefs={columnDefs}
                     getRowId={(p) => p.data.employee_id}
+                    animateRows={false}
                     defaultColDef={{ sortable: true, resizable: true }}
                   />
                 </div>

@@ -24,7 +24,7 @@ import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
-import { employeeMatchesQuery } from "./employeeSearch";
+import { employeeMatchesQuery } from "../../shared/employeeSearch";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 
 type RowWithEdit = AttendanceDayGridRow & {

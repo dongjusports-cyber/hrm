@@ -1,15 +1,16 @@
-/** Lọc MSNV / họ tên trên lưới Chấm công — giữ logic một chỗ. */
+/** Lọc MSNV / họ tên trên lưới HR — một chỗ, mọi tab AG Grid. */
+
+export function textMatchesQuery(query: string, ...fields: (string | null | undefined)[]): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return fields.some((f) => (f ?? "").toLowerCase().includes(needle));
+}
 
 export function employeeMatchesQuery(
   row: { employee_code: string; full_name?: string | null },
   query: string,
 ): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return (
-    row.employee_code.toLowerCase().includes(needle) ||
-    (row.full_name ?? "").toLowerCase().includes(needle)
-  );
+  return textMatchesQuery(query, row.employee_code, row.full_name);
 }
 
 export function findEmployeeByQuery<T extends { employee_code: string; full_name?: string | null }>(

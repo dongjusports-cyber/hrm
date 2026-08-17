@@ -9,6 +9,8 @@ import {
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
 import { formatDepartmentLabel } from "../../shared/formatOrg";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
+import { textMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { EmployeeContractPanel } from "./EmployeeContractPanel";
 
 type ContractPanelTab = "timeline" | "sign";
@@ -84,13 +86,8 @@ export function LabourContractsPage() {
   }, [selectedEmpId]);
 
   const filteredEmployees = useMemo(() => {
-    const needle = empQ.trim().toLowerCase();
-    if (!needle) return employees;
-    return employees.filter(
-      (e) =>
-        e.employee_code.toLowerCase().includes(needle) ||
-        e.full_name.toLowerCase().includes(needle) ||
-        (e.department_name || "").toLowerCase().includes(needle),
+    return employees.filter((e) =>
+      textMatchesQuery(empQ, e.employee_code, e.full_name, e.department_name),
     );
   }, [employees, empQ]);
 
@@ -144,14 +141,11 @@ export function LabourContractsPage() {
               ? `Kết quả (${filteredEmployees.length})`
               : "Tìm nhân viên"}
           </h2>
-          <input
+          <ToolbarSearchInput
             className="hr-search"
-            type="search"
-            value={empQ}
-            onChange={(e) => setEmpQ(e.target.value)}
             placeholder="MSNV / họ tên / bộ phận"
-            aria-label="Tìm nhân viên"
-            autoComplete="off"
+            initialValue={empQ}
+            onQuery={setEmpQ}
           />
           <ul className="hr-board-list hr-contracts-emp-list" aria-label="Danh sách nhân viên">
             {empQ.trim() === "" && (

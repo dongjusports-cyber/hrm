@@ -13,6 +13,8 @@ import {
   type Employee,
 } from "../../shared/api";
 import { labelEmpStatus } from "../../shared/viLabels";
+import { textMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import {
   formatDepartmentLabel,
   isOrgUnitActive,
@@ -111,13 +113,8 @@ export function SalaryRaisePage() {
   }, [scope, deptRow?.id]);
 
   const filteredEmployees = useMemo(() => {
-    const q = employeeSearch.trim().toLowerCase();
-    if (!q) return deptEmployees;
-    return deptEmployees.filter(
-      (e) =>
-        e.employee_code.toLowerCase().includes(q) ||
-        e.full_name.toLowerCase().includes(q) ||
-        (e.team_code ?? "").toLowerCase().includes(q),
+    return deptEmployees.filter((e) =>
+      textMatchesQuery(employeeSearch, e.employee_code, e.full_name, e.team_code),
     );
   }, [deptEmployees, employeeSearch]);
 
@@ -361,12 +358,10 @@ export function SalaryRaisePage() {
                 {deptRow ? ` — ${deptRow.code}` : ""}
                 {selectedCount > 0 ? ` · đã chọn ${selectedCount}` : ""}
               </h2>
-              <input
+              <ToolbarSearchInput
                 className="hr-search"
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
                 placeholder="Tìm MSNV / họ tên / tổ"
-                aria-label="Tìm trong bộ phận"
+                onQuery={setEmployeeSearch}
                 style={{ minWidth: 200, flex: "1 1 180px", maxWidth: 280 }}
               />
               <button type="button" className="btn-ghost-dark" onClick={selectAllVisible}>

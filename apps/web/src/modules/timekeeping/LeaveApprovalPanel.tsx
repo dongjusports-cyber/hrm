@@ -161,6 +161,7 @@ export function LeaveApprovalPanel() {
             suppressRowClickSelection
             onGridReady={(e) => setGridApi(e.api)}
             defaultColDef={{ sortable: true, resizable: true, filter: false }}
+            animateRows={false}
           />
         )}
       </div>

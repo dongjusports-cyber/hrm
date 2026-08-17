@@ -1,4 +1,4 @@
-import { FormEvent, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
@@ -29,7 +29,8 @@ import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
-import { employeeMatchesQuery, findEmployeeByQuery } from "./employeeSearch";
+import { employeeMatchesQuery, findEmployeeByQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
 import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
@@ -94,48 +95,6 @@ const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
 function defaultPeriod(): string {
   return currentPayPeriod();
-}
-
-function TkSearchInput({
-  resetToken,
-  onQuery,
-  onTyped,
-}: {
-  resetToken: number;
-  onQuery: (q: string) => void;
-  onTyped: (q: string) => void;
-}) {
-  const [value, setValue] = useState("");
-  const onQueryRef = useRef(onQuery);
-  const onTypedRef = useRef(onTyped);
-  onQueryRef.current = onQuery;
-  onTypedRef.current = onTyped;
-
-  useEffect(() => {
-    if (resetToken === 0) return;
-    setValue("");
-    onTypedRef.current("");
-    onQueryRef.current("");
-  }, [resetToken]);
-
-  return (
-    <label className="tk-search tk-search-compact">
-      <span className="sr-only">Tìm MSNV hoặc họ tên</span>
-      <input
-        placeholder="MSNV hoặc họ tên…"
-        data-hotkey-search
-        value={value}
-        onChange={(e) => {
-          const next = e.target.value;
-          setValue(next);
-          onTypedRef.current(next);
-          // HR gõ 4 số MSNV dồn: không debounce. Debounce gom 1 lần rồi thay
-          // rowData 360 dòng = khựng ngay sau khi thả phím. Lọc lưới là transition.
-          startTransition(() => onQueryRef.current(next.trim()));
-        }}
-      />
-    </label>
-  );
 }
 
 function parseYmd(s: string): Date {
@@ -806,7 +765,17 @@ export function TimekeepingPage() {
               </select>
             </label>
           ) : null}
-          <TkSearchInput resetToken={searchReset} onQuery={setQ} onTyped={onTypedSearch} />
+          <ToolbarSearchInput
+            wrapClassName="tk-search tk-search-compact"
+            placeholder="MSNV hoặc họ tên…"
+            resetToken={searchReset}
+            onQuery={setQ}
+            onTyped={onTypedSearch}
+            onSubmit={(needle) => {
+              setQ(needle);
+              if (mainView === "monthly") applySearchSelect(needle);
+            }}
+          />
           {mainView === "monthly" ? (
             <button
               type="button"

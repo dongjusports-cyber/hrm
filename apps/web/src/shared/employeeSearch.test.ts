@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { employeeMatchesQuery, findEmployeeByQuery } from "./employeeSearch";
+import { employeeMatchesQuery, findEmployeeByQuery, textMatchesQuery } from "./employeeSearch";
 
 const rows = [
   { employee_code: "1514", full_name: "Nguyễn Văn A" },
@@ -19,6 +19,14 @@ describe("employeeMatchesQuery", () => {
 
   it("matches name case-insensitive", () => {
     expect(employeeMatchesQuery(rows[0], "nguyễn")).toBe(true);
+  });
+});
+
+describe("textMatchesQuery extra fields", () => {
+  it("matches department or team", () => {
+    expect(textMatchesQuery("may", "1514", "A", "May 1", "Tổ 2")).toBe(true);
+    expect(textMatchesQuery("tổ 2", "1514", "A", "May 1", "Tổ 2")).toBe(true);
+    expect(textMatchesQuery("xyz", "1514", "A", "May 1", "Tổ 2")).toBe(false);
   });
 });
 

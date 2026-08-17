@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchHRPayslipDetail, type HRPayslipDetail, type Payslip } from "../../shared/api";
 import { formatVnd } from "./payrollGridColumns";
+import { employeeMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 
 type Props = {
   rows: Payslip[];
@@ -60,13 +62,8 @@ export function PayrollPayslipSection({ rows, selected, onSelect }: Props) {
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (r) =>
-        r.employee_code.toLowerCase().includes(needle) ||
-        r.full_name.toLowerCase().includes(needle),
-    );
+    if (!q.trim()) return rows;
+    return rows.filter((r) => employeeMatchesQuery(r, q));
   }, [rows, q]);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -108,12 +105,9 @@ export function PayrollPayslipSection({ rows, selected, onSelect }: Props) {
       <aside className="payroll-payslip-list">
         <div className="payroll-payslip-list-head">
           <h2>Phiếu lương</h2>
-          <input
-            type="search"
+          <ToolbarSearchInput
             placeholder="Tìm MSNV / họ tên…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Tìm nhân viên"
+            onQuery={setQ}
           />
         </div>
         <ul className="payroll-payslip-picker">
