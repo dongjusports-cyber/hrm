@@ -25,6 +25,7 @@
   5.  05-TAT-TU-CHAY.bat            → gỡ tự-chạy (nếu cần)
 
   Sau bước 4: không cần bấm 03 mỗi sáng. Tắt máy thì agent tự dừng.
+  Agent tự đẩy công về VPS mỗi 2 phút — không cần bấm Đồng bộ trên web.
   Log ngầm: D:\dj-hrm\apps\agent\agent.log
 
   Lưu ý: agent dùng tài khoản Windows để đọc SQL Mitapro, nên chạy khi
@@ -38,8 +39,8 @@
   BƯỚC 3 — TRÊN MÁY .123 (bạn)
 --------------------------------------------------------------------------------
 
-  Docker + web đang chạy → Portal → Chấm công → Đồng bộ Mitapro
-  Agent .122 tự nhận job trong ≤ 2 phút.
+  Portal → Chấm công: lưới tự cập nhật (agent đẩy mỗi 2 phút).
+  Nút Đồng bộ chỉ dùng khi muốn kéo lại cả tháng / khoảng ngày cũ.
 
 --------------------------------------------------------------------------------
   CẬP NHẬT CODE AGENT (khi cần bản mới từ .123)

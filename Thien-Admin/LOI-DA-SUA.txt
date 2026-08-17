@@ -582,3 +582,25 @@ Test:
   tests/test_worker_mobile_punch.py::test_mobile_punch_updates_day_grid_without_mitapro
   apps/api py -3.12 -m pytest tests/test_worker_mobile_punch.py -q -> 11 passed
 
+[AGT-TZ001] Agent .122 không tự đẩy công — phải bấm Đồng bộ khoảng ngày — 2026-08-17
+--------------------------------------------------------------------------------
+Triệu chứng:
+  Máy vân tay đã chấm, Agent chạy 2 phút/lần, nhưng lưới HR trống.
+  Chỉ hiện sau khi bấm Đồng bộ khoảng ngày (cả tháng).
+
+Nguyên nhân:
+  compute_window dùng UTC; SQL Mitapro GioCham là giờ VN naive.
+  Agent lột tzinfo UTC (vd. 02:28) rồi so với GioCham 08:00 VN → bỏ hết ca sáng.
+
+Cách xử lý:
+  - to_mitapro_naive: UTC → giờ VN rồi mới gửi SQL.
+  - Mỗi vòng luôn đọc từ 0h hôm nay (VN).
+  - VPS tính lại công cả khi punch trùng (retry).
+  - Task .122: AtLogOn + mỗi 5 phút nếu process chết.
+
+  Trên .122: copy lại apps/agent + chạy 04-CAI-TU-CHAY-KHI-MO-MAY.bat.
+
+Test:
+  apps/agent pytest tests/test_agent_unit.py -> 8 passed
+  apps/api tests/test_mitapro_ingest.py::test_duplicate_push_still_rebuilds_attendance_days
+

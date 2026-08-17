@@ -57,6 +57,43 @@ def test_push_punches_idempotent(client):
     assert res2.json()["job"]["records_skipped"] == 2
 
 
+def test_duplicate_push_still_rebuilds_attendance_days(client, db):
+    """Agent lặp cửa sổ (bỏ trùng) vẫn tính lại ngày công — không chờ nút Đồng bộ."""
+    from datetime import date
+
+    from app.modules.attendance.models import AttendanceDay
+    from app.modules.mdm.models import Employee
+
+    payload = {
+        "punches": [
+            {"employee_code": "5290", "punch_time": "2025-10-03T08:00:00+07:00"},
+            {"employee_code": "5290", "punch_time": "2025-10-03T17:00:00+07:00"},
+        ],
+        "synced_from": "2025-10-03T00:00:00+07:00",
+        "synced_to": "2025-10-03T23:59:59+07:00",
+    }
+    first = client.post("/api/integrations/mitapro/push", headers=_agent_headers(), json=payload)
+    assert first.status_code == 200, first.text
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    days = db.query(AttendanceDay).filter(AttendanceDay.employee_id == emp.id).all()
+    for row in days:
+        db.delete(row)
+    db.commit()
+    assert db.query(AttendanceDay).filter(AttendanceDay.employee_id == emp.id).count() == 0
+
+    second = client.post("/api/integrations/mitapro/push", headers=_agent_headers(), json=payload)
+    assert second.status_code == 200, second.text
+    assert second.json()["job"]["records_inserted"] == 0
+    db.expire_all()
+    restored = (
+        db.query(AttendanceDay)
+        .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == date(2025, 10, 3))
+        .one_or_none()
+    )
+    assert restored is not None
+    assert (restored.punch_count or 0) >= 1
+
+
 def test_push_unknown_msnv_partial(client):
     res = client.post(
         "/api/integrations/mitapro/push",

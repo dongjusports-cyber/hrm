@@ -66,3 +66,26 @@ def test_state_roundtrip(tmp_path):
     loaded = get_last_sync_at(path)
     assert loaded is not None
     assert loaded == when
+
+
+def test_to_mitapro_naive_converts_utc_to_vn():
+    from dj_agent.sql_reader import to_mitapro_naive
+
+    utc = datetime(2026, 8, 17, 2, 28, tzinfo=timezone.utc)
+    naive = to_mitapro_naive(utc)
+    assert naive.tzinfo is None
+    assert naive.hour == 9
+    assert naive.minute == 28
+
+
+def test_compute_window_covers_today_vn(tmp_path):
+    from dj_agent.sync_loop import compute_window
+
+    s = AgentSettings(state_file=str(tmp_path / "state.json"), sync_overlap_minutes=30)
+    now = datetime(2026, 8, 17, 2, 28, tzinfo=timezone.utc)  # 09:28 VN
+    set_last_sync_at(s.state_path, now)
+    dt_from, dt_to = compute_window(s, now=now)
+    vn = timezone(timedelta(hours=7))
+    assert dt_from.astimezone(vn).hour == 0
+    assert dt_from.astimezone(vn).date() == now.astimezone(vn).date()
+    assert dt_to == now

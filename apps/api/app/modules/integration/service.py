@@ -243,7 +243,7 @@ def ingest_punches(
         ).strip()
 
         recalc_window = _ingest_recalc_window(body, known_codes)
-        if job.records_inserted > 0 and schedule_recalc and recalc_window is not None:
+        if (job.records_inserted > 0 or job.records_in > 0) and schedule_recalc and recalc_window is not None:
             d_from, d_to = recalc_window
             if get_settings().sync_recalc_inline:
                 _recalc_after_ingest(db, d_from, d_to)

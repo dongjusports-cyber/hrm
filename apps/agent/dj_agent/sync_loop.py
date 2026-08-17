@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from dj_agent.config import AgentSettings
 from dj_agent.pusher import ApiPusher
-from dj_agent.sql_reader import PunchSource
+from dj_agent.sql_reader import PunchSource, VN_TZ
 from dj_agent.state import get_last_sync_at, set_last_sync_at
 
 log = logging.getLogger("dj_agent")
@@ -16,11 +16,19 @@ log = logging.getLogger("dj_agent")
 
 def compute_window(settings: AgentSettings, now: datetime | None = None) -> tuple[datetime, datetime]:
     now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     last = get_last_sync_at(settings.state_path)
+    today_start = now.astimezone(VN_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
     if last is None:
         dt_from = now - timedelta(days=settings.sync_lookback_days)
     else:
         dt_from = last - timedelta(minutes=settings.sync_overlap_minutes)
+        if dt_from.tzinfo is None:
+            dt_from = dt_from.replace(tzinfo=timezone.utc)
+    # Luôn đọc từ 0h hôm nay (VN) — watermark UTC cũ không được cắt ca sáng.
+    if dt_from.astimezone(VN_TZ) > today_start:
+        dt_from = today_start
     return dt_from, now
 
 

@@ -6,8 +6,10 @@ Máy nhà máy: xác nhận thêm cột vào/ra / số máy khi có SQLEXPRESS.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
+
+VN_TZ = timezone(timedelta(hours=7))
 
 # Query chuẩn (read-only)
 PUNCH_SQL = """
@@ -33,10 +35,7 @@ class PunchRow:
     def to_api_dict(self) -> dict[str, Any]:
         pt = self.punch_time
         if pt.tzinfo is None:
-            # Mitapro thường local VN — gắn +07:00 khi thiếu TZ (Admin chỉnh sau nếu cần)
-            from datetime import timedelta
-
-            pt = pt.replace(tzinfo=timezone(timedelta(hours=7)))
+            pt = pt.replace(tzinfo=VN_TZ)
         return {
             "employee_code": str(self.employee_code).strip(),
             "punch_time": pt.isoformat(),
@@ -53,6 +52,13 @@ class PunchRow:
 
 class PunchSource(Protocol):
     def fetch_punches(self, dt_from: datetime, dt_to: datetime) -> list[PunchRow]: ...
+
+
+def to_mitapro_naive(dt: datetime) -> datetime:
+    """GioCham trên SQL Mitapro là giờ VN không TZ. Không được lột UTC thành naive."""
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(VN_TZ).replace(tzinfo=None)
 
 
 class MockPunchSource:
@@ -89,9 +95,9 @@ class MitaproSqlSource:
                 "và cài ODBC Driver 17/18 for SQL Server."
             ) from exc
 
-        # SQL Server thường nhận datetime không TZ
-        f = dt_from.replace(tzinfo=None) if dt_from.tzinfo else dt_from
-        t = dt_to.replace(tzinfo=None) if dt_to.tzinfo else dt_to
+        # SQL Server nhận datetime naive — phải là giờ VN, không phải UTC đã lột TZ.
+        f = to_mitapro_naive(dt_from)
+        t = to_mitapro_naive(dt_to)
 
         rows: list[PunchRow] = []
         try:

@@ -22,6 +22,7 @@ if not exist "%AGENT%\.venv\Scripts\pythonw.exe" (
 echo Dang dang ky Task Scheduler: DJ-HRM-Agent-122
 echo  - Khi Windows dang nhap user → agent chay ngam ^(khong cua so^)
 echo  - Tat may / dang xuat → agent dung
+echo  - Neu agent chet: Task Scheduler mo lai moi 5 phut
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp004-cai-tu-chay.ps1"
