@@ -17,14 +17,15 @@ from app.modules.mdm.models import Employee
 
 
 def test_entitled_14_plus_1_per_5_years():
+    """1519 vào 26/03/2015: đúng kỷ niệm 5 năm mới +1, không cộng từ đầu năm."""
     emp = Employee(employee_code="1519", full_name="X", join_date=date(2015, 3, 26))
+    assert entitled_days_per_year(emp, date(2020, 3, 25), 14, 5) == 14
+    assert entitled_days_per_year(emp, date(2020, 3, 26), 14, 5) == 15
+    assert entitled_days_per_year(emp, date(2025, 3, 25), 14, 5) == 15
+    assert entitled_days_per_year(emp, date(2025, 3, 26), 14, 5) == 16
     assert entitled_days_per_year(emp, date(2026, 8, 17), 14, 5) == 16
     newbie = Employee(employee_code="x", full_name="Y", join_date=date(2026, 1, 10))
     assert entitled_days_per_year(newbie, date(2026, 8, 17), 14, 5) == 14
-    five = Employee(employee_code="y", full_name="Z", join_date=date(2021, 8, 17))
-    assert entitled_days_per_year(five, date(2026, 8, 17), 14, 5) == 15
-    almost = Employee(employee_code="z", full_name="W", join_date=date(2021, 8, 18))
-    assert entitled_days_per_year(almost, date(2026, 8, 17), 14, 5) == 14
 
 
 def test_accrual_through_august_matches_22_7(db):
