@@ -102,6 +102,9 @@ def _clean_phone(raw) -> str | None:
         raw = int(raw)
     s = re.sub(r"\s", "", str(raw))
     s = re.sub(r"\D", "", s)
+    # Excel hay lưu 908275468 (mất số 0 đầu) — SĐT VN 10 số.
+    if s and not s.startswith("0") and len(s) in (9, 10):
+        s = "0" + s
     if len(s) < 9 or len(s) > 11:
         return None
     if not s.startswith("0"):
@@ -342,13 +345,19 @@ def _apply_profile(emp: Employee, assign: dict, prof: dict) -> None:
         "phone",
         "education_code",
         "permanent_address",
+        "temporary_address",
         "id_number",
         "id_issue_date",
         "si_book_no",
+        "bank_account",
+        "marital_status",
+        "pay_channel",
     ):
         val = prof.get(field)
         if val is not None and val != "":
             setattr(emp, field, val)
+    if prof.get("children_count") is not None:
+        emp.children_count = int(prof["children_count"] or 0)
 
     birth_code = resolve_place_code("birth_place", prof.get("birth_place_text"))
     if birth_code:

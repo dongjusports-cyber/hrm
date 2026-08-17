@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "source_file": "Thông tin bổ sung  14.08.26.xlsx",
+  "extracted_at": "2026-08-17T16:37:43",
+  "employee_count": 358,
+  "marital_married": 257,
+  "marital_single": 98,
+  "with_children": 175,
+  "bank_account": 324,
+  "phone": 357,
+  "merge_stats": {
+    "files": 357,
+    "updated": 357,
+    "missing_json": 1,
+    "skipped_test": 0
+  },
+  "notes": [
+    "Hôn nhân: 0 = single, -1 hoặc 1 = married (Excel True = -1).",
+    "Không đè BHXH/STK đã có nếu Excel cắt số (float).",
+    "Bỏ qua MSNV test 1604, 1718, 8851.",
+    "MSNV 8852 có trong Excel nhưng chưa có file JSON snapshot."
+  ]
+}

@@ -26,6 +26,12 @@ def test_education_from_excel_english():
     assert resolve_education_code("TC2") == "EDUCATION_LEVEL006"
 
 
+def test_education_from_excel_grade_fraction():
+    assert resolve_education_code(1) == "EDUCATION_LEVEL004"
+    assert resolve_education_code(0.75) == "EDUCATION_LEVEL003"
+    assert resolve_education_code(0.8333333333333334) == "EDUCATION_LEVEL004"
+
+
 def test_nationality_default_vn():
     assert resolve_nationality_code(None) == "NATIONALITY001"
     assert resolve_nationality_code("Việt Nam") == "NATIONALITY001"
@@ -35,3 +41,12 @@ def test_contract_type_from_no():
     assert infer_contract_type("1514/VTH") == "VTH"
     assert infer_contract_type("2001/HD1") == "HD1"
     assert infer_contract_type("") is None
+
+
+def test_clean_phone_excel_lost_leading_zero():
+    from app.scripts.import_employee_list_1108 import _clean_phone
+
+    assert _clean_phone(908275468) == "0908275468"
+    assert _clean_phone(908275468.0) == "0908275468"
+    assert _clean_phone("0338434799") == "0338434799"
+    assert _clean_phone(None) is None

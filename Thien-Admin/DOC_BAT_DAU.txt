@@ -59,6 +59,10 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
     → Máy .123: gói folder USB-122-AGENT (Agent cho máy .122)
     → Copy folder đó sang USB. Máy .122: xóa cũ, dán D:\122-AGENT, chạy 01 → 02 → 04
 
+  File:  09-NAP-THONG-TIN-BO-SUNG.bat
+    → Nạp hôn nhân / số con / SĐT từ Excel 14.08 lên VPS
+    → Chạy sau khi đã deploy code mới (05 hoặc 02)
+
 --------------------------------------------------------------------------------
   TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
 --------------------------------------------------------------------------------

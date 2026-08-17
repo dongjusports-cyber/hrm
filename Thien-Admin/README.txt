@@ -20,6 +20,7 @@ Tài khoản:   dongjusports-cyber
 | 06-CLOUD-AGENT.txt | **Setup Cloud Agent tối** (đọc 1 lần) |
 | PROMPT-TOI-CLOUD.txt | Prompt dán vào Automation / Cloud |
 | 08-CHUAN-USB-122.bat | **Máy .123** — gói 1 folder USB cho Agent máy .122 |
+| 09-NAP-THONG-TIN-BO-SUNG.bat | Nạp hôn nhân / số con / SĐT từ Excel 14.08 lên VPS |
 | DEPLOY-KEY.txt | Public key dán lên GitHub |
 | HUONG-DAN-DEPLOY-KEY.txt | Sửa lỗi 404 GitHub |
 | QUY-TRINH-HANG-NGAY.txt | Tóm tắt tối/sáng |

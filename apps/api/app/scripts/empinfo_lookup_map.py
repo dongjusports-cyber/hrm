@@ -82,13 +82,41 @@ def resolve_place_code(group: str, raw: str | None) -> str | None:
     return None
 
 
+def _education_from_grade_fraction(frac: float) -> str | None:
+    """Excel hay lưu 12/12=1, 9/12=0.75, 10/12≈0.833."""
+    if frac <= 0 or frac > 1.0001:
+        return None
+    twelfths = int(round(frac * 12))
+    if twelfths >= 10:
+        name = "Trung học phổ thông"
+    elif twelfths >= 9:
+        name = "Trung học cơ sở"
+    else:
+        name = "Tiểu học"
+    idx = EDUCATION_LEVEL.index(name)
+    return f"EDUCATION_LEVEL{idx + 1:03d}"
+
+
 def resolve_education_code(raw) -> str | None:
     """Excel English/số → EDUCATION_LEVELxxx (khớp dropdown UI)."""
     if raw in ("", None):
         return None
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        mapped = _education_from_grade_fraction(float(raw))
+        if mapped:
+            return mapped
     t = _nfc(str(raw)).lower().replace("\xa0", " ").strip()
     if not t:
         return None
+    if re.fullmatch(r"0\.\d+|1(?:\.0+)?", t):
+        try:
+            mapped = _education_from_grade_fraction(float(t))
+            if mapped:
+                return mapped
+        except ValueError:
+            pass
 
     # Ưu tiên khớp theo keyword Excel GenusSuite
     if "university" in t or "đại học" in t or "dai hoc" in _fold(t):
