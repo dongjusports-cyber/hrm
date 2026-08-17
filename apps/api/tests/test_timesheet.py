@@ -41,9 +41,50 @@ def test_rebuild_timesheet_from_punches(client):
     )
     assert sheets.status_code == 200
     row = next(r for r in sheets.json() if r["employee_code"] == "5290")
-    assert float(row["worked_days"]) == 1.0
+    # 8:01–17:05 → 7.9833h / 8 = 0.9979 → phiếu hiện 0.99 (làm tròn xuống 2 số)
+    assert float(row["worked_days"]) == 0.99
     assert row["late_count"] == 1
     assert float(row["ot_hours_weekday"]) == 0.0  # 17:05 < 17:15 (ot_split grace)
+
+
+def test_work_days_from_hours_examples():
+    from decimal import Decimal
+
+    from app.modules.attendance.timesheet_details import work_days_from_hours
+
+    assert work_days_from_hours(Decimal("8")) == Decimal("1.0000")
+    assert work_days_from_hours(Decimal("4")) == Decimal("0.5000")
+    assert work_days_from_hours(Decimal("3.42")) == Decimal("0.4275")
+    assert work_days_from_hours(0) == Decimal("0")
+
+
+def test_rebuild_afternoon_only_half_day(client):
+    """Chỉ chiều 13:00–17:00 → 0.5 ngày công trên phiếu."""
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-02T13:00:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-02T17:00:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    rebuild = client.post(
+        "/api/attendance/timesheets/rebuild",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert rebuild.status_code == 200, rebuild.text
+    sheets = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10"},
+    ).json()
+    row = next(r for r in sheets if r["employee_code"] == "5290")
+    assert float(row["worked_days"]) == 0.5
+    assert row["late_count"] == 1
 
 
 def test_rebuild_sunday_ot_goes_to_weekend_not_external(client):

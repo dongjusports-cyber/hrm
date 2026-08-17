@@ -21,6 +21,24 @@
 Ra lúc 20:00 thì **08:00–17:00 = 1 công đủ**, phần từ 17:00 đến 20:00 = tăng ca.
 Không cộng dồn thành công lớn hơn 1.
 
+### Ngày công trên phiếu lương (Chủ chốt 2026-08-17)
+
+Lưới Chấm công vẫn hiện **giờ** (3.4167 → 3.42). Phiếu lương / `worked_days`:
+
+```
+ngày công ngày = giờ công / 8
+tháng           = tổng các ngày, hiện 2 số (25.4275 → 25.42, làm tròn xuống)
+```
+
+| Ngày | Giờ công | Ngày công |
+|------|----------|-----------|
+| Đủ 8:00–17:00 | 8.00 | 1.0 |
+| Chỉ chiều 13:00–17:00 | 4.00 | 0.5 |
+| Về sớm 8:00–11:25 | 3.42 | 0.4275 → tháng 25 ngày đủ + ngày lẻ = **25.42** |
+| Vào 8:15 ra 17:00 | 7.75 | 0.9688 **và** 1 lần đi trễ |
+
+Đi trễ / về sớm vẫn ghi nhận. Thai sản–nuôi con về đúng giờ được phép: bù đủ 8h → 1.0 ngày.
+
 ### Lọc chấm liên tục
 Công nhân hay chấm vân tay nhiều lần liên tiếp. Hệ thống gom các lần chấm trong cửa sổ **60 giây** thành
 một, giữ lần **sớm nhất** làm giờ vào và lần **muộn nhất** làm giờ ra trong ngày.
@@ -464,7 +482,7 @@ Ví dụ ca 08–17, Thai sản 1h → `allowed_out = 16:00`:
 | 15:00 | 6h | **7h** | **60** (1 lần về sớm) |
 | 17:00 | 8h | **8h** (không thành 9h) | 0 |
 
-**Ngày công:** `worked_hours > 0` → tính **1 ngày công** (không đổi luật §22.1).
+**Ngày công phiếu lương:** `giờ công / 8` (Chủ chốt 2026-08-17, §22.1). Thai sản bù đủ 8h → 1.0 ngày.
 
 **Chỉ áp dụng khi có đủ giờ vào + giờ ra.** Thiếu bấm thẻ là ngoại lệ HR xử lý tay, chế độ
 **không** che lỗi thiếu punch.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -32,6 +32,7 @@ from app.modules.attendance.timesheet_details import (
     aggregate_month_details,
     leave_days_on_day,
     sync_timesheet_month_details,
+    work_days_from_hours,
 )
 from app.modules.calendar.service import compute_divisor
 from app.modules.core.models import User
@@ -305,13 +306,13 @@ def rebuild_timesheets(
         ot_h = ZERO
         for d in day_rows:
             leave_d = leave_days_on_day(d)
-            if d.is_workday and Decimal(d.worked_hours or 0) > 0:
+            hours = Decimal(d.worked_hours or 0)
+            if d.is_workday and hours > 0:
                 if leave_d >= 1:
                     pass
-                elif leave_d > 0:
-                    worked += Decimal("1") - leave_d
                 else:
-                    worked += Decimal("1")
+                    # Phiếu lương: ngày công = giờ công / 8 (4h chiều = 0.5; 3.42h = 0.4275).
+                    worked += work_days_from_hours(hours)
             if d.ot_on_books_minutes > 0:
                 ot_w += _hours(d.ot_on_books_minutes)
             # Ưu tiên loại ngày: CN/lễ không bị OT ngoài «nuốt» giờ (QA-01)
@@ -357,7 +358,7 @@ def rebuild_timesheets(
         if row is None:
             row = TimesheetMonth(pay_period_id=pay.id, employee_id=emp_id)
             db.add(row)
-        row.worked_days = worked.quantize(Q4)
+        row.worked_days = worked.quantize(Q4, rounding=ROUND_HALF_UP).quantize(Q2, rounding=ROUND_DOWN)
         row.al_days = al.quantize(Q4)
         row.rem_days = rem.quantize(Q4)
         row.late_count = late_c

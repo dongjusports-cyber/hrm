@@ -51,7 +51,7 @@ def test_rebuild_creates_wt_and_ot_details(client):
     assert details.status_code == 200, details.text
     m = _detail_map(details.json())
     assert ("WT", "official") in m
-    assert float(m[("WT", "official")]["days"]) == 1.0
+    assert float(m[("WT", "official")]["days"]) == 0.99
     assert ("OT", "official") in m
     assert float(m[("OT", "official")]["hours"]) == 0.33  # 20 phút
 

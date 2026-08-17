@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,17 @@ def _hours(minutes: int) -> Decimal:
 
 def _abs_category(leave_code: str) -> str:
     return f"ABS_{leave_code.strip().upper()}"
+
+
+STANDARD_DAY_HOURS = Decimal("8")
+
+
+def work_days_from_hours(worked_hours: Decimal | int | str | None) -> Decimal:
+    """Ngày công phiếu lương = giờ công / 8 (4h chiều = 0.5; 3.42h = 0.4275)."""
+    h = Decimal(str(worked_hours or 0))
+    if h <= 0:
+        return ZERO
+    return (h / STANDARD_DAY_HOURS).quantize(Q4, rounding=ROUND_HALF_UP)
 
 
 def leave_days_on_day(d: AttendanceDay) -> Decimal:
@@ -65,11 +76,11 @@ def aggregate_month_details(
         leave_d = leave_days_on_day(d)
         if d.leave_code:
             add(seg, _abs_category(d.leave_code), days=leave_d)
-            remaining = Decimal("1") - leave_d
-            if remaining > 0 and d.is_workday and Decimal(d.worked_hours or 0) > 0:
-                add(seg, "WT", days=remaining)
+            hours = Decimal(d.worked_hours or 0)
+            if hours > 0 and d.is_workday and leave_d < 1:
+                add(seg, "WT", days=work_days_from_hours(hours))
         elif d.is_workday and Decimal(d.worked_hours or 0) > 0:
-            add(seg, "WT", days=Decimal("1"))
+            add(seg, "WT", days=work_days_from_hours(d.worked_hours))
 
         # QA-08: CN/lễ chỉ ST/HT — không cộng thêm OT_EXT (trùng giờ).
         ot_kind = (d.ot_type or "").strip().lower()
@@ -117,7 +128,7 @@ def aggregate_month_details(
     out: dict[tuple[str, str], dict[str, Decimal]] = {}
     for key, vals in buckets.items():
         hours = vals["hours"].quantize(Q2, rounding=ROUND_HALF_UP)
-        days = vals["days"].quantize(Q4, rounding=ROUND_HALF_UP).quantize(Q2, rounding=ROUND_HALF_UP)
+        days = vals["days"].quantize(Q4, rounding=ROUND_HALF_UP).quantize(Q2, rounding=ROUND_DOWN)
         if hours > 0 or days > 0:
             out[key] = {"hours": hours, "days": days}
     return out
