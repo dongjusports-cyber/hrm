@@ -27,7 +27,10 @@ def test_load_snapshot_5118(monkeypatch):
     assert rec["accrued_months"] == 7
     assert rec["curr_al"] == "9.33"
     assert rec["curr_remaining"] == "4.33"
-    assert rec["used_by_month"]["jun"] == "2"
+    newbie = by["9999"]
+    assert newbie["al_days"] == "14"
+    assert newbie["accrued_months"] == 4
+    assert newbie["curr_al"] == "4.67"
 
 
 def test_1519_july_proration():

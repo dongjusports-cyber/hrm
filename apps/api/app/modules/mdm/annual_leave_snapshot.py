@@ -19,10 +19,15 @@ import os
 
 from sqlalchemy.orm import Session
 
+from app.modules.attendance.annual_leave_ledger import entitled_days_per_year
 from app.modules.mdm.models import Employee
+from app.modules.policy.seed_payload import default_payload
 
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 Q2 = Decimal("0.01")
+_AL_DEFAULT = default_payload()["annual_leave"]
+BASE_DAYS = int(_AL_DEFAULT["days_per_year"])
+EXTRA_EVERY = int(_AL_DEFAULT.get("extra_day_every_years") or 5)
 
 _API_ROOT = Path(__file__).resolve().parents[3]
 _REPO_ROOT = _API_ROOT.parent.parent
@@ -124,10 +129,17 @@ def load_snapshot() -> dict[str, Any]:
         months_raw = rec.get("used_by_month") or {}
         used_by_month = {m: str(_as_decimal(months_raw.get(m))) for m in MONTHS}
         join_date = _parse_iso_date(rec.get("join_date"))
-        al_days = _as_decimal(rec.get("al_days"))
+        genus_al = _as_decimal(rec.get("al_days"))
         used = _as_decimal(rec.get("used"))
         unused = _as_decimal(rec.get("unused"))
         months_closed = closed_accrual_months(join_date, as_of, int(year))
+        quota = entitled_days_per_year(
+            type("Emp", (), {"join_date": join_date})(),
+            as_of,
+            BASE_DAYS,
+            EXTRA_EVERY,
+        )
+        al_days = Decimal(quota)
         curr_al = prorate_al(al_days, months_closed)
         curr_remaining = (curr_al - used).quantize(Q2, rounding=ROUND_HALF_UP)
         employees.append(
@@ -139,6 +151,7 @@ def load_snapshot() -> dict[str, Any]:
                 "team": str(rec.get("team") or "").strip(),
                 "join_date": join_date.isoformat() if join_date else None,
                 "al_days": str(al_days),
+                "genus_al_days": str(genus_al),
                 "used": str(used),
                 "unused": str(unused),
                 "accrued_months": months_closed,
@@ -156,8 +169,9 @@ def load_snapshot() -> dict[str, Any]:
     through = closed_accrual_months(None, as_of, int(year))
     notes = list(raw.get("notes") or [])
     notes.append(
-        f"Được hưởng = mốc cả năm. Hiện tại = mốc × {through}/12 "
-        f"(hết tháng {through}, tháng đang chạy chưa cộng). Còn lại = hiện tại − đã dùng."
+        f"Được hưởng = {BASE_DAYS} ngày (NV mới), +1 mỗi đủ {EXTRA_EVERY} năm theo ngày vào. "
+        f"Hiện tại = mốc × số tháng đã đóng từ ngày vào / 12 (hết tháng {through}). "
+        "Còn lại = hiện tại − đã dùng. Không lấy mốc từ cột Excel GenuSuite (Excel chia tháng cho NV mới)."
     )
     return {
         "year": year,

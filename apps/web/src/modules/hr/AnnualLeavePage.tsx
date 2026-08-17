@@ -138,7 +138,7 @@ export function AnnualLeavePage() {
       {
         field: "al_days",
         headerName: "Được hưởng",
-        headerTooltip: "Mốc phép cả năm (AL Days)",
+        headerTooltip: "NV mới 14 ngày/năm; +1 mỗi đủ 5 năm theo ngày vào",
         width: 108,
         minWidth: 96,
         type: "numericColumn",
@@ -204,7 +204,7 @@ export function AnnualLeavePage() {
         <p className="field-hint">
           {grid?.source_label ?? "Đang tải…"}
           {grid && !grid.missing
-            ? ` — Được hưởng = mốc cả năm. Hiện tại = mốc × ${grid.accrued_through_month}/12 (hết tháng ${grid.accrued_through_month}). Còn lại = hiện tại − đã dùng. Bấm tên để mở hồ sơ.`
+            ? ` — NV mới được hưởng 14 ngày/năm, +1 mỗi đủ 5 năm (đúng ngày vào). Hiện tại = mốc × tháng đã đóng / 12. Còn lại = hiện tại − đã dùng. Bấm tên để mở hồ sơ.`
             : ""}
         </p>
       </div>
