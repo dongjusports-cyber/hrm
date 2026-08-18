@@ -344,3 +344,91 @@ def test_payslip_no_wd_line_when_only_annual_leave(client):
     ale = next(ln for ln in detail["work_lines"] if ln["component_code"] == "ALE")
     assert Decimal(str(ale["quantity"])) == Decimal("1")
     assert Decimal(str(ale["amount"])) > 0
+
+
+def test_clear_hours_reenter_clear_timesheet_and_payroll(client):
+    """Xóa giờ → nhập giờ mới → xóa lại: bảng công và tính lương cùng số ngày công."""
+    headers = _hr(client)
+    today = date.today()
+    d = today if today.isoweekday() != 7 else today + timedelta(days=1)
+    while d.isoweekday() == 7:
+        d += timedelta(days=1)
+    period = f"{d.year:04d}-{d.month:02d}"
+    join = date(d.year, d.month, 1)
+    _create(client, headers, "9414", join=join)
+
+    def timesheet_days() -> Decimal:
+        sheets = client.get("/api/attendance/timesheets", headers=headers, params={"period": period})
+        assert sheets.status_code == 200, sheets.text
+        row = next(r for r in sheets.json() if r["employee_code"] == "9414")
+        return Decimal(str(row["worked_days"]))
+
+    def payroll_days() -> tuple[Decimal, Decimal]:
+        calc = client.post(f"/api/payroll/periods/{period}/calculate", headers=headers)
+        assert calc.status_code == 200, calc.text
+        s = _slip(calc.json(), "9414")
+        return Decimal(str(s["worked_days"])), Decimal(str(s["wd_salary"]))
+
+    full = _patch_times(client, headers, "9414", d, 17)
+    assert Decimal(str(full["worked_hours"])) == Decimal("8")
+    assert timesheet_days() == Decimal("1")
+    wd1, sal1 = payroll_days()
+    assert wd1 == Decimal("1")
+    assert sal1 > 0
+
+    cleared = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={"employee_code": "9414", "work_date": d.isoformat(), "clear_times": True, "note": "Xóa giờ sai"},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["first_in"] is None
+    assert cleared.json()["last_out"] is None
+    assert Decimal(str(cleared.json()["worked_hours"])) == Decimal("0")
+    assert timesheet_days() == Decimal("0")
+    wd0, sal0 = payroll_days()
+    assert wd0 == Decimal("0")
+    assert sal0 == Decimal("0")
+
+    anew = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "9414",
+            "work_date": d.isoformat(),
+            "first_in": _iso(d, 7, 30),
+            "last_out": _iso(d, 17, 0),
+            "note": "Nhập giờ mới",
+        },
+    )
+    assert anew.status_code == 200, anew.text
+    assert Decimal(str(anew.json()["worked_hours"])) == Decimal("8")
+    assert timesheet_days() == Decimal("1")
+    wd2, sal2 = payroll_days()
+    assert wd2 == Decimal("1")
+    assert sal2 == sal1
+
+    gone = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={"employee_code": "9414", "work_date": d.isoformat(), "clear_times": True},
+    )
+    assert gone.status_code == 200, gone.text
+    assert Decimal(str(gone.json()["worked_hours"])) == Decimal("0")
+    assert timesheet_days() == Decimal("0")
+    rec = client.post(
+        "/api/attendance/recalculate",
+        headers=headers,
+        json={"from": d.isoformat(), "to": d.isoformat(), "employee_code": "9414"},
+    )
+    assert rec.status_code == 200, rec.text
+    after = client.get(
+        "/api/attendance/days",
+        headers=headers,
+        params={"from": d.isoformat(), "to": d.isoformat(), "employee_code": "9414"},
+    ).json()[0]
+    assert after["first_in"] is None
+    assert Decimal(str(after["worked_hours"])) == Decimal("0")
+    wd3, sal3 = payroll_days()
+    assert wd3 == Decimal("0")
+    assert sal3 == Decimal("0")

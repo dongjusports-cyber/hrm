@@ -260,6 +260,9 @@ def patch_day_cell(
     leave_code: str | None = None,
     note: str | None = None,
     clear_note: bool = False,
+    clear_times: bool = False,
+    clear_first_in: bool = False,
+    clear_last_out: bool = False,
 ) -> AttendanceDayOut:
     _assert_day_editable(db, work_date)
     seed_leave_types(db)
@@ -285,25 +288,36 @@ def patch_day_cell(
     elif note is not None:
         row.note = note.strip()
 
+    if clear_times:
+        clear_first_in = True
+        clear_last_out = True
+    times_requested = first_in is not None or last_out is not None
+    clearing = clear_first_in or clear_last_out
+
     leave_or_note = leave_code is not None or note is not None or clear_note
-    if leave_or_note and first_in is None and last_out is None:
+    if leave_or_note and not times_requested and not clearing:
         row.source = "manual"
         row.edited_by_user_id = user.id
         row.edited_at = datetime.now(tz=VN_TZ)
 
-    if first_in is not None or last_out is not None:
-        fi = to_vn(first_in) if first_in is not None else (to_vn(row.first_in) if row.first_in else None)
-        lo = to_vn(last_out) if last_out is not None else (to_vn(row.last_out) if row.last_out else None)
+    if times_requested or clearing:
+        if clear_first_in:
+            fi = None
+        elif first_in is not None:
+            fi = to_vn(first_in)
+        else:
+            fi = to_vn(row.first_in) if row.first_in else None
+        if clear_last_out:
+            lo = None
+        elif last_out is not None:
+            lo = to_vn(last_out)
+        else:
+            lo = to_vn(row.last_out) if row.last_out else None
         punches: list[datetime] = []
         if fi is not None:
             punches.append(fi)
         if lo is not None and lo != fi:
             punches.append(lo)
-        if not punches:
-            raise HTTPException(
-                status_code=400,
-                detail="Trợ Lý AI: cần giờ vào hoặc giờ ra khi sửa thời gian.",
-            )
         shift_id = resolve_work_shift_id(db, emp, work_date)
         timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
         calc = calculate_day(

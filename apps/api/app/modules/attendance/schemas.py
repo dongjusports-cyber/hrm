@@ -216,6 +216,9 @@ class DayCellPatch(BaseModel):
     leave_code: str | None = None
     note: str | None = None
     clear_note: bool = False
+    clear_times: bool = False
+    clear_first_in: bool = False
+    clear_last_out: bool = False
 
 
 class DayBulkPatchRequest(BaseModel):

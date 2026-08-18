@@ -17,11 +17,14 @@ export type DayTimePatchOk = {
   ok: true;
   first_in?: string;
   last_out?: string;
+  clear_times?: boolean;
+  clear_first_in?: boolean;
+  clear_last_out?: boolean;
 };
 
 export type DayTimePatchErr = { ok: false; error: string };
 
-/** Ghép ô đang sửa với giờ còn lại trên dòng — được phép chỉ một mốc (vào hoặc ra). */
+/** Ghép ô đang sửa với giờ còn lại trên dòng — được phép chỉ một mốc (vào hoặc ra). Ô trống = xóa mốc đó. */
 export function buildDayTimePatch(opts: {
   workDate: string;
   col: "first_in" | "last_out";
@@ -31,7 +34,14 @@ export function buildDayTimePatch(opts: {
 }): DayTimePatchOk | DayTimePatchErr {
   const typed = String(opts.editedRaw ?? "").trim();
   if (!typed) {
-    return { ok: false, error: "Nhập giờ vào hoặc giờ ra." };
+    if (opts.col === "first_in") {
+      const outH = parseGridTimeInput(opts.existingOutHHmm);
+      if (!outH) return { ok: true, clear_times: true };
+      return { ok: true, clear_first_in: true };
+    }
+    const inH = parseGridTimeInput(opts.existingInHHmm);
+    if (!inH) return { ok: true, clear_times: true };
+    return { ok: true, clear_last_out: true };
   }
   const edited = parseGridTimeInput(typed);
   if (!edited) {
@@ -42,7 +52,7 @@ export function buildDayTimePatch(opts: {
   const first_in = inH ? toIsoTime(opts.workDate, inH) ?? undefined : undefined;
   const last_out = outH ? toIsoTime(opts.workDate, outH) ?? undefined : undefined;
   if (!first_in && !last_out) {
-    return { ok: false, error: "Nhập giờ vào hoặc giờ ra." };
+    return { ok: true, clear_times: true };
   }
   return { ok: true, first_in, last_out };
 }

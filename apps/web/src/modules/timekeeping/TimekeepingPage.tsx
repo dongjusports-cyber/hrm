@@ -11,6 +11,7 @@ import {
   fetchLeaveTypes,
   fetchPayPeriod,
   fetchTimesheets,
+  patchAttendanceDayCell,
   patchAttendanceDayManual,
   rebuildTimesheets,
   type AttendanceDay,
@@ -516,8 +517,8 @@ export function TimekeepingPage() {
   function pickDay(row: CalendarRow) {
     setFixEmp(selected?.employee_code ?? fixEmp);
     setFixDate(row.work_date);
-    if (row.firstIn) setFixIn(row.firstIn);
-    if (row.lastOut) setFixOut(row.lastOut);
+    setFixIn(row.firstIn || "");
+    setFixOut(row.lastOut || "");
     setFixNote(row.hasData ? "Sửa tay chỉnh công" : "Bổ sung công tay");
   }
 
@@ -570,26 +571,86 @@ export function TimekeepingPage() {
     setOtExternalOpen(false);
   }
 
+  async function refreshAfterManualDay(day: AttendanceDay) {
+    await reload();
+    if (pay) {
+      await loadEmpDays(day.employee_code, pay.date_from, pay.date_to);
+    }
+  }
+
   async function onManualDay(e: FormEvent) {
     e.preventDefault();
+    const code = (fixEmp || selected?.employee_code || "").trim();
+    const inT = fixIn.trim();
+    const outT = fixOut.trim();
     setBusy(true);
     setError(null);
     setOk(null);
     try {
-      const day = await patchAttendanceDayManual({
-        employee_code: fixEmp.trim(),
-        work_date: fixDate,
-        first_in: `${fixDate}T${fixIn}:00+07:00`,
-        last_out: `${fixDate}T${fixOut}:00+07:00`,
-        note: fixNote,
-      });
-      setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
-      await reload();
-      if (pay) {
-        await loadEmpDays(day.employee_code, pay.date_from, pay.date_to);
+      let day: AttendanceDay;
+      if (!inT && !outT) {
+        day = await patchAttendanceDayCell({
+          employee_code: code,
+          work_date: fixDate,
+          clear_times: true,
+          note: fixNote,
+        });
+        setOk(`Đã xóa giờ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
+      } else if (!inT || !outT) {
+        day = await patchAttendanceDayCell({
+          employee_code: code,
+          work_date: fixDate,
+          first_in: inT ? `${fixDate}T${inT}:00+07:00` : undefined,
+          last_out: outT ? `${fixDate}T${outT}:00+07:00` : undefined,
+          clear_first_in: !inT,
+          clear_last_out: !outT,
+          note: fixNote,
+        });
+        setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
+      } else {
+        day = await patchAttendanceDayManual({
+          employee_code: code,
+          work_date: fixDate,
+          first_in: `${fixDate}T${inT}:00+07:00`,
+          last_out: `${fixDate}T${outT}:00+07:00`,
+          note: fixNote,
+        });
+        setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
       }
+      await refreshAfterManualDay(day);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không sửa tay được.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onClearDayTimes() {
+    const code = (fixEmp || selected?.employee_code || "").trim();
+    if (!code || !fixDate) return;
+    if (
+      !window.confirm(
+        `Xóa giờ vào/ra ngày ${formatDateDDMMYYYY(fixDate)} của ${code}?\nCông, trễ, sớm, tăng ca ngày này về 0.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setOk(null);
+    try {
+      const day = await patchAttendanceDayCell({
+        employee_code: code,
+        work_date: fixDate,
+        clear_times: true,
+        note: fixNote.trim() || "Xóa giờ sai",
+      });
+      setFixIn("");
+      setFixOut("");
+      setOk(`Đã xóa giờ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
+      await refreshAfterManualDay(day);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không xóa giờ được.");
     } finally {
       setBusy(false);
     }
@@ -708,7 +769,6 @@ export function TimekeepingPage() {
                 type="time"
                 value={fixIn}
                 onChange={(e) => setFixIn(e.target.value)}
-                required
               />
             </label>
             <label className="field">
@@ -717,7 +777,6 @@ export function TimekeepingPage() {
                 type="time"
                 value={fixOut}
                 onChange={(e) => setFixOut(e.target.value)}
-                required
               />
             </label>
             <label className="field tk-manual-bar-note">
@@ -728,6 +787,15 @@ export function TimekeepingPage() {
                 placeholder="Tuỳ chọn"
               />
             </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void onClearDayTimes()}
+              title="Xóa giờ vào/ra ngày đang chọn (giờ sai)"
+            >
+              Xóa giờ
+            </button>
             <button type="submit" className="btn-primary" disabled={busy} title={`${fixEmp || selected.employee_code} · ${fixDate}`}>
               Lưu giờ
             </button>
@@ -957,6 +1025,9 @@ export function TimekeepingPage() {
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
+              onTimesChanged={() => {
+                void reload();
+              }}
             />
           </div>
         ) : mainView === "leave" ? (

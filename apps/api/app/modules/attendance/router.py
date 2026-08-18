@@ -261,6 +261,9 @@ def attendance_day_cell(
         leave_code=body.leave_code,
         note=body.note,
         clear_note=body.clear_note,
+        clear_times=body.clear_times,
+        clear_first_in=body.clear_first_in,
+        clear_last_out=body.clear_last_out,
     )
 
 

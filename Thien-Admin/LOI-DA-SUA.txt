@@ -781,3 +781,18 @@ Cách xử lý:
 Test:
   pytest tests/test_ot_split.py tests/test_shift_cleaner.py tests/test_attendance_engine.py
         tests/test_payslip_genus_template.py tests/test_worker_payslips.py tests/test_insurance_engine.py -q
+
+[TK-CLEAR001] Xóa ô giờ Enter không nhận; thiếu nút xóa giờ sai — 2026-08-18
+--------------------------------------------------------------------------------
+Triệu chứng:
+  1) Lưới ngày: bấm ô Vào/Ra, xóa giờ, Enter — giờ cũ hiện lại (saveTimeCell bỏ qua chuỗi trống).
+  2) Sheet NV: ô Vào/Ra required nên không lưu trống; không có nút xóa giờ sai.
+
+Cách xử lý:
+  - Ô trống + Enter = xóa mốc đó (clear_first_in / clear_last_out); cả hai trống = clear_times.
+  - Sheet: bỏ required; nút «Xóa giờ» cạnh Lưu giờ; source=manual để tính lại không khôi phục vân tay.
+
+Test:
+  pytest tests/test_attendance_day_grid_37.py tests/test_hr_workflow_payroll_accuracy.py -q
+  apps/web npm test -- dailyGridTime
+

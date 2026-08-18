@@ -90,6 +90,8 @@ type Props = {
   refreshToken?: number;
   onSummaryChange?: (summary: DailyGridSummary) => void;
   onPickEmployee?: (row: AttendanceDayGridRow) => void;
+  /** Sau sửa/xóa giờ — tab tổng hợp tháng lấy timesheet mới. */
+  onTimesChanged?: () => void;
 };
 
 function applyDefaultSort(api: GridApi<AttendanceDayGridRow>) {
@@ -108,6 +110,7 @@ function DailyGridPanelInner({
   refreshToken = 0,
   onSummaryChange,
   onPickEmployee,
+  onTimesChanged,
 }: Props) {
   const [rows, setRows] = useState<AttendanceDayGridRow[]>([]);
   const [needsOnly, setNeedsOnly] = useState(false);
@@ -251,8 +254,10 @@ function DailyGridPanelInner({
         headerClass: "tk-header-time-center",
         valueGetter: (p) => {
           const d = p.data as RowWithEdit | undefined;
-          if (d?._edit_in != null && String(d._edit_in).trim() !== "") {
-            return parseGridTimeInput(String(d._edit_in)) ?? String(d._edit_in);
+          if (d?._edit_in != null) {
+            const raw = String(d._edit_in).trim();
+            if (raw === "") return "";
+            return parseGridTimeInput(raw) ?? raw;
           }
           return d?._disp_in ?? hhmm(d?.first_in);
         },
@@ -274,8 +279,10 @@ function DailyGridPanelInner({
         headerClass: "tk-header-time-center",
         valueGetter: (p) => {
           const d = p.data as RowWithEdit | undefined;
-          if (d?._edit_out != null && String(d._edit_out).trim() !== "") {
-            return parseGridTimeInput(String(d._edit_out)) ?? String(d._edit_out);
+          if (d?._edit_out != null) {
+            const raw = String(d._edit_out).trim();
+            if (raw === "") return "";
+            return parseGridTimeInput(raw) ?? raw;
           }
           return d?._disp_out ?? hhmm(d?.last_out);
         },
@@ -379,16 +386,16 @@ function DailyGridPanelInner({
     setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
     gridApi?.applyTransaction({ update: [merged] });
     setToast(`Đã lưu ${code}`);
+    onTimesChanged?.();
   }
 
   async function saveTimeCell(row: AttendanceDayGridRow, col: "first_in" | "last_out", editedRaw: string) {
     if (periodLocked) return;
     const typed = String(editedRaw ?? "").trim();
-    if (!typed) return;
-    const existing =
-      col === "first_in" ? hhmm(row.first_in) : hhmm(row.last_out);
+    const existing = col === "first_in" ? hhmm(row.first_in) : hhmm(row.last_out);
+    if (!typed && !existing) return;
     const parsed = parseGridTimeInput(typed);
-    if (parsed && parsed === existing) return;
+    if (typed && parsed && parsed === existing) return;
     const patch = buildDayTimePatch({
       workDate,
       col,
@@ -402,12 +409,19 @@ function DailyGridPanelInner({
     }
     try {
       setError(null);
-      await applyCellPatch(row, {
+      const body: Parameters<typeof patchAttendanceDayCell>[0] = {
         employee_code: row.employee_code,
         work_date: workDate,
-        first_in: patch.first_in,
-        last_out: patch.last_out,
-      });
+      };
+      if (patch.clear_times) {
+        body.clear_times = true;
+      } else {
+        if (patch.clear_first_in) body.clear_first_in = true;
+        if (patch.clear_last_out) body.clear_last_out = true;
+        if (patch.first_in) body.first_in = patch.first_in;
+        if (patch.last_out) body.last_out = patch.last_out;
+      }
+      await applyCellPatch(row, body);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lưu ô thất bại.");
       await load();
@@ -464,6 +478,7 @@ function DailyGridPanelInner({
       if (res.skipped.length) setSkipped(res.skipped);
       if (!preview) {
         await load();
+        onTimesChanged?.();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Thao tác hàng loạt thất bại.");
@@ -503,6 +518,7 @@ function DailyGridPanelInner({
         }
         setToast(`Đã dán ${lines.length} dòng (MSNV · Vào · Ra).`);
         await load();
+        onTimesChanged?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Dán từ bảng tính thất bại.");
       } finally {
@@ -606,6 +622,7 @@ function DailyGridPanelInner({
             const col = e.colDef.colId;
             if (col !== "first_in" && col !== "last_out") return;
             if (!e.data) return;
+            if (e.valueChanged === false) return;
             const pending =
               col === "first_in"
                 ? (e.data as RowWithEdit)._edit_in

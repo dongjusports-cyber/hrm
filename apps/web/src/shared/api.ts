@@ -2305,12 +2305,16 @@ export async function patchAttendanceDayCell(body: {
   leave_code?: string | null;
   note?: string | null;
   clear_note?: boolean;
+  clear_times?: boolean;
+  clear_first_in?: boolean;
+  clear_last_out?: boolean;
 }): Promise<AttendanceDay> {
   const res = await apiFetch("/api/attendance/days/cell", {
     method: "PATCH",
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2334,6 +2338,7 @@ export async function bulkPatchAttendanceDays(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
+  if (!body.preview) cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2425,6 +2430,7 @@ export async function patchAttendanceDayManual(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("timesheets:");
   return res.json();
 }
 

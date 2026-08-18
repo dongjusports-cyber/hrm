@@ -132,6 +132,76 @@ def test_patch_day_cell_out_keeps_existing_in(client):
     assert "T08:00" in body["first_in"]
 
 
+def test_patch_day_cell_clear_first_in(client):
+    """Xóa ô Vào (Enter trống) — giữ giờ ra."""
+    headers = _hr_headers(client)
+    VN = timezone(timedelta(hours=7))
+    both = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-08",
+            "first_in": datetime(2025, 10, 8, 6, 13, tzinfo=VN).isoformat(),
+            "last_out": datetime(2025, 10, 8, 17, 0, tzinfo=VN).isoformat(),
+        },
+    )
+    assert both.status_code == 200, both.text
+    res = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-08",
+            "clear_first_in": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["first_in"] is None
+    assert body["last_out"] is not None
+    assert "T17:00" in body["last_out"]
+    assert body["source"] == "manual"
+
+
+def test_patch_day_cell_clear_times(client):
+    """Nút Xóa giờ — về 0 công, không còn vào/ra."""
+    headers = _hr_headers(client)
+    VN = timezone(timedelta(hours=7))
+    both = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-09",
+            "first_in": datetime(2025, 10, 9, 8, 0, tzinfo=VN).isoformat(),
+            "last_out": datetime(2025, 10, 9, 17, 0, tzinfo=VN).isoformat(),
+        },
+    )
+    assert both.status_code == 200, both.text
+    assert float(both.json()["worked_hours"]) == 8.0
+    res = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-09",
+            "clear_times": True,
+            "note": "Xóa giờ sai",
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["first_in"] is None
+    assert body["last_out"] is None
+    assert float(body["worked_hours"]) == 0
+    assert body["punch_count"] == 0
+    assert body["late_minutes"] == 0
+    assert body["ot_minutes"] == 0
+    assert body["note"] == "Xóa giờ sai"
+    assert body["source"] == "manual"
+
+
 def test_hr_supplement_out_survives_recalculate(client):
     """1519-style: máy chỉ có vào — HR Enter giờ ra — tính lại/tính lương không nuốt công."""
     client.post(

@@ -66,4 +66,26 @@ describe("buildDayTimePatch", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/08:00/);
   });
+
+  it("empty cell clears that punch and keeps the other", () => {
+    const r = buildDayTimePatch({
+      workDate: "2026-08-17",
+      col: "first_in",
+      editedRaw: "   ",
+      existingInHHmm: "06:13",
+      existingOutHHmm: "17:00",
+    });
+    expect(r).toEqual({ ok: true, clear_first_in: true });
+  });
+
+  it("empty cell with no other punch clears the day", () => {
+    const r = buildDayTimePatch({
+      workDate: "2026-08-17",
+      col: "last_out",
+      editedRaw: "",
+      existingInHHmm: "",
+      existingOutHHmm: "17:10",
+    });
+    expect(r).toEqual({ ok: true, clear_times: true });
+  });
 });

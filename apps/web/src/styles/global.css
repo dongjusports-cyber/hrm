@@ -3606,7 +3606,8 @@ a {
   min-width: 120px;
 }
 
-.tk-manual-bar .btn-primary {
+.tk-manual-bar .btn-primary,
+.tk-manual-bar .btn-secondary {
   flex-shrink: 0;
   padding: 7px 14px;
   white-space: nowrap;
