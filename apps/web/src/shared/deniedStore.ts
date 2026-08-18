@@ -12,10 +12,12 @@ function emit() {
   for (const l of listeners) l();
 }
 
-export function showDenied(fullName: string) {
+export const DENIED_MESSAGE = "Bạn không có quyền truy cập, vui lòng liên hệ Admin.";
+
+export function showDenied(_fullName?: string) {
   state = {
     open: true,
-    message: `Trợ Lý AI xin chào ${fullName}, bạn không có quyền truy cập.\nVui lòng liên hệ Admin.`,
+    message: DENIED_MESSAGE,
   };
   emit();
 }

@@ -20,7 +20,7 @@ export function DeniedModal({ open, message, onClose }: Props) {
         aria-labelledby="denied-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="denied-title">Không có quyền truy cập</h2>
+        <h2 id="denied-title">Trợ lý AI</h2>
         <p className="modal-message">{message}</p>
         <button type="button" className="btn-primary" onClick={onClose}>
           Đã hiểu

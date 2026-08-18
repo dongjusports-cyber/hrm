@@ -137,17 +137,17 @@ export function PortalHome() {
         <p className="portal-loading">Đang tải chức năng…</p>
       ) : (
         <main className="portal-grid portal-bento" aria-label="Danh sách chức năng">
-          {tabs
-            .filter((tab) => tab.allowed)
-            .map((tab) => {
+          {tabs.map((tab) => {
             const accent = TILE_ACCENT[tab.key] ?? "slate";
+            const locked = !tab.allowed;
             return (
               <button
                 key={tab.key}
                 type="button"
-                className={`portal-tile portal-bento-tile tile-${accent}`}
+                className={`portal-tile portal-bento-tile tile-${accent}${locked ? " is-locked" : ""}`}
                 onClick={() => onTileClick(tab)}
-                aria-label={tab.name}
+                aria-label={locked ? `${tab.name} — không có quyền` : tab.name}
+                aria-disabled={locked}
               >
                 <span className="tile-icon" aria-hidden>
                   <TabIcon moduleKey={tab.key} />
@@ -161,9 +161,6 @@ export function PortalHome() {
       )}
 
       <footer className="portal-creator" aria-label="Tác giả">
-        <p className="portal-shortcuts-hint">
-          Phím tắt: <kbd>Ctrl+K</kbd> bảng lệnh · <kbd>/</kbd> tìm nhanh trên màn HR/Chấm công
-        </p>
         <p className="portal-creator-label">Designed &amp; Built by</p>
         <p className="portal-creator-name">NGUYỄN THANH THIỆN</p>
         <div className="portal-creator-meta">

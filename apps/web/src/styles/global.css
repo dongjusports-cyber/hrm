@@ -172,7 +172,7 @@ a {
 
 .portal-bento {
   flex: 1;
-  align-content: start;
+  align-content: center;
   gap: 18px;
 }
 
@@ -274,12 +274,20 @@ a {
 .portal-bento-tile.is-locked {
   filter: grayscale(0.85);
   opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.portal-bento-tile.is-locked:hover {
+.portal-bento-tile.is-locked:hover,
+.portal-bento-tile.is-locked:active {
   transform: none;
   background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(255, 255, 255, 0.05);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  filter: grayscale(0.85);
+}
+
+.portal-bento-tile.is-locked:hover .tile-icon {
+  transform: none;
 }
 
 .portal-bento-tile.tile-blue {
@@ -512,13 +520,6 @@ a {
   line-height: 1.5;
 }
 
-.portal-shortcuts-hint {
-  margin: 0 0 10px;
-  font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.portal-shortcuts-hint kbd,
 .kbd-hints-bar kbd {
   display: inline-block;
   padding: 1px 5px;
@@ -6644,7 +6645,6 @@ body.worker-surface {
   }
 
   .portal-titan .portal-header,
-  .portal-titan .portal-bento,
   .portal-titan .portal-creator,
   .portal-titan .portal-loading,
   .portal-titan .banner-warn {
