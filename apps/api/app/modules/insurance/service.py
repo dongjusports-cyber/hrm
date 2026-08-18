@@ -17,6 +17,17 @@ from app.modules.payroll.models import Payslip, PolicySnapshot
 from app.modules.payroll.money import D, ZERO
 
 
+def si_base_from_payslip_lines(ins: dict, bhxh: Decimal) -> Decimal:
+    """Nền đóng BH trên lưới — phiếu mới ghi si_base_charged; phiếu cũ chỉ có si_base_used."""
+    if not ins:
+        return ZERO
+    if "si_base_charged" in ins:
+        return D(ins.get("si_base_charged") or 0)
+    if bhxh > 0:
+        return D(ins.get("si_base_used") or ins.get("si_base_raw") or 0)
+    return ZERO
+
+
 def require_insurance_access(user: User) -> None:
     if user.role == "admin" or user.has_module("insurance"):
         return
@@ -100,7 +111,7 @@ def period_rows(db: Session, period: str) -> list[InsuranceRowOut]:
     for s, emp in rows:
         lines = s.lines if isinstance(s.lines, dict) else {}
         ins = lines.get("insurance") if isinstance(lines.get("insurance"), dict) else {}
-        si_base = D(ins.get("si_base_charged", 0)) if ins else ZERO
+        si_base = si_base_from_payslip_lines(ins if isinstance(ins, dict) else {}, D(s.bhxh or 0))
         out.append(
             InsuranceRowOut(
                 employee_id=str(emp.id),

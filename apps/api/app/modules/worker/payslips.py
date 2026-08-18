@@ -298,7 +298,11 @@ def _to_detail(
     work = apply_genus_work_template(work_raw, divisor)
     leave = apply_genus_leave_template(leave_raw, divisor)
     allowance = apply_genus_allowance_template(allowance_raw, divisor)
-    deductions = apply_genus_deduction_template(deductions_raw, divisor)
+    deductions = [
+        ln
+        for ln in apply_genus_deduction_template(deductions_raw, divisor)
+        if str(ln.get("component_code") or "").upper() != "PIT"
+    ]
 
     # Tháng có payslip_components (T8): cột CT phụ cấp/ngày công thiếu quantity → ngày công thực tế.
     # Tháng không có dòng chi tiết (T1–T7): không đụng, giữ fallback.

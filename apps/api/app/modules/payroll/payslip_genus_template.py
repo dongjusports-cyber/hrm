@@ -183,7 +183,6 @@ DEDUCTION_SLOTS: list[GenusSlot] = [
     GenusSlot("Phí công đoàn", codes=("UNION",)),
     GenusSlot("KT tháng trước", codes=("ADVANCE", "ADJUST"), adjust_kinds=("deduct",)),
     GenusSlot("KT Khác", codes=("OTHER_DED", "DEDUCT")),
-    GenusSlot("Thuế TNCN", codes=("PIT",)),
 ]
 
 

@@ -98,6 +98,7 @@ def test_worker_sees_only_published(client, db):
     assert Decimal(str(d["annual_leave_remaining"])) == (
         Decimal(str(d["annual_leave_current"])) - Decimal(str(d["annual_leave_used"]))
     )
+    assert all(ln.get("label") != "Thuế TNCN" for ln in d["deduction_lines"])
 
     from uuid import UUID
 
@@ -202,3 +203,4 @@ def test_worker_payslip_shows_grid_ale_quantity_and_used(client, db):
     assert Decimal(str(d["annual_leave_remaining"])) == (
         Decimal(str(d["annual_leave_current"])) - Decimal(str(d["annual_leave_used"]))
     )
+    assert all(ln.get("label") != "Thuế TNCN" for ln in d["deduction_lines"])
