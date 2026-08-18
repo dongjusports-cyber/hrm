@@ -752,3 +752,16 @@ Test:
 Triệu chứng: hr.demo đăng nhập vẫn thấy ô «Cấu Hình» (khóa xám). Bấm ra modal từ chối.
 Cách xử lý: Portal chỉ render tab allowed; Ctrl+K ẩn Cấu Hình nếu không phải Admin.
 Test: pytest tests/test_hr_uat_matrix.py::test_hr_portal_config_not_allowed
+
+[QA-HR004] Tab BH cột nền đóng = 0; phiếu ĐT còn dòng TNCN trống — 2026-08-18
+--------------------------------------------------------------------------------
+Triệu chứng:
+  1) Bảo Hiểm «Tổng lương tham gia BH» = 0 đ dù BHXH đang trừ (phiếu T8 ghi si_base_used, chưa có si_base_charged).
+  2) Phiếu công nhân section IV vẫn có dòng «Thuế TNCN» tiền «—» (đã ẩn TNCN ở phiếu HR).
+
+Cách xử lý:
+  - Đọc si_base_charged nếu có; phiếu cũ: si_base_used khi BHXH > 0.
+  - Mẫu Genus khấu trừ không còn slot PIT; phiếu ĐT lọc nhãn Thuế TNCN.
+
+Test:
+  apps/api pytest tests/test_insurance_api.py tests/test_worker_payslips.py -q
