@@ -13,19 +13,31 @@ export type AuthUser = {
 
 type AuthState = {
   accessToken: string | null;
-  refreshToken: string | null;
   user: AuthUser | null;
 };
 
 const STORAGE_KEY = "djhrm_auth";
 
+function empty(): AuthState {
+  return { accessToken: null, user: null };
+}
+
 function load(): AuthState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { accessToken: null, refreshToken: null, user: null };
-    return JSON.parse(raw) as AuthState;
+    if (!raw) return empty();
+    const parsed = JSON.parse(raw) as AuthState & { refreshToken?: unknown };
+    const next: AuthState = {
+      accessToken: parsed.accessToken ?? null,
+      user: parsed.user ?? null,
+    };
+    if ("refreshToken" in parsed) {
+      if (next.accessToken) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      else localStorage.removeItem(STORAGE_KEY);
+    }
+    return next;
   } catch {
-    return { accessToken: null, refreshToken: null, user: null };
+    return empty();
   }
 }
 
@@ -47,19 +59,17 @@ function persist() {
 
 export function setAuth(payload: {
   access_token: string;
-  refresh_token: string;
   user: AuthUser;
 }) {
   state = {
     accessToken: payload.access_token,
-    refreshToken: payload.refresh_token,
     user: payload.user,
   };
   persist();
 }
 
 export function clearAuth() {
-  state = { accessToken: null, refreshToken: null, user: null };
+  state = empty();
   persist();
   void import("./clientCache").then((m) => m.cacheClearAll());
   void import("./keepAlive").then((m) => m.resetKeepAlive());

@@ -39,7 +39,7 @@ export async function workerLogin(employee_code: string, password: string): Prom
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { detail?: string }).detail ?? "Đăng nhập thất bại.");
-  setWorkerAuth(data as { access_token: string; refresh_token: string; worker: WorkerUser });
+  setWorkerAuth(data as { access_token: string; worker: WorkerUser });
   return (data as { worker: WorkerUser }).worker;
 }
 

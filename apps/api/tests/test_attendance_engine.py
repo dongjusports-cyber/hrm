@@ -95,6 +95,29 @@ def test_sunday_is_weekend_ot():
     assert r.late_minutes == 0
 
 
+def test_sunday_full_day_excludes_lunch():
+    """CN 08:00–17:00 = 8 giờ OT (trừ 12:00–13:00), không phải 9 giờ."""
+    d = date(2025, 10, 5)
+    punches = [
+        datetime(2025, 10, 5, 8, 0, tzinfo=VN),
+        datetime(2025, 10, 5, 17, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.ot_type == "weekend"
+    assert r.ot_minutes == 480
+    assert r.ot_external_minutes == 0
+
+
+def test_sunday_morning_only_no_lunch_to_subtract():
+    d = date(2025, 10, 5)
+    punches = [
+        datetime(2025, 10, 5, 8, 0, tzinfo=VN),
+        datetime(2025, 10, 5, 11, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.ot_minutes == 180
+
+
 def test_holiday_ot():
     d = date(2025, 5, 1)
     punches = [datetime(2025, 5, 1, 9, 0, tzinfo=VN), datetime(2025, 5, 1, 11, 0, tzinfo=VN)]
@@ -103,6 +126,17 @@ def test_holiday_ot():
     assert r.ot_minutes == 120
     assert r.ot_external_minutes == 0
     assert r.ot_on_books_minutes == 0
+
+
+def test_holiday_full_day_excludes_lunch():
+    d = date(2025, 5, 1)
+    punches = [
+        datetime(2025, 5, 1, 8, 0, tzinfo=VN),
+        datetime(2025, 5, 1, 17, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched(holiday_dates={d}))
+    assert r.ot_type == "holiday"
+    assert r.ot_minutes == 480
 
 
 def test_single_punch_out_only_records_last_out():

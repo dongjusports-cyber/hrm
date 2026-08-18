@@ -6,6 +6,8 @@ def test_login_admin_full_modules(client):
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["user"]["role"] == "admin"
+    assert "refresh_token" not in body
+    assert body["access_token"]
     assert len(body["user"]["modules"]) == 8
     assert "config" in body["user"]["modules"]
     assert "ai_query" in body["user"]["permissions"]

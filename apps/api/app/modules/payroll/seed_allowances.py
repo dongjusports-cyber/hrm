@@ -175,6 +175,7 @@ CATALOG: list[dict] = [
         "proration_rule": "none",
     },
     {
+        # 100k/con nhỏ: kế toán chi ngoài phiếu HR — catalog giữ mã, engine không cộng gross.
         "code": "CHILD",
         "name": "Con nhỏ",
         "proration": "fixed",
@@ -443,6 +444,7 @@ _NOT_ASSIGNABLE_ALLOWANCE_CODES = frozenset(
         "ADJUST",
         "ADVANCE",
         "SENIORITY",
+        "CHILD",
         "SEVERANCE",
         *(row["code"] for row in LEAVE_PAY_COMPONENTS),
     }

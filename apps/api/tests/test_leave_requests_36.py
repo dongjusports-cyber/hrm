@@ -224,3 +224,137 @@ def test_ale_over_balance_skipped_on_bulk_approve(client, db):
     assert len(out["skipped"]) == 1
     assert out["skipped"][0]["employee_code"] == "1732"
     assert "vượt số dư" in out["skipped"][0]["reason"].lower()
+
+
+def test_ale_counts_saturday_skips_sunday(client):
+    """Phép năm: T7 là ngày công; CN không trừ sổ."""
+    headers = _worker_headers(client, "5321")
+    # 2025-10-17 T6 … 2025-10-20 T2 — gồm T7 và CN
+    res = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-17",
+            "to_date": "2025-10-20",
+            "reason": "T6–T2",
+            "submit": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert float(res.json()["total_days"]) == 3.0
+
+
+def test_ale_saturday_only_counts_one_day(client):
+    headers = _worker_headers(client, "1643")
+    res = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-18",
+            "to_date": "2025-10-18",
+            "reason": "Nghỉ T7",
+            "submit": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert float(res.json()["total_days"]) == 1.0
+
+
+def test_ale_sunday_only_rejected(client):
+    headers = _worker_headers(client, "1514")
+    res = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-19",
+            "to_date": "2025-10-19",
+            "reason": "Chỉ CN",
+            "submit": True,
+        },
+    )
+    assert res.status_code == 400
+    assert "số ngày nghỉ phải > 0" in res.json()["detail"].lower()
+
+
+def test_ale_skips_holidays_keeps_saturday(client):
+    """30/4 + 1/5 lễ; 2/5 T6 + 3/5 T7 vẫn trừ phép."""
+    headers = _worker_headers(client, "5290")
+    res = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-04-30",
+            "to_date": "2025-05-03",
+            "reason": "Lễ 30/4–1/5",
+            "submit": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert float(res.json()["total_days"]) == 2.0
+
+
+def test_non_ale_still_counts_calendar_weekend(client):
+    """Nghỉ hết hàng / loại khác: vẫn đếm ngày lịch (kể cả CN)."""
+    headers = _worker_headers(client, "1732")
+    res = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "TMP",
+            "from_date": "2025-11-15",
+            "to_date": "2025-11-16",
+            "reason": "T7–CN hết hàng",
+            "submit": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert float(res.json()["total_days"]) == 2.0
+
+
+def test_approve_ale_does_not_stamp_sunday(client, db):
+    headers = _worker_headers(client, "5321")
+    created = client.post(
+        "/api/worker/leave-requests",
+        headers=headers,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-17",
+            "to_date": "2025-10-20",
+            "reason": "T6–T2",
+            "submit": True,
+        },
+    )
+    assert created.status_code == 200, created.text
+    hr = _hr_headers(client)
+    decide = client.post(
+        "/api/attendance/leave-requests/bulk-decide",
+        headers=hr,
+        json={
+            "request_ids": [created.json()["id"]],
+            "action": "approve",
+            "decided_note": "OK",
+        },
+    )
+    assert decide.status_code == 200, decide.text
+    assert decide.json()["approved_count"] == 1
+
+    from app.modules.mdm.models import Employee
+
+    emp = db.query(Employee).filter(Employee.employee_code == "5321").one()
+    sun = (
+        db.query(AttendanceDay)
+        .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == date(2025, 10, 19))
+        .one_or_none()
+    )
+    assert sun is None or sun.leave_code != "ALE"
+    sat = (
+        db.query(AttendanceDay)
+        .filter(AttendanceDay.employee_id == emp.id, AttendanceDay.work_date == date(2025, 10, 18))
+        .one()
+    )
+    assert sat.leave_code == "ALE"
+    assert float(sat.leave_days) == 1.0

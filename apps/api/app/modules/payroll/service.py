@@ -9,6 +9,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import (
@@ -20,7 +21,12 @@ from app.modules.attendance.models import (
     TimesheetMonthDetail,
 )
 from app.modules.attendance.annual_leave_ledger import sync_accrual_batch
-from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timesheets, seed_leave_types
+from app.modules.attendance.timesheet import (
+    ensure_pay_period,
+    get_pay_period,
+    rebuild_timesheets,
+    seed_leave_types,
+)
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
 from app.modules.mdm.models import Employee, EmployeeFamilyMember
@@ -407,27 +413,62 @@ def _tax_dep_counts_batch(
     return counts
 
 
-def _reject_concurrent_calculate(db: Session, pay: PayPeriod) -> None:
-    """QA-06: không cho hai lần «Tính lương» chồng lên cùng kỳ."""
-    running = (
-        db.query(PayrollRun)
-        .filter(PayrollRun.pay_period_id == pay.id, PayrollRun.status == "running")
-        .all()
+MSG_CALCULATE_RUNNING = (
+    "Trợ Lý AI: đang tính lương kỳ này — vui lòng đợi xong rồi bấm lại."
+)
+_CALCULATE_STALE = timedelta(minutes=15)
+
+
+def _claim_calculate_run(db: Session, pay: PayPeriod) -> PayrollRun:
+    """Khóa kỳ (FOR UPDATE) + tối đa 1 run `running` — tránh đúp chuột ghi đè phiếu nháp.
+
+    Unique index `uq_payroll_runs_one_running` là lớp chặn thứ hai khi hai request
+    lọt cửa sổ trước khi khóa (SQLite bỏ qua FOR UPDATE).
+    """
+    locked = (
+        db.query(PayPeriod)
+        .filter(PayPeriod.id == pay.id)
+        .with_for_update()
+        .one()
     )
     now = datetime.now(timezone.utc)
-    stale_after = timedelta(minutes=15)
+    running = (
+        db.query(PayrollRun)
+        .filter(PayrollRun.pay_period_id == locked.id, PayrollRun.status == "running")
+        .with_for_update()
+        .all()
+    )
     for run in running:
         started = run.started_at
         if started is not None and started.tzinfo is None:
             started = started.replace(tzinfo=timezone.utc)
-        if started is not None and now - started < stale_after:
+        if started is not None and now - started < _CALCULATE_STALE:
+            db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Trợ Lý AI: đang tính lương kỳ này — vui lòng đợi xong rồi bấm lại.",
+                detail=MSG_CALCULATE_RUNNING,
             )
         run.status = "error"
         run.finished_at = now
         run.message = "Timeout — lần tính trước chưa xong, đã thay bằng lần mới."
+
+    run = PayrollRun(
+        pay_period_id=locked.id,
+        status="running",
+        started_at=now,
+        message="Đang tổng hợp bảng công…",
+    )
+    db.add(run)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=MSG_CALCULATE_RUNNING,
+        ) from None
+    db.refresh(run)
+    return run
 
 
 def _type_views(db: Session) -> list[AllowanceTypeView]:
@@ -520,7 +561,6 @@ def compute_employee_payslip(
             policy=payload,
             monthly_by_code=monthly,
             types=type_views,
-            child_count_under_6=0,
             leave_days_by_code=leave_days,
             detail_days_by_category=detail_days,
             penalty_audit=penalty_sum.detail,
@@ -611,16 +651,7 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
             ),
         )
 
-    _reject_concurrent_calculate(db, pay)
-    run = PayrollRun(
-        pay_period_id=pay.id,
-        status="running",
-        started_at=datetime.now(timezone.utc),
-        message="Đang tổng hợp bảng công…",
-    )
-    db.add(run)
-    db.commit()
-    db.refresh(run)
+    run = _claim_calculate_run(db, pay)
 
     try:
         rebuild_timesheets(db, period, recalc_days=True)
@@ -756,7 +787,6 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
                     policy=payload,
                     monthly_by_code=monthly,
                     types=type_views,
-                    child_count_under_6=0,
                     leave_days_by_code=leave_days,
                     detail_days_by_category=detail_days,
                     penalty_audit=penalty_sum.detail,
@@ -958,7 +988,9 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
 
 
 def list_payslips(db: Session, period: str) -> list[PayslipOut]:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     prev_map = prev_net_by_employee(db, period)
     rows = (
         db.query(Payslip, Employee, TimesheetMonth)

@@ -100,3 +100,22 @@ def test_calculate_rejects_when_run_already_running(client, db):
     res = client.post("/api/payroll/periods/2025-10/calculate", headers=_hr_headers(client))
     assert res.status_code == 409
     assert "đang tính lương" in res.json()["detail"].lower()
+
+
+def test_only_one_running_payroll_run_per_period(db):
+    """Unique index: hai run `running` cùng kỳ → IntegrityError (lớp chặn DB)."""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.modules.payroll.models import PayrollRun
+
+    pay = ensure_pay_period(db, "2025-10")
+    db.add(PayrollRun(pay_period_id=pay.id, status="running", message="lần 1"))
+    db.commit()
+    db.add(PayrollRun(pay_period_id=pay.id, status="success", message="đã xong khác"))
+    db.commit()
+    db.add(PayrollRun(pay_period_id=pay.id, status="running", message="lần 2"))
+    try:
+        db.commit()
+        raise AssertionError("expected IntegrityError")
+    except IntegrityError:
+        db.rollback()

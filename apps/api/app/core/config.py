@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     jwt_secret: str = "change_me_to_a_long_random_string"
     jwt_access_hours: int = 8
+    # Giữ env JWT_REFRESH_DAYS tương thích; không cấp refresh token (không có /auth/refresh).
     jwt_refresh_days: int = 7
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     gemini_api_key: str = ""

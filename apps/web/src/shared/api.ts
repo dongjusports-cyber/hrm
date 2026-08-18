@@ -37,7 +37,6 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
 
 export async function loginRequest(username: string, password: string): Promise<{
   access_token: string;
-  refresh_token: string;
   user: AuthUser;
 }> {
   const res = await fetch(`${getApiBase()}/api/auth/login`, {
@@ -2786,8 +2785,9 @@ export async function fetchHRPayslipDetail(payslipId: string): Promise<HRPayslip
   return res.json();
 }
 
-export async function fetchPayrollPeriod(period: string): Promise<PayPeriodStatus> {
+export async function fetchPayrollPeriod(period: string): Promise<PayPeriodStatus | null> {
   const res = await apiFetch(`/api/payroll/periods/${encodeURIComponent(period)}`);
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }

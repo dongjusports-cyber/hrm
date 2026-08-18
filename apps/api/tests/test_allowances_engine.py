@@ -96,3 +96,28 @@ def test_attend_penalty_halves():
     )
     assert r.attend_keep_percent == 50
     assert r.lines[0].amount == Decimal("311538")
+
+
+def test_child_allowance_excluded_accounting_pays():
+    """100k/con nhỏ do kế toán chi — không vào phiếu lương HR dù có số con hoặc gán tay."""
+    types = [
+        AllowanceTypeView("CHILD", "Con nhỏ", "fixed", False, False, Decimal("100000")),
+        AllowanceTypeView("TOXIC", "Độc hại", "fixed", True, True, Decimal("100000")),
+    ]
+    r = compute_allowances(
+        AllowanceInput(
+            salary_divisor=Decimal("26"),
+            worked_days=Decimal("9"),
+            late_count=0,
+            early_count=0,
+            penalty_absent_days=Decimal("0"),
+            join_date=date(2020, 1, 15),
+            as_of=date(2025, 10, 31),
+            policy=default_payload(),
+            monthly_by_code={"CHILD": Decimal("100000"), "TOXIC": Decimal("100000")},
+            types=types,
+            child_count_under_6=2,
+        )
+    )
+    assert all(ln.code != "CHILD" for ln in r.lines)
+    assert any(ln.code == "TOXIC" for ln in r.lines)

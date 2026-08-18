@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.modules.attendance.annual_leave_ledger import annual_leave_remaining, record_leave_use
 from app.modules.attendance.models import AttendanceDay, LeaveRequest, LeaveType
 from app.modules.attendance.timesheet import seed_leave_types
+from app.modules.calendar.engine import is_official_workday
+from app.modules.calendar.models import Holiday
+from app.modules.calendar.service import get_work_week
 from app.modules.core.models import User
 from app.modules.mdm.models import Department, Employee, Team
 
@@ -24,28 +27,64 @@ def _now() -> datetime:
     return datetime.now(tz=VN)
 
 
+def _al_calendar(db: Session, from_date: date, to_date: date) -> tuple[list[int], set[date]]:
+    rule = get_work_week(db)
+    holidays = {
+        h.date
+        for h in db.query(Holiday)
+        .filter(Holiday.date >= from_date, Holiday.date <= to_date)
+        .all()
+    }
+    return list(rule.work_weekdays), holidays
+
+
+def iter_leave_charge_dates(
+    from_date: date,
+    to_date: date,
+    *,
+    workdays_only: bool,
+    work_weekdays: list[int] | None = None,
+    holiday_dates: set[date] | frozenset[date] | None = None,
+) -> list[date]:
+    """Ngày trừ vào đơn: phép năm = ngày công (T2–T7, bỏ CN + lễ); loại khác = mọi ngày lịch."""
+    if to_date < from_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: ngày kết thúc nghỉ phải ≥ ngày bắt đầu.",
+        )
+    holidays = set(holiday_dates or ())
+    week = list(work_weekdays) if work_weekdays is not None else [1, 2, 3, 4, 5, 6]
+    out: list[date] = []
+    cur = from_date
+    while cur <= to_date:
+        if not workdays_only or is_official_workday(cur, week, holidays):
+            out.append(cur)
+        cur += timedelta(days=1)
+    return out
+
+
 def calc_total_days(
     from_date: date,
     to_date: date,
     *,
     from_half: bool = False,
     to_half: bool = False,
+    charge_dates: list[date] | None = None,
 ) -> Decimal:
-    if to_date < from_date:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Trợ Lý AI: ngày kết thúc nghỉ phải ≥ ngày bắt đầu.",
-        )
-    span = (to_date - from_date).days + 1
-    total = Decimal(span)
-    if from_half:
+    dates = (
+        charge_dates
+        if charge_dates is not None
+        else iter_leave_charge_dates(from_date, to_date, workdays_only=False)
+    )
+    total = Decimal(len(dates))
+    if from_half and from_date in dates:
         total -= Decimal("0.5")
-    if to_half:
+    if to_half and to_date in dates:
         total -= Decimal("0.5")
     if total <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Trợ Lý AI: số ngày nghỉ phải > 0.",
+            detail="Trợ Lý AI: số ngày nghỉ phải > 0 (phép năm không tính Chủ nhật và ngày lễ).",
         )
     return total.quantize(Q2, rounding=ROUND_HALF_UP)
 
@@ -99,8 +138,18 @@ def _months_covering(from_date: date, to_date: date) -> list[str]:
 
 def _apply_approved_leave(db: Session, req: LeaveRequest) -> None:
     """Gán leave_code + leave_days lên attendance_days (không đụng dòng is_locked)."""
-    cur = req.from_date
-    while cur <= req.to_date:
+    if req.leave_type_code == "ALE":
+        week, holidays = _al_calendar(db, req.from_date, req.to_date)
+        dates = iter_leave_charge_dates(
+            req.from_date,
+            req.to_date,
+            workdays_only=True,
+            work_weekdays=week,
+            holiday_dates=holidays,
+        )
+    else:
+        dates = iter_leave_charge_dates(req.from_date, req.to_date, workdays_only=False)
+    for cur in dates:
         row = (
             db.query(AttendanceDay)
             .filter(AttendanceDay.employee_id == req.employee_id, AttendanceDay.work_date == cur)
@@ -113,7 +162,6 @@ def _apply_approved_leave(db: Session, req: LeaveRequest) -> None:
             row.leave_code = req.leave_type_code
             row.leave_days = _leave_days_for_date(req, cur)
             row.source = "import"
-        cur += timedelta(days=1)
 
 
 def _row_out(
@@ -180,7 +228,20 @@ def create_leave_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Trợ Lý AI: mã nghỉ {leave_type_code} không có trong danh mục.",
         )
-    total = calc_total_days(from_date, to_date, from_half=from_half, to_half=to_half)
+    if code == "ALE":
+        week, holidays = _al_calendar(db, from_date, to_date)
+        charge = iter_leave_charge_dates(
+            from_date,
+            to_date,
+            workdays_only=True,
+            work_weekdays=week,
+            holiday_dates=holidays,
+        )
+    else:
+        charge = iter_leave_charge_dates(from_date, to_date, workdays_only=False)
+    total = calc_total_days(
+        from_date, to_date, from_half=from_half, to_half=to_half, charge_dates=charge
+    )
     _assert_no_overlap(db, employee.id, from_date, to_date)
     row = LeaveRequest(
         employee_id=employee.id,

@@ -54,16 +54,6 @@ def create_access_token(user_id: UUID, role: str, audience: str = AUDIENCE_STAFF
     )
 
 
-def create_refresh_token(user_id: UUID, audience: str = AUDIENCE_STAFF) -> str:
-    settings = get_settings()
-    return create_token(
-        subject=str(user_id),
-        audience=audience,
-        expires_delta=timedelta(days=settings.jwt_refresh_days),
-        extra={"typ": "refresh"},
-    )
-
-
 def decode_token(token: str, *, audience: str, expect_typ: str | None = None) -> dict[str, Any]:
     settings = get_settings()
     try:

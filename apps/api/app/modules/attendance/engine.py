@@ -215,6 +215,22 @@ def _apply_wt_regime(
     return early, worked
 
 
+def _lunch_overlap_seconds(
+    first_in: datetime,
+    last_out: datetime,
+    schedule: Schedule,
+    work_date: date,
+) -> float:
+    """Số giây chồng lên khung nghỉ trưa (morning_end → afternoon_start)."""
+    lunch_start = combine_vn(work_date, schedule.morning_end)
+    lunch_end = combine_vn(work_date, schedule.afternoon_start)
+    overlap_start = max(first_in, lunch_start)
+    overlap_end = min(last_out, lunch_end)
+    if overlap_end <= overlap_start:
+        return 0.0
+    return (overlap_end - overlap_start).total_seconds()
+
+
 def _shift_worked_hours(
     first_in: datetime,
     last_out: datetime,
@@ -229,16 +245,26 @@ def _shift_worked_hours(
     if seg_out <= seg_in:
         return Decimal("0")
     total = Decimal(str((seg_out - seg_in).total_seconds() / 3600))
-    lunch_start = combine_vn(work_date, schedule.morning_end)
-    lunch_end = combine_vn(work_date, schedule.afternoon_start)
-    overlap_start = max(seg_in, lunch_start)
-    overlap_end = min(seg_out, lunch_end)
-    if overlap_end > overlap_start:
-        lunch_h = Decimal(str((overlap_end - overlap_start).total_seconds() / 3600))
-        total -= lunch_h
+    lunch_h = Decimal(str(_lunch_overlap_seconds(seg_in, seg_out, schedule, work_date) / 3600))
+    total -= lunch_h
     if total < 0:
         total = Decimal("0")
     return total.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def _rest_day_ot_minutes(
+    first_in: datetime,
+    last_out: datetime,
+    schedule: Schedule,
+    work_date: date,
+) -> int:
+    """OT CN/lễ = phút có mặt, trừ nghỉ trưa. Không kẹp khung ca ngày thường."""
+    span = (last_out - first_in).total_seconds()
+    if span <= 0:
+        return 0
+    lunch = _lunch_overlap_seconds(first_in, last_out, schedule, work_date)
+    ot = int((span - lunch) // 60)
+    return max(0, ot)
 
 
 def calculate_day(
@@ -361,15 +387,12 @@ def calculate_day(
                 ot_start=ot_start,
             )
     else:
-        # Ngày nghỉ (lễ/cuối tuần): toàn bộ thời gian có mặt = OT, không áp
-        # logic vào/ra theo khung ca sáng/chiều như ngày công. Dùng trực tiếp
-        # mốc bấm đầu–cuối (đã dedupe, đã sort) để không bỏ sót ca chỉ làm buổi
-        # sáng (vd. 09:00–11:00) hay chỉ buổi chiều trên ngày nghỉ.
+        # Ngày nghỉ (lễ/cuối tuần): toàn bộ thời gian có mặt = OT, trừ nghỉ trưa
+        # (cùng khung 12:00–13:00 với ngày công). Không kẹp 08:00–17:00 để giữ
+        # ca chỉ sáng (09:00–11:00) hoặc kéo dài ngoài giờ hành chính.
         first_in = times[0]
         last_out = times[-1]
-        ot = int((last_out - first_in).total_seconds() // 60)
-        if ot < 0:
-            ot = 0
+        ot = _rest_day_ot_minutes(first_in, last_out, schedule, work_date)
         # CN/lễ vào phiếu lương (hệ số 2,0 / 3,0) — không nhét vào OT ngoài ATM 1,5
         ot_external = 0
         ot_on_books = 0

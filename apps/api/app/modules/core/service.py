@@ -9,7 +9,6 @@ from app.core.config import get_settings
 from app.core.security import (
     AUDIENCE_STAFF,
     create_access_token,
-    create_refresh_token,
     hash_password,
     verify_password,
 )
@@ -315,7 +314,6 @@ def authenticate(db: Session, username: str, password: str) -> TokenResponse:
 
     return TokenResponse(
         access_token=create_access_token(user.id, user.role, AUDIENCE_STAFF),
-        refresh_token=create_refresh_token(user.id, AUDIENCE_STAFF),
         user=user_to_out(user),
     )
 

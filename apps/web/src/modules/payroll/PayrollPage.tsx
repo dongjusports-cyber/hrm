@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   calculatePayroll,
@@ -73,6 +73,7 @@ export function PayrollPage() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const calcInFlight = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [exportDeptId, setExportDeptId] = useState("");
   const [exportEmpCode, setExportEmpCode] = useState("");
@@ -175,6 +176,8 @@ export function PayrollPage() {
   }, []);
 
   async function onCalculate() {
+    if (calcInFlight.current) return;
+    calcInFlight.current = true;
     setBusy(true);
     setError(null);
     setOk(null);
@@ -192,6 +195,7 @@ export function PayrollPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tính lương được.");
     } finally {
+      calcInFlight.current = false;
       setBusy(false);
     }
   }

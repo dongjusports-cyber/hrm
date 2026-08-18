@@ -13,6 +13,7 @@ def test_worker_login_ok(client):
     assert body["worker"]["employee_code"] == "5290"
     assert body["worker"]["must_change_password"] is True
     assert body["access_token"]
+    assert "refresh_token" not in body
 
 
 def test_worker_token_cannot_access_staff_portal(client):

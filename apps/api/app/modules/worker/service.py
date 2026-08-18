@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.security import (
     AUDIENCE_WORKER,
     create_access_token,
-    create_refresh_token,
     hash_password,
     verify_password,
 )
@@ -123,7 +122,6 @@ def authenticate_worker(db: Session, employee_code: str, password: str) -> Worke
 
     return WorkerTokenResponse(
         access_token=create_access_token(user.id, "worker", AUDIENCE_WORKER),
-        refresh_token=create_refresh_token(user.id, AUDIENCE_WORKER),
         worker=worker_to_out(db, user, code),
     )
 

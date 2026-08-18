@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import ensure_pay_period, require_pay_period
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -47,7 +47,7 @@ def period_out(pay: PayPeriod) -> PeriodOut:
 
 
 def get_period(db: Session, period: str) -> PeriodOut:
-    return period_out(ensure_pay_period(db, period))
+    return period_out(require_pay_period(db, period))
 
 
 def publish_period(db: Session, period: str, *, actor: User | None = None) -> PeriodActionResult:

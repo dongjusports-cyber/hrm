@@ -151,14 +151,39 @@ def parse_period(period: str) -> tuple[int, int]:
     return year, month
 
 
-def ensure_pay_period(db: Session, period: str, *, refresh_open: bool = False) -> PayPeriod:
-    """Lấy kỳ lương; tạo nếu chưa có.
+def get_pay_period(db: Session, period: str) -> PayPeriod | None:
+    """SELECT kỳ lương — không tạo, không cập nhật. Dùng cho GET."""
+    year, month = parse_period(period)
+    return (
+        db.query(PayPeriod)
+        .filter(PayPeriod.year == year, PayPeriod.month == month)
+        .one_or_none()
+    )
 
-    QA-07: GET (Tổng Quan / bảng công) không ghi lại divisor. Chỉ làm mới khi
+
+def require_pay_period(db: Session, period: str) -> PayPeriod:
+    """GET chi tiết kỳ: có thì trả, chưa có thì 404 — không INSERT."""
+    row = get_pay_period(db, period)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Trợ Lý AI: chưa có kỳ lương {period} — "
+                "hãy bấm Tính lương (hoặc tổng hợp bảng công) trước."
+            ),
+        )
+    return row
+
+
+def ensure_pay_period(db: Session, period: str, *, refresh_open: bool = False) -> PayPeriod:
+    """Lấy kỳ lương; tạo nếu chưa có. Chỉ dùng trên POST (tính lương, rebuild, phát hành).
+
+    GET không được gọi hàm này — dùng get_pay_period / require_pay_period.
+    QA-07: không UPDATE divisor trên đường đọc. Chỉ làm mới khi
     `refresh_open=True` (tính lương, rebuild bảng công).
     """
     year, month = parse_period(period)
-    row = db.query(PayPeriod).filter(PayPeriod.year == year, PayPeriod.month == month).one_or_none()
+    row = get_pay_period(db, period)
     last_day = calendar.monthrange(year, month)[1]
     date_from = date(year, month, 1)
     date_to = date(year, month, last_day)

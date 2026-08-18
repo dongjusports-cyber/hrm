@@ -34,7 +34,15 @@ check "employees" GET /api/employees 200
 check "departments" GET /api/departments 200
 check "attendance days" GET "/api/attendance/days?from=2025-10-01&to=2025-10-31" 200
 check "payslips" GET "/api/payroll/payslips?period=2025-10" 200
-check "payroll period" GET /api/payroll/periods/2025-10 200
+# GET kỳ chưa tính → 404 (không tự INSERT). Đã tính lương → 200.
+code=$(curl -s -o /tmp/hr_uat_body.txt -w "%{http_code}" "${H[@]}" "$BASE/api/payroll/periods/2025-10")
+if [ "$code" = "200" ] || [ "$code" = "404" ]; then
+  echo "OK  payroll period ($code)"
+  PASS=$((PASS+1))
+else
+  echo "FAIL payroll period expected=200|404 got=$code $(head -c 120 /tmp/hr_uat_body.txt)"
+  FAIL=$((FAIL+1))
+fi
 check "disputes" GET /api/disputes 200
 check "insurance" GET "/api/insurance/declarations?month=2025-10" 200
 check "kpi" GET "/api/reports/kpi?period=2025-10" 200

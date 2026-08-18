@@ -55,6 +55,7 @@ class AllowanceInput:
     monthly_by_code: dict[str, Decimal]
     types: list[AllowanceTypeView]
     child_count_under_6: int = 0
+    # Giữ field cho tương thích caller; CHILD không vào phiếu (kế toán chi ngoài).
     # 4.3 — ngày nghỉ theo mã (ALE/FLE/WED/OFF…) để tính tử số chia phụ cấp
     leave_days_by_code: dict[str, Decimal] | None = None
     detail_days_by_category: dict[str, Decimal] | None = None
@@ -281,23 +282,7 @@ def compute_allowances(inp: AllowanceInput) -> AllowanceResult:
                 )
             )
 
-    if "CHILD" in type_map and inp.child_count_under_6 > 0:
-        t = type_map["CHILD"]
-        per = inp.monthly_by_code.get("CHILD", t.default_amount)
-        monthly = D(per) * Decimal(inp.child_count_under_6)
-        lines.append(
-            AllowanceLine(
-                code="CHILD",
-                name=t.name,
-                monthly_full=monthly,
-                amount=money_vnd(monthly),
-                include_in_si_base=t.include_in_si_base,
-                include_in_ot_base=t.include_in_ot_base,
-                detail={"children": inp.child_count_under_6},
-            )
-        )
-
-    # Các mã gán tay: POSITION, TOXIC, PCCC, TECH, OTHER…
+    # CHILD (100k/con nhỏ): kế toán chi ngoài phiếu lương HR — không cộng gross.
     skip = {"ATTEND", "TRANSPORT", "SENIORITY", "CHILD"}
     for code, monthly in inp.monthly_by_code.items():
         if code in skip or code not in type_map:

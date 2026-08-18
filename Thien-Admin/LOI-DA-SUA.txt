@@ -796,3 +796,50 @@ Test:
   pytest tests/test_attendance_day_grid_37.py tests/test_hr_workflow_payroll_accuracy.py -q
   apps/web npm test -- dailyGridTime
 
+[PAY-G001] GET /payroll/periods/{period} INSERT kỳ lương — 2026-08-18
+--------------------------------------------------------------------
+Triệu chứng:
+  Mở trang Tính Lương (GET) tự tạo dòng pay_periods nếu tháng chưa có.
+  GET đang làm lệnh ghi — cùng lớp lỗi HR-H002 / QA-07 (đường đọc không được INSERT).
+
+Nguyên nhân:
+  publisher.get_period → ensure_pay_period → INSERT + commit khi kỳ chưa tồn tại.
+  Màn Payroll còn gọi GET payslips / adjustments, hai chỗ đó cũng ensure.
+
+Cách xử lý:
+  - get_pay_period / require_pay_period: chỉ SELECT; thiếu kỳ → 404.
+  - GET /payroll/periods/{period} dùng require (không ensure).
+  - GET payslips + adjustments: kỳ chưa có → [] (không tạo kỳ).
+  - Web: fetchPayrollPeriod 404 → null; nút Tính lương vẫn bấm được (POST mới tạo kỳ).
+
+Test:
+  pytest tests/test_payroll_period_get_readonly.py -q
+
+[AUTH-R001] Refresh token không dùng nhưng vẫn lưu localStorage — 2026-08-18
+--------------------------------------------------------------------------
+Triệu chứng:
+  Login cấp JWT refresh 7 ngày, SPA ghi vào djhrm_auth / djhrm_worker_auth.
+  Không có POST /auth/refresh; access hết hạn thì 401 + xóa session. Token thừa
+  nằm localStorage (XSS lấy được cả cặp).
+
+Cách xử lý:
+  - Không cấp refresh_token (staff + worker). Chỉ access JWT.
+  - Web không lưu refreshToken; phiên cũ tự bỏ khóa khi mở lại trang.
+  - Không làm endpoint refresh (chưa cần: access 8 giờ, hết hạn thì đăng nhập lại).
+
+Test:
+  pytest tests/test_auth_rbac.py tests/test_worker_login.py -q
+
+[AL-WD001] Phép năm đếm cả Chủ nhật / lễ — 2026-08-18
+----------------------------------------------------
+Triệu chứng:
+  Đơn ALE tính (to − from) + 1 mọi ngày lịch. Xin T6→T2 trừ 4 ngày (gồm CN).
+  Thứ 7 nhà máy may là ngày công — phải trừ phép.
+
+Cách xử lý:
+  ALE chỉ trừ ngày công (work_week T2–T7, bỏ CN + holidays). Loại nghỉ khác giữ ngày lịch.
+  Duyệt ALE không ghi leave_code lên Chủ nhật/lễ.
+
+Test:
+  pytest tests/test_leave_requests_36.py tests/test_calendar_divisor.py -q
+

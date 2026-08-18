@@ -31,7 +31,6 @@ class WorkerOut(BaseModel):
 
 class WorkerTokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     worker: WorkerOut
 

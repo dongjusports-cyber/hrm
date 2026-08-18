@@ -14,19 +14,31 @@ export type WorkerUser = {
 
 type State = {
   accessToken: string | null;
-  refreshToken: string | null;
   worker: WorkerUser | null;
 };
 
 const KEY = "djhrm_worker_auth";
 
+function empty(): State {
+  return { accessToken: null, worker: null };
+}
+
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { accessToken: null, refreshToken: null, worker: null };
-    return JSON.parse(raw) as State;
+    if (!raw) return empty();
+    const parsed = JSON.parse(raw) as State & { refreshToken?: unknown };
+    const next: State = {
+      accessToken: parsed.accessToken ?? null,
+      worker: parsed.worker ?? null,
+    };
+    if ("refreshToken" in parsed) {
+      if (next.accessToken) localStorage.setItem(KEY, JSON.stringify(next));
+      else localStorage.removeItem(KEY);
+    }
+    return next;
   } catch {
-    return { accessToken: null, refreshToken: null, worker: null };
+    return empty();
   }
 }
 
@@ -45,19 +57,17 @@ function persist() {
 
 export function setWorkerAuth(payload: {
   access_token: string;
-  refresh_token: string;
   worker: WorkerUser;
 }) {
   state = {
     accessToken: payload.access_token,
-    refreshToken: payload.refresh_token,
     worker: payload.worker,
   };
   persist();
 }
 
 export function clearWorkerAuth() {
-  state = { accessToken: null, refreshToken: null, worker: null };
+  state = empty();
   persist();
 }
 

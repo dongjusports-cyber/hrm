@@ -10,6 +10,17 @@ from decimal import Decimal
 from typing import Any
 
 
+def is_official_workday(
+    d: date,
+    work_weekdays: list[int] | set[int],
+    holiday_dates: set[date],
+) -> bool:
+    """Ngày công công ty: T2–T7 mặc định; trừ Chủ nhật (nếu không trong tuần) và ngày lễ."""
+    if d in holiday_dates:
+        return False
+    return d.isoweekday() in set(work_weekdays)
+
+
 def count_official_work_days(
     *,
     year: int,
@@ -24,16 +35,11 @@ def count_official_work_days(
     if month < 1 or month > 12:
         raise ValueError("Tháng không hợp lệ.")
     days_in_month = py_calendar.monthrange(year, month)[1]
-    work_set = set(work_weekdays)
     total = 0
     for day in range(1, days_in_month + 1):
         d = date(year, month, day)
-        iso = d.isoweekday()  # 1=Mon .. 7=Sun
-        if iso not in work_set:
-            continue
-        if d in holiday_dates:
-            continue
-        total += 1
+        if is_official_workday(d, work_weekdays, holiday_dates):
+            total += 1
     return Decimal(total)
 
 

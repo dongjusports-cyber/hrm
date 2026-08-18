@@ -94,7 +94,6 @@ def compute_ot_external_row(
             policy=payload,
             monthly_by_code=monthly,
             types=type_views,
-            child_count_under_6=0,
             leave_days_by_code=leave_days,
             detail_days_by_category=detail_days,
             penalty_audit=penalty_sum.detail,

@@ -13,7 +13,7 @@ from fastapi import HTTPException, status
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import ensure_pay_period, get_pay_period
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -92,7 +92,9 @@ def sums_for_employee(
 
 
 def list_adjustments(db: Session, period: str, employee_code: str | None = None) -> list[AdjustmentOut]:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     q = (
         db.query(PayslipAdjustment, Employee, User)
         .join(Employee, Employee.id == PayslipAdjustment.employee_id)
