@@ -101,6 +101,9 @@ export function WorkerHomePage() {
       </section>
 
       <nav className="worker-nav">
+        <Link to="/worker/attendance" className="worker-btn-primary">
+          Xem chấm công
+        </Link>
         <WorkerFacePunchButton />
         <Link to="/worker/leave" className="worker-btn-primary">
           Xin nghỉ phép

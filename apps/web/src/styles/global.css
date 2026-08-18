@@ -5,6 +5,10 @@
   --bg-deep: #0f172a;
   --bg-mid: #1e3a5f;
   --bg-soft: #1e40af;
+  /* Nền trang dịu mắt (kiểu Gemini) — thẻ/form vẫn trắng */
+  --page-wash: #e8f0fe;
+  --page-bg:
+    linear-gradient(180deg, #f4f8ff 0%, #d3e3fd 42%, #e8f0fe 78%, #f3f7fd 100%);
   --surface: #f8fafc;
   --surface-elevated: #ffffff;
   --ink: #0f172a;
@@ -563,7 +567,8 @@ a {
 .module-page {
   min-height: var(--layout-vh);
   height: var(--layout-vh);
-  background: var(--surface);
+  background: var(--page-bg);
+  background-attachment: fixed;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -583,8 +588,8 @@ a {
   align-items: center;
   gap: 16px;
   padding: 14px 20px;
-  background: var(--surface-elevated);
-  border-bottom: 1px solid #d9e3ec;
+  background: color-mix(in srgb, var(--page-wash) 58%, #fff);
+  border-bottom: 1px solid #c5d8f0;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -812,7 +817,8 @@ a {
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
-  background: var(--surface, #f8fafc);
+  background: var(--page-bg);
+  background-attachment: fixed;
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
   animation: fs-sheet-in 0.22s ease-out;
 }
@@ -848,8 +854,8 @@ a {
   justify-content: space-between;
   gap: 8px 12px;
   padding: 8px 12px;
-  background: var(--surface-elevated, #fff);
-  border-bottom: 1px solid #e2e8f0;
+  background: color-mix(in srgb, var(--page-wash) 58%, #fff);
+  border-bottom: 1px solid #c5d8f0;
   flex-shrink: 0;
 }
 
@@ -6192,12 +6198,13 @@ a {
 
 html.worker-surface,
 body.worker-surface {
-  background: #f8fafc;
+  background: var(--page-bg);
+  background-attachment: fixed;
 }
 
 .worker-page {
   min-height: 100dvh;
-  background: #f8fafc;
+  background: transparent;
   color: #0f172a;
   font-size: 16px;
   padding: 20px 16px 40px;
@@ -6406,6 +6413,112 @@ body.worker-surface {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.worker-att-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.worker-att-toolbar button {
+  min-height: 48px;
+  flex: 1;
+  max-width: 42%;
+}
+
+.worker-att-toolbar strong {
+  font-size: 1.05rem;
+  text-align: center;
+  flex: 1;
+}
+
+.worker-att-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.worker-att-summary > div {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.worker-att-summary span {
+  display: block;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.worker-att-summary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.35rem;
+  color: #1e40af;
+}
+
+.worker-att-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.worker-att-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #e2e8f0;
+  min-height: 48px;
+}
+
+.worker-att-list li:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.worker-att-when {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.worker-att-when span {
+  font-size: 0.82rem;
+  color: #b45309;
+}
+
+.worker-att-times {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.worker-att-times em {
+  font-style: normal;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.worker-att-off,
+.worker-att-empty {
+  color: #94a3b8;
+}
+
+.worker-att-off .worker-att-when span,
+.worker-att-empty .worker-att-when span {
+  color: #94a3b8;
 }
 
 .worker-home,
@@ -7850,7 +7963,8 @@ html.app-fullscreen .module-page {
   z-index: 4;
   visibility: visible;
   pointer-events: auto;
-  background: var(--surface);
+  background: var(--page-bg);
+  background-attachment: fixed;
 }
 .ins-decl-section {
   margin-top: 2rem;
@@ -7859,6 +7973,13 @@ html.app-fullscreen .module-page {
 @media print {
   .no-print {
     display: none !important;
+  }
+  .module-page,
+  .fs-sheet,
+  .worker-page,
+  html.worker-surface,
+  body.worker-surface {
+    background: #fff !important;
   }
   .qr-page .qr-print-sheet {
     border: none;

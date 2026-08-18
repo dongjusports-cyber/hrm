@@ -223,6 +223,38 @@ export type WorkerPunchResult = {
   detail: string;
 };
 
+export type WorkerAttendanceDay = {
+  work_date: string;
+  first_in: string | null;
+  last_out: string | null;
+  worked_hours: string | number;
+  late_minutes: number;
+  early_minutes: number;
+  ot_minutes: number;
+  leave_code: string | null;
+  punch_count: number;
+  is_workday: boolean;
+  punches: string[];
+};
+
+export type WorkerAttendanceMonth = {
+  period: string;
+  date_from: string;
+  date_to: string;
+  worked_days: string | number;
+  al_days: string | number;
+  rem_days: string | number;
+  late_count: number;
+  days: WorkerAttendanceDay[];
+};
+
+export async function fetchWorkerAttendance(period?: string): Promise<WorkerAttendanceMonth> {
+  const qs = period ? `?period=${encodeURIComponent(period)}` : "";
+  const res = await workerFetch(`/api/worker/attendance${qs}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export async function submitWorkerPunch(body: {
   latitude?: number | null;
   longitude?: number | null;

@@ -49,6 +49,7 @@ import { RequireAuth } from "./shared/RequireAuth";
 import { useDeniedStore } from "./shared/deniedStore";
 import { RequireWorker } from "./worker/RequireWorker";
 import { WorkerAccountPage } from "./worker/WorkerAccountPage";
+import { WorkerAttendancePage } from "./worker/WorkerAttendancePage";
 import { WorkerHomePage } from "./worker/WorkerHomePage";
 import { WorkerLeavePage } from "./worker/WorkerLeavePage";
 import { WorkerLoginPage } from "./worker/WorkerLoginPage";
@@ -98,6 +99,14 @@ export default function App() {
           element={
             <RequireWorker>
               <WorkerLeavePage />
+            </RequireWorker>
+          }
+        />
+        <Route
+          path="/worker/attendance"
+          element={
+            <RequireWorker>
+              <WorkerAttendancePage />
             </RequireWorker>
           }
         />

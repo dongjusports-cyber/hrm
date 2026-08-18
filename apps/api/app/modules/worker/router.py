@@ -13,6 +13,7 @@ from app.modules.worker import service as worker_service
 from app.modules.config.mobile_punch import WorkerPunchIn, WorkerPunchOut, create_worker_punch
 from app.modules.worker.schemas import (
     MessageOut,
+    WorkerAttendanceMonthOut,
     WorkerChangePasswordRequest,
     WorkerLoginRequest,
     WorkerOut,
@@ -122,6 +123,18 @@ def worker_leave_request_create(
         submit=body.submit,
     )
     return LeaveRequestOut.model_validate(row)
+
+
+@router.get("/attendance", response_model=WorkerAttendanceMonthOut)
+def worker_attendance(
+    worker: WorkerPasswordOk,
+    db: DbSession,
+    period: str | None = None,
+) -> WorkerAttendanceMonthOut:
+    """Công tháng của chính mình — chỉ xem, không sửa."""
+    from app.modules.worker import self_service
+
+    return self_service.get_attendance_month(db, worker, period)
 
 
 @router.post("/punches", response_model=WorkerPunchOut)

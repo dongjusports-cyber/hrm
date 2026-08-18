@@ -108,3 +108,37 @@ class WorkerPayslipDetailOut(BaseModel):
     can_confirm: bool
     can_dispute: bool
     message: str
+
+
+class WorkerLeaveBalanceOut(BaseModel):
+    year: int
+    days_per_year: Decimal
+    accrued: Decimal
+    used: Decimal
+    pending_submitted: Decimal
+    remaining: Decimal
+
+
+class WorkerAttendanceDayOut(BaseModel):
+    work_date: date
+    first_in: datetime | None = None
+    last_out: datetime | None = None
+    worked_hours: Decimal = Decimal("0")
+    late_minutes: int = 0
+    early_minutes: int = 0
+    ot_minutes: int = 0
+    leave_code: str | None = None
+    punch_count: int = 0
+    is_workday: bool = True
+    punches: list[datetime] = Field(default_factory=list)
+
+
+class WorkerAttendanceMonthOut(BaseModel):
+    period: str
+    date_from: date
+    date_to: date
+    worked_days: Decimal
+    al_days: Decimal
+    rem_days: Decimal
+    late_count: int
+    days: list[WorkerAttendanceDayOut]
