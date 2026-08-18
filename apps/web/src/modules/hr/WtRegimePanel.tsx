@@ -138,11 +138,7 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
     }
   }
 
-  const title = embedded ? (
-    <h4 className="emp-allow-block-title">Chế độ đặc biệt</h4>
-  ) : (
-    <h3 className="emp-form-section-title">Chế độ đặc biệt</h3>
-  );
+  const title = <h3 className="emp-form-section-title">Chế độ đặc biệt</h3>;
 
   const body = (
     <>
@@ -200,33 +196,35 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
         </button>
       </div>
 
-      {loading ? (
-        <p className="field-hint">Đang tải…</p>
-      ) : rows.length === 0 ? (
-        <p className="field-hint">Chưa có chế độ đặc biệt.</p>
-      ) : (
-        <ul className="wt-regime-list">
-          {rows.map((r) => (
-            <li key={r.id} className={isActive(r) && !r.ended_at ? "wt-regime-active" : "wt-regime-done"}>
-              <span className="wt-regime-info">
-                {regimeSummary(r)}
-                {r.ended_at ? " · đã chấm dứt" : ""}
-                {r.note ? ` · ${r.note}` : ""}
-              </span>
-              {isActive(r) && !r.ended_at && (
-                <button
-                  type="button"
-                  className="btn-ghost-dark btn-sm"
-                  disabled={busy}
-                  onClick={() => void onEnd(r.id)}
-                >
-                  Chấm dứt
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="wt-regime-list-wrap">
+        {loading ? (
+          <p className="field-hint">Đang tải…</p>
+        ) : rows.length === 0 ? (
+          <p className="field-hint">Chưa có chế độ đặc biệt.</p>
+        ) : (
+          <ul className="wt-regime-list">
+            {rows.map((r) => (
+              <li key={r.id} className={isActive(r) && !r.ended_at ? "wt-regime-active" : "wt-regime-done"}>
+                <span className="wt-regime-info">
+                  {regimeSummary(r)}
+                  {r.ended_at ? " · đã chấm dứt" : ""}
+                  {r.note ? ` · ${r.note}` : ""}
+                </span>
+                {isActive(r) && !r.ended_at && (
+                  <button
+                    type="button"
+                    className="btn-ghost-dark btn-sm"
+                    disabled={busy}
+                    onClick={() => void onEnd(r.id)}
+                  >
+                    Chấm dứt
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
   );
 

@@ -288,12 +288,6 @@ export function formToPayload(form: EmployeeFormState, isNew: boolean) {
     bank_account: form.bank_account || null,
     si_enrolled: form.si_enrolled,
     pit_enrolled: form.pit_enrolled,
-    si_base_override: form.si_base_override.trim()
-      ? digitsOnlyMoney(form.si_base_override)
-      : null,
-    union_fee_override: form.union_fee_override.trim()
-      ? digitsOnlyMoney(form.union_fee_override)
-      : null,
   };
   if (isNew) return extended;
   return {

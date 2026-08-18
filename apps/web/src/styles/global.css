@@ -1234,6 +1234,7 @@ a {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  height: 100%;
 }
 
 .emp-allow-combined {
@@ -1368,6 +1369,20 @@ a {
   overflow: auto;
 }
 
+.emp-profile-cols-balanced > .wt-regime-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.wt-regime-panel .wt-regime-form {
+  flex-shrink: 0;
+}
+
+.wt-regime-list-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
 .emp-form-section-row-sync .emp-allow-list-scroll {
   min-height: 0;
   max-height: min(180px, 36vh);
@@ -1478,8 +1493,11 @@ a {
 
 .emp-allow-add-col .btn-sm {
   align-self: stretch;
+  width: 100%;
+  height: 30px;
   padding: 4px 8px;
   font-size: 0.78rem;
+  box-sizing: border-box;
 }
 
 .emp-insurance-advanced {
@@ -1519,10 +1537,25 @@ a {
 .emp-profile-compact .field {
   gap: 2px;
   font-size: 0.76rem;
+  width: 100%;
+  min-width: 0;
 }
 
-.emp-profile-compact .field input,
+.emp-profile-compact .field:not(.emp-check-row) > span:first-child {
+  display: block;
+  min-height: 1.15em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emp-profile-compact .field input:not([type="checkbox"]),
 .emp-profile-compact .field select {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  box-sizing: border-box;
   padding: 4px 6px;
   font-size: 0.8rem;
   border-radius: 6px;
@@ -1530,25 +1563,30 @@ a {
 
 .emp-profile-compact .emp-form-section {
   background: #fff;
-  height: auto;
   padding: 4px 5px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
 }
 
-.emp-profile-cols-balanced > .emp-form-section {
-  height: auto;
-}
-
-.emp-profile-compact .emp-form-section.emp-form-section-row-sync {
-  height: auto;
-}
-
 .emp-profile-compact .emp-form-section-title {
   font-size: 0.78rem;
+  font-weight: 700;
+  color: #0c4a6e;
   margin: 0 0 4px;
   padding: 0;
   line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.emp-profile-compact .emp-form-section-title-follow {
+  margin-top: 8px;
+}
+
+.emp-profile-compact .emp-allow-add-block .emp-form-section-title,
+.emp-profile-compact .emp-allow-list-block .emp-form-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0c4a6e;
 }
 
 .emp-field-money input {

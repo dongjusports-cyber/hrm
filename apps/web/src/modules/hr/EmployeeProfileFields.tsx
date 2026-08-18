@@ -266,6 +266,35 @@ export function EmployeeCreateFields({
               />
             </label>
             <label className="field">
+              <span>Ngày nghỉ</span>
+              <input
+                type="date"
+                value={form.resign_date}
+                onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
+              />
+            </label>
+          </div>
+          <h3 id="emp-create-insurance" className="emp-form-section-title emp-form-section-title-follow">
+            Bảo hiểm & NH
+          </h3>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="insurance"
+            isNew
+            departments={departments}
+            teams={teams}
+            fieldLayout="column"
+            insuranceChecksFirst
+            includePayChannel
+          />
+        </section>
+        <section className="emp-form-section emp-form-section-col emp-form-section-salary" aria-labelledby="emp-create-salary">
+          <h3 id="emp-create-salary" className="emp-form-section-title">
+            Lương
+          </h3>
+          <div className="emp-fields-col emp-fields-compact">
+            <label className="field">
               <span>Ngày ký HĐ</span>
               <input
                 type="date"
@@ -273,13 +302,6 @@ export function EmployeeCreateFields({
                 onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
               />
             </label>
-          </div>
-        </section>
-        <section className="emp-form-section emp-form-section-col emp-form-section-salary" aria-labelledby="emp-create-salary">
-          <h3 id="emp-create-salary" className="emp-form-section-title">
-            Lương
-          </h3>
-          <div className="emp-fields-col emp-fields-compact">
             <label className="field emp-field-money">
               <span>Lương HĐ *</span>
               <input
@@ -299,16 +321,6 @@ export function EmployeeCreateFields({
                 placeholder="0"
               />
             </label>
-            <label className="field">
-              <span>Kênh lương</span>
-              <select
-                value={form.pay_channel}
-                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
-              >
-                <option value="CASH">Tiền mặt</option>
-                <option value="ATM">ATM</option>
-              </select>
-            </label>
           </div>
           {allowancePanel ? <AllowanceCombinedPanel panel={allowancePanel} /> : null}
         </section>
@@ -316,50 +328,37 @@ export function EmployeeCreateFields({
           <h3 id="emp-create-personal" className="emp-form-section-title">
             Cá nhân
           </h3>
-          <div className="emp-fields-col emp-fields-compact">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="personal"
-              isNew
-              departments={departments}
-              teams={teams}
-              fieldLayout="column"
-            />
-          </div>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="personal"
+            isNew
+            departments={departments}
+            teams={teams}
+            fieldLayout="column"
+            compactPart="main"
+          />
         </section>
         <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-address">
           <h3 id="emp-create-address" className="emp-form-section-title">
             Cư trú & giấy tờ
           </h3>
-          <div className="emp-fields-col emp-fields-compact">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="address"
-              isNew
-              departments={departments}
-              teams={teams}
-              fieldLayout="column"
-            />
-          </div>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="address"
+            isNew
+            departments={departments}
+            teams={teams}
+            fieldLayout="column"
+            includeEducation
+          />
         </section>
-        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-insurance">
-          <h3 id="emp-create-insurance" className="emp-form-section-title">
-            Bảo hiểm & NH
+        <section className="emp-form-section emp-form-section-col wt-regime-panel" aria-labelledby="emp-create-regime">
+          <h3 id="emp-create-regime" className="emp-form-section-title">
+            Chế độ đặc biệt
           </h3>
-          <div className="emp-fields-col emp-fields-compact emp-fields-insurance">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="insurance"
-              isNew
-              departments={departments}
-              teams={teams}
-              fieldLayout="column"
-              insuranceChecksFirst
-            />
-          </div>
+          <p className="field-hint">Lưu hồ sơ rồi mới thêm chế độ.</p>
         </section>
       </div>
     </div>
@@ -396,9 +395,10 @@ function AllowanceAddForm({
 
   return (
     <div className="emp-allow-add-block emp-profile-bottom-panel" aria-label="Thêm phụ cấp">
-      <div className="emp-allow-add emp-allow-add-row emp-allow-add-row-tight">
+      <h3 className="emp-form-section-title">Thêm phụ cấp</h3>
+      <div className="emp-allow-add emp-allow-add-col">
         <label className="field">
-          <span>Thêm phụ cấp</span>
+          <span>Loại</span>
           <select value={newAllowCode} onChange={(e) => onTypeChange(e.target.value)}>
             <option value="">— Loại —</option>
             {selectableTypes.map((t) => (
@@ -453,7 +453,7 @@ function AllowanceListDisplay({
 
   return (
     <div className="emp-allow-list-block emp-profile-bottom-panel" aria-label="Danh sách phụ cấp">
-      <h4 className="emp-allow-block-title">Phụ cấp</h4>
+      <h3 className="emp-form-section-title">Phụ cấp</h3>
       <div className="emp-allow-list-scroll" ref={scrollRef}>
         <ul className="dept-list emp-allow-list emp-allow-list-compact">
           {allowances.length === 0 && <li className="module-placeholder">Chưa có gán phụ cấp.</li>}
@@ -500,7 +500,7 @@ function AllowanceCombinedPanel({ panel }: { panel: AllowanceColProps }) {
   );
 }
 
-/** Hồ sơ gọn — 5 cột một màn, khối cao bằng nhau; phụ cấp nằm cột Lương. */
+/** Hồ sơ gọn — 5 cột: CV+BH | Lương+PC | Cá nhân | Cư trú | Chế độ. */
 export function EmployeeProfileCompactFields({
   form,
   setForm,
@@ -541,6 +541,20 @@ export function EmployeeProfileCompactFields({
               />
             </label>
           </div>
+          <h3 id="emp-sec-insurance" className="emp-form-section-title emp-form-section-title-follow">
+            Bảo hiểm & NH
+          </h3>
+          <EmployeeProfileTabFields
+            form={form}
+            setForm={setForm}
+            tab="insurance"
+            isNew={false}
+            departments={departments}
+            teams={teams}
+            fieldLayout={col}
+            insuranceChecksFirst
+            includePayChannel
+          />
         </section>
         <section className="emp-form-section emp-form-section-col emp-form-section-salary" aria-labelledby="emp-sec-salary">
           <h3 id="emp-sec-salary" className="emp-form-section-title">
@@ -570,16 +584,6 @@ export function EmployeeProfileCompactFields({
                 onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
               />
             </label>
-            <label className="field">
-              <span>Kênh lương</span>
-              <select
-                value={form.pay_channel}
-                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
-              >
-                <option value="ATM">ATM</option>
-                <option value="CASH">Tiền mặt</option>
-              </select>
-            </label>
           </div>
           {allowancePanel ? <AllowanceCombinedPanel panel={allowancePanel} /> : null}
         </section>
@@ -595,6 +599,7 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
+            compactPart="main"
           />
         </section>
         <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-address">
@@ -609,24 +614,19 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
+            includeEducation
           />
         </section>
-        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-insurance">
-          <h3 id="emp-sec-insurance" className="emp-form-section-title">
-            Bảo hiểm & NH
-          </h3>
-          <EmployeeProfileTabFields
-            form={form}
-            setForm={setForm}
-            tab="insurance"
-            isNew={false}
-            departments={departments}
-            teams={teams}
-            fieldLayout={col}
-            insuranceChecksFirst
-          />
-          {employeeId ? <WtRegimePanel employeeId={employeeId} embedded /> : null}
-        </section>
+        {employeeId ? (
+          <WtRegimePanel employeeId={employeeId} />
+        ) : (
+          <section className="emp-form-section emp-form-section-col wt-regime-panel" aria-labelledby="emp-sec-regime">
+            <h3 id="emp-sec-regime" className="emp-form-section-title">
+              Chế độ đặc biệt
+            </h3>
+            <p className="field-hint">Lưu hồ sơ rồi mới thêm chế độ.</p>
+          </section>
+        )}
       </div>
     </div>
   );
@@ -654,7 +654,13 @@ export function EmployeeProfileTabFields({
   fieldLayout = "grid",
   insuranceChecksFirst = false,
   compactPart = "full",
-}: Props & { insuranceChecksFirst?: boolean }) {
+  includePayChannel = false,
+  includeEducation = false,
+}: Props & {
+  insuranceChecksFirst?: boolean;
+  includePayChannel?: boolean;
+  includeEducation?: boolean;
+}) {
   const fieldsClass = fieldLayout === "column" ? "emp-fields-col" : "emp-fields-grid";
   if (tab === "personal") {
     if (compactPart === "anchor") {
@@ -803,6 +809,14 @@ export function EmployeeProfileTabFields({
             />
           </label>
         ) : null}
+        {includeEducation ? (
+          <LookupSelect
+            groupCode="education_level"
+            label="Trình độ"
+            value={form.education_code}
+            onChange={(code) => setForm({ ...form, education_code: code })}
+          />
+        ) : null}
       </div>
     );
   }
@@ -838,43 +852,19 @@ export function EmployeeProfileTabFields({
             onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
           />
         </label>
+        {includePayChannel ? (
+          <label className="field">
+            <span>Kênh lương</span>
+            <select
+              value={form.pay_channel}
+              onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
+            >
+              <option value="ATM">ATM</option>
+              <option value="CASH">Tiền mặt</option>
+            </select>
+          </label>
+        ) : null}
         {!insuranceChecksFirst ? checks : null}
-        {insuranceChecksFirst ? (
-          <details className="emp-insurance-advanced">
-            <summary>Mức đóng / công đoàn (nâng cao)</summary>
-            <label className="field">
-              <span>Mức đóng BH (ghi đè)</span>
-              <input
-                value={form.si_base_override}
-                onChange={(e) => setForm({ ...form, si_base_override: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Phí công đoàn (ghi đè)</span>
-              <input
-                value={form.union_fee_override}
-                onChange={(e) => setForm({ ...form, union_fee_override: e.target.value })}
-              />
-            </label>
-          </details>
-        ) : (
-          <>
-            <label className="field">
-              <span>Mức đóng BH (ghi đè)</span>
-              <input
-                value={form.si_base_override}
-                onChange={(e) => setForm({ ...form, si_base_override: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Phí công đoàn (ghi đè)</span>
-              <input
-                value={form.union_fee_override}
-                onChange={(e) => setForm({ ...form, union_fee_override: e.target.value })}
-              />
-            </label>
-          </>
-        )}
       </div>
     );
   }
