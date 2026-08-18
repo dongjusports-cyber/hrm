@@ -180,6 +180,23 @@ def test_afternoon_only_pair_half_day_and_late():
     assert r.early_minutes == 0
 
 
+def test_lunch_in_1214_and_out_1710():
+    """HR/máy 12:14 + chiều 17:10 — phải giữ cả vào và ra, không nuốt 17:10 (nghỉ cơm)."""
+    d = date(2026, 8, 17)  # Monday
+    punches = [
+        datetime(2026, 8, 17, 12, 14, 0, tzinfo=VN),
+        datetime(2026, 8, 17, 17, 10, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out == punches[1]
+    assert r.punch_count == 2
+    assert r.worked_hours == Decimal("4.0000")
+    assert r.late_minutes == 254
+    assert r.early_minutes == 0
+    assert r.ot_minutes == 0
+
+
 def test_two_close_afternoon_exits_stay_out_only():
     """Hai lần bấm ra gần nhau — không bị biến thành vào+ra."""
     d = date(2026, 8, 15)

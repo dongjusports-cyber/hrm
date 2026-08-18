@@ -174,29 +174,51 @@ def recalculate_days(
     for (code, wd), times in grouped.items():
         emp = employees[code]
         row = day_map.get((emp.id, wd))
-        if row is not None and (row.is_locked or row.source == "manual"):
+        if row is not None and row.is_locked:
             continue
+        keep_in = None
+        keep_out = None
+        was_manual = False
+        if row is not None and row.source == "manual":
+            has_in = row.first_in is not None
+            has_out = row.last_out is not None
+            # Đủ vào+ra: giữ giờ HR. Xóa cả hai: giữ 0 công (không lấy lại punch máy).
+            # Chỉ một phía (HR nhập 12:14, chiều máy 17:10) → tính punch để điền phía thiếu.
+            if has_in == has_out:
+                continue
+            was_manual = True
+            keep_in = to_vn(row.first_in) if has_in else None
+            keep_out = to_vn(row.last_out) if has_out else None
         if emp.team_id is None:
             shift_id = ADMIN_SHIFT_CODE
         else:
             shift_id = shift_cache.get((emp.team_id, wd), ADMIN_SHIFT_CODE)
         # Nối ca của Tổ vào engine (22§22.13): dùng lịch + mốc OT theo ca.
         timing = timing_from_shift(shift_map.get(shift_id), schedule)
-        calc = calculate_day(
-            times,
-            wd,
-            timing.schedule,
+        calc_kw = dict(
             punch_dedupe_window_seconds=dedupe_window,
             ot_split=ot_split,
             ot_start=timing.ot_start_time,
             wt_hours_early=regime_map.get((emp.id, wd)),
             standard_hours=timing.standard_hours,
         )
+        calc = calculate_day(times, wd, timing.schedule, **calc_kw)
+        if keep_in is not None or keep_out is not None:
+            first_in = keep_in if keep_in is not None else calc.first_in
+            last_out = keep_out if keep_out is not None else calc.last_out
+            merged: list[datetime] = []
+            if first_in is not None:
+                merged.append(first_in)
+            if last_out is not None and last_out != first_in:
+                merged.append(last_out)
+            calc = calculate_day(merged, wd, timing.schedule, **calc_kw)
         if row is None:
             row = AttendanceDay(employee_id=emp.id, work_date=wd)
             db.add(row)
             day_map[(emp.id, wd)] = row
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
+        if was_manual:
+            row.source = "manual"
         upserted += 1
         touched_emps.add(code)
 
@@ -221,8 +243,8 @@ def reapply_wt_on_manual_days(
 ) -> int:
     """Tính lại ngày HR chấm tay khi gán/sửa chế độ về sớm.
 
-    recalculate_days bỏ qua source=manual (tránh nuốt giờ tay). Gán thai sản /
-    nuôi con sau khi đã sửa lưới vẫn phải cộng giờ về sớm vào công.
+    recalculate_days bỏ qua ngày manual đủ vào+ra hoặc đã xóa hết giờ.
+    Gán thai sản / nuôi con sau khi đã sửa lưới vẫn phải cộng giờ về sớm vào công.
     """
     emp = (
         db.query(Employee)
