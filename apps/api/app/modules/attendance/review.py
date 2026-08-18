@@ -12,7 +12,11 @@ from fastapi import HTTPException, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.day_enrich import apply_calc_to_day_row, resolve_work_shift_id
+from app.modules.attendance.day_enrich import (
+    apply_calc_to_day_row,
+    resolve_work_shift_id,
+    wt_hours_early_on,
+)
 from app.modules.attendance.engine import VN_TZ, calculate_day, is_company_workday, to_vn
 from app.modules.attendance.models import AttendanceDay, PayPeriod, WorkShift
 from app.modules.attendance.shift_schedule import timing_from_shift
@@ -238,7 +242,13 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
     shift_id = resolve_work_shift_id(db, emp, body.work_date)
     timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
     calc = calculate_day(
-        punches, body.work_date, timing.schedule, ot_split=load_ot_split_policy(db), ot_start=timing.ot_start_time
+        punches,
+        body.work_date,
+        timing.schedule,
+        ot_split=load_ot_split_policy(db),
+        ot_start=timing.ot_start_time,
+        wt_hours_early=wt_hours_early_on(db, emp.id, body.work_date),
+        standard_hours=timing.standard_hours,
     )
     apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
     row.source = "manual"

@@ -137,15 +137,15 @@ export function PortalHome() {
         <p className="portal-loading">Đang tải chức năng…</p>
       ) : (
         <main className="portal-grid portal-bento" aria-label="Danh sách chức năng">
-          {tabs.map((tab) => {
+          {tabs
+            .filter((tab) => tab.allowed)
+            .map((tab) => {
             const accent = TILE_ACCENT[tab.key] ?? "slate";
             return (
               <button
                 key={tab.key}
                 type="button"
-                className={`portal-tile portal-bento-tile tile-${accent}${
-                  tab.allowed ? "" : " is-locked"
-                }`}
+                className={`portal-tile portal-bento-tile tile-${accent}`}
                 onClick={() => onTileClick(tab)}
                 aria-label={tab.name}
               >

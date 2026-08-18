@@ -161,6 +161,7 @@ export function EmployeeCreateSheet({ open, onClose, onCreated }: Props) {
         id="emp-create-sheet-form"
         ref={formShellRef}
         className="fs-sheet-form emp-create-form"
+        noValidate
         onSubmit={(ev) => void onSubmit(ev)}
       >
         <EmployeeCreateFields

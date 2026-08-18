@@ -24,6 +24,7 @@ Tài khoản:   dongjusports-cyber
 | DEPLOY-KEY.txt | Public key dán lên GitHub |
 | HUONG-DAN-DEPLOY-KEY.txt | Sửa lỗi 404 GitHub |
 | QUY-TRINH-HANG-NGAY.txt | Tóm tắt tối/sáng |
+| BAN-GIAO-HR.txt | **Bàn giao HR** — kết quả test + việc HR làm hàng ngày |
 | LOI-DA-SUA.txt | Lỗi đã sửa + cách xử lý (AI/HR tra cứu) |
 | NO-KY-THUAT.txt | **Nợ chưa sửa** — lỗi đã biết, gom sửa 1 lần sau |
 | KE-HOACH-KY-SU-2026-08-15.md | **Kế hoạch chi tiết kỹ sư** — bàn giao Composer 2.5 (đọc trước khi code) |

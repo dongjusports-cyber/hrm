@@ -71,6 +71,14 @@ def _hours_from_ot_minutes(minutes: int) -> Decimal:
     return (Decimal(minutes) / Decimal("60")).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
+def wt_hours_early_on(db: Session, employee_id: UUID, work_date: date) -> int | None:
+    """Giờ về sớm theo chế độ Thai sản / Nuôi con hiệu lực ngày đó — None nếu không có."""
+    from app.modules.mdm.service import active_wt_regime
+
+    r = active_wt_regime(db, employee_id, as_of=work_date)
+    return None if r is None else int(r.hours_early)
+
+
 def apply_calc_to_day_row(
     row: AttendanceDay,
     *,

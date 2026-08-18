@@ -177,10 +177,15 @@ export function PayrollPage() {
     setOk(null);
     try {
       const r = await calculatePayroll(period);
-      setOk(r.message);
       setRows(r.payslips);
       setPeriodMeta(await fetchPayrollPeriod(period));
       setSelected(r.payslips[0] ?? null);
+      const neg = r.payslips.filter((s) => Number(s.net) < 0).length;
+      setOk(
+        neg > 0
+          ? `${r.message} · Cảnh báo: ${neg}/${r.payslips.length} phiếu thực lãnh âm — kiểm tra ngày công trước khi phát hành.`
+          : r.message,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tính lương được.");
     } finally {
@@ -189,7 +194,17 @@ export function PayrollPage() {
   }
 
   async function onPublish() {
-    if (!window.confirm(`Phát hành phiếu lương kỳ ${period} cho công nhân xem?`)) return;
+    const neg = rows.filter((s) => Number(s.net) < 0).length;
+    const parts = [`Phát hành phiếu lương kỳ ${period} cho công nhân xem?`];
+    if (adjustments.length > 0) {
+      parts.push(
+        `Có ${adjustments.length} điều chỉnh. Nếu chưa bấm Tính lương lại, phiếu sẽ thiếu khoản này.`,
+      );
+    }
+    if (neg > 0) {
+      parts.push(`${neg} phiếu đang thực lãnh âm.`);
+    }
+    if (!window.confirm(parts.join("\n\n"))) return;
     setBusy(true);
     setError(null);
     setOk(null);

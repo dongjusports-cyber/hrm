@@ -337,16 +337,9 @@ def rebuild_timesheets(
         late_c = penalty_sum.late_count
         early_c = penalty_sum.early_count
 
-        al = ZERO
         rem = ZERO
         for a in adj_rows:
-            if a.kind == "leave" and a.days is not None:
-                # ALE = phép năm (thay "AL" cũ, hạng mục 2.2). "REM" (nghỉ chế độ NN) không có
-                # mã tương đương trong 14 mã thật 22§22.6 — rem_days sẽ được làm lại đúng ở
-                # hạng mục 3.4/3.5 (timesheet_month_details theo category × segment).
-                if a.leave_code == "ALE":
-                    al += Decimal(a.days)
-            elif a.kind == "ot" and a.ot_hours is not None:
+            if a.kind == "ot" and a.ot_hours is not None:
                 h = Decimal(a.ot_hours)
                 if a.ot_type == "weekend":
                     ot_we += h
@@ -354,6 +347,13 @@ def rebuild_timesheets(
                     ot_h += h
                 else:
                     ot_w += h
+
+        buckets = aggregate_month_details(day_rows, adj_rows, emp)
+        # Phép năm trên lưới ngày (leave_code=ALE) + điều chỉnh — cùng nguồn với chi tiết ABS_ALE.
+        al = ZERO
+        for (_seg, cat), vals in buckets.items():
+            if cat == "ABS_ALE":
+                al += vals["days"]
 
         row = (
             db.query(TimesheetMonth)
@@ -373,7 +373,6 @@ def rebuild_timesheets(
         row.ot_hours_weekend = ot_we.quantize(Q2)
         row.ot_hours_holiday = ot_h.quantize(Q2)
         db.flush()
-        buckets = aggregate_month_details(day_rows, adj_rows, emp)
         sync_timesheet_month_details(db, row.id, buckets)
         upserted += 1
 

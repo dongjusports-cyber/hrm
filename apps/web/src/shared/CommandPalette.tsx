@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchEmployees, type Employee } from "./api";
+import { useAuth } from "./authStore";
 import {
   getPinnedScreens,
   isPinned,
@@ -36,6 +37,7 @@ const ROUTES: CommandItem[] = [
 /** Bảng lệnh Ctrl+K — đi tới màn, ghim yêu thích (5.7). */
 export function CommandPalette() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -72,6 +74,17 @@ export function CommandPalette() {
       .catch(() => setEmployees([]));
   }, [open]);
 
+  const visibleRoutes = useMemo(() => {
+    const isAdmin = user?.role === "admin";
+    const mods = new Set(user?.modules ?? []);
+    return ROUTES.filter((r) => {
+      if (r.id === "portal") return true;
+      if (r.id === "config") return isAdmin;
+      if (r.id.startsWith("hr")) return isAdmin || mods.has("hr");
+      return isAdmin || mods.has(r.id);
+    });
+  }, [user]);
+
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -86,11 +99,11 @@ export function CommandPalette() {
           }),
         )
         .slice(0, 8);
-      const rest = ROUTES.filter((r) => !pinned.some((p) => p.href === r.to)).slice(0, 8);
+      const rest = visibleRoutes.filter((r) => !pinned.some((p) => p.href === r.to)).slice(0, 8);
       return [...pinnedHits, ...rest];
     }
 
-    const routeHits = ROUTES.filter(
+    const routeHits = visibleRoutes.filter(
       (r) => r.label.toLowerCase().includes(q) || r.id.includes(q),
     );
     const empHits = employees
@@ -110,7 +123,7 @@ export function CommandPalette() {
         }),
       );
     return [...empHits, ...routeHits].slice(0, 14);
-  }, [query, employees, pinned]);
+  }, [query, employees, pinned, visibleRoutes]);
 
   const go = useCallback(
     (to: string) => {

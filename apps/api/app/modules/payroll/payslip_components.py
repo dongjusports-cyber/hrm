@@ -53,18 +53,18 @@ def _wd_parts(inp: WdSalaryInput, wd_res: WdSalaryResult) -> list[ComponentDraft
             )
         )
         sort += 10
-    if wd_res.official_amount > 0 or wd_res.probation_amount <= 0:
+    if wd_res.official_amount > 0:
         out.append(
             ComponentDraft(
                 component_code="WD",
                 segment="official",
                 seq_no=1,
-                quantity=contract_days if contract_days > 0 else wd_res.paid_days,
+                quantity=contract_days,
                 unit="day",
                 unit_amount=money_vnd((D(inp.contract_salary) + D(inp.sal_allow)) / divisor)
                 if divisor
                 else None,
-                amount=wd_res.official_amount if wd_res.official_amount > 0 else wd_res.wd_salary,
+                amount=wd_res.official_amount,
                 note="Lương ngày công chính thức",
                 sort_order=sort,
             )
