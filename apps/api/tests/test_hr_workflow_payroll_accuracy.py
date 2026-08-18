@@ -484,7 +484,7 @@ def test_clear_reenter_many_employees_then_payroll(client):
 
     for code in codes:
         anew = _patch_times(client, headers, code, d, 17)
-        assert Decimal(str(anew.json()["worked_hours"])) == Decimal("8")
+        assert Decimal(str(anew["worked_hours"])) == Decimal("8")
 
     again = nets()
     for code in codes:
