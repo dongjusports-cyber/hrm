@@ -435,6 +435,24 @@ LEAVE_PAY_COMPONENTS: list[dict] = [
     {"code": "PER", "name": "Lương nghỉ có phép (PER)", "kind": "earning"},
 ]
 
+# Không gán/tăng qua form hồ sơ hay tab Tăng lương (tính tự động hoặc dòng phiếu).
+_NOT_ASSIGNABLE_ALLOWANCE_CODES = frozenset(
+    {
+        "WD",
+        "OT",
+        "ADJUST",
+        "ADVANCE",
+        "SENIORITY",
+        "SEVERANCE",
+        *(row["code"] for row in LEAVE_PAY_COMPONENTS),
+    }
+)
+ASSIGNABLE_ALLOWANCE_CODES = frozenset(
+    row["code"]
+    for row in CATALOG
+    if row["kind"] == "earning" and row["code"] not in _NOT_ASSIGNABLE_ALLOWANCE_CODES
+)
+
 
 # CTY 2026-08 — trả đủ tháng nếu có gán (sync proration khi DB còn by_worked_days cũ).
 # OTHER («Khác»): HR gán phụ cấp điện thoại / khoản lẻ cố định — không tạo mã PHONE (tránh nhầm SĐT hồ sơ).

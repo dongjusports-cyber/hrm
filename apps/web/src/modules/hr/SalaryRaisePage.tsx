@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   applySalaryRaise,
   fetchAllowanceTypes,
@@ -17,6 +17,7 @@ import { textMatchesQuery } from "../../shared/employeeSearch";
 import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import {
   formatDepartmentLabel,
+  formatOrgName,
   isOrgUnitActive,
 } from "../../shared/formatOrg";
 
@@ -27,15 +28,28 @@ type SalaryRaiseLocationState = {
   employeeIds?: string[];
 };
 
-const RAISE_STATUSES = new Set(["active", "probation"]);
+const RAISE_STATUSES = new Set(["active", "probation", "maternity"]);
+
+function empRaiseStatus(e: Employee): string {
+  return e.effective_status ?? e.status;
+}
 
 function fmtVnd(v: string | number | null | undefined): string {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n.toLocaleString("vi-VN") : "—";
 }
 
+function parseTargetKey(key: string): { target: Target; allowanceCode: string } {
+  if (key.startsWith("allowance:")) {
+    return { target: "allowance", allowanceCode: key.slice("allowance:".length) };
+  }
+  if (key === "probation_salary") {
+    return { target: "probation_salary", allowanceCode: "" };
+  }
+  return { target: "contract_salary", allowanceCode: "" };
+}
+
 export function SalaryRaisePage() {
-  const navigate = useNavigate();
   const location = useLocation();
   const presetIds = useMemo(
     () => (location.state as SalaryRaiseLocationState | null)?.employeeIds ?? [],
@@ -68,7 +82,7 @@ export function SalaryRaisePage() {
         setDept((prev) => prev || list[0]?.code || "");
       })
       .catch(() => setDepartments([]));
-    void fetchAllowanceTypes()
+    void fetchAllowanceTypes({ assignable: true })
       .then((list) => {
         setAllowTypes(list);
         setAllowanceCode((prev) => prev || list[0]?.code || "");
@@ -80,7 +94,9 @@ export function SalaryRaisePage() {
     if (presetIds.length === 0) return;
     void fetchEmployees({ status: "all" })
       .then((rows) => {
-        const picked = rows.filter((e) => presetIds.includes(e.id) && RAISE_STATUSES.has(e.status));
+        const picked = rows.filter(
+          (e) => presetIds.includes(e.id) && RAISE_STATUSES.has(empRaiseStatus(e)),
+        );
         if (picked[0]?.department_code) {
           setDept(picked[0].department_code);
         }
@@ -91,34 +107,55 @@ export function SalaryRaisePage() {
   }, [presetIds]);
 
   useEffect(() => {
-    if (scope !== "employees" || !deptRow?.id) {
+    if (scope !== "employees") {
       setDeptEmployees([]);
       return;
     }
     setLoadingEmployees(true);
-    void fetchEmployees({ department_id: deptRow.id, status: "all" })
+    void fetchEmployees({ status: "all" })
       .then((rows) => {
-        const eligible = rows.filter((e) => RAISE_STATUSES.has(e.status));
+        const eligible = rows.filter((e) => RAISE_STATUSES.has(empRaiseStatus(e)));
         setDeptEmployees(eligible);
+        const allowed = new Set(eligible.map((e) => e.id));
         setSelectedIds((prev) => {
           const next = new Set<string>();
           for (const id of prev) {
-            if (eligible.some((e) => e.id === id)) next.add(id);
+            if (allowed.has(id)) next.add(id);
           }
           return next;
         });
       })
       .catch(() => setDeptEmployees([]))
       .finally(() => setLoadingEmployees(false));
-  }, [scope, deptRow?.id]);
+  }, [scope]);
 
   const filteredEmployees = useMemo(() => {
-    return deptEmployees.filter((e) =>
-      textMatchesQuery(employeeSearch, e.employee_code, e.full_name, e.team_code),
+    const q = employeeSearch.trim();
+    let rows = deptEmployees;
+    if (!q && dept) {
+      rows = rows.filter((e) => e.department_code === dept);
+    }
+    return rows.filter((e) =>
+      textMatchesQuery(
+        q,
+        e.employee_code,
+        e.full_name,
+        e.team_code,
+        e.team_name,
+        e.department_code,
+        e.department_name,
+      ),
     );
-  }, [deptEmployees, employeeSearch]);
+  }, [deptEmployees, employeeSearch, dept]);
 
   const selectedCount = selectedIds.size;
+  const selectedEmployees = useMemo(() => {
+    const byId = new Map(deptEmployees.map((e) => [e.id, e]));
+    return Array.from(selectedIds)
+      .map((id) => byId.get(id))
+      .filter((e): e is Employee => Boolean(e))
+      .sort((a, b) => a.employee_code.localeCompare(b.employee_code, "vi"));
+  }, [deptEmployees, selectedIds]);
 
   function bodyBase() {
     return {
@@ -152,6 +189,15 @@ export function SalaryRaisePage() {
     setPreview(null);
   }
 
+  function unselectVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const e of filteredEmployees) next.delete(e.id);
+      return next;
+    });
+    setPreview(null);
+  }
+
   function clearSelection() {
     setSelectedIds(new Set());
     setPreview(null);
@@ -161,6 +207,10 @@ export function SalaryRaisePage() {
     e.preventDefault();
     if (scope === "employees" && selectedCount === 0) {
       setError("Trợ Lý AI: chọn ít nhất một công nhân trong danh sách.");
+      return;
+    }
+    if (target === "allowance" && !allowanceCode) {
+      setError("Trợ Lý AI: chọn loại phụ cấp cần tăng.");
       return;
     }
     setBusy(true);
@@ -231,7 +281,7 @@ export function SalaryRaisePage() {
       });
       setOk(result.message);
       setPreview(null);
-      navigate("/m/hr");
+      setSelectedIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tăng lương được.");
     } finally {
@@ -267,7 +317,7 @@ export function SalaryRaisePage() {
               }}
             >
               <option value="department">Cả bộ phận</option>
-              <option value="employees">Chọn một vài người trong bộ phận</option>
+              <option value="employees">Chọn từng người (gõ MSNV)</option>
               <option value="all">Toàn bộ công ty</option>
             </select>
           </label>
@@ -278,11 +328,12 @@ export function SalaryRaisePage() {
                 value={dept}
                 onChange={(e) => {
                   setDept(e.target.value);
-                  setSelectedIds(new Set());
+                  if (scope === "department") setSelectedIds(new Set());
                   setPreview(null);
                 }}
-                required
+                required={scope === "department"}
               >
+                {scope === "employees" && <option value="">Tất cả bộ phận</option>}
                 {departments.filter(isOrgUnitActive).map((d) => (
                   <option key={d.id} value={d.code}>
                     {formatDepartmentLabel(d)}
@@ -294,36 +345,37 @@ export function SalaryRaisePage() {
           <label className="field">
             <span>Thành phần tăng</span>
             <select
-              value={target}
+              value={
+                target === "allowance" && allowanceCode
+                  ? `allowance:${allowanceCode}`
+                  : target
+              }
               onChange={(e) => {
-                setTarget(e.target.value as Target);
+                const parsed = parseTargetKey(e.target.value);
+                setTarget(parsed.target);
+                if (parsed.allowanceCode) setAllowanceCode(parsed.allowanceCode);
                 setPreview(null);
               }}
             >
-              <option value="contract_salary">Lương HĐ</option>
-              <option value="probation_salary">Lương thử việc</option>
-              <option value="allowance">Phụ cấp</option>
+              <optgroup label="Lương">
+                <option value="contract_salary">Lương HĐ</option>
+                <option value="probation_salary">Lương thử việc</option>
+              </optgroup>
+              <optgroup label="Phụ cấp">
+                {allowTypes.length === 0 ? (
+                  <option value="allowance" disabled>
+                    (Chưa tải được danh mục phụ cấp)
+                  </option>
+                ) : (
+                  allowTypes.map((a) => (
+                    <option key={a.code} value={`allowance:${a.code}`}>
+                      {a.name}
+                    </option>
+                  ))
+                )}
+              </optgroup>
             </select>
           </label>
-          {target === "allowance" && (
-            <label className="field">
-              <span>Loại phụ cấp</span>
-              <select
-                value={allowanceCode}
-                onChange={(e) => {
-                  setAllowanceCode(e.target.value);
-                  setPreview(null);
-                }}
-                required
-              >
-                {allowTypes.map((a) => (
-                  <option key={a.code} value={a.code}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <label className="field">
             <span>Số tiền tăng (đồng)</span>
             <input
@@ -354,33 +406,67 @@ export function SalaryRaisePage() {
           <div className="hr-raise-picker">
             <div className="hr-raise-picker-head">
               <h2>
-                Danh sách công nhân
-                {deptRow ? ` — ${deptRow.code}` : ""}
-                {selectedCount > 0 ? ` · đã chọn ${selectedCount}` : ""}
+                Tìm công nhân
+                {employeeSearch.trim()
+                  ? " · toàn công ty"
+                  : deptRow
+                    ? ` — ${formatDepartmentLabel(deptRow)}`
+                    : " — tất cả"}
               </h2>
               <ToolbarSearchInput
                 className="hr-search"
-                placeholder="Tìm MSNV / họ tên / tổ"
+                placeholder="Gõ MSNV hoặc họ tên…"
                 onQuery={setEmployeeSearch}
                 style={{ minWidth: 200, flex: "1 1 180px", maxWidth: 280 }}
               />
               <button type="button" className="btn-ghost-dark" onClick={selectAllVisible}>
-                Chọn tất cả
-              </button>
-              <button
-                type="button"
-                className="btn-ghost-dark"
-                disabled={selectedCount === 0}
-                onClick={clearSelection}
-              >
-                Bỏ chọn
+                Chọn tất cả đang hiện
               </button>
             </div>
+            {selectedCount > 0 && (
+              <div className="hr-raise-selected" aria-label="Danh sách đã tích">
+                <div className="hr-raise-selected-head">
+                  <strong>Đã chọn {selectedCount} người</strong>
+                  <span className="field-hint">Luôn hiện đủ, không mất khi đổi bộ phận / ô tìm</span>
+                  <button type="button" className="btn-ghost-dark" onClick={clearSelection}>
+                    Bỏ hết
+                  </button>
+                </div>
+                <ul className="hr-raise-selected-list">
+                  {selectedEmployees.map((emp) => (
+                    <li key={emp.id}>
+                      <button
+                        type="button"
+                        className="hr-raise-chip"
+                        title="Bỏ tích người này"
+                        onClick={() => toggleEmployee(emp.id)}
+                      >
+                        <strong>{emp.employee_code}</strong>
+                        <span>{emp.full_name}</span>
+                        <small>
+                          {formatOrgName(emp.department_name) || emp.department_code || "—"}
+                        </small>
+                        <span className="hr-raise-chip-x" aria-hidden>
+                          ×
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {loadingEmployees && <p className="field-hint">Đang tải danh sách…</p>}
             {!loadingEmployees && deptEmployees.length === 0 && (
-              <p className="field-hint">Không có NV đang làm / thử việc trong bộ phận này.</p>
+              <p className="field-hint">Không có NV đang làm / thử việc / thai sản.</p>
             )}
-            {!loadingEmployees && deptEmployees.length > 0 && (
+            {!loadingEmployees && deptEmployees.length > 0 && filteredEmployees.length === 0 && (
+              <p className="field-hint">
+                {employeeSearch.trim()
+                  ? `Không thấy «${employeeSearch.trim()}». Kiểm tra MSNV hoặc NV đã thôi việc.`
+                  : "Không có NV trong bộ phận đang lọc — gõ MSNV để tìm toàn công ty, hoặc chọn «Tất cả bộ phận»."}
+              </p>
+            )}
+            {!loadingEmployees && filteredEmployees.length > 0 && (
               <div className="hr-raise-picker-table-wrap">
                 <table className="hr-raise-picker-table">
                   <thead>
@@ -395,12 +481,13 @@ export function SalaryRaisePage() {
                           }
                           onChange={(e) => {
                             if (e.target.checked) selectAllVisible();
-                            else clearSelection();
+                            else unselectVisible();
                           }}
                         />
                       </th>
                       <th>MSNV</th>
                       <th>Họ tên</th>
+                      <th>Bộ phận</th>
                       <th>Tổ</th>
                       <th className="num">Lương HĐ</th>
                       <th>Trạng thái</th>
@@ -427,9 +514,10 @@ export function SalaryRaisePage() {
                           </td>
                           <td>{emp.employee_code}</td>
                           <td>{emp.full_name}</td>
-                          <td>{emp.team_code ?? "—"}</td>
+                          <td>{formatOrgName(emp.department_name) || emp.department_code || "—"}</td>
+                          <td>{formatOrgName(emp.team_name) || emp.team_code || "—"}</td>
                           <td className="num">{fmtVnd(emp.contract_salary)}</td>
-                          <td>{labelEmpStatus(emp.status)}</td>
+                          <td>{labelEmpStatus(empRaiseStatus(emp))}</td>
                         </tr>
                       );
                     })}
@@ -438,7 +526,8 @@ export function SalaryRaisePage() {
               </div>
             )}
             <p className="field-hint" style={{ marginTop: 8 }}>
-              Chỉ hiện NV đang làm và thử việc. Tick một hoặc nhiều người rồi «Xem trước».
+              Gõ MSNV → tick. Người đã tick nằm ở khung «Đã chọn» phía trên (không mất khi đổi bộ
+              phận hay xóa ô tìm). Bấm chip để bỏ tích.
             </p>
           </div>
         )}
@@ -467,8 +556,8 @@ export function SalaryRaisePage() {
           </button>
         </div>
         <p className="field-hint">
-          «Cả bộ phận» = mọi NV đang làm trong bộ phận · «Chọn một vài người» = tick trong
-          danh sách · In phụ lục GenusSuite — mỗi NV một trang.
+          «Cả bộ phận» = mọi NV đang làm trong bộ phận · «Chọn từng người» = gõ MSNV (toàn công ty)
+          rồi tick. Thành phần tăng gồm Lương HĐ và từng loại phụ cấp. In phụ lục — mỗi NV một trang.
         </p>
       </form>
     </div>

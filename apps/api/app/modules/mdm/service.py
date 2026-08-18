@@ -100,7 +100,7 @@ from app.core.security import hash_password
 from app.modules.payroll.money import D, money_vnd
 from app.modules.worker.service import default_worker_reset_password
 
-RAISE_STATUSES = ("active", "probation")
+RAISE_STATUSES = ("active", "probation", "maternity")
 
 SALARY_HISTORY_FIELDS = frozenset({"contract_salary", "probation_salary"})
 SALARY_FIELD_LABELS = {
@@ -1255,7 +1255,7 @@ def _raise_target_query(db: Session, body: BulkSalaryRaiseRequest):
                 status_code=404,
                 detail=f"Trợ Lý AI: không tìm thấy bộ phận '{code}'.",
             )
-        q = q.filter(Employee.department_id == dept.id)
+        q = q.join(Team, Employee.team_id == Team.id).filter(Team.department_id == dept.id)
     elif body.scope == "employees":
         ids = list(dict.fromkeys(body.employee_ids or []))
         if not ids:
@@ -1288,10 +1288,19 @@ def _resolve_raise_target(db: Session, body: BulkSalaryRaiseRequest) -> tuple[st
             status_code=404,
             detail=f"Trợ Lý AI: không tìm thấy phụ cấp '{code}'.",
         )
-    return body.target, f"Phụ cấp {at.code} — {at.name}", at
+    from app.modules.payroll.seed_allowances import ASSIGNABLE_ALLOWANCE_CODES
+
+    if code not in ASSIGNABLE_ALLOWANCE_CODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Trợ Lý AI: '{at.name}' không tăng hàng loạt được (không phải phụ cấp gán hồ sơ).",
+        )
+    return body.target, f"Phụ cấp {at.name}", at
 
 
-def _bump_allowance(db: Session, emp: Employee, at: PayComponent, delta: Decimal) -> None:
+def _bump_allowance(
+    db: Session, emp: Employee, at: PayComponent, delta: Decimal
+) -> tuple[Decimal, Decimal]:
     row = (
         db.query(EmployeeAllowanceAssignment)
         .filter(
@@ -1302,16 +1311,19 @@ def _bump_allowance(db: Session, emp: Employee, at: PayComponent, delta: Decimal
     )
     if row is None:
         base = at.default_amount or Decimal("0")
+        new = base + delta
         db.add(
             EmployeeAllowanceAssignment(
                 employee_id=emp.id,
                 allowance_type_id=at.id,
-                amount=base + delta,
+                amount=new,
             )
         )
-        return
+        return base, new
     base = row.amount if row.amount is not None else (at.default_amount or Decimal("0"))
-    row.amount = base + delta
+    new = base + delta
+    row.amount = new
+    return base, new
 
 
 def preview_salary_raise(db: Session, body: BulkSalaryRaiseRequest) -> BulkSalaryRaisePreview:
@@ -1390,18 +1402,28 @@ def apply_salary_raise(
             emp.probation_salary = new
         else:
             assert at is not None
-            _bump_allowance(db, emp, at, body.amount)
+            old, new = _bump_allowance(db, emp, at, body.amount)
+            _record_salary_history(
+                db,
+                employee_id=emp.id,
+                field_code=f"allowance:{at.code}"[:30],
+                effective_from=effective,
+                old_value=old,
+                new_value=new,
+                approved_by=actor.id,
+                note=f"Tăng phụ cấp {at.name} hàng loạt · {scope_label} · +{body.amount:,.0f}".replace(",", "."),
+            )
     db.commit()
 
-    scope_label = dept.code if dept else "ALL"
+    audit_scope = dept.code if dept else ("SELECTED" if body.scope == "employees" else "ALL")
     write_audit(
         db,
         actor=actor,
         action="employee.salary_raise_bulk",
         entity_type="employee",
-        entity_id=scope_label,
+        entity_id=audit_scope,
         summary=(
-            f"Tăng {target_label} +{body.amount} VND · phạm vi {scope_label} · "
+            f"Tăng {target_label} +{body.amount} VND · phạm vi {audit_scope} · "
             f"{len(rows)} NV"
         ),
         meta={
@@ -1413,6 +1435,9 @@ def apply_salary_raise(
             "affected_count": len(rows),
         },
     )
+    where = preview.department_name or (
+        f"{len(rows)} NV được chọn" if body.scope == "employees" else "toàn công ty"
+    )
     return BulkSalaryRaiseResult(
         scope=body.scope,
         department_code=dept.code if dept else None,
@@ -1423,7 +1448,7 @@ def apply_salary_raise(
         affected_count=len(rows),
         message=(
             f"Đã tăng {target_label} thêm {body.amount:,.0f} VND cho {len(rows)} nhân viên "
-            f"({preview.department_name or 'toàn công ty'})."
+            f"({where})."
         ).replace(",", "."),
     )
 

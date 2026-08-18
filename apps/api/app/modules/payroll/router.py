@@ -211,8 +211,12 @@ def delete_pay_adjustment(
 
 
 @router.get("/allowances/types", response_model=list[AllowanceTypeOut])
-def allowance_types(_user: HrOrPayroll, db: DbSession) -> list[AllowanceTypeOut]:
-    return import_allowances.list_allowance_types(db)
+def allowance_types(
+    _user: HrOrPayroll,
+    db: DbSession,
+    assignable: bool = Query(default=False),
+) -> list[AllowanceTypeOut]:
+    return import_allowances.list_allowance_types(db, assignable=assignable)
 
 
 @router.get("/allowances", response_model=list[AllowanceAssignmentOut])

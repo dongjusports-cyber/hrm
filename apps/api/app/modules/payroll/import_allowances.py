@@ -28,7 +28,7 @@ from app.modules.core.models import User
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import EmployeeAllowanceAssignment, PayComponent
 from app.modules.payroll.money import money_vnd
-from app.modules.payroll.seed_allowances import CATALOG, seed_allowance_types
+from app.modules.payroll.seed_allowances import ASSIGNABLE_ALLOWANCE_CODES, CATALOG, seed_allowance_types
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -307,9 +307,12 @@ def import_allowances_xlsx(
     )
 
 
-def list_allowance_types(db: Session) -> list[AllowanceTypeOut]:
+def list_allowance_types(db: Session, *, assignable: bool = False) -> list[AllowanceTypeOut]:
     seed_allowance_types(db)
-    rows = db.query(PayComponent).filter(PayComponent.is_active.is_(True)).order_by(PayComponent.code).all()
+    query = db.query(PayComponent).filter(PayComponent.is_active.is_(True))
+    if assignable:
+        query = query.filter(PayComponent.code.in_(ASSIGNABLE_ALLOWANCE_CODES))
+    rows = query.order_by(PayComponent.name.asc(), PayComponent.code.asc()).all()
     return [
         AllowanceTypeOut(
             code=r.code,

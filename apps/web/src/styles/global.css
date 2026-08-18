@@ -2783,6 +2783,75 @@ a {
   flex: 1 1 auto;
 }
 
+.hr-raise-selected {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+
+.hr-raise-selected-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 6px;
+}
+
+.hr-raise-selected-head strong {
+  font-size: 0.9rem;
+}
+
+.hr-raise-selected-head .field-hint {
+  margin: 0;
+  flex: 1 1 160px;
+}
+
+.hr-raise-selected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hr-raise-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.hr-raise-chip:hover {
+  border-color: #dc2626;
+  color: #991b1b;
+}
+
+.hr-raise-chip strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-raise-chip small {
+  color: #64748b;
+}
+
+.hr-raise-chip-x {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #64748b;
+}
+
 .hr-raise-picker-table-wrap {
   max-height: min(420px, 50vh);
   overflow: auto;

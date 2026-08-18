@@ -1539,6 +1539,7 @@ export async function applySalaryRaise(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("employees:");
   return res.json();
 }
 
@@ -1947,8 +1948,11 @@ export async function fetchAllowanceAssignments(
   return res.json();
 }
 
-export async function fetchAllowanceTypes(): Promise<AllowanceType[]> {
-  const res = await apiFetch("/api/payroll/allowances/types");
+export async function fetchAllowanceTypes(opts?: {
+  assignable?: boolean;
+}): Promise<AllowanceType[]> {
+  const qs = opts?.assignable ? "?assignable=true" : "";
+  const res = await apiFetch(`/api/payroll/allowances/types${qs}`);
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
