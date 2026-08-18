@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
@@ -52,7 +53,7 @@ const MAIN_VIEW_HINT: Record<MainView, string> = {
 const TK_HEADER_TIPS = {
   al: "Nghỉ phép năm",
   rem: "Nghỉ theo mã REM",
-  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:15)",
+  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:30; vân tay 17:00–17:30 không tính)",
   otExt: "Tăng ca trả ATM riêng — sau 20:00 T3/T5, hoặc sau 17:00 ngày khác T3/T5",
   otWeekend: "Tăng ca Chủ nhật — không cộng cột Công; hệ số 2 khi tính lương",
   otHoliday: "Tăng ca ngày lễ — không cộng cột Công; hệ số 3 khi tính lương",
@@ -309,6 +310,12 @@ export function TimekeepingPage() {
     }
     void loadEmpDays(selected.employee_code, pay.date_from, pay.date_to);
   }, [selected, pay, loadEmpDays]);
+
+  useEffect(() => {
+    if (!ok) return;
+    const timer = window.setTimeout(() => setOk(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [ok]);
 
   const filtered = useMemo(
     () => rows.filter((r) => employeeMatchesQuery(r, q)),
@@ -595,12 +602,6 @@ export function TimekeepingPage() {
     if (!selected) return null;
     return (
       <div className="tk-emp-sheet fs-sheet-form-shell">
-        {(error || ok) && (
-          <div className="fs-sheet-toast-host">
-            {error && <p className="banner-warn fs-sheet-banner">{error}</p>}
-            {ok && <p className="banner-ok fs-sheet-banner">{ok}</p>}
-          </div>
-        )}
         {/* Bảng ngày = vùng chính; form sửa tay = thanh gọn dưới (không chiếm nửa màn). */}
         <div className="tk-days-layout tk-days-layout--work">
           <div className="tk-day-scroll tk-day-scroll-full">
@@ -678,11 +679,20 @@ export function TimekeepingPage() {
           </div>
 
           <form className="tk-manual-bar" onSubmit={(e) => void onManualDay(e)}>
-            <span className="tk-manual-bar-stats" title="Tóm tắt tháng đang xem">
-              {dayStats.punched}/{dayStats.total} có chấm · trễ {dayStats.lateDays} · sớm{" "}
-              {dayStats.earlyDays}
-              {daysLoading ? " · …" : ""}
-            </span>
+            <div className="tk-manual-bar-top">
+              <span className="tk-manual-bar-stats" title="Tóm tắt tháng đang xem">
+                {dayStats.punched}/{dayStats.total} có chấm · trễ {dayStats.lateDays} · sớm{" "}
+                {dayStats.earlyDays}
+                {daysLoading ? " · …" : ""}
+              </span>
+              <div className="tk-manual-bar-status" role="status" aria-live="polite">
+                {error ? (
+                  <p className="banner-warn">{error}</p>
+                ) : ok ? (
+                  <p className="banner-ok">{ok}</p>
+                ) : null}
+              </div>
+            </div>
             <label className="field">
               <span>Ngày</span>
               <input
@@ -741,9 +751,6 @@ export function TimekeepingPage() {
       </header>
 
       <main className="module-body module-body-wide tk-main">
-        {error && !detailOpen && <p className="banner-warn">{error}</p>}
-        {ok && !detailOpen && <p className="banner-ok">{ok}</p>}
-
         <form className="tk-toolbar" onSubmit={onSearchSubmit}>
           <label className="period-picker period-picker-compact">
             Kỳ
@@ -1035,6 +1042,15 @@ export function TimekeepingPage() {
         onClose={() => setOtExternalOpen(false)}
         onExported={onOtExternalExported}
       />
+      {(error || ok) &&
+        !detailOpen &&
+        createPortal(
+          <div className="tk-float-toast" role="status" aria-live="polite">
+            {error && <p className="banner-warn fs-sheet-banner">{error}</p>}
+            {ok && <p className="banner-ok fs-sheet-banner">{ok}</p>}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

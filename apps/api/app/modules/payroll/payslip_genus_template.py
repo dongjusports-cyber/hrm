@@ -173,7 +173,8 @@ ALLOWANCE_SLOTS: list[GenusSlot] = [
     GenusSlot("TC Khác", codes=("OTHER",), unit="day"),
     GenusSlot("Thưởng", codes=("BONUS",)),
     GenusSlot("Hoàn trả tháng trước", codes=("ADJUST",), adjust_kinds=("addon",)),
-    GenusSlot("PCCC + HSE", codes=("PCCC", "HSE"), unit="day", merge_codes=True),
+    GenusSlot("PCCC", codes=("PCCC",), unit="day"),
+    GenusSlot("HSE", codes=("HSE",), unit="day"),
 ]
 
 DEDUCTION_SLOTS: list[GenusSlot] = [

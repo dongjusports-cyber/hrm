@@ -68,6 +68,25 @@ def _seconds_to_minutes_up(seconds: float) -> int:
     return int((seconds + 59) // 60)
 
 
+def _drop_interval_punches_if_later(
+    times: list[datetime],
+    work_date: date,
+    start: time,
+    end: time,
+) -> list[datetime]:
+    """Bỏ vân tay trong [start, end] khi đã có bấm sau end (nghỉ cơm 17:00–17:30).
+
+    Chỉ về nhà trong khung này → giữ mốc để ghi giờ ra, không OT (ngưỡng 17:30).
+    """
+    if not times:
+        return times
+    t0 = combine_vn(work_date, start)
+    t1 = combine_vn(work_date, end)
+    if not any(t > t1 for t in times):
+        return times
+    return [t for t in times if t < t0 or t > t1]
+
+
 def _assign_single_punch(
     punch: datetime,
     schedule: Schedule,
@@ -235,6 +254,13 @@ def calculate_day(
 ) -> DayCalcResult:
     split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
+    if times and is_company_workday(work_date, schedule):
+        times = _drop_interval_punches_if_later(
+            times,
+            work_date,
+            split_policy.ignore_punches_from,
+            split_policy.ignore_punches_until,
+        )
     if not times:
         return DayCalcResult(
             work_date=work_date,

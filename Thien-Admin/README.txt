@@ -22,6 +22,7 @@ Tài khoản:   dongjusports-cyber
 | 08-CHUAN-USB-122.bat | **Máy .123** — gói 1 folder USB cho Agent máy .122 |
 | 09-NAP-THONG-TIN-BO-SUNG.bat | Nạp hôn nhân / số con / SĐT từ Excel 14.08 lên VPS |
 | 10-NAP-CHE-DO-THAI-SAN.bat | Nạp danh sách thai sản / nuôi con nhỏ (Excel 18.08) lên VPS |
+| 11-TAI-DB-VPS-VE-MAY-NHA.bat | Máy nhà: kéo DB VPS xuống Docker local (chỉ đọc VPS, không ghi production) |
 | DEPLOY-KEY.txt | Public key dán lên GitHub |
 | HUONG-DAN-DEPLOY-KEY.txt | Sửa lỗi 404 GitHub |
 | QUY-TRINH-HANG-NGAY.txt | Tóm tắt tối/sáng |

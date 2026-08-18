@@ -12,9 +12,9 @@ VN = timezone(timedelta(hours=7))
 def _policy() -> OtSplitPolicy:
     return OtSplitPolicy(
         on_books_weekdays=frozenset({2, 4}),
-        on_books_after=time(17, 15),
+        on_books_after=time(17, 30),
         on_books_until=time(20, 0),
-        ot_grace_minutes=15,
+        ot_grace_minutes=30,
     )
 
 

@@ -67,6 +67,9 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
     → Nạp 13 NV từ Excel 18.08: 5 nuôi con, 3 mang thai, 5 nghỉ sau sanh
     → F5 Portal → lọc «Chế độ đặc biệt» (cần đã deploy code 3 giai đoạn)
 
+  File:  11-TAI-DB-VPS-VE-MAY-NHA.bat
+    → Máy nhà: kéo bản sao DB VPS về Docker local (chỉ đọc VPS, không ghi production)
+
 --------------------------------------------------------------------------------
   TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
 --------------------------------------------------------------------------------

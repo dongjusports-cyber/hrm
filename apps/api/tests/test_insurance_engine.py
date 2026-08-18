@@ -211,3 +211,14 @@ def test_normalize_old_policy_si_components():
     assert "TRAIN" not in out["si_base_components"]
     assert out["si_month_rule"]["min_worked_days"] == 12
     assert out["si_month_rule"]["from_day_of_month"] == 16
+    assert out["ot_split"]["on_books_after"] == "17:30"
+    assert out["ot_split"]["ot_grace_minutes"] == 30
+
+
+def test_normalize_old_ot_grace_1715():
+    old = {"ot_split": {"on_books_after": "17:15", "ot_grace_minutes": 15}}
+    out = normalize_si_policy(old)
+    assert out["ot_split"]["on_books_after"] == "17:30"
+    assert out["ot_split"]["ot_grace_minutes"] == 30
+    assert out["ot_split"]["ignore_punches_from"] == "17:00"
+    assert out["ot_split"]["ignore_punches_until"] == "17:30"

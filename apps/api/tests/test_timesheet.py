@@ -44,7 +44,7 @@ def test_rebuild_timesheet_from_punches(client):
     # 8:01–17:05 → 7.9833h / 8 = 0.9979 → phiếu hiện 0.99 (làm tròn xuống 2 số)
     assert float(row["worked_days"]) == 0.99
     assert row["late_count"] == 1
-    assert float(row["ot_hours_weekday"]) == 0.0  # 17:05 < 17:15 (ot_split grace)
+    assert float(row["ot_hours_weekday"]) == 0.0  # 17:05 trong nghỉ cơm 17:00–17:30
 
 
 def test_work_days_from_hours_examples():

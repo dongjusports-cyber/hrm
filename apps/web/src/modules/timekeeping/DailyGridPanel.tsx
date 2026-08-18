@@ -315,7 +315,7 @@ function DailyGridPanelInner({
         headerName: "Tăng ca sổ",
         width: 76,
         editable: false,
-        headerTooltip: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:15).",
+        headerTooltip: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:30; vân tay 17:00–17:30 không tính).",
         valueGetter: (p) => p.data?.ot_on_books_minutes ?? 0,
         valueFormatter: (p) => formatOtHours(Number(p.value)),
       },

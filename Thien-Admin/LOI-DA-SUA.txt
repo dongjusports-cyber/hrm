@@ -765,3 +765,19 @@ Cách xử lý:
 
 Test:
   apps/api pytest tests/test_insurance_api.py tests/test_worker_payslips.py -q
+
+[PAY-HSE001] Bảng lương in thiếu cột HSE; OT 17:15 → 17:30 — 2026-08-18
+----------------------------------------------------------------------
+Triệu chứng:
+  1) In Excel / phiếu Genus gộp «PCCC+HSE» — tiền HSE vẫn cộng tổng nhưng không có cột riêng.
+  2) Bấm vân tay 17:00–17:30 (nghỉ cơm) bị tính OT từ 17:00 nếu ra sau 17:15.
+
+Cách xử lý:
+  - export_salary_table + payslip_genus_template: cột PCCC và HSE tách riêng.
+  - ot_split: ngưỡng 17:30; phút OT vẫn từ 17:00 (ra 20:00 = 180p).
+  - Vân tay 17:00–17:30 bỏ khi còn bấm sau 17:30; chỉ bấm trong khung → giờ ra, 0 OT.
+  - Migration 20260818_0055 + normalize_si_policy cho gói Policy cũ.
+
+Test:
+  pytest tests/test_ot_split.py tests/test_shift_cleaner.py tests/test_attendance_engine.py
+        tests/test_payslip_genus_template.py tests/test_worker_payslips.py tests/test_insurance_engine.py -q

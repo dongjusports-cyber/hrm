@@ -3,7 +3,8 @@ Tách OT trên sổ vs OT ngoài (ATM riêng) — policy ot_split.
 
 Quy tắc mặc định (Hiến pháp công ty):
 - Thứ 3, Thứ 5 (ISO 2, 4): OT 17:00–20:00 → sổ; sau 20:00 → ngoài.
-- Chỉ tính OT khi bấm ra sau 17:15 (grace toilet); nhưng số phút OT vẫn tính từ 17:00.
+- Bấm 17:00–17:30: không tính vân tay (nếu còn bấm sau 17:30) và không OT.
+- Bấm ra sau 17:30 mới có OT; số phút OT vẫn tính từ 17:00 (ra 20:00 = 180 phút).
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.modules.policy.models import PolicyPackage
-from app.modules.policy.seed_payload import default_payload
+from app.modules.policy.seed_payload import default_payload, normalize_si_policy
 
 VN_TZ = timezone(timedelta(hours=7))
 
@@ -28,9 +29,11 @@ class OtSplitPolicy:
     """Cấu hình tách OT — đọc từ policy ot_split."""
 
     on_books_weekdays: frozenset[int]  # isoweekday: 2=Th3, 4=Th5
-    on_books_after: time  # ngưỡng bấm ra để được OT (17:15 — grace toilet)
+    on_books_after: time  # ngưỡng bấm ra để được OT (17:30 — hết nghỉ cơm)
     on_books_until: time  # hết OT trên sổ (20:00)
-    ot_grace_minutes: int = 15  # = on_books_after − hết ca; không trừ khỏi số phút OT
+    ot_grace_minutes: int = 30  # = on_books_after − hết ca; không trừ khỏi số phút OT
+    ignore_punches_from: time = time(17, 0)
+    ignore_punches_until: time = time(17, 30)
 
 
 def _parse_hhmm(value: str, fallback: time) -> time:
@@ -45,19 +48,35 @@ def _parse_hhmm(value: str, fallback: time) -> time:
         return fallback
 
 
-def default_ot_split_policy() -> OtSplitPolicy:
-    seed = default_payload().get("ot_split") or {}
-    weekdays = seed.get("on_books_weekdays") or [2, 4]
+def _policy_from_raw(raw: dict, fallback: OtSplitPolicy | None = None) -> OtSplitPolicy:
+    fb = fallback or OtSplitPolicy(
+        on_books_weekdays=frozenset({2, 4}),
+        on_books_after=time(17, 30),
+        on_books_until=time(20, 0),
+        ot_grace_minutes=30,
+    )
+    weekdays = raw.get("on_books_weekdays") or list(fb.on_books_weekdays)
     try:
-        grace = int(seed.get("ot_grace_minutes", 15))
+        grace = int(raw.get("ot_grace_minutes", fb.ot_grace_minutes))
     except (TypeError, ValueError):
-        grace = 15
+        grace = fb.ot_grace_minutes
     return OtSplitPolicy(
         on_books_weekdays=frozenset(int(x) for x in weekdays),
-        on_books_after=_parse_hhmm(str(seed.get("on_books_after", "17:15")), time(17, 15)),
-        on_books_until=_parse_hhmm(str(seed.get("on_books_until", "20:00")), time(20, 0)),
+        on_books_after=_parse_hhmm(str(raw.get("on_books_after", "17:30")), fb.on_books_after),
+        on_books_until=_parse_hhmm(str(raw.get("on_books_until", "20:00")), fb.on_books_until),
         ot_grace_minutes=max(0, grace),
+        ignore_punches_from=_parse_hhmm(
+            str(raw.get("ignore_punches_from", "17:00")), fb.ignore_punches_from
+        ),
+        ignore_punches_until=_parse_hhmm(
+            str(raw.get("ignore_punches_until", "17:30")), fb.ignore_punches_until
+        ),
     )
+
+
+def default_ot_split_policy() -> OtSplitPolicy:
+    seed = default_payload().get("ot_split") or {}
+    return _policy_from_raw(seed if isinstance(seed, dict) else {})
 
 
 def load_ot_split_policy(db: Session) -> OtSplitPolicy:
@@ -70,21 +89,12 @@ def load_ot_split_policy(db: Session) -> OtSplitPolicy:
     )
     if not pkg or not isinstance(pkg.payload, dict):
         return fallback
-    raw = pkg.payload.get("ot_split")
+    payload = normalize_si_policy(pkg.payload)
+    raw = payload.get("ot_split")
     if not isinstance(raw, dict):
         return fallback
     try:
-        weekdays = raw.get("on_books_weekdays", list(fallback.on_books_weekdays))
-        try:
-            grace = int(raw.get("ot_grace_minutes", fallback.ot_grace_minutes))
-        except (TypeError, ValueError):
-            grace = fallback.ot_grace_minutes
-        return OtSplitPolicy(
-            on_books_weekdays=frozenset(int(x) for x in weekdays),
-            on_books_after=_parse_hhmm(str(raw.get("on_books_after", "17:15")), fallback.on_books_after),
-            on_books_until=_parse_hhmm(str(raw.get("on_books_until", "20:00")), fallback.on_books_until),
-            ot_grace_minutes=max(0, grace),
-        )
+        return _policy_from_raw(raw, fallback)
     except (TypeError, ValueError):
         return fallback
 
@@ -99,8 +109,8 @@ def split_weekday_ot_minutes(
     """
     Trả (ot_on_books_minutes, ot_external_minutes) cho ngày làm việc thường.
 
-    - ot_qualify_after (17:15): bấm ra ≤ mốc này → 0 OT (toilet / việc riêng).
-    - ot_start (mốc bắt đầu OT, MẶC ĐỊNH 17:00): số phút OT tính từ đây.
+    - ot_qualify_after (17:30): bấm ra ≤ mốc này → 0 OT (nghỉ cơm 17:00–17:30).
+    - ot_start (mốc bắt đầu OT, MẶC ĐỊNH 17:00): số phút OT tính từ đây khi đã đủ ngưỡng.
       TÁCH khỏi giờ hết ca — ca CLEANER hết ca 16:00 nhưng OT vẫn từ 17:00,
       nên 16:00–17:00 (giờ nghỉ) không sinh OT (22§22.13, sửa LH-3).
     """

@@ -92,13 +92,17 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "on_books_weekdays": [2, 4],
 
-        "ot_grace_minutes": 15,
+        "ot_grace_minutes": 30,
 
-        "on_books_after": "17:15",
+        "on_books_after": "17:30",
 
         "on_books_until": "20:00",
 
-        "note": "Bấm ra sau 17h15 mới có OT; số phút OT tính từ 17h00. Th3+Th5: 17h-20h sổ; sau 20h → ngoài.",
+        "ignore_punches_from": "17:00",
+
+        "ignore_punches_until": "17:30",
+
+        "note": "Bấm 17h00–17h30 không tính vân tay / không OT. Bấm ra sau 17h30 mới có OT; số phút vẫn tính từ 17h00 (vd. ra 20h00 = 3 giờ). Th3+Th5: 17h–20h sổ; sau 20h → ngoài.",
 
         "ot_external": {
 
@@ -263,6 +267,26 @@ def normalize_si_policy(payload: dict[str, Any] | None) -> dict[str, Any]:
         out["si_base_components"] = list(defaults["si_base_components"])
     if not isinstance(out.get("si_month_rule"), dict):
         out["si_month_rule"] = dict(defaults["si_month_rule"])
+    out["ot_split"] = _normalize_ot_split(out.get("ot_split"), defaults["ot_split"])
     return out
+
+
+def _normalize_ot_split(raw: Any, defaults: dict[str, Any]) -> dict[str, Any]:
+    """Gói cũ: ngưỡng toilet 17:15 → nghỉ cơm 17:00–17:30; phút OT vẫn từ 17:00."""
+    ot = dict(defaults)
+    if isinstance(raw, dict):
+        ot.update(raw)
+    after = str(ot.get("on_books_after") or "")
+    try:
+        grace = int(ot.get("ot_grace_minutes", 30))
+    except (TypeError, ValueError):
+        grace = 30
+    if after.startswith("17:15") or grace == 15:
+        ot["on_books_after"] = defaults["on_books_after"]
+        ot["ot_grace_minutes"] = defaults["ot_grace_minutes"]
+        ot["note"] = defaults.get("note", ot.get("note"))
+    ot.setdefault("ignore_punches_from", defaults.get("ignore_punches_from", "17:00"))
+    ot.setdefault("ignore_punches_until", defaults.get("ignore_punches_until", "17:30"))
+    return ot
 
 

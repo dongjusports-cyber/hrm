@@ -58,7 +58,7 @@ def test_late_at_080001():
 
 
 def test_out_at_2000_full_day_and_ot_3h():
-    """24§ nghiệm thu: ra 20:00 (sau 17:15) → công 8h + OT 180 phút từ 17:00."""
+    """24§ nghiệm thu: ra 20:00 (sau 17:30) → công 8h + OT 180 phút từ 17:00."""
     d = date(2025, 10, 14)  # Thứ 3
     punches = [
         datetime(2025, 10, 14, 8, 0, 0, tzinfo=VN),

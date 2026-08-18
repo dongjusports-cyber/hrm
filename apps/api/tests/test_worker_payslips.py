@@ -84,7 +84,7 @@ def test_worker_sees_only_published(client, db):
     assert isinstance(d["deduction_lines"], list)
     assert len(d["work_lines"]) >= 1
     assert len(d["deduction_lines"]) >= 1
-    assert len(d["allowance_lines"]) == 10
+    assert len(d["allowance_lines"]) == 11
     assert len(d["work_lines"]) == 5
     assert d["employee_code"] == "5290"
     assert "taxable_income" in d

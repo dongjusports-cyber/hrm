@@ -26,14 +26,14 @@ def _detail_map(rows: list[dict]) -> dict[tuple[str, str], dict]:
 
 
 def test_rebuild_creates_wt_and_ot_details(client):
-    # 2025-10-14 = Thứ 3 (OT trên sổ); ra 17:20 → 20p OT (sau grace 17:15)
+    # 2025-10-14 = Thứ 3 (OT trên sổ); ra 20:00 → 180p OT từ 17:00
     client.post(
         "/api/integrations/mitapro/push",
         headers=_agent_headers(),
         json={
             "punches": [
                 {"employee_code": "5290", "punch_time": "2025-10-14T08:01:00+07:00"},
-                {"employee_code": "5290", "punch_time": "2025-10-14T17:20:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-14T20:00:00+07:00"},
             ]
         },
     )
@@ -53,7 +53,7 @@ def test_rebuild_creates_wt_and_ot_details(client):
     assert ("WT", "official") in m
     assert float(m[("WT", "official")]["days"]) == 0.99
     assert ("OT", "official") in m
-    assert float(m[("OT", "official")]["hours"]) == 0.33  # 20 phút
+    assert float(m[("OT", "official")]["hours"]) == 3.0  # 180 phút từ 17:00
 
 
 def test_rebuild_sunday_st_hours(client):

@@ -42,7 +42,7 @@ MONTH_EN = {
     12: "DECEMBER",
 }
 
-# Header EN/VI/NUM — trích từ 2.Salary table for July.2026.xls (37 cột, | = xuống dòng)
+# Header EN/VI/NUM — mẫu Genus + cột HSE tách khỏi PCCC (38 cột)
 HEADER_EN_1 = [
     "No",
     "Section",
@@ -63,6 +63,7 @@ HEADER_EN_1 = [
     "REM\n(Days)",
     "WD\nSalary",
     "ALLOWANCE / Phụ cấp",
+    "",
     "",
     "",
     "",
@@ -106,7 +107,8 @@ HEADER_EN_2 = [
     "Position",
     "Toxic",
     "Trans",
-    "PCCC+HSE",
+    "PCCC",
+    "HSE",
     "Tech",
     "Serverance",
     "Other",
@@ -146,7 +148,8 @@ HEADER_ROW_VI = [
     "Chức vụ",
     "Độc hại",
     "Đi lại",
-    "PCCC+HSE",
+    "PCCC",
+    "HSE",
     "Tay nghề may",
     "Thâm niên",
     "Khác",
@@ -181,9 +184,8 @@ HEADER_MERGES = [
     (9, 11, 15, 16),
     (9, 11, 16, 17),
     (9, 11, 17, 18),
-    (9, 10, 18, 27),
-    (9, 10, 27, 29),
-    (9, 11, 29, 30),
+    (9, 10, 18, 28),
+    (9, 10, 28, 30),
     (9, 11, 30, 31),
     (9, 11, 31, 32),
     (9, 11, 32, 33),
@@ -191,6 +193,7 @@ HEADER_MERGES = [
     (9, 11, 34, 35),
     (9, 11, 35, 36),
     (9, 11, 36, 37),
+    (9, 11, 37, 38),
     (10, 12, 12, 13),
     (10, 12, 13, 14),
     (10, 12, 14, 15),
@@ -202,9 +205,10 @@ ALLOW_COLS = {
     "TOXIC": 20,
     "TRANSPORT": 21,
     "PCCC": 22,
-    "TECH": 23,
-    "SENIORITY": 24,
-    "OTHER": 25,
+    "HSE": 23,
+    "TECH": 24,
+    "SENIORITY": 25,
+    "OTHER": 26,
 }
 
 ROW_COMPANY = 1
@@ -215,9 +219,9 @@ ROW_HEADER_EN_2 = 11
 ROW_HEADER_VI = 12
 ROW_HEADER_NUM = 13
 ROW_DATA_START = 14
-LAST_COL = 37
+LAST_COL = 38
 
-NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 37))  # 1-based
+NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 38))  # 1-based
 
 FILL_HEADER = PatternFill(fill_type="solid", start_color="969696", end_color="969696")
 FILL_NUM = PatternFill(fill_type="solid", start_color="C0C0C0", end_color="C0C0C0")
@@ -256,6 +260,7 @@ COL_WIDTHS = [
     8,
     8,
     12,
+    10,
     10,
     10,
     10,
@@ -484,22 +489,18 @@ def _build_data_row(
     row[16] = _num(ts.rem_days)
     row[17] = _num(slip.wd_salary)
     for code, col in ALLOW_COLS.items():
-        if code == "PCCC":
-            # Cột Genus «PCCC+HSE» — xuất tổng 2 mã riêng trên phiếu lương
-            row[col] = _num(allow.get("PCCC", ZERO) + allow.get("HSE", ZERO))
-        else:
-            row[col] = _num(allow.get(code, ZERO))
-    row[26] = _num(slip.allowance_total)
-    row[27] = _num(ts.ot_hours_weekday)
-    row[28] = _num(slip.ot_pay)
-    row[29] = _num(slip.gross)
-    row[30] = _num(slip.bhxh)
-    row[31] = _num(slip.bhyt)
-    row[32] = _num(slip.bhtn)
-    row[33] = _num(slip.union_fee)
-    row[34] = _num(slip.other_deductions)
-    row[35] = int(money_vnd(slip.net))
-    row[36] = _fmt_sex(emp.gender)
+        row[col] = _num(allow.get(code, ZERO))
+    row[27] = _num(slip.allowance_total)
+    row[28] = _num(ts.ot_hours_weekday)
+    row[29] = _num(slip.ot_pay)
+    row[30] = _num(slip.gross)
+    row[31] = _num(slip.bhxh)
+    row[32] = _num(slip.bhyt)
+    row[33] = _num(slip.bhtn)
+    row[34] = _num(slip.union_fee)
+    row[35] = _num(slip.other_deductions)
+    row[36] = int(money_vnd(slip.net))
+    row[37] = _fmt_sex(emp.gender)
     return row
 
 
@@ -557,11 +558,11 @@ def _write_sheet(
     _style_footer_cell(fc)
     for col in range(2, 11):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    for col in range(11, 36):
+    for col in range(11, 37):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    nc = ws.cell(row=footer, column=36, value=total_net)
+    nc = ws.cell(row=footer, column=37, value=total_net)
     _style_footer_cell(nc)
-    _style_footer_cell(ws.cell(row=footer, column=37))
+    _style_footer_cell(ws.cell(row=footer, column=38))
 
     for idx, w in enumerate(COL_WIDTHS, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = w

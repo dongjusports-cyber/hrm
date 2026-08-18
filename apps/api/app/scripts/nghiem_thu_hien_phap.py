@@ -768,7 +768,7 @@ def check_dot3(db) -> list[Result]:
             "3",
             "3.9b",
             ok_th5,
-            f"Th5 21h: OT sổ={th5.ot_on_books_minutes}p ngoài={th5.ot_external_minutes}p (ngưỡng 17:15, tính từ 17:00)"
+            f"Th5 21h: OT sổ={th5.ot_on_books_minutes}p ngoài={th5.ot_external_minutes}p (ngưỡng 17:30, tính từ 17:00)"
             if ok_th5
             else f"FAIL sổ={th5.ot_on_books_minutes} ngoài={th5.ot_external_minutes}",
         )

@@ -23,7 +23,7 @@ def _sched(**kwargs) -> Schedule:
 
 
 def test_late_and_ot_weekday():
-    # 2025-10-01 = Wednesday — OT ngoài từ 17:15
+    # 2025-10-01 = Wednesday — OT ngoài sau 17:30
     d = date(2025, 10, 1)
     punches = [
         datetime(2025, 10, 1, 8, 1, tzinfo=VN),
@@ -33,21 +33,31 @@ def test_late_and_ot_weekday():
     assert r.is_workday
     assert r.late_minutes == 1
     assert r.early_minutes == 0
-    assert r.ot_minutes == 0  # 17:05 < 17:15
+    assert r.ot_minutes == 0  # 17:05 trong nghỉ cơm 17:00–17:30
     assert r.ot_on_books_minutes == 0
     assert r.ot_external_minutes == 0
     assert r.worked_hours == Decimal("7.9833")
 
 
-def test_ot_starts_after_grace_1715():
+def test_ot_starts_after_dinner_1730():
     d = date(2025, 10, 1)  # Wednesday
     punches = [
         datetime(2025, 10, 1, 8, 0, tzinfo=VN),
         datetime(2025, 10, 1, 17, 20, tzinfo=VN),
     ]
     r = calculate_day(punches, d, _sched())
-    assert r.ot_minutes == 20  # từ 17:00
-    assert r.ot_external_minutes == 20
+    assert r.ot_minutes == 0  # nghỉ cơm, không OT
+
+
+def test_ot_from_1700_when_out_after_dinner():
+    d = date(2025, 10, 1)  # Wednesday
+    punches = [
+        datetime(2025, 10, 1, 8, 0, tzinfo=VN),
+        datetime(2025, 10, 1, 18, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.ot_minutes == 60  # từ 17:00
+    assert r.ot_external_minutes == 60
 
 
 def test_early_leave():
@@ -105,7 +115,7 @@ def test_single_punch_out_only_records_last_out():
     assert r.last_out == punches[0]
     assert r.late_minutes == 0
     assert r.early_minutes == 0
-    assert r.ot_minutes == 0  # trước 17:15
+    assert r.ot_minutes == 0  # nghỉ cơm 17:00–17:30
     assert r.worked_hours == Decimal("0")
 
 

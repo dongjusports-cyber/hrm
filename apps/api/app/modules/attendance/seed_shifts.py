@@ -18,48 +18,57 @@ CLEANER_TEAM_CODE = "02"
 
 
 def seed_work_shifts(db: Session) -> None:
-    """Seed ca ADMIN + CLEANER (idempotent). 22§22.13: CLEANER hết ca 16:00, OT từ 17:00."""
-    changed = False
-    if db.get(WorkShift, ADMIN_SHIFT_CODE) is None:
-        db.add(
-            WorkShift(
-                code=ADMIN_SHIFT_CODE,
-                name="Hành chính (08:00–17:00)",
-                start_time=time(8, 0),
-                end_time=time(17, 0),
-                lunch_start=time(12, 0),
-                lunch_end=time(13, 0),
-                dinner_start=None,
-                dinner_end=None,
-                ot_start=time(17, 0),
-                night_start=time(22, 0),  # mốc ca đêm theo luật LĐ VN (22:00–06:00)
-                lunch_deduct_hours=Decimal("1.0"),
-                dinner_deduct_hours=Decimal("0"),
-                standard_hours=Decimal("8.0"),
-            )
-        )
-        changed = True
-    if db.get(WorkShift, CLEANER_SHIFT_CODE) is None:
-        db.add(
-            WorkShift(
-                code=CLEANER_SHIFT_CODE,
-                name="Ca tạp vụ (07:00–16:00)",
-                start_time=time(7, 0),
-                end_time=time(16, 0),  # hết ca / mốc về sớm
-                lunch_start=time(12, 0),
-                lunch_end=time(13, 0),
-                dinner_start=None,
-                dinner_end=None,
-                ot_start=time(17, 0),  # mốc OT TÁCH khỏi giờ hết ca (16:00–17:00 là giờ nghỉ)
-                night_start=time(22, 0),
-                lunch_deduct_hours=Decimal("1.0"),
-                dinner_deduct_hours=Decimal("0"),
-                standard_hours=Decimal("8.0"),
-            )
-        )
-        changed = True
-    if changed:
+    """Seed ca ADMIN + CLEANER (idempotent). CLEANER hết ca 16:00, OT từ 17:00.
+
+    Nghỉ cơm 17:00–17:30: vân tay trong khung không tính nếu còn bấm sau 17:30.
+    """
+    changed_admin = _upsert_shift(
+        db,
+        ADMIN_SHIFT_CODE,
+        name="Hành chính (08:00–17:00)",
+        start_time=time(8, 0),
+        end_time=time(17, 0),
+        lunch_start=time(12, 0),
+        lunch_end=time(13, 0),
+        dinner_start=time(17, 0),
+        dinner_end=time(17, 30),
+        ot_start=time(17, 0),
+        night_start=time(22, 0),
+        lunch_deduct_hours=Decimal("1.0"),
+        dinner_deduct_hours=Decimal("0"),
+        standard_hours=Decimal("8.0"),
+    )
+    changed_cleaner = _upsert_shift(
+        db,
+        CLEANER_SHIFT_CODE,
+        name="Ca tạp vụ (07:00–16:00)",
+        start_time=time(7, 0),
+        end_time=time(16, 0),
+        lunch_start=time(12, 0),
+        lunch_end=time(13, 0),
+        dinner_start=time(17, 0),
+        dinner_end=time(17, 30),
+        ot_start=time(17, 0),
+        night_start=time(22, 0),
+        lunch_deduct_hours=Decimal("1.0"),
+        dinner_deduct_hours=Decimal("0"),
+        standard_hours=Decimal("8.0"),
+    )
+    if changed_admin or changed_cleaner:
         db.commit()
+
+
+def _upsert_shift(db: Session, code: str, **fields: object) -> bool:
+    row = db.get(WorkShift, code)
+    if row is None:
+        db.add(WorkShift(code=code, **fields))
+        return True
+    changed = False
+    for key, val in fields.items():
+        if getattr(row, key) != val:
+            setattr(row, key, val)
+            changed = True
+    return changed
 
 
 def _assign_cleaner_team(db: Session) -> int:

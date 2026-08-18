@@ -15,9 +15,9 @@ VN = timezone(timedelta(hours=7))
 def _policy() -> OtSplitPolicy:
     return OtSplitPolicy(
         on_books_weekdays=frozenset({2, 4}),
-        on_books_after=time(17, 15),
+        on_books_after=time(17, 30),
         on_books_until=time(20, 0),
-        ot_grace_minutes=15,
+        ot_grace_minutes=30,
     )
 
 
@@ -73,13 +73,13 @@ def test_cleaner_rest_hour_1600_1700_no_ot():
 
 
 def test_cleaner_ot_counts_from_1700_on_books_tuesday():
-    """07:00–17:30 Th3: OT tính TỪ 17:00 (không phải 16:00) → 30p sổ."""
+    """07:00–18:00 Th3: OT tính TỪ 17:00 (không phải 16:00) → 60p sổ."""
     d = date(2025, 10, 7)  # Tuesday (∈ on_books_weekdays)
-    punches = [datetime(2025, 10, 7, 7, 0, tzinfo=VN), datetime(2025, 10, 7, 17, 30, tzinfo=VN)]
+    punches = [datetime(2025, 10, 7, 7, 0, tzinfo=VN), datetime(2025, 10, 7, 18, 0, tzinfo=VN)]
     r = calculate_day(punches, d, _cleaner_sched(), ot_split=_policy(), ot_start=CLEANER_OT_START)
-    assert r.ot_on_books_minutes == 30
+    assert r.ot_on_books_minutes == 60
     assert r.ot_external_minutes == 0
-    assert r.ot_minutes == 30
+    assert r.ot_minutes == 60
 
 
 def test_cleaner_leave_before_1600_is_early():
@@ -103,10 +103,19 @@ def test_admin_regression_unchanged():
     assert r.ot_minutes == 0
 
 
-def test_admin_ot_after_1715_still_from_1700():
-    """ADMIN 08:00–17:20 Th3: OT vẫn từ 17:00 → 20p sổ (hồi quy ot_split)."""
+def test_admin_dinner_punch_no_ot():
+    """ADMIN 08:00–17:20 Th3: nghỉ cơm, không OT."""
     d = date(2025, 10, 7)  # Tuesday
     punches = [datetime(2025, 10, 7, 8, 0, tzinfo=VN), datetime(2025, 10, 7, 17, 20, tzinfo=VN)]
     r = calculate_day(punches, d, _admin_sched(), ot_split=_policy())
-    assert r.ot_minutes == 20
-    assert r.ot_on_books_minutes == 20
+    assert r.ot_minutes == 0
+    assert r.ot_on_books_minutes == 0
+
+
+def test_admin_ot_after_1730_from_1700():
+    """ADMIN 08:00–18:00 Th3: OT từ 17:00 → 60p sổ."""
+    d = date(2025, 10, 7)  # Tuesday
+    punches = [datetime(2025, 10, 7, 8, 0, tzinfo=VN), datetime(2025, 10, 7, 18, 0, tzinfo=VN)]
+    r = calculate_day(punches, d, _admin_sched(), ot_split=_policy())
+    assert r.ot_minutes == 60
+    assert r.ot_on_books_minutes == 60
