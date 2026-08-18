@@ -1,0 +1,93 @@
+BAN GIAO HR — DJ-HRM (Cloud test 17/08/2026)
+============================================
+
+Portal: http://127.0.0.1:5173  (máy .123 / VPS: https://hrm.dongju-v.com)
+Tài khoản HR:  hr.demo
+Tài khoản Admin: admin
+Công nhân mẫu: MSNV 5290 (lần đầu bắt buộc đổi mật khẩu mới xem phiếu)
+
+Đọc mật khẩu: ops/THONG_TIN_VPS.txt hoặc Thien-Admin/DOC_BAT_DAU.txt (máy .123).
+Không gửi mật khẩu qua chat/zalo.
+
+--------------------------------------------------------------------------------
+KẾT QUẢ TEST BÀN GIAO
+--------------------------------------------------------------------------------
+API pytest:     472 passed, 1 skipped
+Web vitest:     61 passed (gồm ESC)
+UAT hr.demo:    ma trận GET 7 module + 403 Cấu Hình — passed
+Quy trình kín:  tạo NV / thôi việc / phép / thai sản / chấm công / tính lương /
+                phiếu / phát hành — passed (MSNV 9415)
+
+Live Cloud (hr.demo):
+  362 NV, kỳ 2026-08 ĐÃ PHÁT HÀNH
+  Tổng Quan ?period=2026-08 → 200
+  Chấm công lưới ngày / tổng hợp tháng → 200
+  Phiếu 9415: Công 3 · AL 1 · WD 600.000 · ALE 200.000 · thực lãnh 425.285
+
+--------------------------------------------------------------------------------
+HR LÀM GÌ HÀNG NGÀY (thứ tự)
+--------------------------------------------------------------------------------
+1. Portal → Nhân Sự
+   - Tất cả / Chính thức / Thử việc / Chế độ đặc biệt / Thôi việc
+   - Tạo nhân viên mới (họ tên + tổ + lương). Thiếu họ tên = lỗi tiếng Việt.
+   - Không có nút Xóa hồ sơ. Gỡ khỏi đang làm = Thủ tục thôi việc.
+   - Tái tuyển: tab Thôi việc → nút Tái tuyển.
+
+2. Hồ sơ NV (double-click dòng)
+   - Lương HĐ / thử việc, BHXH
+   - Chế độ về sớm: Thai sản 1h / Nuôi con 2h (không tính lùi ngày bắt đầu)
+   - Thân nhân, vi phạm, giấy tờ, In HĐ / In QĐ
+
+3. Chấm Công
+   - Kiểm theo ngày: sửa Vào/Ra, gán phép năm (ALE)
+   - Tổng hợp tháng: cột Công / Phép năm
+   - Tab Duyệt phép: đơn công nhân gửi từ điện thoại
+   - ESC trong ô giờ = hoàn tác + thoát ô, không đóng trang
+
+4. Tính Lương (kỳ YYYY-MM)
+   - Tính lương (Admin mở lại kỳ nếu đã phát hành)
+   - Tab Phiếu lương: 3 khối Ngày công & nghỉ / Trợ cấp / Khấu trừ
+   - Phát hành — cảnh báo nếu nhiều phiếu thực lãnh âm
+   - Công thức ngày công: (lương HĐ) / 26 × số ngày công
+   - Phép năm trả 100% qua dòng ALE, KHÔNG cộng vào WD
+   - BHXH trừ cả tháng nếu NV đang đóng (dù ít ngày công → có thể âm)
+
+5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan
+   - Tổng Quan chọn kỳ tháng
+   - Khiếu nại: danh sách đơn công nhân
+
+--------------------------------------------------------------------------------
+MSNV KIỂM TRA SẴN TRÊN CLOUD
+--------------------------------------------------------------------------------
+9415  QA Phieu Luong 9415   — NV test bàn giao (HĐ 5.200.000, Thai sản 1h)
+5322  Phạm Thị QA           — tạo thử trước đó
+5290  Lê Văn C              — công nhân mẫu (đơn phép đã duyệt)
+9412  — đã thôi việc (kiểm tab Thôi việc)
+
+Phiếu 9415 kỳ 08/2026 (÷26):
+  3 ngày công = 600.000
+  1 phép năm  = 200.000
+  Chuyên cần  = 92.308
+  Đi lại      = 123.077
+  BHXH/BHYT/BHTN/CĐ = 416.000 / 78.000 / 52.000 / 44.100
+  Thực lãnh   = 425.285
+
+--------------------------------------------------------------------------------
+BIẾT TRƯỚC (không phải lỗi phần mềm)
+--------------------------------------------------------------------------------
+- Cloud chưa có file trích xuất phép năm GenuSuite → màn Phép năm 0 NV.
+  VPS/máy .123 có HIEN_PHAP thì chạy extract_annual_leave.
+- Hầu hết 360 NV Cloud không có chấm công tháng 8 → phiếu âm vì BHXH cả tháng.
+  NV có công (9415) ra lương đúng.
+- Không xóa cứng hồ sơ NV. Thôi việc + tái tuyển.
+- Công nhân 5290: phải đổi mật khẩu mặc định mới xem phiếu.
+- HR không thấy ô Cấu Hình trên Portal (ẩn khi allowed=false). API Users / AI settings = 403.
+
+--------------------------------------------------------------------------------
+NẾU LỖI
+--------------------------------------------------------------------------------
+Portal khóa pass 3 lần: Thien-Admin\03-MO-KHOA-PORTAL.bat
+Tổng Quan trắng: gọi GET /api/reports/overview?period=YYYY-MM (cần query period)
+ESC: rule khóa — không tự gắn listener Escape mới.
+
+Sáng đồng bộ VPS: Thien-Admin\02-DONG-BO-SANG.bat

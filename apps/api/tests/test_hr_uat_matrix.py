@@ -32,11 +32,18 @@ def test_hr_profile_and_modules(client):
         ("GET", "/api/employees", 200),
         ("GET", "/api/departments", 200),
         ("GET", "/api/teams", 200),
+        ("GET", "/api/labour-contracts", 200),
+        ("GET", "/api/labour-contracts/expiring?within_days=60", 200),
+        ("GET", "/api/employees/annual-leave", 200),
         ("GET", "/api/attendance/days?from=2025-10-01&to=2025-10-31", 200),
+        ("GET", "/api/attendance/leave-types", 200),
+        ("GET", "/api/attendance/leave-requests", 200),
         ("GET", "/api/payroll/payslips?period=2025-10", 200),
+        ("GET", "/api/payroll/allowances/types", 200),
         ("GET", "/api/disputes", 200),
         ("GET", "/api/insurance/declarations?month=2025-10", 200),
         ("GET", "/api/reports/kpi?period=2025-10", 200),
+        ("GET", "/api/reports/overview?period=2025-10", 200),
         ("GET", "/api/ai/todos", 200),
         ("GET", "/api/ai/alerts/mine", 200),
         ("GET", "/api/config/roles", 403),
@@ -77,6 +84,14 @@ def test_hr_employee_crud_flow(client, db):
 
     violations = client.get(f"/api/employees/{emp['id']}/violations", headers=headers)
     assert violations.status_code == 200
+
+
+def test_hr_portal_config_not_allowed(client):
+    """HR thấy metadata Cấu Hình nhưng allowed=false — Portal không cho vào."""
+    body = client.get("/api/portal/tabs", headers=_hr_headers(client)).json()
+    cfg = next(t for t in body["tabs"] if t["key"] == "config")
+    assert cfg["allowed"] is False
+    assert all(t["allowed"] for t in body["tabs"] if t["key"] != "config")
 
 
 def test_hr_payroll_calculate_denied_or_allowed(client):

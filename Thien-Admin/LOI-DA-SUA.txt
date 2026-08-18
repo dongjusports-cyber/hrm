@@ -687,3 +687,9 @@ Test:
   apps/api pytest tests/test_hr_workflow_payroll_accuracy.py -q
   → 2 passed (công thức WD/ALE/FLE + BH + chuyên cần/đi lại + net; phiếu 3 khối).
 
+[QA-HR003] HR thấy ô Cấu Hình trên Portal — 2026-08-17
+-------------------------------------------------------
+Triệu chứng: hr.demo đăng nhập vẫn thấy ô «Cấu Hình» (khóa xám). Bấm ra modal từ chối.
+Cách xử lý: Portal chỉ render tab allowed; Ctrl+K ẩn Cấu Hình nếu không phải Admin.
+Test: pytest tests/test_hr_uat_matrix.py::test_hr_portal_config_not_allowed
+
