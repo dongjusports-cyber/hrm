@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { registerEscHandler, type EscHandler } from "./escStack";
+import { useKeepAlivePaneId, useKeepAliveState } from "./keepAlive";
 
 /**
  * @locked Đăng ký tầng ESC — dùng escStack, không tự addEventListener Escape.
@@ -12,9 +13,12 @@ import { registerEscHandler, type EscHandler } from "./escStack";
 export function useEscLayer(active: boolean, onEsc: EscHandler) {
   const ref = useRef(onEsc);
   ref.current = onEsc;
+  const paneId = useKeepAlivePaneId();
+  const { current } = useKeepAliveState();
+  const paneOk = paneId == null || paneId === current;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !paneOk) return;
     return registerEscHandler(() => ref.current());
-  }, [active]);
+  }, [active, paneOk]);
 }

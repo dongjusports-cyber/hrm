@@ -61,6 +61,8 @@ export function setAuth(payload: {
 export function clearAuth() {
   state = { accessToken: null, refreshToken: null, user: null };
   persist();
+  void import("./clientCache").then((m) => m.cacheClearAll());
+  void import("./keepAlive").then((m) => m.resetKeepAlive());
 }
 
 export function patchAuthUser(patch: Partial<AuthUser>) {

@@ -1,0 +1,3 @@
+Bản keep-alive 18/08/2026 — đã commit, đã lên GitHub, CHƯA deploy VPS.
+
+Portal thật (hrm.dongju-v.com) vẫn bản cũ cho tới khi nói «deploy VPS».

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams, RowDoubleClickedEvent } from "ag-grid-community";
 import {
@@ -36,6 +36,8 @@ import { RehireSheet } from "./RehireSheet";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
+import { cacheHydrate, cachePeek, employeesCacheKey } from "../../shared/clientCache";
+import { useAliveParams, useKeepAlivePaneActive } from "../../shared/keepAlive";
 
 type StatusFilter =
   | "active"
@@ -155,9 +157,10 @@ function formatVnd(v: string | number | null | undefined): string {
 
 /** Danh sách NV full màn theo nhóm (từ ô Nhân Sự). */
 export function EmployeesPage() {
-  const { filterKey } = useParams();
+  const { filterKey } = useAliveParams();
   const statusFilter = parseFilter(filterKey);
   const specialGrid = statusFilter === "special_regime";
+  const paneActive = useKeepAlivePaneActive();
   useHrSubpageEsc({ backTo: "/m/hr" });
   const meta = FILTER_META[statusFilter];
   const navigate = useNavigate();
@@ -206,12 +209,13 @@ export function EmployeesPage() {
   }, [statusFilter]);
 
   useEffect(() => {
+    if (!paneActive) return;
     const st = location.state as { openProfileId?: string } | null;
     if (st?.openProfileId) {
       setProfileEmpId(st.openProfileId);
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state, location.pathname, navigate]);
+  }, [paneActive, location.state, location.pathname, navigate]);
 
   useEffect(() => {
     saveViewPrefs({ department_id: departmentId, team_id: teamId, viewMode });
@@ -247,13 +251,17 @@ export function EmployeesPage() {
   const reload = useCallback(async () => {
     const seq = ++fetchSeqRef.current;
     setError(null);
+    const filters = {
+      q: appliedQ || undefined,
+      status: statusFilter,
+      department_id: departmentId || undefined,
+      team_id: teamId || undefined,
+    };
+    const key = employeesCacheKey(filters);
+    const disk = cachePeek<Employee[]>(key) ?? (await cacheHydrate<Employee[]>(key));
+    if (seq === fetchSeqRef.current && disk) setRows(disk);
     try {
-      const data = await fetchEmployees({
-        q: appliedQ || undefined,
-        status: statusFilter,
-        department_id: departmentId || undefined,
-        team_id: teamId || undefined,
-      });
+      const data = await fetchEmployees(filters);
       if (seq !== fetchSeqRef.current) return;
       setRows(data);
     } catch (e) {
@@ -263,8 +271,9 @@ export function EmployeesPage() {
   }, [appliedQ, statusFilter, departmentId, teamId]);
 
   useEffect(() => {
+    if (!paneActive) return;
     void reload();
-  }, [reload]);
+  }, [reload, paneActive]);
 
   function onDepartmentChange(id: string) {
     setDepartmentId(id);

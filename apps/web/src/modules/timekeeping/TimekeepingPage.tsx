@@ -26,6 +26,7 @@ import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
@@ -185,6 +186,7 @@ function buildCalendar(
 }
 
 export function TimekeepingPage() {
+  const paneActive = useKeepAlivePaneActive();
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
   const typedQRef = useRef("");
@@ -296,8 +298,9 @@ export function TimekeepingPage() {
   }, [period]);
 
   useEffect(() => {
+    if (!paneActive) return;
     void reload();
-  }, [reload]);
+  }, [reload, paneActive]);
 
   useEffect(() => {
     if (!selected || !pay) {

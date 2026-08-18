@@ -32,6 +32,7 @@ import { PayrollPayslipSection } from "./PayrollPayslipSection";
 import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { EmployeeCodePicker } from "../../shared/EmployeeCodePicker";
 import { disabledTitle } from "../../shared/disabledHint";
@@ -60,6 +61,7 @@ function loadViewMode(): PayrollViewMode {
 }
 
 export function PayrollPage() {
+  const paneActive = useKeepAlivePaneActive();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [period, setPeriod] = useState(currentPayPeriod);
@@ -164,8 +166,9 @@ export function PayrollPage() {
   }, [period]);
 
   useEffect(() => {
+    if (!paneActive) return;
     void reload();
-  }, [reload]);
+  }, [reload, paneActive]);
 
   const onSelectSlip = useCallback((slip: Payslip) => {
     setSelected(slip);

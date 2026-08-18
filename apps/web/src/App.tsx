@@ -43,6 +43,7 @@ import { CommandPalette } from "./shared/CommandPalette";
 import { DeniedModal } from "./shared/DeniedModal";
 import { FullscreenToggle } from "./shared/FullscreenToggle";
 import { GlobalEscBack } from "./shared/GlobalEscBack";
+import { KeepAliveGate, KeepAliveHost, KeepAliveRouteSync, type KeepAliveId } from "./shared/keepAlive";
 import { KeyboardHintsBar } from "./shared/KeyboardHintsBar";
 import { RequireAuth } from "./shared/RequireAuth";
 import { useDeniedStore } from "./shared/deniedStore";
@@ -53,6 +54,19 @@ import { WorkerLeavePage } from "./worker/WorkerLeavePage";
 import { WorkerLoginPage } from "./worker/WorkerLoginPage";
 import { WorkerPayslipPage } from "./worker/WorkerPayslipPage";
 import { WorkerPunchPage } from "./worker/WorkerPunchPage";
+
+function renderKeepAlive(id: KeepAliveId) {
+  if (id === "hr-lists") {
+    return (
+      <HrLayout>
+        <EmployeesPage />
+      </HrLayout>
+    );
+  }
+  if (id === "timekeeping") return <TimekeepingPage />;
+  if (id === "payroll") return <PayrollPage />;
+  return null;
+}
 
 export default function App() {
   const { open, message, close } = useDeniedStore();
@@ -155,7 +169,6 @@ export default function App() {
           }
         >
           <Route index element={<HrHomePage />} />
-          <Route path="lists/:filterKey" element={<EmployeesPage />} />
           <Route path="salary-raise" element={<SalaryRaisePage />} />
           <Route path="contracts" element={<LabourContractsPage />} />
           <Route path="annual-leave" element={<AnnualLeavePage />} />
@@ -167,6 +180,14 @@ export default function App() {
           <Route path="employees/new" element={<EmployeeDetailPage />} />
           <Route path="employees/:empId" element={<EmployeeDetailPage />} />
         </Route>
+        <Route
+          path="/m/hr/lists/:filterKey"
+          element={
+            <RequireAuth>
+              <KeepAliveGate id="hr-lists" />
+            </RequireAuth>
+          }
+        />
         <Route
           path="/admin/qr-code"
           element={
@@ -187,7 +208,7 @@ export default function App() {
           path="/m/timekeeping"
           element={
             <RequireAuth>
-              <TimekeepingPage />
+              <KeepAliveGate id="timekeeping" />
             </RequireAuth>
           }
         />
@@ -195,7 +216,7 @@ export default function App() {
           path="/m/payroll"
           element={
             <RequireAuth>
-              <PayrollPage />
+              <KeepAliveGate id="payroll" />
             </RequireAuth>
           }
         />
@@ -241,6 +262,8 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <KeepAliveRouteSync />
+      <KeepAliveHost render={renderKeepAlive} />
       <GlobalEscBack />
       <CommandPalette />
       <KeyboardHintsBar />

@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../shared/authStore";
 import { showDenied } from "../../shared/deniedStore";
 
-export function HrLayout() {
+export function HrLayout({ children }: { children?: ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const allowed = user?.role === "admin" || (user?.modules.includes("hr") ?? false);
@@ -30,7 +30,7 @@ export function HrLayout() {
         </nav>
       </header>
       <main className="module-body module-body-wide hr-shell-body">
-        <Outlet />
+        {children ?? <Outlet />}
       </main>
     </div>
   );

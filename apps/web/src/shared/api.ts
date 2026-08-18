@@ -6,6 +6,7 @@ import {
   type AuthUser,
 } from "./authStore";
 import { getApiBase } from "./apiBase";
+import { cacheInvalidate, cachedFetch, employeesCacheKey } from "./clientCache";
 
 export type PortalTab = {
   key: string;
@@ -1351,9 +1352,12 @@ function employeeFiltersToQuery(filters: EmployeeFilters): string {
 }
 
 export async function fetchEmployees(filters: EmployeeFilters = {}): Promise<Employee[]> {
-  const res = await apiFetch(`/api/employees${employeeFiltersToQuery(filters)}`);
-  if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const key = employeesCacheKey(filters);
+  return cachedFetch(key, async () => {
+    const res = await apiFetch(`/api/employees${employeeFiltersToQuery(filters)}`);
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  });
 }
 
 /** Xuất Excel — đúng cột đang hiện (view Gọn/Đầy đủ) + đúng bộ lọc đang bật (23§ Xuất Excel). */
@@ -1389,7 +1393,9 @@ export async function fetchEmployee(id: string): Promise<Employee> {
 export async function createEmployee(body: Record<string, unknown>): Promise<Employee> {
   const res = await apiFetch("/api/employees", { method: "POST", body: JSON.stringify(body) });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const row = (await res.json()) as Employee;
+  cacheInvalidate("employees:");
+  return row;
 }
 
 export type ValidationIssue = {
@@ -1451,7 +1457,9 @@ export async function rehireEmployee(
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as EmployeeRehireResult;
+  cacheInvalidate("employees:");
+  return data;
 }
 
 export async function updateEmployee(id: string, body: Record<string, unknown>): Promise<Employee> {
@@ -1460,7 +1468,9 @@ export async function updateEmployee(id: string, body: Record<string, unknown>):
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const row = (await res.json()) as Employee;
+  cacheInvalidate("employees:");
+  return row;
 }
 
 export async function unlockResetWorkerPassword(
@@ -1851,7 +1861,14 @@ export async function importEmployeesExcel(file: File): Promise<{
   );
   if (res.status === 401) clearAuth();
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as {
+    created: number;
+    updated: number;
+    errors: string[];
+    detail: string;
+  };
+  cacheInvalidate("employees:");
+  return data;
 }
 
 export async function importAllowancesExcel(file: File): Promise<{
@@ -1874,7 +1891,15 @@ export async function importAllowancesExcel(file: File): Promise<{
   );
   if (res.status === 401) clearAuth();
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as {
+    created: number;
+    updated: number;
+    skipped_empty: number;
+    errors: string[];
+    detail: string;
+  };
+  cacheInvalidate("employees:");
+  return data;
 }
 
 export type AllowanceAssignment = {
@@ -2120,9 +2145,11 @@ export async function fetchPayPeriod(period: string): Promise<PayPeriod> {
 }
 
 export async function fetchTimesheets(period: string): Promise<TimesheetMonth[]> {
-  const res = await apiFetch(`/api/attendance/timesheets?period=${encodeURIComponent(period)}`);
-  if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  return cachedFetch(`timesheets:${period}`, async () => {
+    const res = await apiFetch(`/api/attendance/timesheets?period=${encodeURIComponent(period)}`);
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  });
 }
 
 export async function rebuildTimesheets(period: string): Promise<{
@@ -2135,7 +2162,13 @@ export async function rebuildTimesheets(period: string): Promise<{
     { method: "POST" },
   );
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as {
+    period: string;
+    rows_upserted: number;
+    message: string;
+  };
+  cacheInvalidate("timesheets:");
+  return data;
 }
 
 /** Xuất Excel OT ngoài (ATM riêng) — tách khỏi bảng lương audit. */
@@ -2709,13 +2742,18 @@ export async function calculatePayroll(period: string): Promise<PayrollCalculate
     method: "POST",
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as PayrollCalculateResult;
+  cacheInvalidate("payslips:");
+  cacheInvalidate("timesheets:");
+  return data;
 }
 
 export async function fetchPayslips(period: string): Promise<Payslip[]> {
-  const res = await apiFetch(`/api/payroll/payslips?period=${encodeURIComponent(period)}`);
-  if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  return cachedFetch(`payslips:${period}`, async () => {
+    const res = await apiFetch(`/api/payroll/payslips?period=${encodeURIComponent(period)}`);
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  });
 }
 
 export async function fetchHRPayslipDetail(payslipId: string): Promise<HRPayslipDetail> {
@@ -2735,7 +2773,9 @@ export async function publishPayroll(period: string): Promise<PeriodActionResult
     method: "POST",
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as PeriodActionResult;
+  cacheInvalidate("payslips:");
+  return data;
 }
 
 export type PayslipAdjustment = {
@@ -2771,12 +2811,15 @@ export async function createPayAdjustment(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const row = (await res.json()) as PayslipAdjustment;
+  cacheInvalidate("payslips:");
+  return row;
 }
 
 export async function deletePayAdjustment(id: string): Promise<void> {
   const res = await apiFetch(`/api/payroll/adjustments/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("payslips:");
 }
 
 export async function lockPayroll(period: string): Promise<PeriodActionResult> {
@@ -2784,7 +2827,9 @@ export async function lockPayroll(period: string): Promise<PeriodActionResult> {
     method: "POST",
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as PeriodActionResult;
+  cacheInvalidate("payslips:");
+  return data;
 }
 
 export async function unlockPayroll(period: string): Promise<PeriodActionResult> {
@@ -2792,7 +2837,9 @@ export async function unlockPayroll(period: string): Promise<PeriodActionResult>
     method: "POST",
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as PeriodActionResult;
+  cacheInvalidate("payslips:");
+  return data;
 }
 
 export async function reopenPayroll(period: string): Promise<PeriodActionResult> {
@@ -2800,7 +2847,9 @@ export async function reopenPayroll(period: string): Promise<PeriodActionResult>
     method: "POST",
   });
   if (!res.ok) throw new Error(await readError(res));
-  return res.json();
+  const data = (await res.json()) as PeriodActionResult;
+  cacheInvalidate("payslips:");
+  return data;
 }
 
 export async function downloadPayrollExport(
