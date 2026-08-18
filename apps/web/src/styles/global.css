@@ -5767,7 +5767,7 @@ a {
   align-items: start;
 }
 
-/* Tạo NV — full width, vừa một màn không cuộn */
+/* Tạo NV — full width; cuộn khi đủ trường hồ sơ chính */
 .fs-sheet-body-create {
   overflow: hidden;
   padding: 6px 10px 8px;
@@ -5777,10 +5777,20 @@ a {
 }
 
 .fs-sheet-body-create .banner-warn,
-.fs-sheet-body-create .emp-validate-warns {
+.fs-sheet-body-create .emp-validate-warns,
+.fs-sheet-body-create .banner-ok {
   flex-shrink: 0;
   margin: 0 0 4px;
   font-size: 0.82rem;
+}
+
+.emp-create-import {
+  cursor: pointer;
+}
+
+.emp-create-import.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .emp-create-form {
@@ -5790,7 +5800,7 @@ a {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .emp-create-layout {
@@ -5800,7 +5810,6 @@ a {
   width: 100%;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
 }
 
 .emp-create-header {
@@ -5863,16 +5872,16 @@ a {
 
 .emp-create-cols {
   min-height: 0;
-  overflow: hidden;
-  align-items: stretch;
+  overflow: visible;
+  align-items: start;
 }
 
 .emp-create-cols .emp-form-section {
-  height: 100%;
+  height: auto;
   padding: 6px 8px 8px;
   margin: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .emp-create-cols .emp-form-section-title {

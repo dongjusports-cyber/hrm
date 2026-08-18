@@ -13,7 +13,7 @@ from app.modules.core.models import User
 from app.modules.mdm import annual_leave_snapshot as al_snap
 from app.modules.mdm import service
 from app.modules.mdm.export_employees import export_employees_channel
-from app.modules.mdm.import_excel import import_employees_xlsx
+from app.modules.mdm.import_excel import build_employee_import_template, import_employees_xlsx
 from app.modules.mdm.schemas import (
     BulkSalaryRaisePreview,
     BulkSalaryRaiseRequest,
@@ -198,6 +198,17 @@ def post_validate_employee(
 @router.post("/employees", response_model=EmployeeOut, status_code=201)
 def post_employee(body: EmployeeCreate, _user: HrUser, db: DbSession) -> EmployeeOut:
     return service.create_employee(db, body)
+
+
+@router.get("/employees/import-template")
+def download_employee_import_template(_user: HrUser) -> Response:
+    """File Excel mẫu — đủ cột hồ sơ chính để HR nạp hàng loạt."""
+    content = build_employee_import_template()
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="mau-nhap-nhan-vien.xlsx"'},
+    )
 
 
 @router.post("/employees/import", response_model=ImportResult)

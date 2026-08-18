@@ -140,8 +140,27 @@ class EmployeeBase(BaseModel):
         return v
 
 
+class EmployeeCreateAllowance(BaseModel):
+    """Gán phụ cấp lúc tạo NV — cùng catalog hồ sơ (không dùng ADJUST)."""
+
+    allowance_code: str = Field(min_length=1, max_length=40)
+    amount: Decimal = Decimal("0")
+
+    @field_validator("allowance_code")
+    @classmethod
+    def code_upper(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def amount_dec(cls, v):  # noqa: ANN001
+        if v is None or v == "":
+            return Decimal("0")
+        return Decimal(str(v).replace(",", "").replace(" ", "").strip())
+
+
 class EmployeeCreate(EmployeeBase):
-    pass
+    allowances: list[EmployeeCreateAllowance] = Field(default_factory=list)
 
 
 class ValidationIssueOut(BaseModel):

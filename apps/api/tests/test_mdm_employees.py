@@ -3,7 +3,7 @@
 from decimal import Decimal
 from io import BytesIO
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 
 def _hr_headers(client):
@@ -51,6 +51,32 @@ def test_create_and_update_employee(client):
     )
     assert updated.status_code == 200
     assert updated.json()["full_name"] == "Test NV 2"
+
+
+def test_create_employee_with_allowances(client):
+    headers = _hr_headers(client)
+    created = client.post(
+        "/api/employees",
+        headers=headers,
+        json={
+            "employee_code": "9003",
+            "full_name": "NV Phu Cap",
+            "team_code": "T1",
+            "department_code": "SW1",
+            "contract_salary": "6000000",
+            "allowances": [
+                {"allowance_code": "ATTEND", "amount": "600000"},
+                {"allowance_code": "TRANSPORT", "amount": "800000"},
+            ],
+        },
+    )
+    assert created.status_code == 201, created.text
+    listed = client.get("/api/payroll/allowances?employee_code=9003", headers=headers)
+    assert listed.status_code == 200, listed.text
+    rows = listed.json()
+    by_code = {r["allowance_code"]: Decimal(str(r["amount"])) for r in rows}
+    assert by_code["ATTEND"] == Decimal("600000")
+    assert by_code["TRANSPORT"] == Decimal("800000")
 
 
 def test_create_employee_requires_team(client):
@@ -175,3 +201,58 @@ def test_import_resign_date(client):
     emp = next(e for e in listed if e["employee_code"] == "8802")
     assert emp["resign_date"] == "2025-10-15"
     assert emp["status"] == "resigned"
+
+
+def test_employee_import_template_xlsx(client):
+    headers = _hr_headers(client)
+    res = client.get("/api/employees/import-template", headers=headers)
+    assert res.status_code == 200, res.text
+    assert "spreadsheetml" in res.headers.get("content-type", "")
+    wb = load_workbook(BytesIO(res.content))
+    ws = wb.active
+    headers_row = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    assert "MSNV" in headers_row
+    assert "Họ tên" in headers_row
+    assert "Tình trạng hôn nhân" in headers_row
+    assert "Địa chỉ tạm trú" in headers_row
+    assert "Huong dan" in wb.sheetnames
+
+
+def test_import_excel_full_profile_vietnamese(client):
+    headers = _hr_headers(client)
+    from app.modules.mdm.import_excel import build_employee_import_template
+
+    content = build_employee_import_template()
+    res = client.post(
+        "/api/employees/import",
+        headers=headers,
+        files={
+            "file": (
+                "mau.xlsx",
+                content,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["created"] >= 1
+    listed = client.get("/api/employees?q=8810", headers=headers).json()
+    emp = next(e for e in listed if e["employee_code"] == "8810")
+    assert emp["full_name"] == "NGUYỄN VĂN MẪU"
+    assert emp["gender"] == "male"
+    assert emp["phone"] == "0901234567"
+    assert emp["team_code"] == "T1"
+    assert Decimal(str(emp["contract_salary"])) == Decimal("6500000")
+    assert emp["si_enrolled"] is True
+    assert emp["marital_status"] == "single"
+    assert emp["nationality_code"] == "NATIONALITY001"
+    assert emp["ethnicity_code"] == "ETHNICITY001"
+    assert emp["religion_code"] == "RELIGION001"
+    assert emp["education_code"] == "EDUCATION_LEVEL004"
+    assert emp["birth_place_code"] == "BIRTH_PLACE030"
+    assert emp["id_issue_place_code"] == "ID_ISSUE_PLACE035"
+    assert emp["id_number"] == "079098001234"
+    assert emp["permanent_address"]
+    assert emp["status"] == "probation"
+

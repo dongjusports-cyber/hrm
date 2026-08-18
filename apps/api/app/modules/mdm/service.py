@@ -50,6 +50,7 @@ from app.modules.mdm.schemas import (
     DepartmentUpdate,
     EmployeeAssignmentOut,
     EmployeeCreate,
+    EmployeeCreateAllowance,
     EmployeeDocumentCreate,
     EmployeeDocumentOut,
     EmployeeEducationCreate,
@@ -975,8 +976,46 @@ def create_employee(db: Session, body: EmployeeCreate) -> EmployeeOut:
         )
     if emp.status == "probation" and emp.join_date:
         lcf.bootstrap_first_contract(db, emp, sign_date=body.contract_signed_at)
+    _apply_create_allowances(db, emp, body.allowances)
     db.commit()
     return get_employee(db, emp.id)
+
+
+def _apply_create_allowances(
+    db: Session, emp: Employee, items: list[EmployeeCreateAllowance] | None
+) -> None:
+    """Gán phụ cấp trong cùng transaction tạo NV (catalog đã seed)."""
+    if not items:
+        return
+    by_code: dict[str, Decimal] = {}
+    for item in items:
+        code = (item.allowance_code or "").strip().upper()
+        if not code:
+            continue
+        if code == "ADJUST":
+            raise HTTPException(
+                status_code=400,
+                detail="Trợ Lý AI: không gán khoản ADJUST qua form tạo nhân viên.",
+            )
+        by_code[code] = money_vnd(item.amount)
+    for code, amount in by_code.items():
+        at = (
+            db.query(PayComponent)
+            .filter(PayComponent.code == code, PayComponent.is_active.is_(True))
+            .one_or_none()
+        )
+        if at is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Trợ Lý AI: không tìm thấy phụ cấp '{code}'.",
+            )
+        db.add(
+            EmployeeAllowanceAssignment(
+                employee_id=emp.id,
+                allowance_type_id=at.id,
+                amount=amount,
+            )
+        )
 
 
 def validate_employee_form(

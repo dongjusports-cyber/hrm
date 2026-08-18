@@ -61,7 +61,7 @@ const TILES: HubTile[] = [
   {
     key: "new",
     name: "Tạo nhân viên mới",
-    description: "Nhập tối thiểu — overlay full màn hình",
+    description: "Đủ hồ sơ như Thông tin NV · nhập Excel hàng loạt",
     to: "/m/hr",
     countKey: "none",
   },
@@ -194,7 +194,7 @@ export function HrHomePage() {
       <div className="hr-hub-head">
         <h1>Nhân Sự</h1>
         <p className="field-hint">
-          Tạo NV tại ô «Tạo nhân viên mới» · trong danh sách bấm <strong>tên</strong> để mở hồ sơ full màn.
+          Tạo NV tại ô «Tạo nhân viên mới» (đủ hồ sơ / nhập Excel) · trong danh sách bấm <strong>tên</strong> để mở hồ sơ.
         </p>
       </div>
       {error && <p className="banner-warn">{error}</p>}
@@ -233,6 +233,14 @@ export function HrHomePage() {
           navigate(`/m/hr/lists/all`, {
             state: { openProfileId: emp.id },
           });
+        }}
+        onImported={() => {
+          void fetchEmployees()
+            .then((list) => {
+              setRows(list);
+              sessionStorage.setItem(EMP_CACHE, JSON.stringify(list));
+            })
+            .catch(() => {});
         }}
       />
     </div>

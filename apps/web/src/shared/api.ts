@@ -1842,6 +1842,20 @@ export async function fetchEmployeePhotoObjectUrl(id: string): Promise<string | 
   return URL.createObjectURL(blob);
 }
 
+export async function downloadEmployeeImportTemplate(): Promise<void> {
+  const res = await apiFetch("/api/employees/import-template");
+  if (!res.ok) throw new Error(await readError(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+)"?/.exec(cd);
+  a.download = match ? match[1] : "mau-nhap-nhan-vien.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function importEmployeesExcel(file: File): Promise<{
   created: number;
   updated: number;

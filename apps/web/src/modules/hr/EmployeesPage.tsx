@@ -9,6 +9,7 @@ import {
   fetchTeams,
   importAllowancesExcel,
   importEmployeesExcel,
+  downloadEmployeeImportTemplate,
   unlockResetWorkerPassword,
   type Department,
   type Employee,
@@ -749,6 +750,13 @@ export function EmployeesPage() {
             onClick={() => void onExport()}
           >
             {exporting ? "Đang xuất…" : "Xuất Excel"}
+          </button>
+          <button
+            type="button"
+            className="toolbar-more-item"
+            onClick={() => void downloadEmployeeImportTemplate().catch((err) => setError(err instanceof Error ? err.message : "Không tải được mẫu Excel."))}
+          >
+            Tải mẫu Excel NV
           </button>
           <label className="toolbar-more-item file-btn">
             Nhập Excel nhân viên
