@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent } from "ag-grid-community";
+import type { CellClickedEvent, ColDef, GridReadyEvent } from "ag-grid-community";
 import {
   fetchAnnualLeaveGrid,
   type AnnualLeaveGrid,
@@ -9,6 +9,9 @@ import {
   type AnnualLeaveMonthDays,
 } from "../../shared/api";
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
+import { textMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
+import { useAgGridExternalFilter } from "../../shared/useAgGridExternalFilter";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 
@@ -49,9 +52,9 @@ export function AnnualLeavePage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dept, setDept] = useState("");
+  const [searchReset, setSearchReset] = useState(0);
   const [profileEmpId, setProfileEmpId] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const gridApiRef = useRef<GridApi<AnnualLeaveGridRow> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,19 +78,21 @@ export function AnnualLeavePage() {
     return [...set].sort((a, b) => a.localeCompare(b, "vi"));
   }, [rows]);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+  const matchCount = useMemo(() => {
     return rows.filter((r) => {
       if (dept && r.department !== dept) return false;
-      if (!needle) return true;
-      return (
-        r.employee_code.toLowerCase().includes(needle) ||
-        r.full_name.toLowerCase().includes(needle) ||
-        r.department.toLowerCase().includes(needle) ||
-        r.team.toLowerCase().includes(needle)
-      );
-    });
+      return textMatchesQuery(q, r.employee_code, r.full_name, r.department, r.team);
+    }).length;
   }, [rows, q, dept]);
+
+  const leaveFilter = useAgGridExternalFilter<AnnualLeaveGridRow>({
+    active: Boolean(q.trim() || dept),
+    queryKey: `${q}\0${dept}`,
+    pass: (r) => {
+      if (dept && r.department !== dept) return false;
+      return textMatchesQuery(q, r.employee_code, r.full_name, r.department, r.team);
+    },
+  });
 
   const openProfile = useCallback((row: AnnualLeaveGridRow) => {
     if (row.employee_id) {
@@ -198,7 +203,7 @@ export function AnnualLeavePage() {
         <div className="hr-list-title-row">
           <h1>Phép năm</h1>
           <span className="field-hint">
-            {filtered.length} NV · <Link to="/m/hr">← Nhân Sự</Link>
+            {matchCount} NV · <Link to="/m/hr">← Nhân Sự</Link>
           </span>
         </div>
         <p className="field-hint">
@@ -219,12 +224,11 @@ export function AnnualLeavePage() {
       {hint && <p className="field-hint">{hint}</p>}
 
       <div className="hr-toolbar">
-        <input
+        <ToolbarSearchInput
           className="hr-toolbar-search"
-          data-hotkey-search
           placeholder="Tìm MSNV / họ tên / bộ phận…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          resetToken={searchReset}
+          onQuery={setQ}
         />
         <select
           className="hr-toolbar-select"
@@ -243,6 +247,7 @@ export function AnnualLeavePage() {
           type="button"
           className="btn-ghost-dark btn-compact"
           onClick={() => {
+            setSearchReset((n) => n + 1);
             setQ("");
             setDept("");
           }}
@@ -253,15 +258,17 @@ export function AnnualLeavePage() {
 
       <div className="ag-theme-quartz hr-grid hr-grid-list">
         <AgGridReact<AnnualLeaveGridRow>
-          rowData={filtered}
+          rowData={rows}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.employee_code}
           rowHeight={32}
           animateRows={false}
           overlayNoRowsTemplate="<span>Không có dòng phép năm</span>"
+          isExternalFilterPresent={leaveFilter.isExternalFilterPresent}
+          doesExternalFilterPass={leaveFilter.doesExternalFilterPass}
           onCellClicked={onCellClicked}
           onGridReady={(e: GridReadyEvent<AnnualLeaveGridRow>) => {
-            gridApiRef.current = e.api;
+            leaveFilter.onGridReady(e);
           }}
           defaultColDef={{
             sortable: true,

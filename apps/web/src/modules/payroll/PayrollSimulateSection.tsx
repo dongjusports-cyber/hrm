@@ -243,9 +243,11 @@ export function PayrollSimulateSection({ period }: Props) {
           <AgGridReact<SimulateRow>
             rowData={rows}
             columnDefs={cols}
-            domLayout="autoHeight"
             suppressCellFocus
             getRowId={(p) => p.data.employee_id}
+            animateRows={false}
+            headerHeight={32}
+            rowHeight={36}
           />
         </div>
       </section>

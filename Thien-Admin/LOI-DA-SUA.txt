@@ -642,3 +642,63 @@ Cách xử lý:
 Test:
   apps/api pytest tests/test_attendance_day_grid_37.py -q
 
+[TK-S001] Tab Chấm công — gõ MSNV bị khựng, số NV hiện trước lưới — 2026-08-17
+-------------------------------------------------------------------------------
+Triệu chứng:
+  Ô tìm MSNV: gõ xong phải đợi, rồi mới hiện «N nhân viên», rồi mới hiện lưới.
+
+Nguyên nhân:
+  1) Mỗi phím gõ setState trang cha → re-render AG Grid ~360 dòng (khựng khi nhập).
+  2) Debounce 250ms + delay 120ms đếm NV → hai nhịp «số NV rồi lưới»
+     (setDailySummary làm cha render lại, panel không memo).
+  3) Lưới ngày chỉ mount sau Promise.all (timesheets + COUNT punch + leave types).
+  4) AG Grid bị tháo khi «Đang tải…» rồi mount lại sau khi có data.
+  5) GET ensure_pay_period gọi compute_divisor dù kỳ đã có; seed_leave_types commit mọi GET.
+
+Cách xử lý:
+  - Ô tìm giữ state local; lọc lưới qua external filter (không thay rowData 360 dòng).
+  - Gõ 4 số MSNV dồn: startTransition, không debounce — debounce gom 1 lần rồi
+    thay rowData = khựng ngay sau khi thả phím (gõ chậm không thấy).
+  - memo DailyGridPanel; bỏ delay 120ms; overlay tải, không unmount lưới.
+  - reload: setPay xong là mount lưới ngày; timesheets/status chạy song song.
+  - Precompute HH:mm khi nạp dòng (tránh toLocaleTimeString lúc sort).
+  - ensure_pay_period chỉ compute_divisor khi tạo kỳ / rebuild.
+  - seed_leave_types chỉ commit khi thêm mã mới.
+
+Test:
+  apps/web npm test -- employeeSearch
+  apps/api pytest tests/test_attendance_day_grid_37.py tests/test_timesheet.py -q
+
+[TK-S002] AG Grid mọi tab — gõ MSNV dồn không thay rowData — 2026-08-17
+------------------------------------------------------------------------
+Rà soát toàn bộ AgGridReact (9 chỗ):
+
+  Lưới ~360 NV + ô tìm MSNV (cùng lỗi Chấm công):
+  - Chấm công ngày / tháng — đã [TK-S001], external filter.
+  - Phép năm — rowData={filtered} mỗi phím (nhiều cột tháng).
+  - Nhân sự — setQ mỗi phím re-render lưới dù chỉ Enter mới gọi API.
+
+  Lưới ~360 NV, không ô tìm (không khựng khi gõ):
+  - Bảng lương — animateRows mặc định true.
+  - BH kỳ — tháo lưới khi «Đang tải…»; thiếu animateRows=false.
+  - Mô phỏng lương — domLayout autoHeight tắt virtualization.
+
+  Lưới nhỏ (không 360 NV):
+  - Duyệt phép — ít dòng; animateRows=false.
+  - Mitapro nhật ký / punch lệch — ≤80 / ≤120, autoHeight OK.
+
+  Không phải AG Grid nhưng cùng UX gõ MSNV 360 người:
+  - Phiếu lương (ul), Người phụ thuộc, Hợp đồng, Tăng lương.
+
+Cách xử lý:
+  - shared/ToolbarSearchInput + useAgGridExternalFilter + employeeSearch.
+  - Phép năm / Nhân sự / Chấm công: lọc tại chỗ, không thay rowData.
+  - Phiếu / NPT / HĐ / tăng lương: ô tìm local + startTransition.
+  - Bảng lương / BH / mô phỏng / Mitapro: animateRows=false.
+  - Mô phỏng: bỏ autoHeight, giữ chiều cao CSS (virtualization).
+  - BH: đổi kỳ không tháo lưới (chỉ overlay «Đang cập nhật…»).
+
+Test:
+  apps/web npm test -- employeeSearch escKeyboard
+  apps/web npx tsc -b
+

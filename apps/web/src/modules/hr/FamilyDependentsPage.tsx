@@ -12,6 +12,8 @@ import {
   type TaxDependents,
 } from "../../shared/api";
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
+import { textMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 
 const RELATIONSHIPS = [
   { value: "cha", label: "Cha" },
@@ -76,13 +78,8 @@ export function FamilyDependentsPage({ embedded = false }: { embedded?: boolean 
   }, [selectedEmpId]);
 
   const filteredEmployees = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return employees;
-    return employees.filter(
-      (e) =>
-        e.employee_code.toLowerCase().includes(needle) ||
-        e.full_name.toLowerCase().includes(needle) ||
-        (e.department_code || "").toLowerCase().includes(needle),
+    return employees.filter((e) =>
+      textMatchesQuery(q, e.employee_code, e.full_name, e.department_code),
     );
   }, [employees, q]);
 
@@ -173,12 +170,10 @@ export function FamilyDependentsPage({ embedded = false }: { embedded?: boolean 
       <div className="hr-split">
         <div className="users-form-card">
           <h2>Nhân viên ({filteredEmployees.length})</h2>
-          <input
+          <ToolbarSearchInput
             className="hr-search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
             placeholder="Tìm MSNV / họ tên / bộ phận"
-            aria-label="Tìm nhân viên"
+            onQuery={setQ}
             style={{ width: "100%", marginBottom: 8 }}
           />
           <ul className="hr-board-list" style={{ maxHeight: "min(520px, 60vh)", overflow: "auto" }}>

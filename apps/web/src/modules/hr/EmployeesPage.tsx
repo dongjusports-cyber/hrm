@@ -27,6 +27,9 @@ import {
   restoreAgGridColumnState,
   saveAgGridColumnState,
 } from "../../shared/agGridColumnPrefs";
+import { employeeMatchesQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
+import { useAgGridExternalFilter } from "../../shared/useAgGridExternalFilter";
 import { TransferTeamModal } from "./TransferTeamModal";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
@@ -142,9 +145,10 @@ export function EmployeesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [rows, setRows] = useState<Employee[]>([]);
-  const [q, setQ] = useState("");
-  /** Từ khóa đã áp dụng lên API — chỉ đổi khi bấm Tìm / Enter (tránh race với tải ban đầu). */
   const [appliedQ, setAppliedQ] = useState("");
+  const [liveQ, setLiveQ] = useState("");
+  const [searchReset, setSearchReset] = useState(0);
+  const typedQRef = useRef("");
   const fetchSeqRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -178,8 +182,9 @@ export function EmployeesPage() {
   );
 
   useEffect(() => {
-    setQ("");
+    setSearchReset((n) => n + 1);
     setAppliedQ("");
+    setLiveQ("");
   }, [statusFilter]);
 
   useEffect(() => {
@@ -239,10 +244,6 @@ export function EmployeesPage() {
     }
   }, [appliedQ, statusFilter, departmentId, teamId]);
 
-  function applySearch() {
-    setAppliedQ(q.trim());
-  }
-
   useEffect(() => {
     void reload();
   }, [reload]);
@@ -256,8 +257,9 @@ export function EmployeesPage() {
   function onResetFilters() {
     setDepartmentId("");
     setTeamId("");
-    setQ("");
+    setSearchReset((n) => n + 1);
     setAppliedQ("");
+    setLiveQ("");
   }
 
   async function onUnlockReset(emp: Employee, e: MouseEvent) {
@@ -284,6 +286,17 @@ export function EmployeesPage() {
       setBusyId(null);
     }
   }
+
+  const empFilter = useAgGridExternalFilter<Employee>({
+    active: Boolean(liveQ.trim()),
+    queryKey: liveQ,
+    pass: (r) => employeeMatchesQuery(r, liveQ),
+  });
+
+  const visibleCount = useMemo(() => {
+    if (!liveQ.trim()) return rows.length;
+    return rows.filter((r) => employeeMatchesQuery(r, liveQ)).length;
+  }, [rows, liveQ]);
 
   const columnDefs = useMemo<ColDef<Employee>[]>(() => {
     const base: ColDef<Employee>[] = [
@@ -540,7 +553,7 @@ export function EmployeesPage() {
         <div className="hr-list-title-row">
           <h1>{meta.title}</h1>
           <span className="field-hint">
-            {rows.length} NV · <Link to="/m/hr">← Nhân Sự</Link>
+            {visibleCount} NV · <Link to="/m/hr">← Nhân Sự</Link>
             {" · "}
             <Link to="/admin/qr-code">QR công nhân</Link>
           </span>
@@ -552,15 +565,15 @@ export function EmployeesPage() {
       {ok && <p className="banner-ok">{ok}</p>}
 
       <div className="hr-toolbar">
-        <input
+        <ToolbarSearchInput
           className="hr-toolbar-search"
-          data-hotkey-search
           placeholder="Tìm MSNV / họ tên…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") applySearch();
+          resetToken={searchReset}
+          onQuery={setLiveQ}
+          onTyped={(v) => {
+            typedQRef.current = v;
           }}
+          onSubmit={(needle) => setAppliedQ(needle)}
         />
         <select
           className="hr-toolbar-select"
@@ -590,7 +603,11 @@ export function EmployeesPage() {
             </option>
           ))}
         </select>
-        <button type="button" className="btn-primary btn-compact" onClick={applySearch}>
+        <button
+          type="button"
+          className="btn-primary btn-compact"
+          onClick={() => setAppliedQ(typedQRef.current.trim())}
+        >
           Tìm
         </button>
         <div className="view-toggle view-toggle-compact">
@@ -654,7 +671,7 @@ export function EmployeesPage() {
 
       <div className="hr-status-bar" aria-live="polite">
         <span className="hr-status-count">
-          {rows.length} nhân viên
+          {visibleCount} nhân viên
           {selectedRows.length > 0 ? ` · đã chọn ${selectedRows.length}` : ""}
         </span>
         <div className="hr-status-actions">
@@ -699,7 +716,10 @@ export function EmployeesPage() {
           onGridReady={(e: GridReadyEvent<Employee>) => {
             gridApiRef.current = e.api;
             applySavedColumns(e.api);
+            empFilter.onGridReady(e);
           }}
+          isExternalFilterPresent={empFilter.isExternalFilterPresent}
+          doesExternalFilterPass={empFilter.doesExternalFilterPass}
           onFirstDataRendered={(e) => applySavedColumns(e.api)}
           onColumnMoved={(e) => persistColumns(e.api)}
           onColumnResized={(e) => {

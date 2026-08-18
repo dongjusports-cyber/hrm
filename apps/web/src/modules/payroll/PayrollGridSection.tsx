@@ -87,7 +87,7 @@ export function PayrollGridSection({
           onGridReady={(e) => fitGridColumns()(e.api)}
           onGridSizeChanged={(e) => fitGridColumns()(e.api)}
           onFirstDataRendered={(e) => fitGridColumns()(e.api)}
-          animateRows
+          animateRows={false}
         />
       </div>
 

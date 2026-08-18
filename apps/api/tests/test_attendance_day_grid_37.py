@@ -253,3 +253,36 @@ def test_locked_row_skipped_in_bulk(client, db):
     assert res.status_code == 200
     skipped = res.json()["skipped"]
     assert any(s["employee_code"] == "5290" for s in skipped)
+
+
+def test_days_grid_second_get_does_not_write(client, db):
+    """GET lưới ngày không được ghi DB (cùng bài học GET /employees ghi-on-read)."""
+    from sqlalchemy import event
+
+    headers = _hr_headers(client)
+    first = client.get(
+        "/api/attendance/days/grid",
+        headers=headers,
+        params={"date": "2025-10-01"},
+    )
+    assert first.status_code == 200, first.text
+
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, params, context, executemany) -> None:
+        statements.append(statement.strip().split(maxsplit=1)[0].upper())
+
+    bind = db.get_bind()
+    event.listen(bind, "before_cursor_execute", _record)
+    try:
+        res = client.get(
+            "/api/attendance/days/grid",
+            headers=headers,
+            params={"date": "2025-10-01"},
+        )
+    finally:
+        event.remove(bind, "before_cursor_execute", _record)
+
+    assert res.status_code == 200, res.text
+    writes = [s for s in statements if s in ("INSERT", "UPDATE", "DELETE")]
+    assert writes == [], f"GET /attendance/days/grid ghi DB: {writes} / {statements}"

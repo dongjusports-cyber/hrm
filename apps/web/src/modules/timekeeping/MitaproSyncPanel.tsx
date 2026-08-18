@@ -269,6 +269,7 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
             rowData={jobs}
             columnDefs={jobCols}
             getRowId={(p) => p.data.id}
+            animateRows={false}
             domLayout="autoHeight"
             defaultColDef={{
               sortable: true,
@@ -297,6 +298,7 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
             rowData={unlinked}
             columnDefs={punchCols}
             getRowId={(p) => String(p.data.id)}
+            animateRows={false}
             domLayout="autoHeight"
             defaultColDef={{
               sortable: true,

@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef, GridApi, RowClickedEvent } from "ag-grid-community";
+import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
 import {
   fetchAttendanceDays,
   fetchDepartments,
@@ -29,6 +29,8 @@ import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
+import { employeeMatchesQuery, findEmployeeByQuery } from "../../shared/employeeSearch";
+import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
 import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
@@ -182,7 +184,8 @@ function buildCalendar(
 export function TimekeepingPage() {
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
-  const [gridSearch, setGridSearch] = useState("");
+  const typedQRef = useRef("");
+  const [searchReset, setSearchReset] = useState(0);
   const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [pay, setPay] = useState<PayPeriod | null>(null);
   const [rows, setRows] = useState<TimesheetMonth[]>([]);
@@ -213,18 +216,14 @@ export function TimekeepingPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [dailySummary, setDailySummary] = useState<DailyGridSummary>({ total: 0, needsAction: 0 });
   const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
-  const [gridApi, setGridApi] = useState<{ ensureIndexVisible: (i: number) => void } | null>(
-    null,
-  );
   const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
   const timesheetRowsRef = useRef(rows);
   timesheetRowsRef.current = rows;
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setGridSearch(q.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [q]);
+  const onTypedSearch = useCallback((value: string) => {
+    typedQRef.current = value;
+  }, []);
 
   const loadEmpDays = useCallback(
     async (code: string, dateFrom: string, dateTo: string) => {
@@ -249,13 +248,8 @@ export function TimekeepingPage() {
   const reload = useCallback(async () => {
     setError(null);
     try {
-      const [st, pp, sheets, lt] = await Promise.all([
-        fetchIntegrationStatus(),
-        fetchPayPeriod(period),
-        fetchTimesheets(period),
-        fetchLeaveTypes(),
-      ]);
-      setStatus(st);
+      const sheetsP = fetchTimesheets(period);
+      const [pp, lt] = await Promise.all([fetchPayPeriod(period), fetchLeaveTypes()]);
       setPay(pp);
       setGridDate((prev) => {
         if (prev >= pp.date_from && prev <= pp.date_to) return prev;
@@ -263,11 +257,15 @@ export function TimekeepingPage() {
         if (today >= pp.date_from && today <= pp.date_to) return today;
         return pp.date_from;
       });
-      setRows(sheets);
       setLeaves(lt);
+      void fetchIntegrationStatus()
+        .then(setStatus)
+        .catch(() => {});
       void fetchDepartments()
         .then((depts) => setDepartments(depts.filter((d) => d.is_active !== false)))
         .catch(() => {});
+      const sheets = await sheetsP;
+      setRows(sheets);
       setSelected((prev) => {
         if (!prev) return null;
         return sheets.find((s) => s.id === prev.id) ?? null;
@@ -303,15 +301,10 @@ export function TimekeepingPage() {
     void loadEmpDays(selected.employee_code, pay.date_from, pay.date_to);
   }, [selected, pay, loadEmpDays]);
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (r) =>
-        r.employee_code.toLowerCase().includes(needle) ||
-        (r.full_name ?? "").toLowerCase().includes(needle),
-    );
-  }, [rows, q]);
+  const filtered = useMemo(
+    () => rows.filter((r) => employeeMatchesQuery(r, q)),
+    [rows, q],
+  );
 
   const pickEmployee = useCallback((row: TimesheetMonth) => {
     setSelected(row);
@@ -361,36 +354,45 @@ export function TimekeepingPage() {
     clearSelection();
   });
 
+  const monthlySearchRef = useRef(q);
+  monthlySearchRef.current = q;
+  const isMonthlyFilterPresent = useCallback(() => monthlySearchRef.current.trim().length > 0, []);
+  const doesMonthlyFilterPass = useCallback((node: IRowNode<TimesheetMonth>) => {
+    if (!node.data) return false;
+    return employeeMatchesQuery(node.data, monthlySearchRef.current);
+  }, []);
+
+  useEffect(() => {
+    monthlyGridApiRef.current?.onFilterChanged();
+  }, [q]);
+
   const applySearchSelect = useCallback(
-    (opts?: { exactOnly?: boolean }) => {
-      const needle = q.trim();
-      if (!needle) return false;
-      const lower = needle.toLowerCase();
-      const exact = rows.find((r) => r.employee_code.toLowerCase() === lower);
-      const match =
-        exact ??
-        (opts?.exactOnly
-          ? undefined
-          : filtered.find(
-              (r) =>
-                r.employee_code.toLowerCase() === lower ||
-                r.employee_code.toLowerCase().startsWith(lower),
-            ) ?? filtered[0]);
+    (needle: string, opts?: { exactOnly?: boolean }) => {
+      if (!needle.trim()) return false;
+      const match = findEmployeeByQuery(rows, needle, opts);
       if (!match) {
         setError(`Không tìm thấy MSNV / tên khớp «${needle}».`);
         return false;
       }
       pickEmployee(match);
-      const idx = filtered.findIndex((r) => r.id === match.id);
-      if (idx >= 0) gridApi?.ensureIndexVisible(idx);
+      const api = monthlyGridApiRef.current;
+      if (api) {
+        let shown = -1;
+        api.forEachNodeAfterFilterAndSort((node, index) => {
+          if (shown < 0 && node.data?.id === match.id) shown = index;
+        });
+        if (shown >= 0) api.ensureIndexVisible(shown);
+      }
       return true;
     },
-    [q, rows, filtered, gridApi, pickEmployee],
+    [rows, pickEmployee],
   );
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
-    if (mainView === "monthly") applySearchSelect();
+    const needle = typedQRef.current.trim();
+    setQ(needle);
+    if (mainView === "monthly") applySearchSelect(needle);
   }
 
   const columnDefs = useMemo<ColDef<TimesheetMonth>[]>(
@@ -763,22 +765,24 @@ export function TimekeepingPage() {
               </select>
             </label>
           ) : null}
-          <label className="tk-search tk-search-compact">
-            <span className="sr-only">Tìm MSNV hoặc họ tên</span>
-            <input
-              placeholder="MSNV hoặc họ tên…"
-              data-hotkey-search
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
+          <ToolbarSearchInput
+            wrapClassName="tk-search tk-search-compact"
+            placeholder="MSNV hoặc họ tên…"
+            resetToken={searchReset}
+            onQuery={setQ}
+            onTyped={onTypedSearch}
+            onSubmit={(needle) => {
+              setQ(needle);
+              if (mainView === "monthly") applySearchSelect(needle);
+            }}
+          />
           {mainView === "monthly" ? (
             <button
               type="button"
               className="btn-ghost-dark btn-compact"
               disabled={busy || !q.trim()}
               title={disabledTitle(!q.trim(), "Nhập MSNV hoặc họ tên trước")}
-              onClick={() => applySearchSelect()}
+              onClick={() => applySearchSelect(typedQRef.current.trim() || q)}
             >
               Xem tháng
             </button>
@@ -788,6 +792,7 @@ export function TimekeepingPage() {
               type="button"
               className="btn-ghost-dark btn-compact"
               onClick={() => {
+                setSearchReset((n) => n + 1);
                 setQ("");
                 clearSelection();
               }}
@@ -926,7 +931,7 @@ export function TimekeepingPage() {
               workDate={gridDate}
               periodLocked={pay.status === "locked"}
               leaves={leaves}
-              searchQuery={gridSearch}
+              searchQuery={q}
               departmentId={departmentId}
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}
@@ -938,19 +943,21 @@ export function TimekeepingPage() {
             <section className="tk-grid-section tk-grid-primary">
               <div className="tk-grid-wrap ag-theme-quartz">
                 <AgGridReact<TimesheetMonth>
-                  rowData={filtered}
+                  rowData={rows}
                   columnDefs={columnDefs}
                   localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}
                   animateRows={false}
                   suppressHorizontalScroll
+                  isExternalFilterPresent={isMonthlyFilterPresent}
+                  doesExternalFilterPass={doesMonthlyFilterPass}
                   onRowClicked={onRowClicked}
                   onGridReady={(e) => {
                     monthlyGridApiRef.current = e.api;
-                    setGridApi(e.api);
                     if (!monthlyColPrefs.restore(e.api)) {
                       e.api.sizeColumnsToFit();
                     }
+                    e.api.onFilterChanged();
                   }}
                   {...monthlyColPrefs.handlers}
                   getRowClass={(p) =>
