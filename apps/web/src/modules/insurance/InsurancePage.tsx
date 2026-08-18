@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef } from "ag-grid-community";
+import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import {
   fetchInsuranceRows,
   fetchInsuranceSummary,
+  updateEmployee,
   type InsuranceRow,
   type InsuranceSummary,
 } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
 import { InsuranceDeclarationsSection } from "./InsuranceDeclarationsSection";
-import { FamilyDependentsPage } from "../hr/FamilyDependentsPage";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
@@ -19,20 +19,47 @@ function formatVnd(v: string | number | null | undefined): string {
   return `${Number(v).toLocaleString("vi-VN")} đ`;
 }
 
-type InsuranceTab = "tax" | "insurance" | "declarations";
+type InsuranceTab = "insurance" | "declarations";
 
 const TAB_LABELS: Record<InsuranceTab, string> = {
-  tax: "Thuế",
   insurance: "Bảo hiểm",
   declarations: "Báo tăng BHXH",
 };
 
 function parseTab(raw: string | null): InsuranceTab {
-  if (raw === "tax" || raw === "insurance" || raw === "declarations") return raw;
-  return "tax";
+  if (raw === "declarations") return "declarations";
+  return "insurance";
 }
 
-/** Bảo Hiểm Thuế — tab Thuế (NPT) · BH/TNCN theo kỳ · báo tăng BHXH. */
+function SiEnrolledCheckbox(p: ICellRendererParams<InsuranceRow>) {
+  const row = p.data;
+  const [busy, setBusy] = useState(false);
+  if (!row) return null;
+  return (
+    <label className="field emp-check-row" onClick={(e) => e.stopPropagation()}>
+      <input
+        type="checkbox"
+        checked={Boolean(p.value)}
+        disabled={busy}
+        title="Tham gia BHXH tại CTY này — NV còn sổ CTY cũ thì bỏ tick"
+        onChange={async (e) => {
+          const next = e.target.checked;
+          setBusy(true);
+          try {
+            await updateEmployee(row.employee_id, { si_enrolled: next });
+            p.node.setDataValue("si_enrolled", next);
+          } catch (err) {
+            window.alert(err instanceof Error ? err.message : "Không lưu tick BHXH.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+/** Bảo Hiểm — kỳ lương + báo tăng BHXH. Ẩn TNCN / NPT (kế toán làm riêng). */
 export function InsurancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
@@ -60,7 +87,7 @@ export function InsurancePage() {
     } catch (e) {
       setSummary(null);
       setRows([]);
-      setError(e instanceof Error ? e.message : "Không tải Bảo Hiểm Thuế.");
+      setError(e instanceof Error ? e.message : "Không tải Bảo Hiểm.");
     } finally {
       setLoading(false);
     }
@@ -75,9 +102,17 @@ export function InsurancePage() {
       { field: "employee_code", headerName: "MSNV", width: 90, pinned: "left" },
       { field: "full_name", headerName: "Họ tên", flex: 1, minWidth: 140 },
       {
-        field: "gross",
-        headerName: "Tổng thu",
-        width: 120,
+        field: "si_enrolled",
+        headerName: "Tham gia BHXH",
+        width: 130,
+        cellRenderer: SiEnrolledCheckbox,
+        sortable: true,
+      },
+      {
+        field: "si_base",
+        headerName: "Tổng lương tham gia BH",
+        width: 180,
+        headerTooltip: "Lương HĐ + chức vụ + độc hại + tay nghề + thâm niên + PCCC + HSE",
         valueFormatter: (p) => formatVnd(p.value),
       },
       {
@@ -105,17 +140,6 @@ export function InsurancePage() {
         valueFormatter: (p) => formatVnd(p.value),
       },
       {
-        field: "pit_amount",
-        headerName: "TNCN",
-        width: 110,
-        valueFormatter: (p) => formatVnd(p.value),
-      },
-      {
-        field: "tax_dependent_count",
-        headerName: "NPT",
-        width: 70,
-      },
-      {
         field: "net",
         headerName: "Thực lãnh",
         width: 120,
@@ -134,30 +158,25 @@ export function InsurancePage() {
         <nav className="breadcrumb">
           <Link to="/">Portal</Link>
           <span aria-hidden> › </span>
-          <span>Bảo Hiểm Thuế</span>
+          <span>Bảo Hiểm</span>
         </nav>
       </header>
       <main className="module-body">
         <div className="module-toolbar">
-          <h1>Bảo Hiểm Thuế</h1>
+          <h1>Bảo Hiểm</h1>
           {tab === "insurance" && (
-            <>
-              <label className="period-picker">
-                Kỳ
-                <input
-                  type="month"
-                  value={period}
-                  onChange={(e) => setPeriod(e.target.value)}
-                />
-              </label>
-              <Link to="/m/config/payroll-policy" className="btn-secondary">
-                Cấu hình BH / TNCN
-              </Link>
-            </>
+            <label className="period-picker">
+              Kỳ
+              <input
+                type="month"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+              />
+            </label>
           )}
         </div>
 
-        <nav className="payroll-tabs" aria-label="Bảo Hiểm Thuế">
+        <nav className="payroll-tabs" aria-label="Bảo Hiểm">
           {(Object.keys(TAB_LABELS) as InsuranceTab[]).map((key) => (
             <button
               key={key}
@@ -170,8 +189,6 @@ export function InsurancePage() {
           ))}
         </nav>
 
-        {tab === "tax" && <FamilyDependentsPage embedded />}
-
         {tab === "insurance" && (
           <>
             {error && <p className="banner-warn">{error}</p>}
@@ -181,12 +198,8 @@ export function InsurancePage() {
               <>
                 {loading && <p className="field-hint">Đang cập nhật…</p>}
                 <p className="field-hint">
-                  TNCN trong kỳ:{" "}
-                  {summary.pit_enabled_in_snapshot === true
-                    ? "đã bật (ảnh chụp Policy)"
-                    : summary.pit_enabled_in_snapshot === false
-                      ? "đang tắt — bật TNCN trong Policy khi Chủ chốt"
-                      : "chưa có snapshot"}
+                  Đóng đủ tháng khi đã tick BHXH, còn làm từ ngày 16 và ≥ 12 ngày công.
+                  NV còn sổ CTY cũ: bỏ tick. Tick xong cần Tính lương lại để cập nhật số tiền.
                 </p>
                 <div className="kpi-cards">
                   <article className="kpi-card">
@@ -206,8 +219,8 @@ export function InsurancePage() {
                     <strong>{formatVnd(summary.total_bhtn)}</strong>
                   </article>
                   <article className="kpi-card">
-                    <p>Tổng TNCN</p>
-                    <strong>{formatVnd(summary.total_pit)}</strong>
+                    <p>Tổng công đoàn</p>
+                    <strong>{formatVnd(summary.total_union_fee)}</strong>
                   </article>
                   <article className="kpi-card">
                     <p>Tổng thực lãnh</p>

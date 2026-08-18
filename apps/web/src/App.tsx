@@ -159,7 +159,7 @@ export default function App() {
           <Route path="salary-raise" element={<SalaryRaisePage />} />
           <Route path="contracts" element={<LabourContractsPage />} />
           <Route path="annual-leave" element={<AnnualLeavePage />} />
-          <Route path="family" element={<Navigate to="/m/insurance?tab=tax" replace />} />
+          <Route path="family" element={<Navigate to="/m/hr" replace />} />
           <Route path="movements" element={<EmployeeMovementsPage />} />
           <Route path="resignation" element={<ResignationWizardPage />} />
           <Route path="violations" element={<ViolationsBoardPage />} />

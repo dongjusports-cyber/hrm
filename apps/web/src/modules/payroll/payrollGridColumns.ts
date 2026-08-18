@@ -196,20 +196,8 @@ const DEDUCTION_COLS: ColDef<Payslip>[] = [
     valueFormatter: (p) => formatVnd(p.value),
   },
   {
-    field: "pit_amount",
-    headerName: "TNCN",
-    width: 100,
-    valueFormatter: (p) => formatVnd(p.value),
-  },
-  {
     field: "other_deductions",
     headerName: "Khấu trừ khác",
-    width: 118,
-    valueFormatter: (p) => formatVnd(p.value),
-  },
-  {
-    field: "taxable_income",
-    headerName: "TN chịu thuế",
     width: 118,
     valueFormatter: (p) => formatVnd(p.value),
   },

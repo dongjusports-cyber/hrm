@@ -256,7 +256,6 @@ def _fallback_worker_sections(
         {"label": "BHTN", "amount": slip.bhtn, "quantity": None, "unit": None, "target": None, "component_code": "BHTN", "note": None},
         {"label": "Công đoàn", "amount": slip.union_fee, "quantity": None, "unit": None, "target": None, "component_code": "UNION", "note": None},
         {"label": "Khấu trừ khác", "amount": slip.other_deductions if slip.other_deductions > 0 else None, "quantity": None, "unit": None, "target": None, "component_code": "OTHER_DED", "note": None},
-        {"label": "TNCN", "amount": slip.pit_amount if slip.pit_amount > 0 else None, "quantity": None, "unit": None, "target": None, "component_code": "PIT", "note": None},
     ]
     return work, leave, allowance, deductions
 

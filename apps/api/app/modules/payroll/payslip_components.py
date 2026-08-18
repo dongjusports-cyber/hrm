@@ -208,7 +208,6 @@ def build_component_drafts(
         ("BHYT", ins_res.bhyt, "BHYT 1.5%"),
         ("BHTN", ins_res.bhtn, "BHTN 1%"),
         ("UNION", ins_res.union_fee, "Phí công đoàn"),
-        ("PIT", ins_res.pit_amount, "Thuế TNCN"),
     ):
         if D(val) <= 0:
             continue

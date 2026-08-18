@@ -90,6 +90,26 @@ def test_ot_holiday_over_8_tiered():
     assert "holiday_over_8" in types
 
 
+def test_si_base_includes_pccc_hse_excludes_train_and_attend():
+    lines = _lines_5290_excel() + [
+        AllowanceLine("PCCC", "PCCC", Decimal("882000"), Decimal("882000"), True, True),
+        AllowanceLine("HSE", "HSE", Decimal("50000"), Decimal("50000"), True, True),
+        AllowanceLine("TRAINING", "Đào tạo", Decimal("100000"), Decimal("100000"), False, False),
+    ]
+    si, _ot, detail = compute_si_and_ot_bases(
+        contract_salary=Decimal("5675000"),
+        allowance_lines=lines,
+        attend_full_monthly=Decimal("230000"),
+        policy=default_payload(),
+    )
+    # 5.675.000 + độc hại 100k + thâm niên 550k + PCCC 882k + HSE 50k
+    assert si == Decimal("7257000")
+    assert "PCCC" in detail["si_base_components"]
+    assert "HSE" in detail["si_base_components"]
+    assert "TRAIN" not in detail["si_base_components"]
+    assert "INDUS" not in detail["si_base_components"]
+
+
 def test_si_base_excludes_transport_and_attend():
     si, ot, _ = compute_si_and_ot_bases(
         contract_salary=Decimal("5675000"),

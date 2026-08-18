@@ -16,10 +16,13 @@ GENUS_TO_CATALOG: dict[str, str | None] = {
     "SENIORITY": "SENIORITY",
     "TRAIN": "TRAINING",
     "INDUS": "ATTEND",
+    "PCCC": "PCCC",
+    "HSE": "HSE",
 }
 
 _DEFAULT_OT_COMPONENTS = ["BASIC", "POS", "TECH", "TREAT", "SENIORITY", "TRAIN", "INDUS"]
-_DEFAULT_SI_COMPONENTS = ["BASIC", "POS", "TECH", "SENIORITY", "TRAIN", "TREAT"]
+# CTY: lương HĐ + chức vụ + độc hại + tay nghề + thâm niên + PCCC + HSE (không đào tạo).
+_DEFAULT_SI_COMPONENTS = ["BASIC", "POS", "TECH", "TREAT", "SENIORITY", "PCCC", "HSE"]
 
 
 def apply_si_base_cap(si_base: Decimal, policy: dict) -> tuple[Decimal, Decimal | None]:
@@ -51,6 +54,8 @@ def sum_policy_components(
             total += D(attend_full_monthly)
             continue
         catalog = GENUS_TO_CATALOG.get(code)
+        if catalog is None and code in lines_by_code:
+            catalog = code
         if catalog and catalog in lines_by_code:
             total += D(lines_by_code[catalog].monthly_full)
     return total

@@ -108,7 +108,7 @@ class EmployeeBase(BaseModel):
     probation_salary: Decimal = Decimal("0")
     contract_salary: Decimal = Decimal("0")
     si_base_override: Decimal | None = None
-    si_enrolled: bool = True
+    si_enrolled: bool = False
     pit_enrolled: bool = True
     tax_dependent_count: int = 0
     union_fee_override: Decimal | None = None

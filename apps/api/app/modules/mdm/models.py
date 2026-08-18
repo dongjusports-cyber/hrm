@@ -176,7 +176,7 @@ class Employee(Base):
     probation_salary: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("0"), nullable=False)
     contract_salary: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("0"), nullable=False)
     si_base_override: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    si_enrolled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    si_enrolled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     pit_enrolled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     tax_dependent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     union_fee_override: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)

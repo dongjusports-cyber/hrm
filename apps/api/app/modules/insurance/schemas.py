@@ -27,6 +27,7 @@ class InsuranceRowOut(BaseModel):
     si_enrolled: bool
     pit_enrolled: bool
     tax_dependent_count: int
+    si_base: Decimal
     gross: Decimal
     bhxh: Decimal
     bhyt: Decimal

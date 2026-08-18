@@ -75,7 +75,7 @@ from app.modules.payroll.schemas import (
 )
 from app.modules.payroll.seed_allowances import seed_allowance_types
 from app.modules.policy.models import PolicyPackage
-from app.modules.policy.seed_payload import default_payload
+from app.modules.policy.seed_payload import default_payload, normalize_si_policy
 
 
 def _purge_ineligible_draft_payslips(db: Session, pay: PayPeriod) -> int:
@@ -106,7 +106,7 @@ def _active_policy(db: Session) -> tuple[PolicyPackage | None, dict]:
         .first()
     )
     if pkg and isinstance(pkg.payload, dict):
-        return pkg, dict(pkg.payload)
+        return pkg, normalize_si_policy(pkg.payload)
     return None, default_payload()
 
 
@@ -565,6 +565,9 @@ def compute_employee_payslip(
             policy=payload,
             tax_dependent_count=dep_count,
             pit_enrolled=bool(getattr(emp, "pit_enrolled", True)),
+            worked_days=D(ts.worked_days),
+            resign_date=emp.resign_date,
+            period_start=pay.date_from,
         )
     )
     return EmployeePayslipCalc(
@@ -793,6 +796,9 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
                     policy=payload,
                     tax_dependent_count=dep_count,
                     pit_enrolled=bool(getattr(emp, "pit_enrolled", True)),
+                    worked_days=D(ts.worked_days),
+                    resign_date=emp.resign_date,
+                    period_start=pay.date_from,
                 )
             )
 

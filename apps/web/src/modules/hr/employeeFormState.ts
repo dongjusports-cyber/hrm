@@ -95,7 +95,7 @@ export const emptyEmployeeForm: EmployeeFormState = {
   phone: "",
   bank_account: "",
   si_base_override: "",
-  si_enrolled: true,
+  si_enrolled: false,
   pit_enrolled: true,
   tax_dependent_count: "0",
   union_fee_override: "",
@@ -243,7 +243,7 @@ export function employeeToForm(e: {
       e.si_base_override != null
         ? formatMoneyTyping(digitsOnlyMoney(String(e.si_base_override)))
         : "",
-    si_enrolled: e.si_enrolled !== false,
+    si_enrolled: Boolean(e.si_enrolled),
     pit_enrolled: e.pit_enrolled !== false,
     tax_dependent_count: String(e.tax_dependent_count ?? 0),
     union_fee_override:

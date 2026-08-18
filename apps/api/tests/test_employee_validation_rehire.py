@@ -31,6 +31,7 @@ def _create_resigned(client, headers, db, *, code: str, cccd: str | None = None)
         },
     )
     assert created.status_code == 201, created.text
+    assert created.json()["si_enrolled"] is False
     emp_id = created.json()["id"]
     emp_uuid = UUID(str(emp_id))
 

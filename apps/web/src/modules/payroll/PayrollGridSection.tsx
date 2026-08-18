@@ -43,7 +43,6 @@ export function PayrollGridSection({
     () => ({
       gross: sumPayslipField(rows, "gross"),
       net: sumPayslipField(rows, "net"),
-      taxable: sumPayslipField(rows, "taxable_income"),
     }),
     [rows],
   );
@@ -95,10 +94,6 @@ export function PayrollGridSection({
         <div>
           <span className="payroll-total-label">Tổng thu nhập</span>
           <strong>{formatVnd(totals.gross)}</strong>
-        </div>
-        <div>
-          <span className="payroll-total-label">Thu nhập chịu thuế</span>
-          <strong>{formatVnd(totals.taxable)}</strong>
         </div>
         <div>
           <span className="payroll-total-label">Thực lãnh</span>

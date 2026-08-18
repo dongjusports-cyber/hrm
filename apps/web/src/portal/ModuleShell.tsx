@@ -8,7 +8,7 @@ const MODULE_TITLES: Record<string, string> = {
   hr: "Nhân Sự",
   timekeeping: "Chấm Công",
   payroll: "Tính Lương",
-  insurance: "Bảo Hiểm Thuế",
+  insurance: "Bảo Hiểm",
   report: "Báo Cáo / KPI",
   dispute: "Khiếu Nại",
   config: "Cấu Hình",

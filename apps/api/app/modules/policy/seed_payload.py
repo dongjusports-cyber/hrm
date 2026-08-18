@@ -138,7 +138,9 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
     "si_rates": {"bhxh": 0.08, "bhyt": 0.015, "bhtn": 0.01},
 
-    "si_base_components": ["BASIC", "POS", "TECH", "SENIORITY", "TRAIN", "TREAT"],
+    "si_base_components": ["BASIC", "POS", "TECH", "TREAT", "SENIORITY", "PCCC", "HSE"],
+
+    "si_month_rule": {"min_worked_days": 12, "from_day_of_month": 16},
 
     "si_base_cap": 46_800_000,
 
@@ -247,5 +249,20 @@ MONEY_TOP_KEYS = {
 def default_payload() -> dict[str, Any]:
 
     return deepcopy(DEFAULT_POLICY_PAYLOAD)
+
+
+def normalize_si_policy(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Gói Policy cũ: thêm luật tháng 12 ngày / ngày 16; nền BHXH CTY (PCCC+HSE, bỏ Đào tạo)."""
+    defaults = default_payload()
+    out = dict(payload or {})
+    for k, v in defaults.items():
+        if k not in out:
+            out[k] = deepcopy(v)
+    codes = [str(c).strip().upper() for c in (out.get("si_base_components") or [])]
+    if "TRAIN" in codes or "PCCC" not in codes or "HSE" not in codes:
+        out["si_base_components"] = list(defaults["si_base_components"])
+    if not isinstance(out.get("si_month_rule"), dict):
+        out["si_month_rule"] = dict(defaults["si_month_rule"])
+    return out
 
 

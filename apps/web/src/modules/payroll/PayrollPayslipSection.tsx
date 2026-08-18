@@ -171,7 +171,7 @@ export function PayrollPayslipSection({ rows, selected, onSelect }: Props) {
                 />
                 <LineTable
                   title="Khấu trừ"
-                  lines={detail.deduction_lines}
+                  lines={detail.deduction_lines.filter((ln) => ln.component_code !== "PIT")}
                   empty="Không có khấu trừ."
                 />
               </div>
@@ -182,10 +182,6 @@ export function PayrollPayslipSection({ rows, selected, onSelect }: Props) {
                 <div>
                   <span className="payroll-total-label">Tổng thu nhập</span>
                   <strong>{formatVnd(slip.gross)}</strong>
-                </div>
-                <div>
-                  <span className="payroll-total-label">Thu nhập chịu thuế</span>
-                  <strong>{formatVnd(slip.taxable_income)}</strong>
                 </div>
                 <div>
                   <span className="payroll-total-label">Thực lãnh</span>

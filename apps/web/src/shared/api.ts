@@ -2960,6 +2960,7 @@ export type InsuranceRow = {
   si_enrolled: boolean;
   pit_enrolled: boolean;
   tax_dependent_count: number;
+  si_base: string | number;
   gross: string | number;
   bhxh: string | number;
   bhyt: string | number;

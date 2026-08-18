@@ -14,7 +14,7 @@ from app.modules.attendance.timesheet import parse_period
 from app.modules.mdm.models import Employee
 from app.modules.mdm.service import resolve_tax_dependent_count
 from app.modules.payroll.models import Payslip, PolicySnapshot
-from app.modules.payroll.money import ZERO
+from app.modules.payroll.money import D, ZERO
 
 
 def require_insurance_access(user: User) -> None:
@@ -22,7 +22,7 @@ def require_insurance_access(user: User) -> None:
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Trợ Lý AI: bạn không có quyền module Bảo Hiểm Thuế.",
+        detail="Trợ Lý AI: bạn không có quyền module Bảo Hiểm.",
     )
 
 
@@ -98,6 +98,9 @@ def period_rows(db: Session, period: str) -> list[InsuranceRowOut]:
     )
     out: list[InsuranceRowOut] = []
     for s, emp in rows:
+        lines = s.lines if isinstance(s.lines, dict) else {}
+        ins = lines.get("insurance") if isinstance(lines.get("insurance"), dict) else {}
+        si_base = D(ins.get("si_base_charged", 0)) if ins else ZERO
         out.append(
             InsuranceRowOut(
                 employee_id=str(emp.id),
@@ -106,6 +109,7 @@ def period_rows(db: Session, period: str) -> list[InsuranceRowOut]:
                 si_enrolled=bool(emp.si_enrolled),
                 pit_enrolled=bool(emp.pit_enrolled),
                 tax_dependent_count=resolve_tax_dependent_count(db, emp.id, as_of=pay.date_to),
+                si_base=si_base,
                 gross=s.gross,
                 bhxh=s.bhxh,
                 bhyt=s.bhyt,

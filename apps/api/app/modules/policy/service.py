@@ -22,7 +22,7 @@ from app.modules.policy.schemas import (
     SeniorityAllowanceTierOut,
     SeniorityAmountOut,
 )
-from app.modules.policy.seed_payload import default_payload
+from app.modules.policy.seed_payload import default_payload, normalize_si_policy
 from app.modules.policy.validator import money_field_diffs, validate_payload
 
 
@@ -51,6 +51,9 @@ def seed_default_package(db: Session) -> PolicyPackage:
     seed_policy_rate_tables(db)
     existing = db.query(PolicyPackage).filter(PolicyPackage.name == "Mặc định 2025").first()
     if existing:
+        existing.payload = normalize_si_policy(existing.payload if isinstance(existing.payload, dict) else {})
+        db.commit()
+        db.refresh(existing)
         return existing
     pkg = PolicyPackage(
         name="Mặc định 2025",

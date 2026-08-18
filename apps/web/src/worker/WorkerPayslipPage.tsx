@@ -177,15 +177,11 @@ export function WorkerPayslipPage() {
           <span>Tổng thu nhập</span>
           <strong>{formatWorkerVnd(slip.gross)}</strong>
         </div>
-        <div className="worker-slip-summary-row">
-          <span>Thu nhập chịu thuế</span>
-          <strong>{formatWorkerVnd(slip.taxable_income)}</strong>
-        </div>
       </div>
 
       <WorkerPayslipSectionTable
         title="IV. Các khoản khấu trừ"
-        lines={slip.deduction_lines}
+        lines={slip.deduction_lines.filter((ln) => ln.component_code !== "PIT")}
         subtotalLabel="Tổng khấu trừ"
         subtotal={slip.deduction_subtotal}
       />

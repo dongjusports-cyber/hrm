@@ -378,21 +378,13 @@ export function EmployeeCreateFields({
           </h3>
           <div className="emp-fields-col emp-fields-compact emp-fields-insurance">
             <div className="emp-insurance-checks">
-              <label className="field emp-check-row">
+              <label className="field emp-check-row" title="NV còn sổ BHXH CTY cũ thì bỏ trống">
                 <input
                   type="checkbox"
                   checked={form.si_enrolled}
                   onChange={(e) => setForm({ ...form, si_enrolled: e.target.checked })}
                 />
-                <span>BHXH</span>
-              </label>
-              <label className="field emp-check-row">
-                <input
-                  type="checkbox"
-                  checked={form.pit_enrolled}
-                  onChange={(e) => setForm({ ...form, pit_enrolled: e.target.checked })}
-                />
-                <span>Thuế TNCN</span>
+                <span>Tham gia BHXH tại CTY này</span>
               </label>
             </div>
             <label className="field">
@@ -919,21 +911,13 @@ export function EmployeeProfileTabFields({
   if (tab === "insurance") {
     const checks = (
       <div className="emp-insurance-checks">
-        <label className="field emp-check-row" title="Tham gia BHXH">
+        <label className="field emp-check-row" title="NV còn sổ BHXH CTY cũ thì bỏ trống">
           <input
             type="checkbox"
             checked={form.si_enrolled}
             onChange={(e) => setForm({ ...form, si_enrolled: e.target.checked })}
           />
-          <span>BHXH</span>
-        </label>
-        <label className="field emp-check-row" title="Đóng thuế TNCN">
-          <input
-            type="checkbox"
-            checked={form.pit_enrolled}
-            onChange={(e) => setForm({ ...form, pit_enrolled: e.target.checked })}
-          />
-          <span>Thuế TNCN</span>
+          <span>Tham gia BHXH tại CTY này</span>
         </label>
       </div>
     );
@@ -956,15 +940,6 @@ export function EmployeeProfileTabFields({
           />
         </label>
         {!insuranceChecksFirst ? checks : null}
-        <label className="field">
-          <span>Người phụ thuộc (tự tính)</span>
-          <input
-            className="emp-readonly"
-            value={form.tax_dependent_count}
-            readOnly
-            title="Cập nhật qua màn Thân nhân & giảm trừ · Giảm trừ gia cảnh không nhập tay (21§21.3)"
-          />
-        </label>
         {insuranceChecksFirst ? (
           <details className="emp-insurance-advanced">
             <summary>Mức đóng / công đoàn (nâng cao)</summary>

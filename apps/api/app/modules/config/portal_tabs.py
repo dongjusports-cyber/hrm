@@ -51,7 +51,7 @@ DEFAULT_PORTAL_TABS: list[dict[str, Any]] = [
     },
     {
         "key": "insurance",
-        "name": "Bảo Hiểm Thuế",
+        "name": "Bảo Hiểm",
         "description": "BHXH, BHYT, BHTN, TNCN",
         "sort_order": 5,
         "enabled": True,
