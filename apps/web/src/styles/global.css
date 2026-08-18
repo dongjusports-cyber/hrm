@@ -992,14 +992,14 @@ a {
 }
 
 .emp-sheet-form-shell--fixed .emp-profile-compact {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .emp-sheet-form-shell--fixed .emp-profile-cols {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -1213,15 +1213,37 @@ a {
   flex-direction: column;
   gap: 4px;
   margin-top: 0;
+  flex: 1;
+  min-height: 0;
 }
 
 .emp-profile-cols {
   display: grid;
   gap: 5px;
-  align-items: start;
 }
 
-/* Cột 1 rộng hơn (Tổ, ngày); cột 5 vừa đủ BH */
+.emp-profile-cols-balanced {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+.emp-profile-cols-balanced > .emp-form-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.emp-allow-combined {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  flex: 1;
+}
+
 .emp-profile-cols-weighted {
   grid-template-columns:
     minmax(112px, 1fr)
@@ -1316,14 +1338,34 @@ a {
   margin-top: 0;
   width: 100%;
   min-width: 0;
-  max-height: min(220px, 42vh);
 }
 
-.emp-form-section-salary.emp-form-section-row-sync > .emp-profile-bottom-panel.emp-allow-list-block {
-  max-height: min(240px, 48vh);
+.emp-form-section-salary .emp-allow-combined {
+  flex: 1;
+  min-height: 0;
+}
+
+.emp-form-section-salary .emp-allow-list-block {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.emp-form-section-salary .emp-allow-list-scroll {
+  min-height: 0;
+  flex: 1;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.emp-form-section-col .emp-wt-regime-block {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .emp-form-section-row-sync .emp-allow-list-scroll {
@@ -1488,10 +1530,14 @@ a {
 
 .emp-profile-compact .emp-form-section {
   background: #fff;
-  height: fit-content;
+  height: auto;
   padding: 4px 5px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
+}
+
+.emp-profile-cols-balanced > .emp-form-section {
+  height: auto;
 }
 
 .emp-profile-compact .emp-form-section.emp-form-section-row-sync {
@@ -1551,20 +1597,30 @@ a {
 
 .emp-allow-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px) auto;
-  gap: 8px 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 88px) auto;
+  gap: 4px;
   align-items: end;
-  margin-top: 8px;
+  margin-top: 0;
+}
+
+.emp-allow-add-row-tight {
+  grid-template-columns: minmax(0, 1fr) minmax(64px, 88px) auto;
+}
+
+.emp-allow-add-row-tight .btn-sm,
+.emp-allow-add-row .btn-sm {
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 .emp-allow-list-compact li {
   padding: 4px 0;
 }
 
-/* Laptop 1366×768 và hẹp hơn: 3 cột (5 cột chỉ vừa 1920) */
-@media (max-width: 1599px) {
-  .emp-profile-cols-weighted {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (max-width: 1100px) {
+  .emp-profile-cols-balanced {
+    grid-template-columns: 1fr;
   }
 }
 

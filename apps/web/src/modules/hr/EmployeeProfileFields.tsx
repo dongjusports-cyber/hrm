@@ -168,7 +168,7 @@ type CreateFieldsProps = Omit<Props, "tab" | "isNew"> & {
   allowancePanel?: AllowanceColProps;
 };
 
-/** Form tạo mới — ảnh + header gọn + 5 cột vừa một màn (không cuộn). */
+/** Form tạo mới — ảnh + header + 5 cột một màn. */
 export function EmployeeCreateFields({
   form,
   setForm,
@@ -249,99 +249,69 @@ export function EmployeeCreateFields({
         </div>
       </header>
 
-      <div className="emp-profile-cols emp-profile-cols-weighted emp-create-cols emp-profile-compact">
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
-          aria-labelledby="emp-create-work"
-        >
+      <div className="emp-profile-cols emp-profile-cols-balanced emp-create-cols emp-profile-compact">
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-work">
           <h3 id="emp-create-work" className="emp-form-section-title">
             Công việc
           </h3>
-          <div className="emp-fields-col-main">
-            <div className="emp-fields-col emp-fields-compact">
-              {teamSelect(form, setForm, departments, teams, fieldErrors)}
-              {positionSelect(form, setForm, positions)}
-              <label className="field">
-                <span>Ngày vào</span>
-                <input
-                  type="date"
-                  value={form.join_date}
-                  onChange={(e) => setForm({ ...form, join_date: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Ngày ký HĐ</span>
-                <input
-                  type="date"
-                  value={form.contract_signed_at}
-                  onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
-                />
-              </label>
-            </div>
+          <div className="emp-fields-col emp-fields-compact">
+            {teamSelect(form, setForm, departments, teams, fieldErrors)}
+            {positionSelect(form, setForm, positions)}
+            <label className="field">
+              <span>Ngày vào</span>
+              <input
+                type="date"
+                value={form.join_date}
+                onChange={(e) => setForm({ ...form, join_date: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Ngày ký HĐ</span>
+              <input
+                type="date"
+                value={form.contract_signed_at}
+                onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
+              />
+            </label>
           </div>
-          {allowancePanel ? (
-            <AllowanceAddForm
-              allowTypes={allowancePanel.allowTypes}
-              newAllowCode={allowancePanel.newAllowCode}
-              setNewAllowCode={allowancePanel.setNewAllowCode}
-              newAllowAmount={allowancePanel.newAllowAmount}
-              setNewAllowAmount={allowancePanel.setNewAllowAmount}
-              saving={allowancePanel.saving}
-              onAdd={allowancePanel.onAdd}
-            />
-          ) : null}
         </section>
-
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync emp-form-section-salary"
-          aria-labelledby="emp-create-salary"
-        >
+        <section className="emp-form-section emp-form-section-col emp-form-section-salary" aria-labelledby="emp-create-salary">
           <h3 id="emp-create-salary" className="emp-form-section-title">
             Lương
           </h3>
-          <div className="emp-fields-col-main">
-            <div className="emp-fields-col emp-fields-compact">
-              <label className="field emp-field-money">
-                <span>Lương HĐ *</span>
-                <input
-                  {...moneyFieldHandlers(form, setForm, "contract_salary")}
-                  required
-                  inputMode="numeric"
-                  placeholder="0"
-                  aria-invalid={Boolean(fieldErrors?.contract_salary)}
-                />
-                {fieldErrorMsg(fieldErrors, "contract_salary")}
-              </label>
-              <label className="field emp-field-money">
-                <span>Lương thử việc</span>
-                <input
-                  {...moneyFieldHandlers(form, setForm, "probation_salary")}
-                  inputMode="numeric"
-                  placeholder="0"
-                />
-              </label>
-              <label className="field">
-                <span>Kênh lương</span>
-                <select
-                  value={form.pay_channel}
-                  onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
-                >
-                  <option value="CASH">Tiền mặt</option>
-                  <option value="ATM">ATM</option>
-                </select>
-              </label>
-            </div>
+          <div className="emp-fields-col emp-fields-compact">
+            <label className="field emp-field-money">
+              <span>Lương HĐ *</span>
+              <input
+                {...moneyFieldHandlers(form, setForm, "contract_salary")}
+                required
+                inputMode="numeric"
+                placeholder="0"
+                aria-invalid={Boolean(fieldErrors?.contract_salary)}
+              />
+              {fieldErrorMsg(fieldErrors, "contract_salary")}
+            </label>
+            <label className="field emp-field-money">
+              <span>Lương thử việc</span>
+              <input
+                {...moneyFieldHandlers(form, setForm, "probation_salary")}
+                inputMode="numeric"
+                placeholder="0"
+              />
+            </label>
+            <label className="field">
+              <span>Kênh lương</span>
+              <select
+                value={form.pay_channel}
+                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
+              >
+                <option value="CASH">Tiền mặt</option>
+                <option value="ATM">ATM</option>
+              </select>
+            </label>
           </div>
-          {allowancePanel ? (
-            <AllowanceListDisplay
-              allowances={allowancePanel.allowances}
-              saving={allowancePanel.saving}
-              onDelete={allowancePanel.onDelete}
-              formatMoney={allowancePanel.formatMoney}
-            />
-          ) : null}
+          {allowancePanel ? <AllowanceCombinedPanel panel={allowancePanel} /> : null}
         </section>
-
         <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-personal">
           <h3 id="emp-create-personal" className="emp-form-section-title">
             Cá nhân
@@ -355,21 +325,9 @@ export function EmployeeCreateFields({
               departments={departments}
               teams={teams}
               fieldLayout="column"
-              compactPart="main"
             />
           </div>
-          <EmployeeProfileTabFields
-            form={form}
-            setForm={setForm}
-            tab="personal"
-            isNew
-            departments={departments}
-            teams={teams}
-            fieldLayout="column"
-            compactPart="anchor"
-          />
         </section>
-
         <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-address">
           <h3 id="emp-create-address" className="emp-form-section-title">
             Cư trú & giấy tờ
@@ -383,26 +341,14 @@ export function EmployeeCreateFields({
               departments={departments}
               teams={teams}
               fieldLayout="column"
-              compactPart="main"
             />
           </div>
-          <EmployeeProfileTabFields
-            form={form}
-            setForm={setForm}
-            tab="address"
-            isNew
-            departments={departments}
-            teams={teams}
-            fieldLayout="column"
-            compactPart="anchor"
-          />
         </section>
-
         <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-create-insurance">
           <h3 id="emp-create-insurance" className="emp-form-section-title">
             Bảo hiểm & NH
           </h3>
-          <div className="emp-fields-col emp-fields-compact">
+          <div className="emp-fields-col emp-fields-compact emp-fields-insurance">
             <EmployeeProfileTabFields
               form={form}
               setForm={setForm}
@@ -450,12 +396,11 @@ function AllowanceAddForm({
 
   return (
     <div className="emp-allow-add-block emp-profile-bottom-panel" aria-label="Thêm phụ cấp">
-      <h4 className="emp-allow-block-title">Thêm phụ cấp</h4>
-      <div className="emp-allow-add emp-allow-add-col">
+      <div className="emp-allow-add emp-allow-add-row emp-allow-add-row-tight">
         <label className="field">
-          <span>Loại</span>
+          <span>Thêm phụ cấp</span>
           <select value={newAllowCode} onChange={(e) => onTypeChange(e.target.value)}>
-            <option value="">— Chọn loại phụ cấp —</option>
+            <option value="">— Loại —</option>
             {selectableTypes.map((t) => (
               <option key={t.code} value={t.code}>
                 {t.name}
@@ -533,7 +478,29 @@ function AllowanceListDisplay({
   );
 }
 
-/** Hồ sơ gọn — 5 cột; thêm PC ở cột 1, danh sách PC ở cột 2. */
+function AllowanceCombinedPanel({ panel }: { panel: AllowanceColProps }) {
+  return (
+    <div className="emp-allow-combined">
+      <AllowanceAddForm
+        allowTypes={panel.allowTypes}
+        newAllowCode={panel.newAllowCode}
+        setNewAllowCode={panel.setNewAllowCode}
+        newAllowAmount={panel.newAllowAmount}
+        setNewAllowAmount={panel.setNewAllowAmount}
+        saving={panel.saving}
+        onAdd={panel.onAdd}
+      />
+      <AllowanceListDisplay
+        allowances={panel.allowances}
+        saving={panel.saving}
+        onDelete={panel.onDelete}
+        formatMoney={panel.formatMoney}
+      />
+    </div>
+  );
+}
+
+/** Hồ sơ gọn — 5 cột một màn, khối cao bằng nhau; phụ cấp nằm cột Lương. */
 export function EmployeeProfileCompactFields({
   form,
   setForm,
@@ -549,122 +516,77 @@ export function EmployeeProfileCompactFields({
   const col = "column" as const;
   return (
     <div className="emp-profile-compact">
-      <div className="emp-profile-cols emp-profile-cols-weighted">
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
-          aria-labelledby="emp-sec-work"
-        >
+      <div className="emp-profile-cols emp-profile-cols-balanced">
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-work">
           <h3 id="emp-sec-work" className="emp-form-section-title">
             Công việc
           </h3>
-          <div className="emp-fields-col-main">
-            <div className="emp-fields-col">
-              {teamSelect(form, setForm, departments, teams)}
-              {positionSelect(form, setForm, positions)}
-              <label className="field">
-                <span>Ngày vào</span>
-                <input
-                  type="date"
-                  value={form.join_date}
-                  onChange={(e) => setForm({ ...form, join_date: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Ngày nghỉ</span>
-                <input
-                  type="date"
-                  value={form.resign_date}
-                  onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
-                />
-              </label>
-            </div>
+          <div className="emp-fields-col">
+            {teamSelect(form, setForm, departments, teams)}
+            {positionSelect(form, setForm, positions)}
+            <label className="field">
+              <span>Ngày vào</span>
+              <input
+                type="date"
+                value={form.join_date}
+                onChange={(e) => setForm({ ...form, join_date: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Ngày nghỉ</span>
+              <input
+                type="date"
+                value={form.resign_date}
+                onChange={(e) => setForm({ ...form, resign_date: e.target.value })}
+              />
+            </label>
           </div>
-          {allowancePanel ? (
-            <AllowanceAddForm
-              allowTypes={allowancePanel.allowTypes}
-              newAllowCode={allowancePanel.newAllowCode}
-              setNewAllowCode={allowancePanel.setNewAllowCode}
-              newAllowAmount={allowancePanel.newAllowAmount}
-              setNewAllowAmount={allowancePanel.setNewAllowAmount}
-              saving={allowancePanel.saving}
-              onAdd={allowancePanel.onAdd}
-            />
-          ) : null}
         </section>
-
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync emp-form-section-salary"
-          aria-labelledby="emp-sec-salary"
-        >
+        <section className="emp-form-section emp-form-section-col emp-form-section-salary" aria-labelledby="emp-sec-salary">
           <h3 id="emp-sec-salary" className="emp-form-section-title">
             Lương
           </h3>
-          <div className="emp-fields-col-main">
-            <div className="emp-fields-col">
-              <label className="field">
-                <span>Ngày ký HĐ</span>
-                <input
-                  type="date"
-                  value={form.contract_signed_at}
-                  onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
-                />
-              </label>
-              <label className="field emp-field-money">
-                <span>Lương HĐ</span>
-                <input
-                  value={form.contract_salary}
-                  onChange={(e) => setForm({ ...form, contract_salary: e.target.value })}
-                  required
-                />
-              </label>
-              <label className="field emp-field-money">
-                <span>Lương thử việc</span>
-                <input
-                  value={form.probation_salary}
-                  onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Kênh lương</span>
-                <select
-                  value={form.pay_channel}
-                  onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
-                >
-                  <option value="ATM">ATM</option>
-                  <option value="CASH">Tiền mặt</option>
-                </select>
-              </label>
-            </div>
+          <div className="emp-fields-col">
+            <label className="field">
+              <span>Ngày ký HĐ</span>
+              <input
+                type="date"
+                value={form.contract_signed_at}
+                onChange={(e) => setForm({ ...form, contract_signed_at: e.target.value })}
+              />
+            </label>
+            <label className="field emp-field-money">
+              <span>Lương HĐ</span>
+              <input
+                value={form.contract_salary}
+                onChange={(e) => setForm({ ...form, contract_salary: e.target.value })}
+                required
+              />
+            </label>
+            <label className="field emp-field-money">
+              <span>Lương thử việc</span>
+              <input
+                value={form.probation_salary}
+                onChange={(e) => setForm({ ...form, probation_salary: e.target.value })}
+              />
+            </label>
+            <label className="field">
+              <span>Kênh lương</span>
+              <select
+                value={form.pay_channel}
+                onChange={(e) => setForm({ ...form, pay_channel: e.target.value })}
+              >
+                <option value="ATM">ATM</option>
+                <option value="CASH">Tiền mặt</option>
+              </select>
+            </label>
           </div>
-          {allowancePanel ? (
-            <AllowanceListDisplay
-              allowances={allowancePanel.allowances}
-              saving={allowancePanel.saving}
-              onDelete={allowancePanel.onDelete}
-              formatMoney={allowancePanel.formatMoney}
-            />
-          ) : null}
+          {allowancePanel ? <AllowanceCombinedPanel panel={allowancePanel} /> : null}
         </section>
-
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
-          aria-labelledby="emp-sec-personal"
-        >
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-personal">
           <h3 id="emp-sec-personal" className="emp-form-section-title">
             Cá nhân
           </h3>
-          <div className="emp-fields-col-main">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="personal"
-              isNew={false}
-              departments={departments}
-              teams={teams}
-              fieldLayout={col}
-              compactPart="main"
-            />
-          </div>
           <EmployeeProfileTabFields
             form={form}
             setForm={setForm}
@@ -673,29 +595,12 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
-            compactPart="anchor"
           />
         </section>
-
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
-          aria-labelledby="emp-sec-address"
-        >
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-address">
           <h3 id="emp-sec-address" className="emp-form-section-title">
             Cư trú & giấy tờ
           </h3>
-          <div className="emp-fields-col-main">
-            <EmployeeProfileTabFields
-              form={form}
-              setForm={setForm}
-              tab="address"
-              isNew={false}
-              departments={departments}
-              teams={teams}
-              fieldLayout={col}
-              compactPart="main"
-            />
-          </div>
           <EmployeeProfileTabFields
             form={form}
             setForm={setForm}
@@ -704,16 +609,11 @@ export function EmployeeProfileCompactFields({
             departments={departments}
             teams={teams}
             fieldLayout={col}
-            compactPart="anchor"
           />
         </section>
-
-        <section
-          className="emp-form-section emp-form-section-col emp-form-section-row-sync"
-          aria-labelledby="emp-sec-insurance"
-        >
+        <section className="emp-form-section emp-form-section-col" aria-labelledby="emp-sec-insurance">
           <h3 id="emp-sec-insurance" className="emp-form-section-title">
-            Bảo hiểm & Ngân hàng
+            Bảo hiểm & NH
           </h3>
           <EmployeeProfileTabFields
             form={form}
