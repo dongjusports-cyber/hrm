@@ -98,7 +98,7 @@ def _expected_net(*, wd_days: Decimal, leave_days: Decimal, divisor: Decimal) ->
     attend = money_vnd(Decimal("600000") / divisor * num)
     transport = money_vnd(Decimal("800000") / divisor * num)
     gross = wd + leave + attend + transport
-    charge_si = wd_days >= Decimal("12")
+    charge_si = True  # vào 01, còn làm — đóng BH dù chưa đủ 12 công
     bhxh = money_vnd(SALARY * Decimal("0.08")) if charge_si else Decimal("0")
     bhyt = money_vnd(SALARY * Decimal("0.015")) if charge_si else Decimal("0")
     bhtn = money_vnd(SALARY * Decimal("0.01")) if charge_si else Decimal("0")
@@ -223,8 +223,8 @@ def test_hr_closed_loop_display_and_payslip_math(client):
     assert Decimal(str(ale_line["amount"])) == exp1["leave"]
     ded_codes = {ln["component_code"] for ln in d1["deduction_lines"]}
     assert "PIT" not in ded_codes
-    assert "BHXH" not in ded_codes
-    assert "UNION" not in ded_codes
+    assert "BHXH" in ded_codes
+    assert "UNION" in ded_codes
     allow_codes = {ln["component_code"] for ln in d1["allowance_lines"]}
     assert "ATTEND" in allow_codes
     assert "TRANSPORT" in allow_codes

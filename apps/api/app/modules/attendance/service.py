@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -332,3 +332,116 @@ def list_days(
             )
         )
     return out
+
+
+def _months_covering(date_from: date, date_to: date) -> list[str]:
+    out: list[str] = []
+    y, m = date_from.year, date_from.month
+    while (y, m) <= (date_to.year, date_to.month):
+        out.append(f"{y:04d}-{m:02d}")
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+    return out
+
+
+def sync_maternity_mle_days(db: Session, employee_id: UUID, date_from: date, date_to: date) -> int:
+    """Gán MLE các ngày trong chế độ Nghỉ thai sản; gỡ MLE khi đã cắt giai đoạn.
+
+    Không đụng ngày khóa. Không xóa MLE nếu có đơn nghỉ thai sản đã duyệt.
+    """
+    from app.modules.attendance.models import LeaveRequest
+    from app.modules.attendance.timesheet import rebuild_timesheets, seed_leave_types
+    from app.modules.mdm.models import EmployeeWtRegime
+
+    if date_to < date_from:
+        return 0
+    seed_leave_types(db)
+    maternity_rows = (
+        db.query(EmployeeWtRegime)
+        .filter(
+            EmployeeWtRegime.employee_id == employee_id,
+            EmployeeWtRegime.regime_type == "MATERNITY",
+            EmployeeWtRegime.date_from <= date_to,
+            EmployeeWtRegime.date_to >= date_from,
+        )
+        .all()
+    )
+    maternity_dates: set[date] = set()
+    for r in maternity_rows:
+        cur = max(r.date_from, date_from)
+        end = min(r.date_to, date_to)
+        while cur <= end:
+            maternity_dates.add(cur)
+            cur += timedelta(days=1)
+
+    approved = (
+        db.query(LeaveRequest)
+        .filter(
+            LeaveRequest.employee_id == employee_id,
+            LeaveRequest.leave_type_code.in_(("MLE", "MC")),
+            LeaveRequest.status == "approved",
+            LeaveRequest.from_date <= date_to,
+            LeaveRequest.to_date >= date_from,
+        )
+        .all()
+    )
+    approved_dates: set[date] = set()
+    for req in approved:
+        cur = max(req.from_date, date_from)
+        end = min(req.to_date, date_to)
+        while cur <= end:
+            approved_dates.add(cur)
+            cur += timedelta(days=1)
+
+    existing = {
+        row.work_date: row
+        for row in db.query(AttendanceDay).filter(
+            AttendanceDay.employee_id == employee_id,
+            AttendanceDay.work_date >= date_from,
+            AttendanceDay.work_date <= date_to,
+        )
+    }
+    changed = 0
+    cursor = date_from
+    while cursor <= date_to:
+        row = existing.get(cursor)
+        want_mle = cursor in maternity_dates
+        keep_request = cursor in approved_dates
+        if row is not None and row.is_locked:
+            cursor += timedelta(days=1)
+            continue
+        if want_mle:
+            if row is None:
+                row = AttendanceDay(
+                    employee_id=employee_id,
+                    work_date=cursor,
+                    source="import",
+                    leave_code="MLE",
+                    leave_days=Decimal("1"),
+                )
+                db.add(row)
+                changed += 1
+            elif row.leave_code != "MLE":
+                row.leave_code = "MLE"
+                row.leave_days = Decimal("1")
+                if row.source != "manual":
+                    row.source = "import"
+                changed += 1
+        elif row is not None and row.leave_code == "MLE" and not keep_request:
+            row.leave_code = None
+            row.leave_days = Decimal("0")
+            changed += 1
+        cursor += timedelta(days=1)
+
+    if changed:
+        db.flush()
+        from fastapi import HTTPException as FastHTTPException
+
+        for period in _months_covering(date_from, date_to):
+            try:
+                rebuild_timesheets(db, period, recalc_days=False)
+            except FastHTTPException:
+                pass
+    return changed

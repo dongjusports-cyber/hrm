@@ -419,7 +419,7 @@ export async function deleteEmployeeEducation(empId: string, rowId: string): Pro
 
 // --- Chế độ về sớm (Thai sản / Nuôi con) — 22§22.14 (Bước D) ---
 
-export type WtRegimeType = "PREGNANT" | "CHILD";
+export type WtRegimeType = "PREGNANT" | "MATERNITY" | "CHILD";
 
 export type EmployeeWtRegime = {
   id: string;
@@ -1264,6 +1264,10 @@ export type Employee = {
   failed_attempts?: number;
   has_worker_account?: boolean;
   wt_regime_active?: boolean;
+  wt_regime_type?: string | null;
+  wt_regime_date_from?: string | null;
+  wt_regime_date_to?: string | null;
+  si_base?: string | number | null;
 };
 
 export type UnlockResetPasswordResult = {

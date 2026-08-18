@@ -221,7 +221,11 @@ def evaluate_payroll_reminders(db: Session) -> None:
         )
 
 
-_WT_REGIME_LABEL = {"PREGNANT": "Thai sản", "CHILD": "Nuôi con"}
+_WT_REGIME_LABEL = {
+    "PREGNANT": "Đang mang thai",
+    "MATERNITY": "Nghỉ thai sản",
+    "CHILD": "Nuôi con nhỏ",
+}
 
 
 def evaluate_wt_regime_reminders(db: Session) -> None:
@@ -244,13 +248,14 @@ def evaluate_wt_regime_reminders(db: Session) -> None:
     for regime, emp in rows:
         label = _WT_REGIME_LABEL.get(regime.regime_type, regime.regime_type)
         date_to_str = regime.date_to.strftime("%d/%m/%Y")
+        hours_bit = "" if regime.regime_type == "MATERNITY" else f" ({regime.hours_early}h)"
         create_alert(
             db,
             AiAlertCreate(
                 rule_key="wt_regime_expiring",
                 title=f"Trợ Lý AI: chế độ {label} MSNV {emp.employee_code} sắp hết hạn",
                 body=(
-                    f"MSNV {emp.employee_code} — {label} ({regime.hours_early}h), "
+                    f"MSNV {emp.employee_code} — {label}{hours_bit}, "
                     f"hết {date_to_str} (còn 3 ngày). Gia hạn hoặc chấm dứt trên hồ sơ."
                 ),
                 target_module="hr",

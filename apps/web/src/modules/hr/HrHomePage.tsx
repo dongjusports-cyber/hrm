@@ -53,7 +53,7 @@ const TILES: HubTile[] = [
   {
     key: "special_regime",
     name: "Chế độ đặc biệt",
-    description: "NV có chế độ về sớm (Thai sản / Nuôi con)",
+    description: "Mang thai / Nghỉ thai sản / Nuôi con nhỏ",
     to: "/m/hr/lists/special_regime",
     countKey: "employees",
     countFn: (r) => r.filter((e) => e.wt_regime_active).length,
@@ -82,7 +82,7 @@ const TILES: HubTile[] = [
   {
     key: "annual-leave",
     name: "Phép năm",
-    description: "Lưới ngày phép 2026 — nguồn GenuSuite 17/8",
+    description: "Được hưởng · hiện tại · đã dùng · còn lại",
     to: "/m/hr/annual-leave",
     countKey: "annualLeave",
   },

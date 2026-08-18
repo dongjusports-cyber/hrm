@@ -97,6 +97,7 @@ class WorkerPayslipDetailOut(BaseModel):
     allowance_subtotal: Decimal | None = None
     deduction_subtotal: Decimal | None = None
     annual_leave_entitled: Decimal | None = None
+    annual_leave_current: Decimal | None = None
     annual_leave_used: Decimal | None = None
     annual_leave_remaining: Decimal | None = None
     confirm_deadline: date | None = None

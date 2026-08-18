@@ -1,10 +1,4 @@
-"""Đọc lưới phép năm từ file trích GenuSuite — CHỈ ĐỌC, không ghi sổ.
-
-Thứ tự tìm file:
-  1. Biến ANNUAL_LEAVE_SNAPSHOT (file hoặc thư mục chứa employees.json)
-  2. apps/api/data/annual_leave/employees.json  (Docker .123: /app/data/…)
-  3. HIEN_PHAP/Phép năm GenuSuite/trich_xuat_*/employees.json mới nhất
-"""
+"""Lưới phép năm — live từ sổ/bảng công; file GenuSuite chỉ còn để đối chiếu trích xuất."""
 
 from __future__ import annotations
 
@@ -13,17 +7,24 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
-import calendar
 import json
 import os
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from app.modules.attendance.annual_leave_ledger import entitled_days_per_year
-from app.modules.mdm.models import Employee
+from app.modules.attendance.annual_leave_ledger import (
+    MONTH_KEYS,
+    _al_policy,
+    closed_accrual_months,
+    entitled_days_per_year,
+    prorate_al,
+    timesheet_ale_by_month_batch,
+    timesheet_ale_used_ytd_batch,
+)
+from app.modules.mdm.models import Employee, Team
 from app.modules.policy.seed_payload import default_payload
 
-MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+MONTHS = MONTH_KEYS
 Q2 = Decimal("0.01")
 _AL_DEFAULT = default_payload()["annual_leave"]
 BASE_DAYS = int(_AL_DEFAULT["days_per_year"])
@@ -49,36 +50,6 @@ def _parse_iso_date(val: Any) -> date | None:
         return date.fromisoformat(s)
     except ValueError:
         return None
-
-
-def closed_accrual_months(join_date: date | None, as_of: date, year: int) -> int:
-    """Số tháng đã đóng trong `year` — tháng đang chạy chưa cộng.
-
-    VD báo cáo 17/8/2026 → hết tháng 7 → 7 tháng (16/12×7 = 9.33).
-    """
-    if as_of.year < year:
-        return 0
-    if as_of.year > year:
-        through = 12
-    elif as_of.day >= calendar.monthrange(as_of.year, as_of.month)[1]:
-        through = as_of.month
-    else:
-        through = as_of.month - 1
-    if through <= 0:
-        return 0
-    start_month = 1
-    if join_date and join_date.year == year:
-        start_month = join_date.month
-    elif join_date and join_date.year > year:
-        return 0
-    months = through - start_month + 1
-    return max(0, min(12, months))
-
-
-def prorate_al(al_days: Decimal, months: int) -> Decimal:
-    if months <= 0:
-        return Decimal("0")
-    return (al_days * Decimal(months) / Decimal(12)).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
 def snapshot_path() -> Path | None:
@@ -202,3 +173,72 @@ def attach_employee_ids(db: Session, payload: dict[str, Any]) -> dict[str, Any]:
         row["employee_id"] = str(eid) if isinstance(eid, UUID) else (str(eid) if eid else None)
     payload["matched_in_db"] = sum(1 for r in rows if r.get("employee_id"))
     return payload
+
+
+def build_live_grid(db: Session, as_of: date | None = None) -> dict[str, Any]:
+    """Lưới HR Phép năm — số live (được hưởng / hiện tại / đã dùng / còn lại). CHỈ ĐỌC."""
+    as_of = as_of or date.today()
+    year = as_of.year
+    through = closed_accrual_months(None, as_of, year)
+    base, extra_every = _al_policy(db)
+    employees_orm = (
+        db.query(Employee)
+        .options(joinedload(Employee.team).joinedload(Team.department))
+        .filter(Employee.deleted_at.is_(None), Employee.status != "resigned")
+        .order_by(Employee.employee_code.asc())
+        .all()
+    )
+    ids = [e.id for e in employees_orm]
+    used_map = timesheet_ale_used_ytd_batch(db, ids, as_of)
+    by_month = timesheet_ale_by_month_batch(db, ids, as_of)
+    zero = Decimal("0").quantize(Q2)
+    rows: list[dict[str, Any]] = []
+    for emp in employees_orm:
+        months = closed_accrual_months(emp.join_date, as_of, year)
+        quota = Decimal(entitled_days_per_year(emp, as_of, base, extra_every)).quantize(
+            Q2, rounding=ROUND_HALF_UP
+        )
+        curr_al = prorate_al(quota, months)
+        used = used_map.get(emp.id, zero)
+        remaining = (curr_al - used).quantize(Q2, rounding=ROUND_HALF_UP)
+        month_vals = by_month.get(emp.id) or {k: zero for k in MONTHS}
+        dept = ""
+        team_name = ""
+        if emp.team is not None:
+            team_name = emp.team.name or ""
+            if emp.team.department is not None:
+                dept = emp.team.department.name or ""
+        rows.append(
+            {
+                "employee_id": str(emp.id),
+                "employee_code": emp.employee_code,
+                "full_name": emp.full_name,
+                "department": dept,
+                "team": team_name,
+                "join_date": emp.join_date.isoformat() if emp.join_date else None,
+                "al_days": str(quota),
+                "used": str(used),
+                "unused": str(remaining),
+                "accrued_months": months,
+                "curr_al": str(curr_al),
+                "curr_remaining": str(remaining),
+                "used_by_month": {k: str(month_vals.get(k, zero)) for k in MONTHS},
+            }
+        )
+    notes = [
+        f"Được hưởng = {BASE_DAYS} ngày (NV mới), +1 mỗi đủ {EXTRA_EVERY} năm theo ngày vào. "
+        f"Hiện tại = mốc × số tháng đã đóng / 12 (hết tháng {through}). "
+        "Còn lại = hiện tại − đã dùng (ALE trên bảng công). Tháng đang chạy chưa cộng."
+    ]
+    return {
+        "year": year,
+        "report_date": as_of.isoformat(),
+        "accrued_through_month": through,
+        "source_file": None,
+        "source_label": f"Sổ phép {year} · đến hết tháng {through}",
+        "missing": False,
+        "notes": notes,
+        "employee_count": len(rows),
+        "matched_in_db": len(rows),
+        "employees": rows,
+    }

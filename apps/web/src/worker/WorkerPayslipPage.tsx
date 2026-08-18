@@ -195,8 +195,12 @@ export function WorkerPayslipPage() {
         <h2 className="worker-slip-section-title">V. Phép năm</h2>
         <div className="worker-slip-al-grid">
           <div>
-            <span>Phép năm hiện tại</span>
+            <span>Được hưởng</span>
             <strong>{formatWorkerQty(slip.annual_leave_entitled)}</strong>
+          </div>
+          <div>
+            <span>Phép hiện tại</span>
+            <strong>{formatWorkerQty(slip.annual_leave_current)}</strong>
           </div>
           <div>
             <span>Phép năm đã dùng</span>

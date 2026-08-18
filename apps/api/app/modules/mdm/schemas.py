@@ -306,8 +306,12 @@ class EmployeeOut(BaseModel):
     is_locked: bool = False
     failed_attempts: int = 0
     has_worker_account: bool = False
-    # Có chế độ về sớm (Thai sản / Nuôi con) hiệu lực hôm nay — lọc tab «Chế độ đặc biệt»
+    # Có chế độ đặc biệt (mang thai / nghỉ thai sản / nuôi con nhỏ) hiệu lực hôm nay
     wt_regime_active: bool = False
+    wt_regime_type: str | None = None
+    wt_regime_date_from: date | None = None
+    wt_regime_date_to: date | None = None
+    si_base: Decimal | None = None
 
 
 class EmployeeRehireOut(BaseModel):
@@ -955,12 +959,12 @@ class EmployeeEducationOut(BaseModel):
     created_at: datetime | None = None
 
 
-RegimeType = Literal["PREGNANT", "CHILD"]
+RegimeType = Literal["PREGNANT", "MATERNITY", "CHILD"]
 
 
 class EmployeeWtRegimeCreate(BaseModel):
     regime_type: RegimeType
-    hours_early: int = Field(ge=1, le=3)
+    hours_early: int = Field(default=1, ge=0, le=3)
     date_from: date
     date_to: date
     note: str = ""
@@ -969,7 +973,7 @@ class EmployeeWtRegimeCreate(BaseModel):
 class EmployeeWtRegimeUpdate(BaseModel):
     """PATCH — chỉ sửa date_to, hours_early, note (giữ regime_type, date_from cũ)."""
 
-    hours_early: int | None = Field(default=None, ge=1, le=3)
+    hours_early: int | None = Field(default=None, ge=0, le=3)
     date_to: date | None = None
     note: str | None = None
 

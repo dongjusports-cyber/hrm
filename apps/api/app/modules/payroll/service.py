@@ -24,7 +24,11 @@ from app.modules.attendance.timesheet import ensure_pay_period, rebuild_timeshee
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
 from app.modules.mdm.models import Employee, EmployeeFamilyMember
-from app.modules.mdm.service import _is_dependent_effective, resolve_tax_dependent_count
+from app.modules.mdm.service import (
+    _is_dependent_effective,
+    maternity_si_pause_employee_ids,
+    resolve_tax_dependent_count,
+)
 from app.modules.payroll.engine_allowances import (
     AllowanceInput,
     AllowanceTypeView,
@@ -553,6 +557,7 @@ def compute_employee_payslip(
         + bonus_res.total
     )
     dep_count = resolve_tax_dependent_count(db, emp.id, as_of=pay.date_to)
+    maternity_pause = emp.id in maternity_si_pause_employee_ids(db, pay.date_from, pay.date_to)
     ins_res = compute_insurance_and_net(
         InsuranceInput(
             si_contribution_base=ot_res.si_contribution_base,
@@ -568,6 +573,8 @@ def compute_employee_payslip(
             worked_days=D(ts.worked_days),
             resign_date=emp.resign_date,
             period_start=pay.date_from,
+            join_date=emp.join_date,
+            on_maternity_leave=maternity_pause,
         )
     )
     return EmployeePayslipCalc(
@@ -686,6 +693,7 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
         empty_bonus = BonusResult(total=ZERO, lines=[])
         sums_map = _sums_batch(db, pay.id)
         dep_map = _tax_dep_counts_batch(db, emp_ids, as_of=pay.date_to)
+        maternity_pause_ids = maternity_si_pause_employee_ids(db, pay.date_from, pay.date_to)
         penalties = payload.get("attendance_penalties") or {}
         computed_emp_ids: list[UUID] = []
 
@@ -799,6 +807,8 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
                     worked_days=D(ts.worked_days),
                     resign_date=emp.resign_date,
                     period_start=pay.date_from,
+                    join_date=emp.join_date,
+                    on_maternity_leave=emp.id in maternity_pause_ids,
                 )
             )
 

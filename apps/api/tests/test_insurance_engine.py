@@ -74,7 +74,30 @@ def test_si_base_override():
     )
 
 
-def test_si_under_12_worked_days_no_charge():
+def test_si_under_12_still_employed_charges():
+    """NV cũ còn làm qua ngày 16 — đóng cả tháng dù mới 11.87 công."""
+    r = compute_insurance_and_net(
+        InsuranceInput(
+            si_contribution_base=Decimal("6325000"),
+            si_enrolled=True,
+            si_base_override=None,
+            union_fee_override=None,
+            gross=Decimal("2000000"),
+            other_deductions=Decimal("0"),
+            other_adjustments=Decimal("0"),
+            policy=default_payload(),
+            worked_days=Decimal("11.87"),
+            period_start=date(2026, 8, 1),
+            join_date=date(2017, 3, 8),
+            resign_date=None,
+        )
+    )
+    assert r.si_charged is True
+    assert r.bhxh == Decimal("506000")
+    assert r.union_fee == Decimal("44100")
+
+
+def test_si_join_from_day_16_under_12_no_charge():
     r = compute_insurance_and_net(
         InsuranceInput(
             si_contribution_base=Decimal("6325000"),
@@ -87,6 +110,7 @@ def test_si_under_12_worked_days_no_charge():
             policy=default_payload(),
             worked_days=Decimal("11.99"),
             period_start=date(2026, 8, 1),
+            join_date=date(2026, 8, 16),
         )
     )
     assert r.bhxh == r.union_fee == Decimal("0")
@@ -148,10 +172,35 @@ def test_si_join_after_16_with_12_days_still_charges():
             worked_days=Decimal("12"),
             period_start=date(2026, 8, 1),
             resign_date=None,
+            join_date=date(2026, 8, 18),
         )
     )
     assert r.si_charged is True
     assert r.union_fee == Decimal("44100")
+
+
+def test_si_maternity_leave_pauses_all_bh_and_union():
+    """Nghỉ thai sản giao kỳ — BHXH/BHYT/BHTN + công đoàn = 0."""
+    r = compute_insurance_and_net(
+        InsuranceInput(
+            si_contribution_base=Decimal("6325000"),
+            si_enrolled=True,
+            si_base_override=None,
+            union_fee_override=None,
+            gross=Decimal("10000000"),
+            other_deductions=Decimal("0"),
+            other_adjustments=Decimal("0"),
+            policy=default_payload(),
+            worked_days=Decimal("0"),
+            period_start=date(2026, 8, 1),
+            join_date=date(2017, 3, 8),
+            on_maternity_leave=True,
+        )
+    )
+    assert r.bhxh == r.bhyt == r.bhtn == Decimal("0")
+    assert r.union_fee == Decimal("0")
+    assert r.si_charged is False
+    assert r.net == Decimal("10000000")
 
 
 def test_normalize_old_policy_si_components():

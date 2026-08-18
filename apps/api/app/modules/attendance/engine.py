@@ -316,7 +316,7 @@ def calculate_day(
                 ot = ot_on_books + ot_external
                 ot_type = "weekday" if ot > 0 else None
             worked = _shift_worked_hours(first_in, last_out, schedule, work_date)
-            if wt_hours_early is not None:
+            if wt_hours_early:
                 early, worked = _apply_wt_regime(
                     last_out=last_out,
                     work_date=work_date,

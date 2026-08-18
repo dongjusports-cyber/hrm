@@ -67,7 +67,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                 TodoCardOut(
                     key="wt_regime_expiring",
                     title=f"{expiring_wt} chế độ sắp hết hạn",
-                    body="Chế độ về sớm (Thai sản / Nuôi con) hết sau 3 ngày — gia hạn hoặc chấm dứt trên hồ sơ.",
+                    body="Chế độ đặc biệt (mang thai / nghỉ thai sản / nuôi con nhỏ) hết sau 3 ngày — gia hạn hoặc chấm dứt trên hồ sơ.",
                     count=expiring_wt,
                     target_module="hr",
                     href="/m/hr/lists/special_regime",

@@ -188,6 +188,13 @@ def test_special_regime_filter_by_wt_regime(client):
 
     special = client.get("/api/employees?status=special_regime", headers=headers).json()
     assert code in {e["employee_code"] for e in special}
+    row = next(e for e in special if e["employee_code"] == code)
+    assert row["wt_regime_type"] == "CHILD"
+    assert row["wt_regime_date_from"] == today.isoformat()
+    assert row["wt_regime_date_to"] == (today + timedelta(days=30)).isoformat()
+    assert row["join_date"] == "2020-01-15"
+    assert row["team_name"] or row["team_code"]
+    assert Decimal(str(row["si_base"])) >= Decimal("6000000")
     # Vẫn còn ở tab Chính thức (chế độ đặc biệt không đổi effective_status)
     active_after = client.get("/api/employees?status=active", headers=headers).json()
     assert code in {e["employee_code"] for e in active_after}

@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import LeaveRequest
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Employee, EmployeeWtRegime
 
 MATERNITY_LEAVE_CODES = frozenset({"MLE", "MC"})
 PROBATION_CONTRACT_CODE = "TV"
@@ -23,9 +23,9 @@ STATUS_LABELS: dict[str, str] = {
 
 
 def maternity_employee_ids(db: Session, as_of: date | None = None) -> set[UUID]:
-    """NV đang nghỉ thai sản (đơn approved bao phủ ngày as_of)."""
+    """NV đang nghỉ thai sản: đơn MLE/MC đã duyệt, hoặc chế độ MATERNITY bao phủ as_of."""
     today = as_of or date.today()
-    rows = (
+    leave_rows = (
         db.query(LeaveRequest.employee_id)
         .filter(
             LeaveRequest.leave_type_code.in_(MATERNITY_LEAVE_CODES),
@@ -36,7 +36,17 @@ def maternity_employee_ids(db: Session, as_of: date | None = None) -> set[UUID]:
         .distinct()
         .all()
     )
-    return {row[0] for row in rows}
+    regime_rows = (
+        db.query(EmployeeWtRegime.employee_id)
+        .filter(
+            EmployeeWtRegime.regime_type == "MATERNITY",
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.date_to >= today,
+        )
+        .distinct()
+        .all()
+    )
+    return {row[0] for row in leave_rows} | {row[0] for row in regime_rows}
 
 
 def effective_employment_status(

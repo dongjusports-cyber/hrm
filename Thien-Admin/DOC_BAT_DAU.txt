@@ -63,6 +63,10 @@ Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo th
     → Nạp hôn nhân / số con / SĐT từ Excel 14.08 lên VPS
     → Chạy sau khi đã deploy code mới (05 hoặc 02)
 
+  File:  10-NAP-CHE-DO-THAI-SAN.bat
+    → Nạp 13 NV từ Excel 18.08: 5 nuôi con, 3 mang thai, 5 nghỉ sau sanh
+    → F5 Portal → lọc «Chế độ đặc biệt» (cần đã deploy code 3 giai đoạn)
+
 --------------------------------------------------------------------------------
   TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
 --------------------------------------------------------------------------------

@@ -30,6 +30,8 @@ class InsuranceInput:
     worked_days: Decimal | None = None
     resign_date: date | None = None
     period_start: date | None = None
+    join_date: date | None = None
+    on_maternity_leave: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,20 +58,35 @@ def si_month_eligible(
     resign_date: date | None,
     period_start: date | None,
     policy: dict[str, Any],
+    join_date: date | None = None,
+    on_maternity_leave: bool = False,
 ) -> bool:
-    """CTY: tick BHXH + ≥ 12 ngày công WT + còn làm từ ngày 16 (thôi việc 15 → không đóng)."""
+    """Tick BHXH + một trong hai: còn làm từ ngày 16, hoặc ≥ 12 ngày công (NV vào sau 16).
+
+    Thôi việc trước ngày 16 → không đóng, dù đủ 12 công.
+    NV cũ / vào trước ngày 16, còn tên → đóng cả tháng (không chờ đủ 12 công giữa tháng).
+    Nghỉ thai sản (MATERNITY) giao kỳ lương → tạm dừng BHXH/BHYT/BHTN + công đoàn.
+    """
     if not si_enrolled:
+        return False
+    if on_maternity_leave:
         return False
     if period_start is None:
         return True
     rule = (policy or {}).get("si_month_rule") or {}
     min_days = D(rule.get("min_worked_days", 12))
     from_day = int(rule.get("from_day_of_month", 16) or 16)
-    if D(worked_days or 0) < min_days:
-        return False
     cutoff = date(period_start.year, period_start.month, from_day)
     if resign_date is not None and resign_date < cutoff:
         return False
+    joined_from_cutoff = (
+        join_date is not None
+        and join_date.year == period_start.year
+        and join_date.month == period_start.month
+        and join_date >= cutoff
+    )
+    if joined_from_cutoff:
+        return D(worked_days or 0) >= min_days
     return True
 
 
@@ -92,6 +109,8 @@ def compute_insurance_and_net(inp: InsuranceInput) -> InsuranceResult:
         resign_date=inp.resign_date,
         period_start=inp.period_start,
         policy=policy,
+        join_date=inp.join_date,
+        on_maternity_leave=inp.on_maternity_leave,
     )
 
     if not charged or si_base <= 0:

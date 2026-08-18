@@ -474,15 +474,14 @@ class EmployeeExperience(Base):
 
 
 class EmployeeWtRegime(Base):
-    """Chế độ về sớm (22§22.14) — Thai sản / Nuôi con: giảm giờ cuối ca theo kỳ.
+    """Chế độ đặc biệt 3 giai đoạn: Đang mang thai / Nghỉ thai sản / Nuôi con nhỏ.
 
-    Không dùng status=maternity cho Nuôi con — chỉ bảng này. Engine (Bước E) đọc
-    regime hiệu lực (date_from ≤ ngày ≤ date_to) để bù giờ / miễn về sớm.
+    PREGNANT + CHILD: về sớm 1–3 giờ. MATERNITY: nghỉ đẻ (hours_early = 0), tự gắn MLE.
     """
 
     __tablename__ = "employee_wt_regimes"
     __table_args__ = (
-        CheckConstraint("hours_early IN (1, 2, 3)", name="ck_wt_regime_hours_early"),
+        CheckConstraint("hours_early IN (0, 1, 2, 3)", name="ck_wt_regime_hours_early"),
         CheckConstraint("date_to >= date_from", name="ck_wt_regime_dates"),
         Index("ix_wt_regimes_employee_dates", "employee_id", "date_from", "date_to"),
     )
@@ -491,8 +490,8 @@ class EmployeeWtRegime(Base):
     employee_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("employees.id"), nullable=False
     )
-    regime_type: Mapped[str] = mapped_column(String(20), nullable=False)  # PREGNANT | CHILD
-    hours_early: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 | 2 | 3
+    regime_type: Mapped[str] = mapped_column(String(20), nullable=False)  # PREGNANT | MATERNITY | CHILD
+    hours_early: Mapped[int] = mapped_column(Integer, nullable=False)  # 0 (nghỉ đẻ) | 1 | 2 | 3
     date_from: Mapped[date] = mapped_column(Date, nullable=False)
     date_to: Mapped[date] = mapped_column(Date, nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)

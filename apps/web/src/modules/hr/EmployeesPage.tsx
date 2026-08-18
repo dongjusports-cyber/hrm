@@ -53,7 +53,7 @@ const FILTER_META: Record<StatusFilter, { title: string; hint: string }> = {
   maternity: { title: "Thai sản", hint: "Nghỉ thai sản" },
   special_regime: {
     title: "Chế độ đặc biệt",
-    hint: "NV có chế độ về sớm (Thai sản / Nuôi con) hiệu lực",
+    hint: "Mang thai / Nghỉ thai sản / Nuôi con nhỏ — ngày vào, kỳ hiệu lực, lương BHXH",
   },
   resigned: { title: "Thôi việc", hint: "Đã thôi việc" },
 };
@@ -83,12 +83,29 @@ const FULL_COLUMNS = [
   "status",
   "account_status_label",
 ];
+const SPECIAL_COLUMNS = [
+  "employee_code",
+  "full_name",
+  "team_name",
+  "join_date",
+  "wt_regime_date_from",
+  "wt_regime_date_to",
+  "wt_regime_type",
+  "si_base",
+];
+
+const WT_REGIME_LABEL: Record<string, string> = {
+  PREGNANT: "Đang mang thai",
+  MATERNITY: "Nghỉ thai sản",
+  CHILD: "Nuôi con nhỏ",
+};
 
 const VIEW_PREFS_KEY = "hr_employees_view_prefs";
 /** v7: cột khít chữ, dồn trái; không flex/autoSize (tránh Chức vụ phình, Thâm niên cắt chữ). */
 const COLUMN_STATE_PREFIX = "hr_employees_column_state_v7";
 
-function columnStateKey(viewMode: ViewMode): string {
+function columnStateKey(viewMode: ViewMode, statusFilter: StatusFilter): string {
+  if (statusFilter === "special_regime") return `${COLUMN_STATE_PREFIX}_special_regime`;
   return `${COLUMN_STATE_PREFIX}_${viewMode}`;
 }
 
@@ -140,6 +157,7 @@ function formatVnd(v: string | number | null | undefined): string {
 export function EmployeesPage() {
   const { filterKey } = useParams();
   const statusFilter = parseFilter(filterKey);
+  const specialGrid = statusFilter === "special_regime";
   useHrSubpageEsc({ backTo: "/m/hr" });
   const meta = FILTER_META[statusFilter];
   const navigate = useNavigate();
@@ -169,16 +187,16 @@ export function EmployeesPage() {
 
   const persistColumns = useCallback(
     (api: GridApi<Employee>) => {
-      saveAgGridColumnState(columnStateKey(viewMode), api);
+      saveAgGridColumnState(columnStateKey(viewMode, statusFilter), api);
     },
-    [viewMode],
+    [viewMode, statusFilter],
   );
 
   const applySavedColumns = useCallback(
     (api: GridApi<Employee>) => {
-      restoreAgGridColumnState(columnStateKey(viewMode), api);
+      restoreAgGridColumnState(columnStateKey(viewMode, statusFilter), api);
     },
-    [viewMode],
+    [viewMode, statusFilter],
   );
 
   useEffect(() => {
@@ -299,6 +317,79 @@ export function EmployeesPage() {
   }, [rows, liveQ]);
 
   const columnDefs = useMemo<ColDef<Employee>[]>(() => {
+    if (specialGrid) {
+      return [
+        {
+          field: "employee_code",
+          headerName: "MSNV",
+          width: 78,
+          minWidth: 70,
+          filter: false,
+          pinned: "left",
+          cellClass: "hr-cell-open-profile",
+        },
+        {
+          field: "full_name",
+          headerName: "Họ tên",
+          minWidth: 168,
+          width: 200,
+          filter: false,
+          pinned: "left",
+          cellClass: "hr-cell-name-link",
+        },
+        {
+          colId: "team",
+          headerName: "Tổ",
+          minWidth: 120,
+          width: 148,
+          filter: false,
+          valueGetter: (p) => p.data?.team_name || p.data?.team_code || "—",
+        },
+        {
+          field: "join_date",
+          headerName: "Ngày vào",
+          width: 118,
+          minWidth: 108,
+          filter: false,
+          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+        },
+        {
+          field: "wt_regime_date_from",
+          headerName: "Ngày bắt đầu",
+          width: 124,
+          minWidth: 118,
+          filter: false,
+          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+        },
+        {
+          field: "wt_regime_date_to",
+          headerName: "Ngày kết thúc",
+          width: 124,
+          minWidth: 118,
+          filter: false,
+          valueFormatter: (p) => formatDateDDMMYYYY(p.value),
+        },
+        {
+          field: "wt_regime_type",
+          headerName: "Loại chế độ",
+          width: 128,
+          minWidth: 120,
+          filter: false,
+          valueFormatter: (p) => WT_REGIME_LABEL[String(p.value || "")] || p.value || "—",
+        },
+        {
+          field: "si_base",
+          headerName: "Lương tham gia BHXH",
+          width: 168,
+          minWidth: 156,
+          filter: false,
+          cellClass: "hr-cell-money",
+          headerClass: "hr-header-money",
+          valueFormatter: (p) => formatVnd(p.value),
+        },
+      ];
+    }
+
     const base: ColDef<Employee>[] = [
       {
         colId: "sel",
@@ -478,7 +569,7 @@ export function EmployeesPage() {
 
     return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busyId, viewMode, departmentId, teamId, statusFilter]);
+  }, [busyId, viewMode, departmentId, teamId, statusFilter, specialGrid]);
 
   useEffect(() => {
     const api = gridApiRef.current;
@@ -537,7 +628,7 @@ export function EmployeesPage() {
           department_id: departmentId || undefined,
           team_id: teamId || undefined,
         },
-        viewMode === "compact" ? COMPACT_COLUMNS : FULL_COLUMNS,
+        specialGrid ? SPECIAL_COLUMNS : viewMode === "compact" ? COMPACT_COLUMNS : FULL_COLUMNS,
       );
       setOk(`Đã xuất Excel ${rows.length} nhân viên theo bộ lọc và cột đang hiện.`);
     } catch (err) {
@@ -610,6 +701,7 @@ export function EmployeesPage() {
         >
           Tìm
         </button>
+        {!specialGrid ? (
         <div className="view-toggle view-toggle-compact">
           <button
             type="button"
@@ -626,6 +718,7 @@ export function EmployeesPage() {
             Đầy đủ
           </button>
         </div>
+        ) : null}
         <ToolbarMoreMenu>
           <button type="button" className="toolbar-more-item" onClick={onResetFilters}>
             Đặt lại lọc
@@ -634,7 +727,7 @@ export function EmployeesPage() {
             type="button"
             className="toolbar-more-item"
             onClick={() => {
-              localStorage.removeItem(columnStateKey(viewMode));
+            localStorage.removeItem(columnStateKey(viewMode, statusFilter));
               gridApiRef.current?.resetColumnState();
             }}
           >
@@ -675,6 +768,8 @@ export function EmployeesPage() {
           {selectedRows.length > 0 ? ` · đã chọn ${selectedRows.length}` : ""}
         </span>
         <div className="hr-status-actions">
+          {!specialGrid ? (
+            <>
           <button
             type="button"
             className="btn-secondary btn-compact"
@@ -697,6 +792,8 @@ export function EmployeesPage() {
           >
             Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
           </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -705,9 +802,9 @@ export function EmployeesPage() {
           rowData={rows}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.id}
-          rowHeight={viewMode === "compact" ? 32 : 38}
+          rowHeight={specialGrid || viewMode === "full" ? 38 : 32}
           animateRows={false}
-          rowSelection="multiple"
+          rowSelection={specialGrid ? undefined : "multiple"}
           suppressRowClickSelection
           overlayNoRowsTemplate="<span>Không có nhân viên trong mục này</span>"
           onCellClicked={onCellClicked}

@@ -45,7 +45,7 @@ function formatDaysKeepZero(v: string | number | null | undefined): string {
   return n.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-/** Nhân Sự → Phép năm — lưới GenuSuite (bản trích Excel, chỉ đọc). */
+/** Nhân Sự → Phép năm — lưới live (được hưởng / hiện tại / đã dùng / còn lại). */
 export function AnnualLeavePage() {
   useHrSubpageEsc({ backTo: "/m/hr" });
   const [grid, setGrid] = useState<AnnualLeaveGrid | null>(null);
@@ -209,17 +209,14 @@ export function AnnualLeavePage() {
         <p className="field-hint">
           {grid?.source_label ?? "Đang tải…"}
           {grid && !grid.missing
-            ? ` — NV mới được hưởng 14 ngày/năm, +1 mỗi đủ 5 năm (đúng ngày vào). Hiện tại = mốc × tháng đã đóng / 12. Còn lại = hiện tại − đã dùng. Bấm tên để mở hồ sơ.`
+            ? ` — NV mới 14 ngày/năm, +1 mỗi đủ 5 năm. Hiện tại = mốc × tháng đã đóng / 12 (tháng đang chạy chưa cộng). Còn lại = hiện tại − đã dùng. Bấm tên để mở hồ sơ.`
             : ""}
         </p>
       </div>
 
       {error && <p className="banner-warn">{error}</p>}
       {grid?.missing && (
-        <p className="banner-warn">
-          Chưa có file trích phép năm. Trên máy .123 chạy{" "}
-          <code>python -m app.scripts.extract_annual_leave</code> trong <code>apps/api</code>.
-        </p>
+        <p className="banner-warn">Không tải được lưới phép năm từ dữ liệu nhân sự.</p>
       )}
       {hint && <p className="field-hint">{hint}</p>}
 

@@ -9,7 +9,10 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.attendance.annual_leave_ledger import annual_leave_snapshot
+from app.modules.attendance.annual_leave_ledger import (
+    annual_leave_snapshot,
+    payslip_leave_as_of,
+)
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee, Team
@@ -307,11 +310,13 @@ def _to_detail(
         fill_ale_leave_quantity(leave, ts.al_days)
 
     dept = emp.department
-    al_entitled = al_used = al_remaining = None
+    al_entitled = al_current = al_used = al_remaining = None
     if db is not None:
-        al_entitled, al_used, al_remaining = annual_leave_snapshot(
-            db, emp.id, pay.date_to or date.today()
-        )
+        snap = annual_leave_snapshot(db, emp.id, payslip_leave_as_of(pay.date_to))
+        al_entitled = snap.entitled
+        al_current = snap.current
+        al_used = snap.used
+        al_remaining = snap.remaining
 
     can_confirm, can_dispute = _action_flags(slip)
     return WorkerPayslipDetailOut(
@@ -347,6 +352,7 @@ def _to_detail(
         allowance_subtotal=allowance_subtotal,
         deduction_subtotal=deduction_subtotal,
         annual_leave_entitled=al_entitled,
+        annual_leave_current=al_current,
         annual_leave_used=al_used,
         annual_leave_remaining=al_remaining,
         confirm_deadline=slip.confirm_deadline,

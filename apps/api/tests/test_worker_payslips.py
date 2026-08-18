@@ -90,8 +90,14 @@ def test_worker_sees_only_published(client, db):
     assert "taxable_income" in d
     assert d["annual_leave_entitled"] is not None
     assert Decimal(str(d["annual_leave_entitled"])) > 0
+    assert d["annual_leave_current"] is not None
+    assert Decimal(str(d["annual_leave_current"])) > 0
+    assert Decimal(str(d["annual_leave_current"])) <= Decimal(str(d["annual_leave_entitled"]))
     assert d["annual_leave_used"] is not None
     assert d["annual_leave_remaining"] is not None
+    assert Decimal(str(d["annual_leave_remaining"])) == (
+        Decimal(str(d["annual_leave_current"])) - Decimal(str(d["annual_leave_used"]))
+    )
 
     from uuid import UUID
 
@@ -192,3 +198,7 @@ def test_worker_payslip_shows_grid_ale_quantity_and_used(client, db):
     assert Decimal(str(ale["amount"])) > 0
     assert Decimal(str(d["annual_leave_used"])) >= Decimal(str(d["al_days"]))
     assert Decimal(str(d["annual_leave_entitled"])) > 0
+    assert Decimal(str(d["annual_leave_current"])) > 0
+    assert Decimal(str(d["annual_leave_remaining"])) == (
+        Decimal(str(d["annual_leave_current"])) - Decimal(str(d["annual_leave_used"]))
+    )

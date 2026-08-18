@@ -87,6 +87,7 @@ export type WorkerPayslipDetail = {
   allowance_subtotal: string | number | null;
   deduction_subtotal: string | number | null;
   annual_leave_entitled: string | number | null;
+  annual_leave_current: string | number | null;
   annual_leave_used: string | number | null;
   annual_leave_remaining: string | number | null;
   confirm_deadline: string | null;

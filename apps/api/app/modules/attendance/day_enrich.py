@@ -76,7 +76,9 @@ def wt_hours_early_on(db: Session, employee_id: UUID, work_date: date) -> int | 
     from app.modules.mdm.service import active_wt_regime
 
     r = active_wt_regime(db, employee_id, as_of=work_date)
-    return None if r is None else int(r.hours_early)
+    if r is None or r.regime_type == "MATERNITY" or int(r.hours_early or 0) <= 0:
+        return None
+    return int(r.hours_early)
 
 
 def apply_calc_to_day_row(

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import func
@@ -25,6 +27,16 @@ KIND_ACCRUAL = "accrual"
 KIND_USE = "use"
 KIND_ADJUST = "adjust"
 KIND_PAYOUT = "payout"
+MONTH_KEYS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
+
+
+class AnnualLeaveSnapshot(NamedTuple):
+    """Số phép hiển thị — được hưởng / hiện tại / đã dùng / còn lại."""
+
+    entitled: Decimal
+    current: Decimal
+    used: Decimal
+    remaining: Decimal
 
 
 def _al_policy(db: Session) -> tuple[int, int]:
@@ -72,6 +84,47 @@ def entitled_days_per_year(emp: Employee, as_of: date, base: int, extra_every: i
 def entitled_days_for(db: Session, emp: Employee, as_of: date) -> int:
     base, every = _al_policy(db)
     return entitled_days_per_year(emp, as_of, base, every)
+
+
+def closed_accrual_months(join_date: date | None, as_of: date, year: int) -> int:
+    """Số tháng đã đóng trong `year` — tháng đang chạy chưa cộng.
+
+    VD 18/8/2026 → hết tháng 7 → 7 tháng. Ngày cuối tháng mới cộng tháng đó.
+
+    Nghỉ thai sản / không lương **không** dừng tích: mỗi tháng đóng vẫn cộng
+    (mốc năm / 12), cùng công thức với NV đi làm.
+    """
+    if as_of.year < year:
+        return 0
+    if as_of.year > year:
+        through = 12
+    elif as_of.day >= calendar.monthrange(as_of.year, as_of.month)[1]:
+        through = as_of.month
+    else:
+        through = as_of.month - 1
+    if through <= 0:
+        return 0
+    start_month = 1
+    if join_date and join_date.year == year:
+        start_month = join_date.month
+    elif join_date and join_date.year > year:
+        return 0
+    months = through - start_month + 1
+    return max(0, min(12, months))
+
+
+def prorate_al(al_days: Decimal | int, months: int) -> Decimal:
+    if months <= 0:
+        return Decimal("0").quantize(Q2)
+    return (Decimal(al_days) * Decimal(months) / Decimal(12)).quantize(Q2, rounding=ROUND_HALF_UP)
+
+
+def payslip_leave_as_of(period_end: date | None, today: date | None = None) -> date:
+    """Phiếu tháng đang chạy: lấy hôm nay (tháng chưa đóng). Phiếu tháng cũ: ngày cuối kỳ."""
+    today = today or date.today()
+    if period_end is None or period_end > today:
+        return today
+    return period_end
 
 
 def _signed_days(kind: str, days: Decimal) -> Decimal:
@@ -190,14 +243,8 @@ def add_entry(
 
 
 def _accrual_months(emp: Employee, as_of: date) -> int:
-    year_start = date(as_of.year, 1, 1)
-    accrual_start = year_start
-    if emp.join_date and emp.join_date > accrual_start:
-        accrual_start = emp.join_date
-    if accrual_start > as_of:
-        return 0
-    months = (as_of.year - accrual_start.year) * 12 + (as_of.month - accrual_start.month) + 1
-    return max(0, min(12, months))
+    """Tháng đã đóng — khớp lưới HR (tháng đang chạy chưa cộng)."""
+    return closed_accrual_months(emp.join_date, as_of, as_of.year)
 
 
 def sync_accrual(db: Session, emp: Employee, as_of: date) -> AnnualLeaveLedger:
@@ -323,10 +370,8 @@ def _closing_with_unrecorded_accrual(
     if ledger is None:
         return target
     closing = Decimal(str(ledger.closing_balance)).quantize(Q2, rounding=ROUND_HALF_UP)
-    missing = (target - Decimal(str(ledger.accrued))).quantize(Q2, rounding=ROUND_HALF_UP)
-    if missing <= 0:
-        return closing
-    return (closing + missing).quantize(Q2, rounding=ROUND_HALF_UP)
+    delta = (target - Decimal(str(ledger.accrued))).quantize(Q2, rounding=ROUND_HALF_UP)
+    return (closing + delta).quantize(Q2, rounding=ROUND_HALF_UP)
 
 
 def annual_leave_remaining_batch(
@@ -359,22 +404,30 @@ def annual_leave_remaining_batch(
         .all()
     }
     pending_map = pending_submitted_days_batch(db, employee_ids, year)
+    ts_used_map = timesheet_ale_used_ytd_batch(db, employee_ids, as_of)
+    zero = Decimal("0").quantize(Q2)
 
     out: dict[UUID, Decimal] = {}
     for emp_id in employee_ids:
         emp = employees.get(emp_id)
         if emp is None:
-            out[emp_id] = Decimal("0")
+            out[emp_id] = zero
             continue
+        ledger = ledger_by_emp.get(emp_id)
         closing = _closing_with_unrecorded_accrual(
-            ledger_by_emp.get(emp_id),
+            ledger,
             emp,
             as_of,
             entitled_days_per_year(emp, as_of, base, extra_every),
         )
-        pending = pending_map.get(emp_id, Decimal("0"))
-        remaining = (closing - pending).quantize(Q2, rounding=ROUND_HALF_UP)
-        out[emp_id] = max(Decimal("0"), remaining)
+        ledger_used = (
+            Decimal(str(ledger.used)).quantize(Q2, rounding=ROUND_HALF_UP) if ledger is not None else zero
+        )
+        ts_used = ts_used_map.get(emp_id, zero)
+        extra = (max(ledger_used, ts_used) - ledger_used).quantize(Q2, rounding=ROUND_HALF_UP)
+        pending = pending_map.get(emp_id, zero)
+        remaining = (closing - extra - pending).quantize(Q2, rounding=ROUND_HALF_UP)
+        out[emp_id] = max(zero, remaining)
     return out
 
 
@@ -479,42 +532,86 @@ def annual_leave_remaining(db: Session, employee_id: UUID, as_of: date | None = 
     return annual_leave_remaining_batch(db, [employee_id], as_of).get(employee_id, Decimal("0"))
 
 
+def timesheet_ale_used_ytd_batch(
+    db: Session, employee_ids: list[UUID], as_of: date
+) -> dict[UUID, Decimal]:
+    """Tổng ngày ALE bảng công YTD theo NV — 1 query, CHỈ ĐỌC."""
+    if not employee_ids:
+        return {}
+    rows = (
+        db.query(
+            TimesheetMonth.employee_id,
+            func.coalesce(func.sum(TimesheetMonth.al_days), 0),
+        )
+        .join(PayPeriod, PayPeriod.id == TimesheetMonth.pay_period_id)
+        .filter(
+            TimesheetMonth.employee_id.in_(employee_ids),
+            PayPeriod.year == as_of.year,
+            PayPeriod.date_from <= as_of,
+        )
+        .group_by(TimesheetMonth.employee_id)
+        .all()
+    )
+    return {
+        emp_id: Decimal(str(total or 0)).quantize(Q2, rounding=ROUND_HALF_UP)
+        for emp_id, total in rows
+    }
+
+
+def timesheet_ale_by_month_batch(
+    db: Session, employee_ids: list[UUID], as_of: date
+) -> dict[UUID, dict[str, Decimal]]:
+    """ALE theo tháng trong năm `as_of` — CHỈ ĐỌC."""
+    empty = {key: Decimal("0") for key in MONTH_KEYS}
+    if not employee_ids:
+        return {}
+    rows = (
+        db.query(TimesheetMonth.employee_id, PayPeriod.month, TimesheetMonth.al_days)
+        .join(PayPeriod, PayPeriod.id == TimesheetMonth.pay_period_id)
+        .filter(
+            TimesheetMonth.employee_id.in_(employee_ids),
+            PayPeriod.year == as_of.year,
+            PayPeriod.date_from <= as_of,
+        )
+        .all()
+    )
+    out: dict[UUID, dict[str, Decimal]] = {}
+    for emp_id, month, days in rows:
+        bucket = out.setdefault(emp_id, dict(empty))
+        if 1 <= int(month) <= 12:
+            bucket[MONTH_KEYS[int(month) - 1]] = Decimal(str(days or 0)).quantize(
+                Q2, rounding=ROUND_HALF_UP
+            )
+    return out
+
+
 def timesheet_ale_used_ytd(db: Session, employee_id: UUID, as_of: date) -> Decimal:
     """Tổng ngày ALE trên bảng công các tháng đã mở trong năm — CHỈ ĐỌC.
 
     HR gán phép trên lưới ngày (không qua đơn) thì sổ `ledger.used` = 0;
     phiếu công nhân phải lấy số này để hiện «đã dùng» và trừ «còn lại».
     """
-    total = (
-        db.query(func.coalesce(func.sum(TimesheetMonth.al_days), 0))
-        .join(PayPeriod, PayPeriod.id == TimesheetMonth.pay_period_id)
-        .filter(
-            TimesheetMonth.employee_id == employee_id,
-            PayPeriod.year == as_of.year,
-            PayPeriod.date_from <= as_of,
-        )
-        .scalar()
-    )
-    return Decimal(str(total or 0)).quantize(Q2, rounding=ROUND_HALF_UP)
+    zero = Decimal("0").quantize(Q2)
+    return timesheet_ale_used_ytd_batch(db, [employee_id], as_of).get(employee_id, zero)
 
 
 def annual_leave_snapshot(
     db: Session, employee_id: UUID, as_of: date | None = None
-) -> tuple[Decimal, Decimal, Decimal]:
-    """(định mức năm, đã dùng, còn lại) — CHỈ ĐỌC, không INSERT/UPDATE sổ.
+) -> AnnualLeaveSnapshot:
+    """Được hưởng / hiện tại / đã dùng / còn lại — CHỈ ĐỌC.
 
-    Dùng trên GET phiếu lương.
-    «Đã dùng» = max(sổ bút toán, tổng ALE bảng công YTD) — lưới ngày cũng trừ.
-    «Còn lại» = remaining sổ − phần ALE lưới chưa ghi bút toán.
+    Hiện tại = mốc năm × tháng đã đóng / 12 (tháng đang chạy chưa cộng).
+    Đã dùng = max(sổ bút toán, ALE bảng công YTD).
+    Còn lại = hiện tại − đã dùng.
     """
     as_of = as_of or date.today()
     year = as_of.year
     emp = db.get(Employee, employee_id)
     zero = Decimal("0").quantize(Q2)
     if emp is None:
-        return zero, zero, zero
+        return AnnualLeaveSnapshot(zero, zero, zero, zero)
     entitled = Decimal(entitled_days_for(db, emp, as_of)).quantize(Q2, rounding=ROUND_HALF_UP)
-    remaining = annual_leave_remaining(db, employee_id, as_of)
+    current = _target_accrued(emp, as_of, int(entitled))
     ledger = (
         db.query(AnnualLeaveLedger)
         .filter(
@@ -528,10 +625,8 @@ def annual_leave_snapshot(
     )
     ts_used = timesheet_ale_used_ytd(db, employee_id, as_of)
     used = max(ledger_used, ts_used)
-    extra = (used - ledger_used).quantize(Q2, rounding=ROUND_HALF_UP)
-    if extra > 0:
-        remaining = max(zero, (remaining - extra).quantize(Q2, rounding=ROUND_HALF_UP))
-    return entitled, used, remaining
+    remaining = (current - used).quantize(Q2, rounding=ROUND_HALF_UP)
+    return AnnualLeaveSnapshot(entitled, current, used, remaining)
 
 
 def verify_annual_leave_nghiem_thu_47(

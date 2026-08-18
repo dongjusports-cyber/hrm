@@ -8,15 +8,28 @@ import {
 } from "../../shared/api";
 
 const TYPE_LABEL: Record<WtRegimeType, string> = {
-  PREGNANT: "Thai sản",
-  CHILD: "Nuôi con",
+  PREGNANT: "Đang mang thai",
+  MATERNITY: "Nghỉ thai sản",
+  CHILD: "Nuôi con nhỏ",
 };
 
-// Mặc định gợi ý: Thai sản → 1h, Nuôi con → 2h (HR sửa được).
-const DEFAULT_HOURS: Record<WtRegimeType, number> = { PREGNANT: 1, CHILD: 2 };
+const DEFAULT_HOURS: Record<WtRegimeType, number> = {
+  PREGNANT: 1,
+  MATERNITY: 0,
+  CHILD: 2,
+};
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function addMonths(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1 + months, d);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 function fmtDate(iso: string): string {
@@ -27,6 +40,13 @@ function fmtDate(iso: string): string {
 function isActive(r: EmployeeWtRegime): boolean {
   const today = todayIso();
   return r.date_from <= today && today <= r.date_to;
+}
+
+function regimeSummary(r: EmployeeWtRegime): string {
+  const label = TYPE_LABEL[r.regime_type] || r.regime_type;
+  const hours =
+    r.regime_type === "MATERNITY" || r.hours_early <= 0 ? "" : ` · ${r.hours_early}h`;
+  return `${label}${hours} · ${fmtDate(r.date_from)}–${fmtDate(r.date_to)}`;
 }
 
 type Props = { employeeId: string; embedded?: boolean };
@@ -50,7 +70,7 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
     try {
       setRows(await fetchEmployeeWtRegimes(employeeId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không tải chế độ về sớm.");
+      setError(e instanceof Error ? e.message : "Không tải chế độ đặc biệt.");
     } finally {
       setLoading(false);
     }
@@ -63,6 +83,18 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
   function onChangeType(next: WtRegimeType) {
     setRegimeType(next);
     setHoursEarly(DEFAULT_HOURS[next]);
+    if (next === "MATERNITY") {
+      setDateTo(addMonths(dateFrom, 6));
+    }
+  }
+
+  function onChangeFrom(next: string) {
+    setDateFrom(next);
+    if (regimeType === "MATERNITY") {
+      setDateTo(addMonths(next, 6));
+    } else if (dateTo < next) {
+      setDateTo(next);
+    }
   }
 
   async function onAdd() {
@@ -72,16 +104,20 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
     try {
       await createEmployeeWtRegime(employeeId, {
         regime_type: regimeType,
-        hours_early: hoursEarly,
+        hours_early: regimeType === "MATERNITY" ? 0 : hoursEarly,
         date_from: dateFrom,
         date_to: dateTo,
         note: note.trim(),
       });
       setNote("");
-      setOk("Đã lưu chế độ về sớm. Công đã được tính lại.");
+      setOk(
+        regimeType === "MATERNITY"
+          ? "Đã lưu nghỉ thai sản. Bảng công đã gắn MLE; BH và công đoàn tạm dừng."
+          : "Đã lưu chế độ. Công đã được tính lại. Giai đoạn cũ (nếu còn mở) đã tự cắt.",
+      );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Không lưu được chế độ về sớm.");
+      setError(e instanceof Error ? e.message : "Không lưu được chế độ đặc biệt.");
     } finally {
       setBusy(false);
     }
@@ -103,15 +139,22 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
   }
 
   const title = embedded ? (
-    <h4 className="emp-allow-block-title">Chế độ về sớm</h4>
+    <h4 className="emp-allow-block-title">Chế độ đặc biệt</h4>
   ) : (
-    <h3 className="emp-form-section-title">Chế độ về sớm</h3>
+    <h3 className="emp-form-section-title">Chế độ đặc biệt</h3>
   );
 
   const body = (
     <>
       {error && <p className="form-error">{error}</p>}
       {ok && <p className="form-ok">{ok}</p>}
+
+      <p className="field-hint">
+        Chỉ chọn từ–đến. Giai đoạn đang mở tự cắt ngày kết thúc = ngày trước ngày bắt đầu mới.
+        {regimeType === "MATERNITY"
+          ? " Nghỉ thai sản: hệ thống tự đánh MLE trên bảng công, tạm dừng BHXH/BHYT/BHTN và công đoàn."
+          : " Mang thai / nuôi con: chọn 1–2–3 giờ về sớm."}
+      </p>
 
       <div className="wt-regime-form">
         <label className="field">
@@ -120,21 +163,29 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
             value={regimeType}
             onChange={(e) => onChangeType(e.target.value as WtRegimeType)}
           >
-            <option value="PREGNANT">Thai sản</option>
-            <option value="CHILD">Nuôi con</option>
+            <option value="PREGNANT">Đang mang thai</option>
+            <option value="MATERNITY">Nghỉ thai sản</option>
+            <option value="CHILD">Nuôi con nhỏ</option>
           </select>
         </label>
-        <label className="field">
-          <span>Giờ về sớm</span>
-          <select value={hoursEarly} onChange={(e) => setHoursEarly(Number(e.target.value))}>
-            <option value={1}>1 giờ</option>
-            <option value={2}>2 giờ</option>
-            <option value={3}>3 giờ</option>
-          </select>
-        </label>
+        {regimeType !== "MATERNITY" && (
+          <label className="field">
+            <span>Giờ về sớm</span>
+            <select value={hoursEarly} onChange={(e) => setHoursEarly(Number(e.target.value))}>
+              <option value={1}>1 giờ</option>
+              <option value={2}>2 giờ</option>
+              <option value={3}>3 giờ</option>
+            </select>
+          </label>
+        )}
         <label className="field">
           <span>Từ ngày</span>
-          <input type="date" value={dateFrom} min={todayIso()} onChange={(e) => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            value={dateFrom}
+            min={regimeType === "MATERNITY" ? undefined : todayIso()}
+            onChange={(e) => onChangeFrom(e.target.value)}
+          />
         </label>
         <label className="field">
           <span>Đến ngày</span>
@@ -152,13 +203,13 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
       {loading ? (
         <p className="field-hint">Đang tải…</p>
       ) : rows.length === 0 ? (
-        <p className="field-hint">Chưa có chế độ về sớm.</p>
+        <p className="field-hint">Chưa có chế độ đặc biệt.</p>
       ) : (
         <ul className="wt-regime-list">
           {rows.map((r) => (
             <li key={r.id} className={isActive(r) && !r.ended_at ? "wt-regime-active" : "wt-regime-done"}>
               <span className="wt-regime-info">
-                {TYPE_LABEL[r.regime_type]} · {r.hours_early}h · {fmtDate(r.date_from)}–{fmtDate(r.date_to)}
+                {regimeSummary(r)}
                 {r.ended_at ? " · đã chấm dứt" : ""}
                 {r.note ? ` · ${r.note}` : ""}
               </span>
@@ -181,7 +232,7 @@ export function WtRegimePanel({ employeeId, embedded = false }: Props) {
 
   if (embedded) {
     return (
-      <div className="emp-wt-regime-block emp-profile-bottom-panel" aria-label="Chế độ về sớm">
+      <div className="emp-wt-regime-block emp-profile-bottom-panel" aria-label="Chế độ đặc biệt">
         {title}
         {body}
       </div>

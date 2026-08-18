@@ -27,14 +27,25 @@ EXPORT_COLUMNS: dict[str, str] = {
     "contract_salary": "Lương HĐ",
     "department_code": "Bộ phận",
     "team_code": "Tổ",
+    "team_name": "Tổ",
     "position_title": "Chức vụ",
     "join_date": "Ngày vào",
     "contract_signed_at": "Ngày Ký HĐ",
     "seniority_label": "Thâm niên",
     "contract_type_label": "Loại HĐ",
     "total_salary": "Lương Tổng",
+    "wt_regime_date_from": "Ngày bắt đầu",
+    "wt_regime_date_to": "Ngày kết thúc",
+    "wt_regime_type": "Loại chế độ",
+    "si_base": "Lương tham gia BHXH",
     "status": "Trạng thái",
     "account_status_label": "Tài khoản",
+}
+
+REGIME_TYPE_LABEL = {
+    "PREGNANT": "Đang mang thai",
+    "MATERNITY": "Nghỉ thai sản",
+    "CHILD": "Nuôi con nhỏ",
 }
 
 STATUS_LABEL = {
@@ -50,6 +61,8 @@ def _cell_value(emp: EmployeeOut, key: str):
     val = getattr(emp, key, None)
     if key == "status":
         return STATUS_LABEL.get(val, val)
+    if key == "wt_regime_type":
+        return REGIME_TYPE_LABEL.get(val, val) if val else ""
     if isinstance(val, (date, datetime)):
         return val.strftime("%d/%m/%Y")
     if isinstance(val, Decimal):

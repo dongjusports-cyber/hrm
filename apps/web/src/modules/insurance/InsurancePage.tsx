@@ -198,8 +198,9 @@ export function InsurancePage() {
               <>
                 {loading && <p className="field-hint">Đang cập nhật…</p>}
                 <p className="field-hint">
-                  Đóng đủ tháng khi đã tick BHXH, còn làm từ ngày 16 và ≥ 12 ngày công.
-                  NV còn sổ CTY cũ: bỏ tick. Tick xong cần Tính lương lại để cập nhật số tiền.
+                  Đóng đủ tháng khi đã tick BHXH và còn làm từ ngày 16 (thôi việc 15 → không đóng).
+                  NV vào từ ngày 16 cần ≥ 12 ngày công. NV còn sổ CTY cũ: bỏ tick.
+                  Tick xong cần Tính lương lại để cập nhật số tiền.
                 </p>
                 <div className="kpi-cards">
                   <article className="kpi-card">

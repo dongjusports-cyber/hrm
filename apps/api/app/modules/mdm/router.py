@@ -231,9 +231,8 @@ def get_violation_board(_user: HrUser, db: DbSession) -> list[EmployeeViolationB
 
 @router.get("/employees/annual-leave", response_model=AnnualLeaveGridOut)
 def get_annual_leave_grid(_user: HrUser, db: DbSession) -> AnnualLeaveGridOut:
-    """Lưới phép năm — đọc file trích GenuSuite, không ghi sổ (GET read-only)."""
-    payload = al_snap.attach_employee_ids(db, al_snap.load_snapshot())
-    return AnnualLeaveGridOut.model_validate(payload)
+    """Lưới phép năm — số live từ bảng công, không ghi sổ (GET read-only)."""
+    return AnnualLeaveGridOut.model_validate(al_snap.build_live_grid(db))
 
 
 @router.post("/employees/transfer-team/preview", response_model=TransferTeamPreview)

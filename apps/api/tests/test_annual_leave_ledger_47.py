@@ -7,9 +7,11 @@ from app.modules.attendance.annual_leave_ledger import (
     annual_leave_remaining,
     annual_leave_remaining_batch,
     annual_leave_snapshot,
+    closed_accrual_months,
     ensure_ledger,
     entitled_days_per_year,
     ledger_balance_from_entries,
+    prorate_al,
     record_leave_use,
     sync_accrual,
 )
@@ -32,6 +34,33 @@ def test_entitled_14_plus_1_per_5_years():
     assert entitled_days_per_year(emp, date(2026, 8, 17), 14, 5) == 16
     newbie = Employee(employee_code="x", full_name="Y", join_date=date(2026, 1, 10))
     assert entitled_days_per_year(newbie, date(2026, 8, 17), 14, 5) == 14
+
+
+def test_1519_current_in_august_is_prorated_not_full_quota():
+    """1519 được hưởng 16 cả năm; giữa T8 chỉ hiện phép đã tích (hết T7)."""
+    emp = Employee(employee_code="1519", full_name="X", join_date=date(2015, 3, 26))
+    as_of = date(2026, 8, 18)
+    assert entitled_days_per_year(emp, as_of, 14, 5) == 16
+    months = closed_accrual_months(emp.join_date, as_of, 2026)
+    assert months == 7
+    current = prorate_al(Decimal("16"), months)
+    assert current == Decimal("9.33")
+    used = Decimal("5.00")
+    remaining = (current - used).quantize(Decimal("0.01"))
+    assert remaining == Decimal("4.33")
+    assert remaining != used
+    assert current != Decimal("16")
+    assert closed_accrual_months(emp.join_date, date(2026, 8, 31), 2026) == 8
+    assert prorate_al(Decimal("16"), 8) == Decimal("10.67")
+
+
+def test_closed_months_ignore_maternity_leave():
+    """Nghỉ thai sản tháng 4–10: hết T7 vẫn 7 tháng tích, không bị trừ."""
+    join = date(2015, 3, 26)
+    as_of = date(2026, 8, 18)
+    assert closed_accrual_months(join, as_of, 2026) == 7
+    assert prorate_al(Decimal("16"), 7) == Decimal("9.33")
+
 
 
 def test_accrual_through_august_matches_22_7(db):
@@ -123,7 +152,7 @@ def test_snapshot_read_only_and_used_after_leave(db):
         .filter(AnnualLeaveLedger.employee_id == emp.id, AnnualLeaveLedger.year == 2025)
         .count()
     )
-    entitled, used, remaining = annual_leave_snapshot(db, emp.id, as_of)
+    entitled, current, used, remaining = annual_leave_snapshot(db, emp.id, as_of)
     after = (
         db.query(AnnualLeaveLedger)
         .filter(AnnualLeaveLedger.employee_id == emp.id, AnnualLeaveLedger.year == 2025)
@@ -131,8 +160,10 @@ def test_snapshot_read_only_and_used_after_leave(db):
     )
     assert after == before
     assert entitled > 0
+    assert current > 0
+    assert current <= entitled
     assert used >= 0
-    assert remaining >= 0
+    assert remaining == current - used
 
     sync_accrual(db, emp, as_of)
     record_leave_use(
@@ -143,10 +174,12 @@ def test_snapshot_read_only_and_used_after_leave(db):
         entry_date=date(2025, 8, 10),
     )
     db.commit()
-    entitled2, used2, remaining2 = annual_leave_snapshot(db, emp.id, as_of)
+    entitled2, current2, used2, remaining2 = annual_leave_snapshot(db, emp.id, as_of)
     assert used2 == used + Decimal("2.00")
     assert remaining2 == remaining - Decimal("2.00")
+    assert remaining2 == current2 - used2
     assert entitled2 == entitled
+    assert current2 == current
 
 
 def test_snapshot_used_includes_timesheet_grid_ale(db):
@@ -155,7 +188,7 @@ def test_snapshot_used_includes_timesheet_grid_ale(db):
 
     emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
     as_of = date(2025, 10, 31)
-    _, used_before, rem_before = annual_leave_snapshot(db, emp.id, as_of)
+    _, _, used_before, rem_before = annual_leave_snapshot(db, emp.id, as_of)
 
     pay = ensure_pay_period(db, "2025-10")
     ts = (
@@ -170,6 +203,20 @@ def test_snapshot_used_includes_timesheet_grid_ale(db):
     ts.al_days = Decimal(str(ts.al_days or 0)) + Decimal("2.00")
     db.commit()
 
-    _, used_after, rem_after = annual_leave_snapshot(db, emp.id, as_of)
+    entitled, current, used_after, rem_after = annual_leave_snapshot(db, emp.id, as_of)
     assert used_after == used_before + Decimal("2.00")
     assert rem_after == rem_before - Decimal("2.00")
+    assert rem_after == current - used_after
+    assert current <= entitled
+
+
+def test_snapshot_1519_august_shows_current_not_full_year(db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.join_date = date(2015, 3, 26)
+    db.commit()
+    as_of = date(2026, 8, 18)
+    snap = annual_leave_snapshot(db, emp.id, as_of)
+    assert snap.entitled == Decimal("16.00")
+    assert snap.current == Decimal("9.33")
+    assert snap.remaining == snap.current - snap.used
+    assert snap.current != snap.entitled

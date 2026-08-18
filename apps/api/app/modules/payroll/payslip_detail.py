@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.annual_leave_ledger import annual_leave_remaining
+from app.modules.attendance.annual_leave_ledger import annual_leave_snapshot, payslip_leave_as_of
 from app.modules.attendance.models import LeaveType, PayPeriod, TimesheetMonth
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import Payslip
@@ -196,7 +195,8 @@ def get_hr_payslip_detail(db: Session, payslip_id: UUID) -> HRPayslipDetailOut:
         else:
             allowance_lines.append(out)
 
-    al_remaining = annual_leave_remaining(db, emp.id, pay.date_to or date.today())
+    snap = annual_leave_snapshot(db, emp.id, payslip_leave_as_of(pay.date_to))
+    al_remaining = snap.remaining
 
     return HRPayslipDetailOut(
         payslip=_payslip_out(

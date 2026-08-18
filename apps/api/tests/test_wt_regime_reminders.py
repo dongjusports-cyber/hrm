@@ -44,7 +44,7 @@ def test_wt_regime_alert_on_t_minus_3(client, db):
     alerts = _wt_alerts(res.json())
     assert len(alerts) == 1
     assert "1514" in alerts[0]["body"]
-    assert "Nuôi con (2h)" in alerts[0]["body"]
+    assert "Nuôi con nhỏ (2h)" in alerts[0]["body"]
     assert target.strftime("%d/%m/%Y") in alerts[0]["body"]
 
 
