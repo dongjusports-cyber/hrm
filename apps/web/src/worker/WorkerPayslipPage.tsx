@@ -181,7 +181,7 @@ export function WorkerPayslipPage() {
 
       <WorkerPayslipSectionTable
         title="IV. Các khoản khấu trừ"
-        lines={slip.deduction_lines.filter((ln) => ln.component_code !== "PIT")}
+        lines={slip.deduction_lines}
         subtotalLabel="Tổng khấu trừ"
         subtotal={slip.deduction_subtotal}
       />
