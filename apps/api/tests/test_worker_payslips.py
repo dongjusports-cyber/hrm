@@ -161,3 +161,34 @@ def test_draft_hidden_from_worker(client, db):
 
     listed = client.get("/api/worker/payslips", headers=_worker_headers(client))
     assert listed.json() == []
+
+
+def test_worker_payslip_shows_grid_ale_quantity_and_used(client, db):
+    """Gán ALE trên lưới ngày → section II có số ngày, section V có đã dùng."""
+    headers = _hr_headers(client)
+    patch = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={"employee_code": "5290", "work_date": "2025-10-06", "leave_code": "ALE"},
+    )
+    assert patch.status_code == 200, patch.text
+
+    _calc_and_publish(client, db, code="5290")
+
+    listed = client.get("/api/worker/payslips", headers=_worker_headers(client))
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body
+    detail = client.get(
+        f"/api/worker/payslips/{body[0]['id']}",
+        headers=_worker_headers(client),
+    )
+    assert detail.status_code == 200, detail.text
+    d = detail.json()
+    assert Decimal(str(d["al_days"])) >= 1
+    ale = next(ln for ln in d["leave_lines"] if ln["label"] == "Nghỉ phép năm")
+    assert Decimal(str(ale["quantity"])) == Decimal(str(d["al_days"]))
+    assert ale["amount"] is not None
+    assert Decimal(str(ale["amount"])) > 0
+    assert Decimal(str(d["annual_leave_used"])) >= Decimal(str(d["al_days"]))
+    assert Decimal(str(d["annual_leave_entitled"])) > 0

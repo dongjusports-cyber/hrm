@@ -19,6 +19,8 @@ from app.modules.payroll.schemas import HRPayslipDetailOut, PayslipComponentOut
 
 DEDUCTION_CODES = frozenset({"BHXH", "BHYT", "BHTN", "UNION", "PIT", "ADVANCE"})
 WORK_CODES = frozenset({"WD", "OT"})
+# ALE luôn là nghỉ dù LeaveType chưa seed — phiếu CN section II.
+_ALWAYS_LEAVE = frozenset({"ALE"})
 
 
 def _leave_codes(db: Session) -> frozenset[str]:
@@ -40,7 +42,7 @@ def _classify_worker_section(code: str, kind: str, leave_codes: frozenset[str]) 
         return "deduction"
     if code in WORK_CODES:
         return "work"
-    if code in leave_codes:
+    if code in leave_codes or code in _ALWAYS_LEAVE:
         return "leave"
     return "allowance"
 

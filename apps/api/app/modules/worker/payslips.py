@@ -24,6 +24,7 @@ from app.modules.payroll.payslip_genus_template import (
     apply_genus_deduction_template,
     apply_genus_leave_template,
     apply_genus_work_template,
+    fill_ale_leave_quantity,
     fill_missing_day_quantity,
 )
 from app.modules.worker.schemas import PayslipLineOut, WorkerPayslipDetailOut, WorkerPayslipListOut
@@ -301,6 +302,9 @@ def _to_detail(
     if grouped and ts is not None:
         fill_missing_day_quantity(work, ts.worked_days)
         fill_missing_day_quantity(allowance, ts.worked_days)
+        fill_ale_leave_quantity(leave, ts.al_days)
+    elif ts is not None:
+        fill_ale_leave_quantity(leave, ts.al_days)
 
     dept = emp.department
     al_entitled = al_used = al_remaining = None

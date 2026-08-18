@@ -13,7 +13,12 @@ from app.modules.attendance.annual_leave_ledger import (
     record_leave_use,
     sync_accrual,
 )
-from app.modules.attendance.models import AnnualLeaveEntry, AnnualLeaveLedger, LeaveRequest
+from app.modules.attendance.models import (
+    AnnualLeaveEntry,
+    AnnualLeaveLedger,
+    LeaveRequest,
+    TimesheetMonth,
+)
 from app.modules.mdm.models import Employee
 
 
@@ -142,3 +147,29 @@ def test_snapshot_read_only_and_used_after_leave(db):
     assert used2 == used + Decimal("2.00")
     assert remaining2 == remaining - Decimal("2.00")
     assert entitled2 == entitled
+
+
+def test_snapshot_used_includes_timesheet_grid_ale(db):
+    """HR gán ALE trên lưới → phiếu phải hiện đã dùng, không chờ duyệt đơn."""
+    from app.modules.attendance.timesheet import ensure_pay_period
+
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    as_of = date(2025, 10, 31)
+    _, used_before, rem_before = annual_leave_snapshot(db, emp.id, as_of)
+
+    pay = ensure_pay_period(db, "2025-10")
+    ts = (
+        db.query(TimesheetMonth)
+        .filter(TimesheetMonth.pay_period_id == pay.id, TimesheetMonth.employee_id == emp.id)
+        .one_or_none()
+    )
+    if ts is None:
+        ts = TimesheetMonth(pay_period_id=pay.id, employee_id=emp.id, al_days=Decimal("0"))
+        db.add(ts)
+        db.flush()
+    ts.al_days = Decimal(str(ts.al_days or 0)) + Decimal("2.00")
+    db.commit()
+
+    _, used_after, rem_after = annual_leave_snapshot(db, emp.id, as_of)
+    assert used_after == used_before + Decimal("2.00")
+    assert rem_after == rem_before - Decimal("2.00")

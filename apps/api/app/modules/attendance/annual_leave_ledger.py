@@ -9,7 +9,13 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.models import AnnualLeaveEntry, AnnualLeaveLedger, LeaveRequest
+from app.modules.attendance.models import (
+    AnnualLeaveEntry,
+    AnnualLeaveLedger,
+    LeaveRequest,
+    PayPeriod,
+    TimesheetMonth,
+)
 from app.modules.mdm.models import Employee
 from app.modules.policy.models import PolicyPackage
 from app.modules.policy.seed_payload import default_payload
@@ -473,13 +479,33 @@ def annual_leave_remaining(db: Session, employee_id: UUID, as_of: date | None = 
     return annual_leave_remaining_batch(db, [employee_id], as_of).get(employee_id, Decimal("0"))
 
 
+def timesheet_ale_used_ytd(db: Session, employee_id: UUID, as_of: date) -> Decimal:
+    """Tổng ngày ALE trên bảng công các tháng đã mở trong năm — CHỈ ĐỌC.
+
+    HR gán phép trên lưới ngày (không qua đơn) thì sổ `ledger.used` = 0;
+    phiếu công nhân phải lấy số này để hiện «đã dùng» và trừ «còn lại».
+    """
+    total = (
+        db.query(func.coalesce(func.sum(TimesheetMonth.al_days), 0))
+        .join(PayPeriod, PayPeriod.id == TimesheetMonth.pay_period_id)
+        .filter(
+            TimesheetMonth.employee_id == employee_id,
+            PayPeriod.year == as_of.year,
+            PayPeriod.date_from <= as_of,
+        )
+        .scalar()
+    )
+    return Decimal(str(total or 0)).quantize(Q2, rounding=ROUND_HALF_UP)
+
+
 def annual_leave_snapshot(
     db: Session, employee_id: UUID, as_of: date | None = None
 ) -> tuple[Decimal, Decimal, Decimal]:
     """(định mức năm, đã dùng, còn lại) — CHỈ ĐỌC, không INSERT/UPDATE sổ.
 
-    Dùng trên GET phiếu lương. «Đã dùng» lấy `ledger.used` nếu có sổ; không có sổ → 0.
-    «Còn lại» cùng công thức `annual_leave_remaining` (suy ra tích lũy chưa ghi).
+    Dùng trên GET phiếu lương.
+    «Đã dùng» = max(sổ bút toán, tổng ALE bảng công YTD) — lưới ngày cũng trừ.
+    «Còn lại» = remaining sổ − phần ALE lưới chưa ghi bút toán.
     """
     as_of = as_of or date.today()
     year = as_of.year
@@ -497,9 +523,14 @@ def annual_leave_snapshot(
         )
         .one_or_none()
     )
-    used = (
+    ledger_used = (
         Decimal(str(ledger.used)).quantize(Q2, rounding=ROUND_HALF_UP) if ledger is not None else zero
     )
+    ts_used = timesheet_ale_used_ytd(db, employee_id, as_of)
+    used = max(ledger_used, ts_used)
+    extra = (used - ledger_used).quantize(Q2, rounding=ROUND_HALF_UP)
+    if extra > 0:
+        remaining = max(zero, (remaining - extra).quantize(Q2, rounding=ROUND_HALF_UP))
     return entitled, used, remaining
 
 

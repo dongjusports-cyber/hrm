@@ -219,3 +219,18 @@ def fill_missing_day_quantity(lines: list[dict], worked_days: Decimal | None) ->
         unit = str(ln.get("unit") or "").lower()
         if unit in _DAY_UNITS and ln.get("quantity") is None:
             ln["quantity"] = worked_days
+
+
+def fill_ale_leave_quantity(lines: list[dict], al_days: Decimal | None) -> None:
+    """Cột CT «Nghỉ phép năm» — lấy al_days bảng công khi dòng ALE thiếu quantity."""
+    if al_days is None or Decimal(str(al_days)) <= 0:
+        return
+    qty = Decimal(str(al_days))
+    for ln in lines:
+        code = str(ln.get("component_code") or "").upper()
+        if code != "ALE":
+            continue
+        if ln.get("quantity") is None:
+            ln["quantity"] = qty
+            if not ln.get("unit"):
+                ln["unit"] = "day"
