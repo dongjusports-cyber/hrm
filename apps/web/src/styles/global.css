@@ -2237,6 +2237,37 @@ a.hr-layer-btn:active {
   cursor: wait;
 }
 
+.login-resume-name {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 1.55rem;
+  line-height: 1.25;
+  text-align: center;
+  color: #f8fafc;
+}
+
+.login-resume-msnv {
+  margin: 0 0 1rem;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #93c5fd;
+}
+
+.login-resume-other {
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(248, 250, 252, 0.25);
+  border-radius: 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: transparent;
+  cursor: pointer;
+}
+
 .login-credit {
   margin-top: 1.5rem;
   padding-top: 1rem;
