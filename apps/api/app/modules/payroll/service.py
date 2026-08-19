@@ -47,7 +47,7 @@ from app.modules.payroll.engine_leave_pay import (
     LeaveTypePayMeta,
     compute_leave_pay,
 )
-from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay
+from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay, hours_map_from_timesheet
 from app.modules.payroll.engine_wd import WdSalaryInput, compute_wd_salary
 from app.modules.payroll.adjustments import sums_for_employee
 from app.modules.payroll.employee_bonuses import BonusLine, BonusResult, get_bonus_for_period
@@ -577,7 +577,10 @@ def compute_employee_payslip(
             salary_divisor=pay.salary_divisor,
             allowance_lines=allow_res.lines,
             attend_full_monthly=allow_res.attend_full_monthly,
-            hours=OtHours(weekday=D(ts.ot_hours_weekday)),
+            hours=OtHours(
+                weekday=D(ts.ot_hours_weekday),
+                by_rate=hours_map_from_timesheet(ts, "on_books"),
+            ),
             policy=payload,
         )
     )
@@ -799,7 +802,10 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
                     salary_divisor=pay.salary_divisor,
                     allowance_lines=allow_res.lines,
                     attend_full_monthly=allow_res.attend_full_monthly,
-                    hours=OtHours(weekday=D(ts.ot_hours_weekday)),
+                    hours=OtHours(
+                        weekday=D(ts.ot_hours_weekday),
+                        by_rate=hours_map_from_timesheet(ts, "on_books"),
+                    ),
                     policy=payload,
                 )
             )

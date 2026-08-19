@@ -57,9 +57,9 @@ const TK_HEADER_TIPS = {
   al: "Nghỉ phép năm",
   rem: "Nghỉ theo mã REM",
   otBooks: "OT trong — chỉ T3/T5, 17:00–20:00 (ra sau 17:30; vân tay 17:00–17:30 không tính). Cột AC/AD bảng lương.",
-  otExt: "OT ngoài (ATM) — T2/T4/T6/T7, sau 20:00 T3/T5, CN, lễ. Không vào bảng lương chính.",
-  otWeekend: "OT Chủ nhật — thuộc OT ngoài (ATM), hệ số 2. Không cộng cột Công.",
-  otHoliday: "OT ngày lễ — thuộc OT ngoài (ATM), hệ số 2/3. Không cộng cột Công.",
+  otExt: "OT ngoài (ATM) — T2/T4/T6/T7, sau 20:00 T3/T5, CN, lễ. Hệ số theo khung giờ, không vào bảng lương chính.",
+  otWeekend: "OT Chủ nhật — thuộc OT ngoài (ATM). 8–17 ×2 · 17–22 và 6–8 ×3,5 · 22–6 ×4,1. Không cộng cột Công.",
+  otHoliday: "OT ngày lễ — thuộc OT ngoài (ATM). 8–17 ×3 · 17–22 và 6–8 ×4,5 · 22–6 ×5,1. Không cộng cột Công.",
 } as const;
 
 type CalendarRow = {

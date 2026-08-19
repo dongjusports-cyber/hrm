@@ -22,6 +22,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import JSON
 
 from app.core.database import Base
 
@@ -63,6 +64,7 @@ class AttendanceDay(Base):
     sunday_hours: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"), nullable=False)
     holiday_hours: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"), nullable=False)
     ot_night_hours: Mapped[Decimal] = mapped_column(Numeric(7, 2), default=Decimal("0"), nullable=False)
+    ot_rate_minutes: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     segment: Mapped[str] = mapped_column(String(10), default="official", nullable=False, index=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -132,6 +134,7 @@ class TimesheetMonth(Base):
     ot_hours_external: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
     ot_hours_weekend: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
     ot_hours_holiday: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"), nullable=False)
+    ot_hours_by_rate: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

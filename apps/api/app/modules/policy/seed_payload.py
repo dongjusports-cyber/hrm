@@ -112,7 +112,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
             "payment_channel": "ATM",
 
-            "note": "OT ngoài (x1,5 ngày thường · x2 CN/lễ≤8h · x2,1 đêm · x3 lễ>8h) — không vào payslip/BHXH/PIT, chi ATM riêng.",
+            "note": "OT ngoài theo khung giờ công ty (x1,5/x2,1 ngày thường · CN x2/x3,5/x4,1 · lễ x3/x4,5/x5,1) — không vào payslip/BHXH/PIT, chi ATM riêng.",
 
         },
 
@@ -130,9 +130,21 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "holiday_over_8": 3.0,
 
-        "night_addon": 0.3,
+        "night_addon": 0.6,
 
         "ot_night_extra": 0.2,
+
+        "use_time_bands": True,
+
+        "bands": {
+
+            "weekday": {"night": "2.1", "shoulder": "1.5", "core": "0", "evening": "1.5"},
+
+            "sunday": {"night": "4.1", "shoulder": "3.5", "core": "2.0", "evening": "3.5"},
+
+            "holiday": {"night": "5.1", "shoulder": "4.5", "core": "3.0", "evening": "4.5"},
+
+        },
 
     },
 

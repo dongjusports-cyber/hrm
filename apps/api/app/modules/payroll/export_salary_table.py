@@ -83,6 +83,14 @@ HEADER_EN_1 = [
     "",
     "",
     "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     "GROSS\nSALARY",
     "S.I",
     "H.I",
@@ -124,12 +132,20 @@ HEADER_EN_2 = [
     "Total",
     "Hour\nx1.5",
     "Pay\nx1.5",
-    "Hour\nx2",
-    "Pay\nx2",
     "Hour\nx2.1",
     "Pay\nx2.1",
+    "Hour\nx2",
+    "Pay\nx2",
+    "Hour\nx3.5",
+    "Pay\nx3.5",
+    "Hour\nx4.1",
+    "Pay\nx4.1",
     "Hour\nx3",
     "Pay\nx3",
+    "Hour\nx4.5",
+    "Pay\nx4.5",
+    "Hour\nx5.1",
+    "Pay\nx5.1",
     "",
     "",
     "",
@@ -169,14 +185,22 @@ HEADER_ROW_VI = [
     "Thâm niên",
     "Khác",
     "Tổng",
-    "Giờ x1.5\nngày thường",
+    "Giờ x1.5\nT2–T7 17–22",
     "Tiền x1.5",
-    "Giờ x2\nCN · lễ ≤8h",
-    "Tiền x2",
-    "Giờ x2.1\nđêm",
+    "Giờ x2.1\nT2–T7 22–6",
     "Tiền x2.1",
-    "Giờ x3\nlễ >8h",
+    "Giờ x2\nCN 8–17",
+    "Tiền x2",
+    "Giờ x3.5\nCN 17–22",
+    "Tiền x3.5",
+    "Giờ x4.1\nCN 22–6",
+    "Tiền x4.1",
+    "Giờ x3\nlễ 8–17",
     "Tiền x3",
+    "Giờ x4.5\nlễ 17–22",
+    "Tiền x4.5",
+    "Giờ x5.1\nlễ 22–6",
+    "Tiền x5.1",
     "Tổng\nthu nhập",
     "BHXH",
     "BHYT",
@@ -206,15 +230,15 @@ HEADER_MERGES = [
     (9, 11, 16, 17),
     (9, 11, 17, 18),
     (9, 10, 18, 28),
-    (9, 10, 28, 36),
-    (9, 11, 36, 37),
-    (9, 11, 37, 38),
-    (9, 11, 38, 39),
-    (9, 11, 39, 40),
-    (9, 11, 40, 41),
-    (9, 11, 41, 42),
-    (9, 11, 42, 43),
-    (9, 11, 43, 44),
+    (9, 10, 28, 44),
+    (9, 11, 44, 45),
+    (9, 11, 45, 46),
+    (9, 11, 46, 47),
+    (9, 11, 47, 48),
+    (9, 11, 48, 49),
+    (9, 11, 49, 50),
+    (9, 11, 50, 51),
+    (9, 11, 51, 52),
     (10, 12, 12, 13),
     (10, 12, 13, 14),
     (10, 12, 14, 15),
@@ -240,9 +264,9 @@ ROW_HEADER_EN_2 = 11
 ROW_HEADER_VI = 12
 ROW_HEADER_NUM = 13
 ROW_DATA_START = 14
-LAST_COL = 44
+LAST_COL = 52
 
-NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 44))  # 1-based, trừ SEX
+NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 52))  # 1-based, trừ SEX
 
 NAVY = "0A4D8C"
 LIGHT_BLUE = "BDD7EE"
@@ -289,6 +313,14 @@ COL_WIDTHS = [
     8,
     8,
     12,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
     10,
     10,
     10,
@@ -529,7 +561,7 @@ def _ot_salary_buckets(
     slip: Payslip,
     payload: dict,
 ) -> OtRateBuckets:
-    """Giờ + tiền 4 mốc: OT trong phiếu + OT ngoài (x2/x2.1/x3 chi ATM riêng, không cộng GROSS)."""
+    """Giờ + tiền 8 hệ số: OT trong phiếu + OT ngoài (ATM riêng, không cộng GROSS)."""
     trong = OtRateBuckets(
         hours_x15=D(ts.ot_hours_weekday),
         pay_x15=_ot_trong_pay(db, slip.id, D(slip.ot_pay)),
@@ -581,20 +613,28 @@ def _build_data_row(
     ot = _ot_salary_buckets(db, pay, emp, ts, slip, payload)
     row[28] = _num(ot.hours_x15)
     row[29] = _num(ot.pay_x15)
-    row[30] = _num(ot.hours_x20)
-    row[31] = _num(ot.pay_x20)
-    row[32] = _num(ot.hours_x21)
-    row[33] = _num(ot.pay_x21)
-    row[34] = _num(ot.hours_x30)
-    row[35] = _num(ot.pay_x30)
-    row[36] = _num(slip.gross)
-    row[37] = _num(slip.bhxh)
-    row[38] = _num(slip.bhyt)
-    row[39] = _num(slip.bhtn)
-    row[40] = _num(slip.union_fee)
-    row[41] = _num(slip.other_deductions)
-    row[42] = int(money_vnd(slip.net))
-    row[43] = _fmt_sex(emp.gender)
+    row[30] = _num(ot.hours_x21)
+    row[31] = _num(ot.pay_x21)
+    row[32] = _num(ot.hours_x20)
+    row[33] = _num(ot.pay_x20)
+    row[34] = _num(ot.hours_x35)
+    row[35] = _num(ot.pay_x35)
+    row[36] = _num(ot.hours_x41)
+    row[37] = _num(ot.pay_x41)
+    row[38] = _num(ot.hours_x30)
+    row[39] = _num(ot.pay_x30)
+    row[40] = _num(ot.hours_x45)
+    row[41] = _num(ot.pay_x45)
+    row[42] = _num(ot.hours_x51)
+    row[43] = _num(ot.pay_x51)
+    row[44] = _num(slip.gross)
+    row[45] = _num(slip.bhxh)
+    row[46] = _num(slip.bhyt)
+    row[47] = _num(slip.bhtn)
+    row[48] = _num(slip.union_fee)
+    row[49] = _num(slip.other_deductions)
+    row[50] = int(money_vnd(slip.net))
+    row[51] = _fmt_sex(emp.gender)
     return row
 
 
@@ -654,11 +694,11 @@ def _write_sheet(
     _style_footer_cell(fc)
     for col in range(2, 11):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    for col in range(11, 43):
+    for col in range(11, 51):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    nc = ws.cell(row=footer, column=43, value=total_net)
+    nc = ws.cell(row=footer, column=51, value=total_net)
     _style_footer_cell(nc)
-    _style_footer_cell(ws.cell(row=footer, column=44))
+    _style_footer_cell(ws.cell(row=footer, column=52))
 
     for idx, w in enumerate(COL_WIDTHS, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = w

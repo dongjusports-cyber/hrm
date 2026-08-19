@@ -2211,12 +2211,20 @@ export type OtExternalPreviewRow = {
   amount_vnd: number | string;
   hours_x15?: number | string;
   pay_x15?: number | string;
-  hours_x20?: number | string;
-  pay_x20?: number | string;
   hours_x21?: number | string;
   pay_x21?: number | string;
+  hours_x20?: number | string;
+  pay_x20?: number | string;
+  hours_x35?: number | string;
+  pay_x35?: number | string;
+  hours_x41?: number | string;
+  pay_x41?: number | string;
   hours_x30?: number | string;
   pay_x30?: number | string;
+  hours_x45?: number | string;
+  pay_x45?: number | string;
+  hours_x51?: number | string;
+  pay_x51?: number | string;
 };
 
 export type OtExternalPreview = {

@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.engine import DayCalcResult
+from app.modules.attendance.ot_bands import night_minutes
 from app.modules.attendance.models import AttendanceDay, TeamShiftSchedule
 from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE, assign_default_shift_to_teams
 from app.modules.attendance.shifts_service import get_effective_shift
@@ -104,9 +105,15 @@ def apply_calc_to_day_row(
     row.source = "machine"
     row.segment = resolve_segment(employee)
     row.night_hours = Decimal("0")
-    row.ot_night_hours = Decimal("0")
     row.sunday_hours = Decimal("0")
     row.holiday_hours = Decimal("0")
+    rates = calc.ot_rate_minutes or {}
+    row.ot_rate_minutes = rates
+    combined = {}
+    for ch in ("on_books", "external"):
+        for k, v in (rates.get(ch) or {}).items():
+            combined[k] = combined.get(k, 0) + int(v)
+    row.ot_night_hours = _hours_from_ot_minutes(night_minutes(combined))
     ot_h = _hours_from_ot_minutes(calc.ot_minutes)
     if calc.ot_type == "weekend":
         row.sunday_hours = ot_h

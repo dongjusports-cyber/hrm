@@ -118,6 +118,7 @@ class TimesheetMonthOut(BaseModel):
     ot_hours_external: Decimal = Decimal("0")
     ot_hours_weekend: Decimal
     ot_hours_holiday: Decimal
+    ot_hours_by_rate: dict = {}
 
 
 class TimesheetMonthDetailOut(BaseModel):

@@ -28,6 +28,7 @@ from app.modules.attendance.schemas import (
     TimesheetMonthDetailOut,
     TimesheetMonthOut,
 )
+from app.modules.attendance.ot_bands import hours_maps_sum, minutes_map_to_hours
 from app.modules.attendance.timesheet_details import (
     aggregate_month_details,
     leave_days_on_day,
@@ -334,6 +335,8 @@ def rebuild_timesheets(
         ot_ext = ZERO
         ot_we = ZERO
         ot_h = ZERO
+        on_books_by_rate: dict[str, Decimal] = {}
+        external_by_rate: dict[str, Decimal] = {}
         for d in day_rows:
             leave_d = leave_days_on_day(d)
             hours = Decimal(d.worked_hours or 0)
@@ -357,6 +360,28 @@ def rebuild_timesheets(
             elif (d.ot_external_minutes or 0) > 0:
                 ot_ext += _hours(d.ot_external_minutes)
 
+            raw_rates = d.ot_rate_minutes if isinstance(getattr(d, "ot_rate_minutes", None), dict) else {}
+            if raw_rates:
+                on_books_by_rate = hours_maps_sum(
+                    on_books_by_rate, minutes_map_to_hours(raw_rates.get("on_books") or {})
+                )
+                external_by_rate = hours_maps_sum(
+                    external_by_rate, minutes_map_to_hours(raw_rates.get("external") or {})
+                )
+            elif (d.ot_minutes or 0) > 0:
+                if d.ot_on_books_minutes:
+                    on_books_by_rate = hours_maps_sum(
+                        on_books_by_rate, {"1.5": _hours(d.ot_on_books_minutes)}
+                    )
+                if d.ot_type == "weekend":
+                    external_by_rate = hours_maps_sum(external_by_rate, {"2.0": _hours(d.ot_minutes)})
+                elif d.ot_type == "holiday":
+                    external_by_rate = hours_maps_sum(external_by_rate, {"3.0": _hours(d.ot_minutes)})
+                elif d.ot_external_minutes:
+                    external_by_rate = hours_maps_sum(
+                        external_by_rate, {"1.5": _hours(d.ot_external_minutes)}
+                    )
+
         penalty_sum = summarize_attendance_penalties(
             _day_penalty_views(day_rows),
             _adj_penalty_views(adj_rows),
@@ -373,11 +398,14 @@ def rebuild_timesheets(
                 if a.ot_type == "weekend":
                     ot_we += h
                     ot_ext += h
+                    external_by_rate = hours_maps_sum(external_by_rate, {"2.0": h})
                 elif a.ot_type == "holiday":
                     ot_h += h
                     ot_ext += h
+                    external_by_rate = hours_maps_sum(external_by_rate, {"3.0": h})
                 else:
                     ot_w += h
+                    on_books_by_rate = hours_maps_sum(on_books_by_rate, {"1.5": h})
 
         buckets = aggregate_month_details(day_rows, adj_rows, emp)
         # Phép năm trên lưới ngày (leave_code=ALE) + điều chỉnh — cùng nguồn với chi tiết ABS_ALE.
@@ -403,6 +431,10 @@ def rebuild_timesheets(
         row.ot_hours_external = ot_ext.quantize(Q2)
         row.ot_hours_weekend = ot_we.quantize(Q2)
         row.ot_hours_holiday = ot_h.quantize(Q2)
+        row.ot_hours_by_rate = {
+            "on_books": {k: str(v.quantize(Q2)) for k, v in on_books_by_rate.items() if v},
+            "external": {k: str(v.quantize(Q2)) for k, v in external_by_rate.items() if v},
+        }
         db.flush()
         sync_timesheet_month_details(db, row.id, buckets)
         upserted += 1
@@ -446,6 +478,7 @@ def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
                 ot_hours_external=ts.ot_hours_external,
                 ot_hours_weekend=ts.ot_hours_weekend,
                 ot_hours_holiday=ts.ot_hours_holiday,
+                ot_hours_by_rate=getattr(ts, "ot_hours_by_rate", None) or {},
             )
         )
     return out

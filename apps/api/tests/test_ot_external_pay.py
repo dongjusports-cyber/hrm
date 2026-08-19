@@ -120,16 +120,16 @@ def test_ot_external_excel_matches_print_layout():
     assert "THÁNG 08" in str(ws["A6"].value)
     assert ws["A10"].value == "STT"
     assert "x1.5" in str(ws["H10"].value)
-    assert "x2" in str(ws["J10"].value)
-    assert "x2.1" in str(ws["L10"].value)
-    assert "x3" in str(ws["N10"].value)
-    assert ws["P10"].value and "Tổng tiền" in str(ws["P10"].value)
+    assert "x2.1" in str(ws["J10"].value)
+    assert "x2" in str(ws["L10"].value)
+    assert "x5.1" in str(ws["V10"].value)
+    assert ws["X10"].value and "Tổng tiền" in str(ws["X10"].value)
     assert _cell_fill(ws["A10"]) == "BDD7EE"
-    assert _cell_fill(ws["P10"]) == "BDD7EE"
+    assert _cell_fill(ws["X10"]) == "BDD7EE"
     assert ws["B12"].value == "5290"
     assert ws["H12"].value == 2.0
     assert ws["I12"].value == 150000
-    assert ws["P12"].value == 150000
+    assert ws["X12"].value == 150000
     assert ws.freeze_panes == "A12"
     footer = 13
     assert "Tổng cộng" in str(ws.cell(row=footer, column=1).value)
@@ -168,10 +168,10 @@ def test_ot_external_excel_mixed_rates():
     )
     ws = load_workbook(BytesIO(build_ot_external_excel(summary))).active
     assert ws["H12"].value == 2.0
-    assert ws["J12"].value == 8.0
-    assert ws["N12"].value == 2.0
-    assert ws["P12"].value == 900000
+    assert ws["L12"].value == 8.0
+    assert ws["R12"].value == 2.0
+    assert ws["X12"].value == 900000
     assert ws.cell(row=13, column=8).value == 2.0
-    assert ws.cell(row=13, column=10).value == 8.0
-    assert ws.cell(row=13, column=16).value == 900000
+    assert ws.cell(row=13, column=12).value == 8.0
+    assert ws.cell(row=13, column=24).value == 900000
 

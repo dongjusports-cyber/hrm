@@ -34,6 +34,17 @@ function fmtVndOrDash(v: unknown): string {
   return formatVnd(v);
 }
 
+const RATE_COLS = [
+  { h: "hours_x15", p: "pay_x15", label: "x1.5" },
+  { h: "hours_x21", p: "pay_x21", label: "x2.1" },
+  { h: "hours_x20", p: "pay_x20", label: "x2" },
+  { h: "hours_x35", p: "pay_x35", label: "x3.5" },
+  { h: "hours_x41", p: "pay_x41", label: "x4.1" },
+  { h: "hours_x30", p: "pay_x30", label: "x3" },
+  { h: "hours_x45", p: "pay_x45", label: "x4.5" },
+  { h: "hours_x51", p: "pay_x51", label: "x5.1" },
+] as const;
+
 function sumRows(rows: OtExternalPreview["rows"], key: keyof OtExternalPreview["rows"][number]): number {
   return rows.reduce((s, r) => s + Number(r[key] ?? 0), 0);
 }
@@ -92,7 +103,7 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
     <FullScreenSheet
       open={open}
       title={`OT ngoài · kỳ ${period}`}
-      subtitle="Chi tiết theo hệ số x1.5 / x2 / x2.1 / x3 — ATM riêng, không vào payslip / BHXH / PIT"
+      subtitle="Chi tiết 8 hệ số khung giờ — ATM riêng, không vào payslip / BHXH / PIT"
       onClose={onClose}
       actions={
         <button
@@ -150,14 +161,14 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                       <th className="num">Giờ gốc</th>
                       <th className="num">Giờ HL</th>
                       <th className="num">Đơn giá/giờ</th>
-                      <th className="num">Giờ x1.5</th>
-                      <th className="num">Tiền x1.5</th>
-                      <th className="num">Giờ x2</th>
-                      <th className="num">Tiền x2</th>
-                      <th className="num">Giờ x2.1</th>
-                      <th className="num">Tiền x2.1</th>
-                      <th className="num">Giờ x3</th>
-                      <th className="num">Tiền x3</th>
+                      {RATE_COLS.flatMap((c) => [
+                        <th key={`h-${c.label}`} className="num">
+                          Giờ {c.label}
+                        </th>,
+                        <th key={`p-${c.label}`} className="num">
+                          Tiền {c.label}
+                        </th>,
+                      ])}
                       <th className="num">Tổng tiền</th>
                     </tr>
                   </thead>
@@ -170,14 +181,14 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                         <td className="num">{fmtOt(r.raw_hours)}</td>
                         <td className="num tk-ot-ext">{fmtOt(r.effective_hours)}</td>
                         <td className="num">{formatVnd(r.hourly_base)}</td>
-                        <td className="num">{fmtOtOrDash(r.hours_x15)}</td>
-                        <td className="num">{fmtVndOrDash(r.pay_x15)}</td>
-                        <td className="num">{fmtOtOrDash(r.hours_x20)}</td>
-                        <td className="num">{fmtVndOrDash(r.pay_x20)}</td>
-                        <td className="num">{fmtOtOrDash(r.hours_x21)}</td>
-                        <td className="num">{fmtVndOrDash(r.pay_x21)}</td>
-                        <td className="num">{fmtOtOrDash(r.hours_x30)}</td>
-                        <td className="num">{fmtVndOrDash(r.pay_x30)}</td>
+                        {RATE_COLS.flatMap((c) => [
+                          <td key={`${r.employee_code}-${c.h}`} className="num">
+                            {fmtOtOrDash(r[c.h])}
+                          </td>,
+                          <td key={`${r.employee_code}-${c.p}`} className="num">
+                            {fmtVndOrDash(r[c.p])}
+                          </td>,
+                        ])}
                         <td className="num ot-ext-amt">{formatVnd(r.amount_vnd)}</td>
                       </tr>
                     ))}
@@ -190,14 +201,14 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                       <td className="num">{fmtOt(preview.total_raw_hours)}</td>
                       <td className="num tk-ot-ext">{fmtOt(preview.total_effective_hours)}</td>
                       <td />
-                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x15"))}</td>
-                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x15"))}</td>
-                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x20"))}</td>
-                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x20"))}</td>
-                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x21"))}</td>
-                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x21"))}</td>
-                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x30"))}</td>
-                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x30"))}</td>
+                      {RATE_COLS.flatMap((c) => [
+                        <td key={`th-${c.h}`} className="num">
+                          {fmtOtOrDash(sumRows(preview.rows, c.h))}
+                        </td>,
+                        <td key={`tp-${c.p}`} className="num">
+                          {fmtVndOrDash(sumRows(preview.rows, c.p))}
+                        </td>,
+                      ])}
                       <td className="num ot-ext-amt">
                         <strong>{formatVnd(preview.total_amount_vnd)}</strong>
                       </td>

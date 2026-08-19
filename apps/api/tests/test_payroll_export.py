@@ -79,10 +79,11 @@ def test_export_atm_cash_and_audit(client, db):
     assert sheet.cell(row=10, column=1).value == "No"
     assert sheet.cell(row=12, column=3).value == "MSNV"
     assert "x1.5" in str(sheet.cell(row=12, column=29).value)
-    assert "x2" in str(sheet.cell(row=12, column=31).value)
-    assert "x2.1" in str(sheet.cell(row=12, column=33).value)
-    assert "x3" in str(sheet.cell(row=12, column=35).value)
-    assert sheet.cell(row=12, column=43).value == "Thực lãnh"
+    assert "x2.1" in str(sheet.cell(row=12, column=31).value)
+    assert "x2" in str(sheet.cell(row=12, column=33).value)
+    assert "x3.5" in str(sheet.cell(row=12, column=35).value)
+    assert "x5.1" in str(sheet.cell(row=12, column=43).value)
+    assert sheet.cell(row=12, column=51).value == "Thực lãnh"
     assert sheet.cell(row=13, column=10).value == 10
     from app.modules.payroll.export_salary_table import (
         COL_WIDTHS,
@@ -92,7 +93,7 @@ def test_export_atm_cash_and_audit(client, db):
         LAST_COL,
     )
 
-    assert LAST_COL == 44
+    assert LAST_COL == 52
     assert len(HEADER_EN_1) == len(HEADER_EN_2) == len(HEADER_ROW_VI) == len(COL_WIDTHS) == LAST_COL
     hdr = sheet.cell(row=12, column=1)
     assert hdr.fill.start_color.rgb in ("00BDD7EE", "BDD7EE")

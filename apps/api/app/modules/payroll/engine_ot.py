@@ -23,6 +23,7 @@ class OtHours:
     weekend: Decimal = ZERO
     holiday: Decimal = ZERO
     night: Decimal = ZERO  # NT30/45/60 — tắt mặc định
+    by_rate: dict[str, Decimal] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -46,72 +47,108 @@ class OtResult:
 
 @dataclass(frozen=True)
 class OtRateBuckets:
-    """Giờ + tiền theo mốc hệ số HR đọc trên Excel (22§22.8)."""
+    """Giờ + tiền theo 8 hệ số khung giờ công ty."""
 
     hours_x15: Decimal = ZERO
     pay_x15: Decimal = ZERO
-    hours_x20: Decimal = ZERO
-    pay_x20: Decimal = ZERO
     hours_x21: Decimal = ZERO
     pay_x21: Decimal = ZERO
+    hours_x20: Decimal = ZERO
+    pay_x20: Decimal = ZERO
+    hours_x35: Decimal = ZERO
+    pay_x35: Decimal = ZERO
+    hours_x41: Decimal = ZERO
+    pay_x41: Decimal = ZERO
     hours_x30: Decimal = ZERO
     pay_x30: Decimal = ZERO
+    hours_x45: Decimal = ZERO
+    pay_x45: Decimal = ZERO
+    hours_x51: Decimal = ZERO
+    pay_x51: Decimal = ZERO
 
     def plus(self, other: "OtRateBuckets") -> "OtRateBuckets":
         return OtRateBuckets(
             hours_x15=self.hours_x15 + other.hours_x15,
             pay_x15=self.pay_x15 + other.pay_x15,
-            hours_x20=self.hours_x20 + other.hours_x20,
-            pay_x20=self.pay_x20 + other.pay_x20,
             hours_x21=self.hours_x21 + other.hours_x21,
             pay_x21=self.pay_x21 + other.pay_x21,
+            hours_x20=self.hours_x20 + other.hours_x20,
+            pay_x20=self.pay_x20 + other.pay_x20,
+            hours_x35=self.hours_x35 + other.hours_x35,
+            pay_x35=self.pay_x35 + other.pay_x35,
+            hours_x41=self.hours_x41 + other.hours_x41,
+            pay_x41=self.pay_x41 + other.pay_x41,
             hours_x30=self.hours_x30 + other.hours_x30,
             pay_x30=self.pay_x30 + other.pay_x30,
+            hours_x45=self.hours_x45 + other.hours_x45,
+            pay_x45=self.pay_x45 + other.pay_x45,
+            hours_x51=self.hours_x51 + other.hours_x51,
+            pay_x51=self.pay_x51 + other.pay_x51,
         )
 
 
+_RATE_FIELDS = (
+    ("1.5", "hours_x15", "pay_x15"),
+    ("2.1", "hours_x21", "pay_x21"),
+    ("2.0", "hours_x20", "pay_x20"),
+    ("3.5", "hours_x35", "pay_x35"),
+    ("4.1", "hours_x41", "pay_x41"),
+    ("3.0", "hours_x30", "pay_x30"),
+    ("4.5", "hours_x45", "pay_x45"),
+    ("5.1", "hours_x51", "pay_x51"),
+)
+
+
 def buckets_from_parts(parts: list[dict] | None) -> OtRateBuckets:
-    """Gom parts của compute_ot_pay → cột x1.5 / x2 / x2.1 (đêm) / x3."""
-    h15 = p15 = h20 = p20 = h21 = p21 = h30 = p30 = ZERO
+    """Gom parts compute_ot_pay → 8 cột hệ số."""
+    hours: dict[str, Decimal] = {k: ZERO for k, _, _ in _RATE_FIELDS}
+    pay: dict[str, Decimal] = {k: ZERO for k, _, _ in _RATE_FIELDS}
     for part in parts or []:
+        rate_key = f"{D(part.get('rate', 0)):.1f}"
         kind = str(part.get("type") or "")
-        hours = D(part.get("hours", 0))
+        h = D(part.get("hours", 0))
         raw = D(part.get("raw", 0))
-        rate = D(part.get("rate", 0))
-        if kind == "weekday":
-            h15 += hours
-            p15 += raw
-        elif kind in ("weekend", "holiday"):
-            h20 += hours
-            p20 += raw
-        elif kind == "holiday_over_8":
-            h30 += hours
-            p30 += raw
-        elif kind in ("night_nt", "night"):
-            h21 += hours
-            p21 += raw
-        elif rate == D("1.5"):
-            h15 += hours
-            p15 += raw
-        elif rate in (D("2"), D("2.0")):
-            h20 += hours
-            p20 += raw
-        elif rate == D("2.1"):
-            h21 += hours
-            p21 += raw
-        elif rate in (D("3"), D("3.0")):
-            h30 += hours
-            p30 += raw
-    return OtRateBuckets(
-        hours_x15=h15,
-        pay_x15=money_vnd(p15),
-        hours_x20=h20,
-        pay_x20=money_vnd(p20),
-        hours_x21=h21,
-        pay_x21=money_vnd(p21),
-        hours_x30=h30,
-        pay_x30=money_vnd(p30),
-    )
+        if rate_key not in hours:
+            if kind == "weekday":
+                rate_key = "1.5"
+            elif kind in ("weekend",):
+                rate_key = "2.0"
+            elif kind == "holiday":
+                rate_key = "2.0"
+            elif kind == "holiday_over_8":
+                rate_key = "3.0"
+            else:
+                continue
+        hours[rate_key] = hours.get(rate_key, ZERO) + h
+        pay[rate_key] = pay.get(rate_key, ZERO) + raw
+    kwargs = {}
+    for key, hf, pf in _RATE_FIELDS:
+        kwargs[hf] = hours.get(key, ZERO)
+        kwargs[pf] = money_vnd(pay.get(key, ZERO))
+    return OtRateBuckets(**kwargs)
+
+
+def buckets_from_hours_map(
+    hours_map: dict[str, Decimal] | None,
+    hourly: Decimal,
+) -> OtRateBuckets:
+    """Giờ theo hệ số × đơn giá/giờ → tiền từng mốc (chưa làm tròn giờ)."""
+    kwargs: dict[str, Decimal] = {}
+    for key, hf, pf in _RATE_FIELDS:
+        h = D((hours_map or {}).get(key, 0))
+        kwargs[hf] = h
+        kwargs[pf] = money_vnd(h * hourly * D(key)) if h > 0 else ZERO
+    return OtRateBuckets(**kwargs)
+
+
+def hours_map_from_timesheet(ts: Any, channel: str) -> dict[str, Decimal]:
+    raw = getattr(ts, "ot_hours_by_rate", None) or {}
+    if not isinstance(raw, dict):
+        return {}
+    block = raw.get(channel) or {}
+    if not isinstance(block, dict):
+        return {}
+    return {str(k): D(v) for k, v in block.items() if D(v) > 0}
 
 
 def quantize_ot_hours(hours: Decimal, policy: dict[str, Any]) -> Decimal:
@@ -218,6 +255,38 @@ def compute_ot_pay(inp: OtInput) -> OtResult:
         policy=policy,
     )
     hourly = ot_base / divisor / Decimal("8")
+
+    by_rate = {str(k): D(v) for k, v in (inp.hours.by_rate or {}).items() if D(v) > 0}
+    if by_rate:
+        parts: list[dict] = []
+        pay = ZERO
+        eff_hours = {k: quantize_ot_hours(v, policy) for k, v in by_rate.items()}
+        for key in sorted(eff_hours, key=lambda k: D(k)):
+            hours = eff_hours[key]
+            chunk, part = _pay_bucket(hours, hourly, D(key), bucket_type=f"x{key}")
+            pay += chunk
+            if part:
+                parts.append(part)
+        ot_pay = money_vnd(pay)
+        return OtResult(
+            si_contribution_base=si_base,
+            ot_base=ot_base,
+            ot_hourly_base=hourly,
+            ot_pay=ot_pay,
+            detail={
+                **base_detail,
+                "si_contribution_base": str(si_base),
+                "ot_base": str(ot_base),
+                "ot_hourly_base": str(hourly),
+                "ot_pay": str(ot_pay),
+                "raw_hours": {k: str(v) for k, v in by_rate.items()},
+                "effective_hours": {k: str(v) for k, v in eff_hours.items()},
+                "parts": parts,
+                "night_enabled": bool(policy.get("ot_night_enabled", False)),
+                "formula": "ot_base*hours*rate/divisor/8",
+                "time_bands": True,
+            },
+        )
 
     raw_hours = {
         "weekday": D(inp.hours.weekday),

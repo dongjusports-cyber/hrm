@@ -116,6 +116,29 @@ def test_buckets_weekday_and_weekend():
     assert abs(b.pay_x15 + b.pay_x20 - r.ot_pay) <= 1
 
 
+def test_ot_pay_by_time_band_rates():
+    """Payslip/ATM: từng hệ số khung giờ, không gộp 4 mốc cũ."""
+    lines = [AllowanceLine("TOXIC", "Độc hại", Decimal("100000"), Decimal("100000"), True, True)]
+    r = compute_ot_pay(
+        OtInput(
+            contract_salary=Decimal("5675000"),
+            salary_divisor=Decimal("26"),
+            allowance_lines=lines,
+            attend_full_monthly=Decimal("0"),
+            hours=OtHours(by_rate={"1.5": Decimal("2"), "2.1": Decimal("1"), "4.5": Decimal("1")}),
+            policy=default_payload(),
+        )
+    )
+    hourly = Decimal("5775000") / Decimal("26") / Decimal("8")
+    expected = money_vnd(hourly * Decimal("2") * Decimal("1.5") + hourly * Decimal("2.1") + hourly * Decimal("4.5"))
+    assert r.ot_pay == expected
+    assert r.detail.get("time_bands") is True
+    types = [p["type"] for p in r.detail["parts"]]
+    assert "x1.5" in types
+    assert "x2.1" in types
+    assert "x4.5" in types
+
+
 def test_si_base_includes_pccc_hse_excludes_train_and_attend():
     lines = _lines_5290_excel() + [
         AllowanceLine("PCCC", "PCCC", Decimal("882000"), Decimal("882000"), True, True),
