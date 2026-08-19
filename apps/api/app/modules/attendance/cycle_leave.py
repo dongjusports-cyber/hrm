@@ -46,8 +46,8 @@ def list_cycle_leave(db: Session, period: str) -> list[CycleLeaveRowOut]:
             employee_code=emp.employee_code,
             full_name=emp.full_name,
             work_date=day.work_date,
-            first_in=day.first_in,
-            last_out=day.last_out,
+            first_in=to_vn(day.first_in) if day.first_in else None,
+            last_out=to_vn(day.last_out) if day.last_out else None,
             worked_hours=day.worked_hours,
             note=day.note or "",
         )

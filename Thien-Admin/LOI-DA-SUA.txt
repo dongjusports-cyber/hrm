@@ -980,3 +980,21 @@ Test:
   cd apps/web && npm test -- --run
   cd apps/web && npm test -- escKeyboard
 
+[QA-H002] Bàn giao HR — dashboard KPI 404, giờ công JSON thiếu +07 — 2026-08-19
+-------------------------------------------------------------------------------
+Triệu chứng:
+  GET `/api/reports/kpi` và `/overview` 404 khi chưa Tính lương (require_pay_period).
+  HR mở Tổng quan tháng hiện tại bị chặn. Giờ vào/ra JSON naive/Z → UI/test
+  hiểu UTC, 17:00 VN thành 00:00. Test Excel chế độ fail khi không có file.
+  `SYNC_RECALC_INLINE=0` còn trong lru_cache → ingest sau đó không rebuild công.
+
+Cách xử lý:
+  - GET KPI/overview: get_pay_period; chưa có kỳ thì lịch tháng + compute_divisor
+    (không INSERT). Cảnh báo ngưỡng KPI vẫn chỉ khi đã có kỳ.
+  - JSON giờ công: isoformat_vn (+07:00) trên AttendanceDayOut / worker / chu kỳ.
+  - Pytest: skip Excel chế độ nếu thiếu file; reset Settings mỗi test.
+  - Lọc NV ingest theo ngày tường VN (to_vn), không so sánh punch_time SQL lệch TZ.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py tests/test_kpi_thresholds.py tests/test_todos_57.py tests/test_cycle_leave.py tests/test_worker_self_service.py tests/test_timesheet.py tests/test_import_wt_regimes.py tests/test_sync_perf_claimed_job.py -q
+

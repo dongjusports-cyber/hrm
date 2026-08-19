@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.modules.attendance.schemas import VnDateTime
+
 
 class WorkerLoginRequest(BaseModel):
     employee_code: str = Field(min_length=1, max_length=40, description="MSNV")
@@ -122,8 +124,8 @@ class WorkerLeaveBalanceOut(BaseModel):
 
 class WorkerAttendanceDayOut(BaseModel):
     work_date: date
-    first_in: datetime | None = None
-    last_out: datetime | None = None
+    first_in: VnDateTime | None = None
+    last_out: VnDateTime | None = None
     worked_hours: Decimal = Decimal("0")
     late_minutes: int = 0
     early_minutes: int = 0
@@ -131,7 +133,7 @@ class WorkerAttendanceDayOut(BaseModel):
     leave_code: str | None = None
     punch_count: int = 0
     is_workday: bool = True
-    punches: list[datetime] = Field(default_factory=list)
+    punches: list[VnDateTime] = Field(default_factory=list)
 
 
 class WorkerAttendanceMonthOut(BaseModel):

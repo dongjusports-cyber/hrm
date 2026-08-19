@@ -81,6 +81,22 @@ def test_get_timesheets_and_grid_missing_period_empty_no_insert(client, db):
     assert counter.writes == [], f"GET chấm công ghi DB {counter.writes}"
 
 
+def test_get_reports_missing_period_200_no_insert(client, db):
+    """Dashboard HR / KPI: chưa tính lương vẫn 200, không INSERT kỳ."""
+    headers = _hr_headers(client)
+    with _SqlCounter(db.get_bind()) as counter:
+        kpi = client.get("/api/reports/kpi", headers=headers, params={"period": MISSING})
+        overview = client.get(
+            "/api/reports/overview", headers=headers, params={"period": MISSING}
+        )
+
+    assert kpi.status_code == 200, kpi.text
+    assert overview.status_code == 200, overview.text
+    assert overview.json()["todo_cards"] is not None
+    assert _period_count(db, 2099, 1) == 0
+    assert counter.writes == [], f"GET reports ghi DB {counter.writes}"
+
+
 def test_get_leave_types_does_not_insert(client, db):
     headers = _hr_headers(client)
     with _SqlCounter(db.get_bind()) as counter:

@@ -54,7 +54,7 @@ def test_worker_leave_balance(client):
     body = res.json()
     assert body["year"] == date.today().year
     assert "accrued" in body and "used" in body and "remaining" in body
-    assert body["days_per_year"] >= 12
+    assert float(body["days_per_year"]) >= 12
     assert float(body["remaining"]) >= 0
 
 

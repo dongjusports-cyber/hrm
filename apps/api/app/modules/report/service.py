@@ -12,8 +12,8 @@ from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
 from app.modules.ai.models import AiAlert
-from app.modules.attendance.models import PayPeriod, TimesheetMonth
-from app.modules.attendance.timesheet import require_pay_period
+from app.modules.attendance.models import TimesheetMonth
+from app.modules.attendance.timesheet import get_pay_period, parse_period
 from app.modules.core.excel_filename import company_excel_filename
 from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
@@ -74,14 +74,34 @@ def _was_on_payroll(emp: Employee, start: date, end: date) -> bool:
 
 
 def compute_kpi(db: Session, period: str) -> KpiPeriodOut:
-    pay = require_pay_period(db, period)
-    start, end = _period_bounds(pay.year, pay.month)
+    """KPI kỳ — GET không tạo PayPeriod (HR-H002). Chưa có kỳ: dùng lịch tháng + mẫu số."""
+    year, month = parse_period(period)
+    pay = get_pay_period(db, period)
+    start, end = _period_bounds(year, month)
     payload = _active_policy(db)
 
+    if pay is not None:
+        official = D(pay.official_work_days)
+        salary_div = D(pay.salary_divisor)
+        timesheets = (
+            db.query(TimesheetMonth)
+            .filter(TimesheetMonth.pay_period_id == pay.id)
+            .all()
+        )
+        slips = db.query(Payslip).filter(Payslip.pay_period_id == pay.id).all()
+    else:
+        from app.modules.calendar.service import compute_divisor
+
+        div = compute_divisor(db, year, month)
+        official = D(div.official_work_days)
+        salary_div = D(div.salary_divisor)
+        timesheets = []
+        slips = []
+
     b3_raw = payload.get("kpi_manpower_factor")
-    param_b3 = D(b3_raw) if b3_raw is not None else D(pay.official_work_days)
+    param_b3 = D(b3_raw) if b3_raw is not None else official
     if param_b3 <= 0:
-        param_b3 = D(pay.official_work_days) if pay.official_work_days else D(26)
+        param_b3 = official if official else D(26)
     hours_per_day = D(payload.get("kpi_hours_per_day") or 8)
 
     employees = db.query(Employee).filter(Employee.deleted_at.is_(None)).all()
@@ -107,13 +127,7 @@ def compute_kpi(db: Session, period: str) -> KpiPeriodOut:
     on_period = [e for e in employees if _was_on_payroll(e, start, end)]
     headcount = len(on_period)
 
-    timesheets = (
-        db.query(TimesheetMonth)
-        .filter(TimesheetMonth.pay_period_id == pay.id)
-        .all()
-    )
     ts_by_emp = {t.employee_id: t for t in timesheets}
-    slips = db.query(Payslip).filter(Payslip.pay_period_id == pay.id).all()
     pay_by_emp = {s.employee_id: s for s in slips}
 
     attendants = ZERO
@@ -130,7 +144,7 @@ def compute_kpi(db: Session, period: str) -> KpiPeriodOut:
 
     manpower = engine.monthly_manpower(headcount, param_b3)
     att_rate = engine.attendance_rate(attendants, manpower)
-    ref_h = engine.reference_hours(headcount, D(pay.official_work_days) or param_b3, hours_per_day)
+    ref_h = engine.reference_hours(headcount, official or param_b3, hours_per_day)
     o_rate = engine.ot_rate(ot_hours, ref_h)
     t_rate = engine.turnover_rate(resign, begin_hc, end_hc)
 
@@ -196,8 +210,8 @@ def compute_kpi(db: Session, period: str) -> KpiPeriodOut:
 
     return KpiPeriodOut(
         period=period,
-        official_work_days=D(pay.official_work_days),
-        salary_divisor=D(pay.salary_divisor),
+        official_work_days=official,
+        salary_divisor=salary_div,
         param_b3=param_b3,
         hours_per_day=hours_per_day,
         headcount=headcount,

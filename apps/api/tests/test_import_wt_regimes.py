@@ -52,7 +52,10 @@ def test_parse_real_xlsx_18_08():
     from app.scripts.import_wt_regimes import _default_xlsx
 
     xlsx = _default_xlsx()
-    assert xlsx.is_file(), xlsx
+    if not xlsx.is_file():
+        import pytest
+
+        pytest.skip(f"Không có file Excel chế độ trên máy này: {xlsx}")
     rows = load_wt_regime_xlsx(xlsx)
     by_type = {}
     for r in rows:

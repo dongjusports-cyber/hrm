@@ -170,26 +170,38 @@ def calendar_month_bounds(period: str) -> tuple[date, date]:
 
 
 def employee_ids_with_punches_in_range(db: Session, date_from: date, date_to: date) -> list[UUID]:
-    """NV có vân tay trong khoảng — dùng để rebuild bảng công sau ingest, không quét cả nhà máy."""
-    from datetime import datetime
+    """NV có vân tay trong khoảng — dùng để rebuild bảng công sau ingest, không quét cả nhà máy.
 
-    from app.modules.attendance.engine import VN_TZ
+    Lọc theo ngày tường VN (to_vn). SQLite so sánh timestamptz/naive dễ lệch nên không
+    tin filter SQL punch_time >= bound.
+    """
+    from app.modules.attendance.engine import to_vn
     from app.modules.integration.models import AttendancePunch
     from app.modules.mdm.models import Employee
 
-    start = datetime(date_from.year, date_from.month, date_from.day, tzinfo=VN_TZ)
-    end = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=VN_TZ)
-    codes = [
-        code
-        for (code,) in db.query(AttendancePunch.employee_code)
-        .filter(AttendancePunch.punch_time >= start, AttendancePunch.punch_time <= end)
-        .distinct()
-        .all()
-        if code
-    ]
-    if not codes:
-        return []
-    return [eid for (eid,) in db.query(Employee.id).filter(Employee.employee_code.in_(codes)).all()]
+    punches = db.query(
+        AttendancePunch.employee_id,
+        AttendancePunch.employee_code,
+        AttendancePunch.punch_time,
+    ).all()
+    ids: set[UUID] = set()
+    codes: set[str] = set()
+    for eid, code, pt in punches:
+        if pt is None:
+            continue
+        d = to_vn(pt).date()
+        if d < date_from or d > date_to:
+            continue
+        if eid is not None:
+            ids.add(eid)
+        elif code:
+            codes.add(code)
+    if codes:
+        ids.update(
+            eid
+            for (eid,) in db.query(Employee.id).filter(Employee.employee_code.in_(list(codes))).all()
+        )
+    return list(ids)
 
 
 def rebuild_timesheets_for_date_window(db: Session, date_from: date, date_to: date) -> None:

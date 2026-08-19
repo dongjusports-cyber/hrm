@@ -51,6 +51,7 @@ def test_cycle_tick_bumps_out_to_shift_end(client):
     assert body["cycle_leave"] is True
     assert body["early_minutes"] == 0
     assert Decimal(str(body["worked_hours"])) >= Decimal("8")
+    assert "+07:00" in body["last_out"]
     out = datetime.fromisoformat(body["last_out"].replace("Z", "+00:00")).astimezone(VN)
     assert (out.hour, out.minute) == (17, 0)
 

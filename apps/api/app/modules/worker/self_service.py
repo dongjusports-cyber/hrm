@@ -129,8 +129,8 @@ def get_attendance_month(
             day_out.append(
                 WorkerAttendanceDayOut(
                     work_date=d.work_date,
-                    first_in=d.first_in,
-                    last_out=d.last_out,
+                    first_in=to_vn(d.first_in) if d.first_in else None,
+                    last_out=to_vn(d.last_out) if d.last_out else None,
                     worked_hours=d.worked_hours,
                     late_minutes=d.late_minutes,
                     early_minutes=d.early_minutes,

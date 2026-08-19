@@ -54,6 +54,11 @@ def to_vn(dt: datetime) -> datetime:
     return dt.astimezone(VN_TZ)
 
 
+def isoformat_vn(dt: datetime) -> str:
+    """ISO giờ tường VN (+07:00). SQLite naive không được JSON hiểu là UTC."""
+    return to_vn(dt).isoformat()
+
+
 def combine_vn(d: date, t: time) -> datetime:
     return datetime(d.year, d.month, d.day, t.hour, t.minute, t.second, tzinfo=VN_TZ)
 

@@ -78,8 +78,8 @@ def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
         employee_code=emp.employee_code,
         full_name=emp.full_name,
         work_date=day.work_date,
-        first_in=day.first_in,
-        last_out=day.last_out,
+        first_in=to_vn(day.first_in) if day.first_in else None,
+        last_out=to_vn(day.last_out) if day.last_out else None,
         worked_hours=day.worked_hours,
         late_minutes=day.late_minutes,
         early_minutes=day.early_minutes,
@@ -101,7 +101,7 @@ def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
         note=day.note,
         cycle_leave=bool(day.cycle_leave),
         edited_by_user_id=day.edited_by_user_id,
-        edited_at=day.edited_at,
+        edited_at=to_vn(day.edited_at) if day.edited_at else None,
     )
 
 
