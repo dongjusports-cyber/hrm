@@ -52,12 +52,15 @@ Chi tiết trong LOI-DA-SUA.txt:
             - Việc cần làm: chấm lẻ (thiếu vào/ra), đơn phép chờ, HĐ 60 ngày,
               chế độ T−3, phiếu chưa XN, khiếu nại, BHXH, nguy cơ chuyên cần
             - Tổng Quan cũng hiện các thẻ đó (bấm được)
-            - Hỏi AI (admin): «Tóm tắt việc cần làm hôm nay», «Ai chấm lẻ»,
-              «Thông tin MSNV 5290» — đọc CSDL, không bịa giờ
+            - Hỏi AI: «Tóm tắt việc cần làm hôm nay», «Ai chấm lẻ»,
+              «Thông tin MSNV 5290» / «Thông tin Lê Văn C», thử việc, thôi việc tháng này
+              — đọc CSDL, không bịa giờ, không tự sửa phép/lương
             - Chip gợi ý + nút Hỏi AI trên thẻ việc
-            - hr.demo thấy nhắc việc, không có tab Hỏi AI (thiếu quyền ai_query)
+            - hr.demo: tab Hỏi AI tra cứu CSDL (không Gemini). Chat phân tích cần Admin cấp `ai_query`.
+            - POST /api/ai/query vẫn 403 với hr.demo (Gemini)
 
   [AI-P001] Nút AI không còn kéo KPI cả nhà máy mỗi 60 giây (poll inbox nhẹ)
+  [AI-P002] Đếm chấm lẻ đủ số thật (~400 NV); HR hỏi theo tên; /assist không Gemini
 
 --------------------------------------------------------------------------------
 NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
@@ -98,7 +101,8 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
 5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan / Trợ Lý AI
    - Tổng Quan chọn kỳ tháng — chưa Tính lương vẫn mở được (todo, KPI 0 công)
    - Khiếu nại: danh sách đơn công nhân
-   - Nút AI: Việc cần làm (0 token). «Tóm tắt hôm nay» (admin). Thiếu chấm vào/ra
+   - Nút AI: Việc cần làm (0 token). HR hỏi «Tóm tắt hôm nay», «Ai chấm lẻ»,
+     «Thông tin [họ tên/MSNV]» từ CSDL (không Gemini). Thiếu chấm vào/ra
      → gọi NV lập biên bản, rồi chấm tay đủ cặp — không bịa giờ.
 
 --------------------------------------------------------------------------------

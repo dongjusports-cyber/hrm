@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.modules.ai.employee_context import build_punch_context
+from app.modules.ai.employee_context import build_punch_context, cap_note
 from app.modules.ai.fast_reply import detect_ops_kind
-from app.modules.ai.vi_labels import label_dispute_status, label_period_status
+from app.modules.ai.vi_labels import label_dispute_status, label_emp_status, label_period_status
 from app.modules.attendance.engine import VN_TZ
 from app.modules.attendance.models import LeaveRequest, PayPeriod, TimesheetMonth
 from app.modules.attendance.timesheet import get_pay_period
@@ -32,6 +32,8 @@ OPS_DIRECT_KINDS = frozenset(
         "wt_review",
         "attendance_risk",
         "daily_briefing",
+        "probation_list",
+        "resign_list",
     }
 )
 
@@ -63,6 +65,12 @@ def _denied(header: str) -> str:
 
 
 def build_leave_context(db: Session, *, limit: int = 20) -> str:
+    total = int(
+        db.query(func.count(LeaveRequest.id))
+        .filter(LeaveRequest.status == "submitted")
+        .scalar()
+        or 0
+    )
     rows = (
         db.query(LeaveRequest, Employee)
         .join(Employee, Employee.id == LeaveRequest.employee_id)
@@ -75,10 +83,10 @@ def build_leave_context(db: Session, *, limit: int = 20) -> str:
         "### Đơn phép chờ duyệt — đọc từ CSDL",
         "Luật 05: HR duyệt/từ chối trên Chấm Công. AI không tự duyệt.",
     ]
-    if not rows:
+    if total == 0:
         lines.append("Không có đơn status=submitted.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    lines.append(cap_note(total, len(rows), limit))
     for req, emp in rows:
         half = ""
         if req.from_half or req.to_half:
@@ -114,7 +122,19 @@ def build_contract_context(db: Session, *, limit: int = 20) -> str:
     if not rows:
         lines.append("Không có HĐ active hết hạn trong 60 ngày.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    total = int(
+        db.query(func.count(LabourContract.id))
+        .join(Employee, Employee.id == LabourContract.employee_id)
+        .filter(
+            LabourContract.status == "active",
+            LabourContract.end_date.isnot(None),
+            LabourContract.end_date >= today,
+            LabourContract.end_date <= deadline,
+        )
+        .scalar()
+        or 0
+    )
+    lines.append(cap_note(total, len(rows), limit))
     for c, emp in rows:
         lines.append(
             f"- {emp.employee_code} {emp.full_name}: {c.contract_type_code} "
@@ -144,7 +164,16 @@ def build_insurance_context(db: Session, *, limit: int = 20) -> str:
     if not rows:
         lines.append("Không có dòng draft/exported tháng này.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    total = int(
+        db.query(func.count(InsuranceDeclaration.id))
+        .filter(
+            InsuranceDeclaration.effective_month == month,
+            InsuranceDeclaration.status.in_(("draft", "exported")),
+        )
+        .scalar()
+        or 0
+    )
+    lines.append(cap_note(total, len(rows), limit))
     for row, emp in rows:
         kind = _INS_TYPE.get(row.declaration_type, row.declaration_type)
         lines.append(
@@ -206,7 +235,10 @@ def build_dispute_list_context(db: Session, *, limit: int = 20) -> str:
     if not rows:
         lines.append("Không có khiếu nại open/ai_reviewed/hr_pending.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    total = int(
+        db.query(func.count(Dispute.id)).filter(Dispute.status.in_(OPEN_STATUSES)).scalar() or 0
+    )
+    lines.append(cap_note(total, len(rows), limit))
     for d, emp in rows:
         lines.append(
             f"- {d.code} {emp.employee_code} {emp.full_name}: "
@@ -238,7 +270,19 @@ def build_wt_context(db: Session, *, limit: int = 20) -> str:
     if not rows:
         lines.append("Không có chế độ hết đúng sau 3 ngày.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    total = int(
+        db.query(func.count(EmployeeWtRegime.id))
+        .join(Employee, Employee.id == EmployeeWtRegime.employee_id)
+        .filter(
+            EmployeeWtRegime.date_to == target,
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.ended_at.is_(None),
+            Employee.deleted_at.is_(None),
+        )
+        .scalar()
+        or 0
+    )
+    lines.append(cap_note(total, len(rows), limit))
     for regime, emp in rows:
         label = _WT_LABEL.get(regime.regime_type, regime.regime_type)
         lines.append(
@@ -274,7 +318,16 @@ def build_attendance_risk_context(db: Session, *, limit: int = 20) -> str:
     if not rows:
         lines.append("Không có NV trễ ≥ 2 hoặc sớm ≥ 2 trên bảng công kỳ này.")
         return "\n".join(lines)
-    lines.append(f"Số dòng (tối đa {limit} hiện): {len(rows)}")
+    total = int(
+        db.query(func.count(TimesheetMonth.id))
+        .filter(
+            TimesheetMonth.pay_period_id == pay.id,
+            or_(TimesheetMonth.late_count >= 2, TimesheetMonth.early_count >= 2),
+        )
+        .scalar()
+        or 0
+    )
+    lines.append(cap_note(total, len(rows), limit))
     for ts, emp in rows:
         lines.append(
             f"- {emp.employee_code} {emp.full_name}: trễ={ts.late_count}, sớm={ts.early_count}"
@@ -300,6 +353,80 @@ def build_briefing_context(db: Session, user: User) -> str:
     return "\n".join(lines)
 
 
+def build_probation_context(db: Session, *, limit: int = 20) -> str:
+    today = datetime.now(tz=VN_TZ).date()
+    total = int(
+        db.query(func.count(Employee.id))
+        .filter(Employee.deleted_at.is_(None), Employee.status == "probation")
+        .scalar()
+        or 0
+    )
+    rows = (
+        db.query(Employee)
+        .filter(Employee.deleted_at.is_(None), Employee.status == "probation")
+        .order_by(Employee.employee_code)
+        .limit(limit)
+        .all()
+    )
+    lines = [
+        "### Nhân viên thử việc — đọc từ CSDL",
+        f"Hôm nay (VN): {today.isoformat()}. AI không tự chuyển chính thức — HR mở tab Thử việc.",
+    ]
+    if total == 0:
+        lines.append("Không có NV status=probation.")
+        return "\n".join(lines)
+    lines.append(cap_note(total, len(rows), limit))
+    for emp in rows:
+        lines.append(
+            f"- {emp.employee_code} {emp.full_name}: vào {emp.join_date or '—'}, "
+            f"trạng thái={label_emp_status(emp.status)}"
+        )
+    return "\n".join(lines)
+
+
+def build_resign_context(db: Session, *, limit: int = 20) -> str:
+    today = datetime.now(tz=VN_TZ).date()
+    month_start = today.replace(day=1)
+    total = int(
+        db.query(func.count(Employee.id))
+        .filter(
+            Employee.deleted_at.is_(None),
+            Employee.status == "resigned",
+            Employee.resign_date.isnot(None),
+            Employee.resign_date >= month_start,
+            Employee.resign_date <= today,
+        )
+        .scalar()
+        or 0
+    )
+    rows = (
+        db.query(Employee)
+        .filter(
+            Employee.deleted_at.is_(None),
+            Employee.status == "resigned",
+            Employee.resign_date.isnot(None),
+            Employee.resign_date >= month_start,
+            Employee.resign_date <= today,
+        )
+        .order_by(Employee.resign_date.desc(), Employee.employee_code)
+        .limit(limit)
+        .all()
+    )
+    lines = [
+        "### Thôi việc tháng này — đọc từ CSDL",
+        f"Khoảng: {month_start.isoformat()} → {today.isoformat()}. AI không tự thôi việc.",
+    ]
+    if total == 0:
+        lines.append("Không có NV thôi việc trong tháng này.")
+        return "\n".join(lines)
+    lines.append(cap_note(total, len(rows), limit))
+    for emp in rows:
+        lines.append(
+            f"- {emp.employee_code} {emp.full_name}: nghỉ {emp.resign_date.isoformat()}"
+        )
+    return "\n".join(lines)
+
+
 def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
     """(kind, khối ngữ cảnh) — chuỗi rỗng nếu không phải câu nghiệp vụ nhà máy."""
     kind = detect_ops_kind(message)
@@ -316,6 +443,8 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "payroll_review": ("payroll", "dispute"),
         "dispute_list": (),
         "daily_briefing": (),
+        "probation_list": ("hr",),
+        "resign_list": ("hr",),
     }[kind]
 
     if kind == "dispute_list":
@@ -335,6 +464,8 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "wt_review": "### Chế độ về sớm hết hạn T−3 — đọc từ CSDL",
         "attendance_risk": "### Nguy cơ chuyên cần kỳ hiện tại — đọc từ CSDL",
         "daily_briefing": "### Việc cần làm hôm nay — đọc từ CSDL",
+        "probation_list": "### Nhân viên thử việc — đọc từ CSDL",
+        "resign_list": "### Thôi việc tháng này — đọc từ CSDL",
     }
     if not allowed:
         return kind, _denied(headers[kind])
@@ -349,5 +480,7 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "wt_review": lambda: build_wt_context(db),
         "attendance_risk": lambda: build_attendance_risk_context(db),
         "daily_briefing": lambda: build_briefing_context(db, user),
+        "probation_list": lambda: build_probation_context(db),
+        "resign_list": lambda: build_resign_context(db),
     }
     return kind, builders[kind]()

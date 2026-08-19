@@ -218,3 +218,73 @@ def test_ai_settings_admin(client):
 
     denied = client.get("/api/ai/settings", headers=_hr_headers(client))
     assert denied.status_code == 403
+
+
+def test_ai_query_employee_lookup_by_name(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.full_name = "Lê Văn C"
+    db.commit()
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Thông tin Lê Văn C"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "employee_lookup"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+    assert "Lê Văn C" in body["answer"]
+
+
+def test_ai_query_probation_list_direct(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.status = "probation"
+    db.commit()
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Nhân viên thử việc"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "probation_list"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+
+
+def test_ai_assist_hr_briefing(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Tóm tắt việc cần làm hôm nay"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "daily_briefing"
+    assert body["model_name"] == "direct"
+
+
+def test_ai_assist_hr_rejects_free_chat(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Nhà máy có bao nhiêu module Portal?"},
+    )
+    assert res.status_code == 403
+    assert "ai_query" in res.json()["detail"]
+
+
+def test_ai_assist_hr_name_lookup(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.full_name = "Lê Văn C"
+    db.commit()
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Thông tin Lê Văn C"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "employee_lookup"
+    assert "5290" in body["answer"]

@@ -55,6 +55,14 @@ _BRIEFING_RE = re.compile(
     r"briefing|việc\s*hôm\s*nay",
     re.IGNORECASE,
 )
+_PROBATION_RE = re.compile(
+    r"thử\s*việc|nv\s*thử|đang\s*thử\s*việc|danh\s*sách\s*thử",
+    re.IGNORECASE,
+)
+_RESIGN_RE = re.compile(
+    r"thôi\s*việc|nghỉ\s*việc\s*tháng|danh\s*sách\s*thôi",
+    re.IGNORECASE,
+)
 
 _DIRECT_HEADERS: tuple[tuple[str, str], ...] = (
     (
@@ -70,6 +78,8 @@ _DIRECT_HEADERS: tuple[tuple[str, str], ...] = (
     ("### Chế độ về sớm hết hạn T−3 — đọc từ CSDL", "Kết quả chế độ từ hệ thống:"),
     ("### Nguy cơ chuyên cần kỳ hiện tại — đọc từ CSDL", "Kết quả chuyên cần từ hệ thống:"),
     ("### Việc cần làm hôm nay — đọc từ CSDL", "Tóm tắt việc cần làm hôm nay:"),
+    ("### Nhân viên thử việc — đọc từ CSDL", "Danh sách thử việc từ hệ thống:"),
+    ("### Thôi việc tháng này — đọc từ CSDL", "Danh sách thôi việc tháng này từ hệ thống:"),
 )
 
 
@@ -104,6 +114,10 @@ def detect_ops_kind(message: str) -> str:
         return "wt_review"
     if _ATTENDANCE_RISK_RE.search(text):
         return "attendance_risk"
+    if _PROBATION_RE.search(text):
+        return "probation_list"
+    if _RESIGN_RE.search(text):
+        return "resign_list"
     return ""
 
 

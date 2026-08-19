@@ -2661,6 +2661,15 @@ export async function askAi(message: string, disputeId?: string): Promise<AiQuer
   return res.json();
 }
 
+export async function askAiAssist(message: string): Promise<AiQueryResult> {
+  const res = await apiFetch("/api/ai/assist", {
+    method: "POST",
+    body: JSON.stringify({ message, dispute_id: null }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
 export type AiSettings = {
   enabled: boolean;
   model_name: string;

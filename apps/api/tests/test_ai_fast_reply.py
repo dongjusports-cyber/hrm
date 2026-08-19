@@ -42,6 +42,8 @@ def test_detect_ops_kind():
     assert detect_ops_kind("danh sách khiếu nại") == "dispute_list"
     assert detect_ops_kind("chế độ sắp hết hạn") == "wt_review"
     assert detect_ops_kind("sắp mất chuyên cần") == "attendance_risk"
+    assert detect_ops_kind("nhân viên thử việc") == "probation_list"
+    assert detect_ops_kind("thôi việc tháng này") == "resign_list"
     assert detect_ops_kind("nhà máy có bao nhiêu module") == ""
 
 

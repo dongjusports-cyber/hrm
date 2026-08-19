@@ -96,6 +96,21 @@ def test_hr_portal_config_not_allowed(client):
     assert all(t["allowed"] for t in body["tabs"] if t["key"] != "config")
 
 
+def test_hr_assist_csdl_without_gemini(client):
+    """hr.demo không ai_query nhưng được tra cứu CSDL qua /assist."""
+    headers = _hr_headers(client)
+    query = client.post("/api/ai/query", headers=headers, json={"message": "Tóm tắt việc cần làm hôm nay"})
+    assert query.status_code == 403
+    assist = client.post(
+        "/api/ai/assist",
+        headers=headers,
+        json={"message": "Tóm tắt việc cần làm hôm nay"},
+    )
+    assert assist.status_code == 200, assist.text
+    assert assist.json()["kind"] == "daily_briefing"
+    assert assist.json()["model_name"] == "direct"
+
+
 def test_hr_payroll_calculate_denied_or_allowed(client):
     """hr.demo có module payroll — được tính lương."""
     headers = _hr_headers(client)

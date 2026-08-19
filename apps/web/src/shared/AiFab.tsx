@@ -10,6 +10,7 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   askAi,
+  askAiAssist,
   fetchAiInbox,
   markAlertRead,
   markAllAlertsRead,
@@ -85,6 +86,12 @@ export function AiFab() {
   const onWorker = location.pathname.startsWith("/worker");
   const onLogin = location.pathname === "/login" || location.pathname === "/worker/login";
   const canQuery = Boolean(user?.permissions?.includes("ai_query") || user?.role === "admin");
+  const canAssist = Boolean(
+    canQuery ||
+      user?.modules?.includes("hr") ||
+      user?.modules?.includes("timekeeping") ||
+      user?.modules?.includes("payroll"),
+  );
 
   const reload = useCallback(
     async (light: boolean) => {
@@ -190,12 +197,12 @@ export function AiFab() {
   }
 
   async function sendMessage(text: string) {
-    if (!canQuery || asking || !text.trim()) return;
+    if (!canAssist || asking || !text.trim()) return;
     const q = text.trim();
     setAsking(true);
     setError(null);
     try {
-      const res = await askAi(q);
+      const res = canQuery ? await askAi(q) : await askAiAssist(q);
       setChatAnswer(res.answer);
       setChatMeta(res.message);
       setFollowups(res.suggestions ?? []);
@@ -217,7 +224,7 @@ export function AiFab() {
       openHref(s.href);
       return;
     }
-    if (!canQuery) {
+    if (!canAssist) {
       if (s.href) openHref(s.href);
       return;
     }
@@ -329,7 +336,7 @@ export function AiFab() {
             >
               Việc cần làm
             </button>
-            {canQuery && (
+            {canAssist && (
               <button
                 type="button"
                 role="tab"
@@ -351,7 +358,7 @@ export function AiFab() {
                   <button type="button" className="link-btn" onClick={() => void reload(false)}>
                     Làm mới
                   </button>
-                  {canQuery && (
+                  {canAssist && (
                     <button
                       type="button"
                       className="link-btn"
@@ -384,7 +391,7 @@ export function AiFab() {
                           </strong>
                           <span>{card.body}</span>
                         </button>
-                        {canQuery && card.ask_message && (
+                        {canAssist && card.ask_message && (
                           <button
                             type="button"
                             className="link-btn ai-fab-ask"
@@ -422,7 +429,9 @@ export function AiFab() {
             ) : (
               <form className="ai-fab-chat" onSubmit={(e) => void onAsk(e)}>
                 <p className="field-hint ai-fab-chat-hint">
-                  Tra cứu MSNV và việc nhà máy trả lời ngay từ CSDL. Câu phân tích mới gọi Gemini. Không tự sửa dữ liệu.
+                  {canQuery
+                    ? "Tra cứu MSNV/họ tên và việc nhà máy trả lời ngay từ CSDL. Câu phân tích mới gọi Gemini. Không tự sửa dữ liệu."
+                    : "Bạn đang tra cứu CSDL (không gọi Gemini): tóm tắt hôm nay, thông tin NV, chấm lẻ, đơn phép, HĐ, thử việc. Câu phân tích cần Admin cấp quyền ai_query. Không tự sửa dữ liệu."}
                 </p>
                 {(followups.length > 0 || suggestions.length > 0 || DEFAULT_CHIPS.length > 0) && (
                   <div className="ai-fab-chips" role="group" aria-label="Gợi ý hỏi">
@@ -449,7 +458,7 @@ export function AiFab() {
                   onChange={(e) => setChatInput(e.target.value)}
                   rows={2}
                   maxLength={4000}
-                  placeholder="Ví dụ: Tóm tắt việc cần làm hôm nay · Thông tin MSNV 1519 · Ai chấm lẻ tháng này"
+                  placeholder="Ví dụ: Tóm tắt việc cần làm hôm nay · Thông tin Lê Văn C · Ai chấm lẻ tháng này"
                   disabled={asking}
                 />
                 <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>

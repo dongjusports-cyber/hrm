@@ -100,8 +100,47 @@ def _dispute_context(db: Session, dispute_id: UUID) -> tuple[Dispute, str]:
     return d, "\n".join(lines)
 
 
-def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryResponse:
-    if not user.has_permission("ai_query"):
+_ASSIST_MODULES = ("hr", "timekeeping", "payroll")
+_ASSIST_NEED_GEMINI = (
+    "Câu này cần quyền hỏi Gemini (`ai_query`). "
+    "HR tra cứu CSDL được: tóm tắt hôm nay, thông tin NV (MSNV hoặc họ tên), "
+    "chấm lẻ, đơn phép, hợp đồng hết hạn, thử việc, thôi việc tháng này, "
+    "BHXH, phiếu lương, khiếu nại, chế độ về sớm, chuyên cần."
+)
+
+
+def user_can_hr_assist(user: User) -> bool:
+    """HR/chấm công/lương được hỏi CSDL — không cần Gemini."""
+    if user.role == "admin":
+        return True
+    return any(user.has_module(m) for m in _ASSIST_MODULES)
+
+
+def run_ai_query(
+    db: Session,
+    user: User,
+    body: AiQueryRequest,
+    *,
+    direct_only: bool = False,
+) -> AiQueryResponse:
+    if direct_only:
+        if not user_can_hr_assist(user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền tra cứu CSDL. "
+                    "Cần module Nhân sự, Chấm công hoặc Lương."
+                ),
+            )
+        if body.dispute_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trợ Lý AI xin chào {user.full_name}, "
+                    "rà soát khiếu nại bằng Gemini cần quyền `ai_query`."
+                ),
+            )
+    elif not user.has_permission("ai_query"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -111,7 +150,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         )
 
     cfg = ensure_settings(db)
-    if not cfg.enabled:
+    if not direct_only and not cfg.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Trợ Lý AI: Admin đã tắt Gemini. Bật lại tại Cấu Hình → AI Gemini.",
@@ -170,6 +209,13 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         + f"### Câu hỏi\n{message}"
     )
 
+    if direct_only:
+        if wants_llm_analysis(message) or kind not in OPS_DIRECT_KINDS or not context_block:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Trợ Lý AI xin chào {user.full_name}. {_ASSIST_NEED_GEMINI}",
+            )
+
     direct = False
     if kind in OPS_DIRECT_KINDS and context_block and not wants_llm_analysis(message):
         result = ProviderResult(
@@ -214,16 +260,19 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         if dispute.status == "open":
             dispute.status = "ai_reviewed"
 
+    db.flush()
+    job_id = job.id
+    dispute_id = dispute.id if dispute else None
+    dispute_code = dispute.code if dispute else None
     db.commit()
-    db.refresh(job)
 
     remaining = max(0, cfg.max_queries_per_day - used - 1)
     return AiQueryResponse(
         answer=result.text,
         kind=kind,
-        job_id=job.id,
-        dispute_id=dispute.id if dispute else None,
-        dispute_code=dispute.code if dispute else None,
+        job_id=job_id,
+        dispute_id=dispute_id,
+        dispute_code=dispute_code,
         model_name=result.model_name,
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,

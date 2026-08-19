@@ -10,6 +10,7 @@ LOI DA SUA — DJ-HRM
 Đợt Trợ Lý AI nghiệp vụ 19/08/2026:
   [AI-G001] Chấm lẻ (Luật 01) + todo phép/chuyên cần + Hỏi AI đọc CSDL
   [AI-P001] FAB poll 60s chạy compute_kpi; inbox light + tóm tắt hôm nay
+  [AI-P002] HR hỏi CSDL không Gemini; đếm chấm lẻ đủ 400 NV; tra cứu theo tên
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1095,4 +1096,25 @@ Cách xử lý:
 Test:
   cd apps/api && .venv/bin/pytest tests/test_ai_perf.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_todos_57.py tests/test_hr_uat_matrix.py -q
   cd apps/web && npx tsc --noEmit
+
+[AI-P002] AI 400 NV + HR hỏi theo yêu cầu — 2026-08-19
+-----------------------------------------------------
+Triệu chứng:
+  1) «Ai chấm lẻ» hiện tối đa 20 dòng và ghi «số dòng = 20» dù nhà máy có 87+ ngày lẻ.
+  2) HR gõ «Thông tin Lê Văn C» không tra CSDL (chỉ nhận MSNV số).
+  3) hr.demo thấy việc cần làm nhưng không hỏi được (thiếu `ai_query` / Gemini).
+  4) Tra cứu 1 NV còn N+1 (phép/chế độ/công/chấm lẻ từng người) + SELECT thừa sau commit.
+
+Cách xử lý:
+  - COUNT chấm lẻ/phép/HĐ… rồi hiện mẫu; câu trả lời «Tổng N, hiện 20».
+  - Parse họ tên sau thông tin/hồ sơ/tra cứu; ILIKE full_name, tối đa 5.
+  - POST /api/ai/assist: HR/chấm công/lương hỏi CSDL (direct). Chat tự do / phân tích / khiếu nại Gemini → 403, vẫn giữ POST /query 403 với hr.demo.
+  - FAB: tab Hỏi AI cho HR; hint «không gọi Gemini».
+  - Snapshot phép năm theo lô; hoist kỳ lương; không refresh AiJob sau commit.
+  - Thêm câu direct: thử việc, thôi việc tháng này.
+
+Ranh giới (Luật): AI không tự duyệt phép, không bịa giờ, không ghi lương/công.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_perf.py tests/test_ai_employee_context.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_hr_uat_matrix.py -q
 

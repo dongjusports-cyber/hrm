@@ -82,6 +82,16 @@ def ai_query(
     return query_svc.run_ai_query(db, user, body)
 
 
+@router.post("/assist", response_model=AiQueryResponse)
+def ai_assist(
+    body: AiQueryRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> AiQueryResponse:
+    """HR tra cứu CSDL (không Gemini). Câu phân tích / chat tự do cần `ai_query`."""
+    return query_svc.run_ai_query(db, user, body, direct_only=True)
+
+
 @router.get("/settings", response_model=AiSettingsOut)
 def ai_settings_get(_admin: AdminUser, db: DbSession) -> AiSettingsOut:
     return settings_svc.get_settings_out(db)

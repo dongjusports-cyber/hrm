@@ -595,6 +595,54 @@ def timesheet_ale_used_ytd(db: Session, employee_id: UUID, as_of: date) -> Decim
     return timesheet_ale_used_ytd_batch(db, [employee_id], as_of).get(employee_id, zero)
 
 
+def annual_leave_snapshot_batch(
+    db: Session,
+    employee_ids: list[UUID],
+    as_of: date | None = None,
+) -> dict[UUID, AnnualLeaveSnapshot]:
+    """Snapshot phép năm theo lô — CHỈ ĐỌC, không N+1 theo NV."""
+    as_of = as_of or date.today()
+    year = as_of.year
+    zero = Decimal("0").quantize(Q2)
+    if not employee_ids:
+        return {}
+    base, every = _al_policy(db)
+    employees = {
+        e.id: e for e in db.query(Employee).filter(Employee.id.in_(employee_ids)).all()
+    }
+    ledger_by_emp = {
+        row.employee_id: row
+        for row in db.query(AnnualLeaveLedger)
+        .filter(
+            AnnualLeaveLedger.employee_id.in_(employee_ids),
+            AnnualLeaveLedger.year == year,
+        )
+        .all()
+    }
+    ts_used_map = timesheet_ale_used_ytd_batch(db, employee_ids, as_of)
+    out: dict[UUID, AnnualLeaveSnapshot] = {}
+    for emp_id in employee_ids:
+        emp = employees.get(emp_id)
+        if emp is None:
+            out[emp_id] = AnnualLeaveSnapshot(zero, zero, zero, zero)
+            continue
+        entitled = Decimal(entitled_days_per_year(emp, as_of, base, every)).quantize(
+            Q2, rounding=ROUND_HALF_UP
+        )
+        current = _target_accrued(emp, as_of, int(entitled))
+        ledger = ledger_by_emp.get(emp_id)
+        ledger_used = (
+            Decimal(str(ledger.used)).quantize(Q2, rounding=ROUND_HALF_UP)
+            if ledger is not None
+            else zero
+        )
+        ts_used = ts_used_map.get(emp_id, zero)
+        used = max(ledger_used, ts_used)
+        remaining = (current - used).quantize(Q2, rounding=ROUND_HALF_UP)
+        out[emp_id] = AnnualLeaveSnapshot(entitled, current, used, remaining)
+    return out
+
+
 def annual_leave_snapshot(
     db: Session, employee_id: UUID, as_of: date | None = None
 ) -> AnnualLeaveSnapshot:
@@ -604,29 +652,7 @@ def annual_leave_snapshot(
     Đã dùng = max(sổ bút toán, ALE bảng công YTD).
     Còn lại = hiện tại − đã dùng.
     """
-    as_of = as_of or date.today()
-    year = as_of.year
-    emp = db.get(Employee, employee_id)
-    zero = Decimal("0").quantize(Q2)
-    if emp is None:
-        return AnnualLeaveSnapshot(zero, zero, zero, zero)
-    entitled = Decimal(entitled_days_for(db, emp, as_of)).quantize(Q2, rounding=ROUND_HALF_UP)
-    current = _target_accrued(emp, as_of, int(entitled))
-    ledger = (
-        db.query(AnnualLeaveLedger)
-        .filter(
-            AnnualLeaveLedger.employee_id == employee_id,
-            AnnualLeaveLedger.year == year,
-        )
-        .one_or_none()
-    )
-    ledger_used = (
-        Decimal(str(ledger.used)).quantize(Q2, rounding=ROUND_HALF_UP) if ledger is not None else zero
-    )
-    ts_used = timesheet_ale_used_ytd(db, employee_id, as_of)
-    used = max(ledger_used, ts_used)
-    remaining = (current - used).quantize(Q2, rounding=ROUND_HALF_UP)
-    return AnnualLeaveSnapshot(entitled, current, used, remaining)
+    return annual_leave_snapshot_batch(db, [employee_id], as_of)[employee_id]
 
 
 def verify_annual_leave_nghiem_thu_47(
