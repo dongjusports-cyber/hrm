@@ -132,7 +132,11 @@ def test_inbox_light_400nv_odd_punches_read_only(client, db):
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["light"] is True
-    assert body["todo_total"] >= ODD_PUNCH_N
+    assert body["todo_total"] >= 1
+    todos = client.get("/api/ai/todos", headers=headers)
+    assert todos.status_code == 200
+    punch = next(c for c in todos.json()["cards"] if c["key"] == "punch_odd_current")
+    assert punch["count"] == n
     print(f"\n[GET inbox light 400 NV + {ODD_PUNCH_N} chấm lẻ] SQL {counter.summary()}")
     assert len(counter.writes) <= MAX_INBOX_LIGHT_WRITES, counter.summary()
     assert len(counter.statements) <= MAX_INBOX_LIGHT_SCALE_SQL, counter.summary()
