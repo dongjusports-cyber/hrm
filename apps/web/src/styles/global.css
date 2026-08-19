@@ -7560,6 +7560,55 @@ html.app-fullscreen .module-page {
   opacity: 0.72;
 }
 
+.ai-fab-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-fab-ask {
+  align-self: flex-end;
+  font-size: 0.8rem;
+}
+
+.ai-fab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-fab-chip {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ai-fab-chip:hover:not(:disabled) {
+  background: #ede9fe;
+}
+
+.ai-fab-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ai-fab-thread {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-fab-thread-q {
+  margin: 0 14px 6px;
+  font-size: 0.85rem;
+  color: var(--ink-muted, #64748b);
+}
+
 .ai-fab-item span {
   font-size: 0.82rem;
   color: var(--ink-muted);

@@ -46,6 +46,8 @@ def test_hr_profile_and_modules(client):
         ("GET", "/api/reports/overview?period=2025-10", 200),
         ("GET", "/api/ai/todos", 200),
         ("GET", "/api/ai/alerts/mine", 200),
+        ("GET", "/api/ai/inbox", 200),
+        ("GET", "/api/ai/inbox?light=true", 200),
         ("GET", "/api/config/roles", 403),
         ("GET", "/api/users", 403),
         ("GET", "/api/ai/settings", 403),

@@ -31,6 +31,7 @@ OPS_DIRECT_KINDS = frozenset(
         "dispute_list",
         "wt_review",
         "attendance_risk",
+        "daily_briefing",
     }
 )
 
@@ -281,6 +282,24 @@ def build_attendance_risk_context(db: Session, *, limit: int = 20) -> str:
     return "\n".join(lines)
 
 
+def build_briefing_context(db: Session, user: User) -> str:
+    from app.modules.ai.todos import compute_todo_cards
+
+    today = datetime.now(tz=VN_TZ).date()
+    todos = compute_todo_cards(db, user)
+    lines = [
+        "### Việc cần làm hôm nay — đọc từ CSDL",
+        f"Ngày VN: {today.isoformat()}. AI chỉ đọc — không tự sửa công/lương/phép.",
+    ]
+    if todos.total == 0:
+        lines.append("Không có thẻ việc tồn. Kiểm tra Chấm Công nếu vừa đồng bộ máy chấm.")
+        return "\n".join(lines)
+    lines.append(f"Số việc: {todos.total}. Làm theo thứ tự ưu tiên (số nhỏ = gấp).")
+    for card in todos.cards:
+        lines.append(f"- [{card.priority}] {card.title}: {card.body}")
+    return "\n".join(lines)
+
+
 def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
     """(kind, khối ngữ cảnh) — chuỗi rỗng nếu không phải câu nghiệp vụ nhà máy."""
     kind = detect_ops_kind(message)
@@ -296,10 +315,13 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "insurance_review": ("insurance",),
         "payroll_review": ("payroll", "dispute"),
         "dispute_list": (),
+        "daily_briefing": (),
     }[kind]
 
     if kind == "dispute_list":
         allowed = user_can_view_disputes(user)
+    elif kind == "daily_briefing":
+        allowed = True
     else:
         allowed = user.role == "admin" or any(_can_see(user, m) for m in need)
 
@@ -312,6 +334,7 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "dispute_list": "### Khiếu nại đang mở — đọc từ CSDL",
         "wt_review": "### Chế độ về sớm hết hạn T−3 — đọc từ CSDL",
         "attendance_risk": "### Nguy cơ chuyên cần kỳ hiện tại — đọc từ CSDL",
+        "daily_briefing": "### Việc cần làm hôm nay — đọc từ CSDL",
     }
     if not allowed:
         return kind, _denied(headers[kind])
@@ -325,5 +348,6 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "dispute_list": lambda: build_dispute_list_context(db),
         "wt_review": lambda: build_wt_context(db),
         "attendance_risk": lambda: build_attendance_risk_context(db),
+        "daily_briefing": lambda: build_briefing_context(db, user),
     }
     return kind, builders[kind]()

@@ -913,10 +913,34 @@ export type TodoCard = {
   target_module: string;
   href: string;
   priority: number;
+  ask_message?: string | null;
+};
+
+export type AiSuggestion = {
+  label: string;
+  message?: string;
+  href?: string | null;
+};
+
+export type AiInbox = {
+  unread_count: number;
+  todo_total: number;
+  light: boolean;
+  alerts: AiAlert[];
+  cards: TodoCard[];
+  suggestions: AiSuggestion[];
+  message: string;
 };
 
 export async function fetchTodos(): Promise<{ cards: TodoCard[]; total: number }> {
   const res = await apiFetch("/api/ai/todos");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function fetchAiInbox(light = false): Promise<AiInbox> {
+  const qs = light ? "?light=true" : "";
+  const res = await apiFetch(`/api/ai/inbox${qs}`);
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
@@ -2622,6 +2646,7 @@ export type AiQueryResult = {
   stub: boolean;
   remaining_today: number;
   message: string;
+  suggestions?: AiSuggestion[];
 };
 
 export async function askAi(message: string, disputeId?: string): Promise<AiQueryResult> {

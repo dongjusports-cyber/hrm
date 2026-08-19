@@ -34,6 +34,7 @@ def test_wants_punch_review():
 
 
 def test_detect_ops_kind():
+    assert detect_ops_kind("Tóm tắt việc cần làm hôm nay") == "daily_briefing"
     assert detect_ops_kind("đơn phép chờ duyệt") == "leave_review"
     assert detect_ops_kind("HĐ sắp hết hạn") == "contract_review"
     assert detect_ops_kind("báo BHXH tháng này") == "insurance_review"

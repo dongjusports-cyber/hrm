@@ -49,6 +49,13 @@ _ATTENDANCE_RISK_RE = re.compile(
     re.IGNORECASE,
 )
 
+_BRIEFING_RE = re.compile(
+    r"tóm\s*tắt\s*(?:việc|ngày|hôm\s*nay)|việc\s*cần\s*làm|"
+    r"hôm\s*nay\s*(?:làm\s*gì|cần|ưu\s*tiên)|ưu\s*tiên\s*hôm\s*nay|"
+    r"briefing|việc\s*hôm\s*nay",
+    re.IGNORECASE,
+)
+
 _DIRECT_HEADERS: tuple[tuple[str, str], ...] = (
     (
         "### Dữ liệu nhân viên (đọc từ CSDL — chỉ phân tích, không tự sửa)",
@@ -62,6 +69,7 @@ _DIRECT_HEADERS: tuple[tuple[str, str], ...] = (
     ("### Khiếu nại đang mở — đọc từ CSDL", "Kết quả khiếu nại từ hệ thống:"),
     ("### Chế độ về sớm hết hạn T−3 — đọc từ CSDL", "Kết quả chế độ từ hệ thống:"),
     ("### Nguy cơ chuyên cần kỳ hiện tại — đọc từ CSDL", "Kết quả chuyên cần từ hệ thống:"),
+    ("### Việc cần làm hôm nay — đọc từ CSDL", "Tóm tắt việc cần làm hôm nay:"),
 )
 
 
@@ -78,6 +86,8 @@ def detect_ops_kind(message: str) -> str:
     text = (message or "").strip()
     if not text:
         return ""
+    if _BRIEFING_RE.search(text):
+        return "daily_briefing"
     if wants_punch_review(text):
         return "punch_review"
     if _LEAVE_REVIEW_RE.search(text):

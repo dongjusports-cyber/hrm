@@ -42,6 +42,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=odd_n,
                     target_module="timekeeping",
                     href="/m/timekeeping?view=daily",
+                    ask_message="Ai chấm lẻ tháng này",
                     priority=8,
                 )
             )
@@ -57,6 +58,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=pending_leave,
                     target_module="timekeeping",
                     href="/m/timekeeping?view=leave",
+                    ask_message="Đơn phép chờ duyệt",
                     priority=9,
                 )
             )
@@ -81,6 +83,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                         count=risk_n,
                         target_module="timekeeping",
                         href="/m/timekeeping?view=monthly",
+                        ask_message="Sắp mất chuyên cần",
                         priority=11,
                     )
                 )
@@ -107,6 +110,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=expiring,
                     target_module="hr",
                     href="/m/hr/contracts",
+                    ask_message="Hợp đồng sắp hết hạn",
                     priority=10,
                 )
             )
@@ -131,6 +135,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=expiring_wt,
                     target_module="hr",
                     href="/m/hr/lists/special_regime",
+                    ask_message="Chế độ sắp hết hạn",
                     priority=12,
                 )
             )
@@ -153,6 +158,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=unconfirmed,
                     target_module="payroll",
                     href="/m/payroll",
+                    ask_message="Phiếu lương chưa xác nhận",
                     priority=20,
                 )
             )
@@ -168,6 +174,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=open_disputes,
                     target_module="dispute",
                     href="/m/dispute",
+                    ask_message="Danh sách khiếu nại đang mở",
                     priority=30,
                 )
             )
@@ -191,6 +198,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=pending_bhxh,
                     target_module="insurance",
                     href="/m/insurance",
+                    ask_message="Báo BHXH tháng này chưa nộp",
                     priority=15,
                 )
             )

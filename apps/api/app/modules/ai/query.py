@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
 from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.inbox import followups_for_kind
 from app.modules.ai.ops_query import OPS_DIRECT_KINDS, resolve_ops_query
 from app.modules.ai.provider import ProviderResult
 from app.modules.ai.vi_labels import (
@@ -232,4 +233,5 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
             f"({label_ai_mode(stub=result.stub, direct=direct)}). Còn {remaining} câu hôm nay."
         ),
+        suggestions=followups_for_kind(kind),
     )

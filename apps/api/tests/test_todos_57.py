@@ -120,3 +120,4 @@ def test_todos_include_pending_leave_requests(client):
     card = next(c for c in res.json()["cards"] if c["key"] == "leave_requests_pending")
     assert card["count"] >= 1
     assert card["href"] == "/m/timekeeping?view=leave"
+    assert card.get("ask_message")
