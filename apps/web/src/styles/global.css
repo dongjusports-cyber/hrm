@@ -4585,6 +4585,12 @@ a.hr-layer-btn:active {
   font-size: 0.875rem;
 }
 
+.tk-daily-toolbar .btn-ghost-dark.is-on {
+  background: #e2e8f0;
+  border-color: #334155;
+  font-weight: 600;
+}
+
 .tk-bulk-bar {
   display: flex;
   flex-wrap: wrap;

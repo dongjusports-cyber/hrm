@@ -25,6 +25,7 @@ import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
 import { employeeMatchesQuery } from "../../shared/employeeSearch";
+import { applyDailyGridSort, isNeedsFirstSortActive } from "./dailyGridSort";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 
 type RowWithEdit = AttendanceDayGridRow & {
@@ -94,13 +95,6 @@ type Props = {
   onTimesChanged?: () => void;
 };
 
-function applyDefaultSort(api: GridApi<AttendanceDayGridRow>) {
-  api.applyColumnState({
-    state: [{ colId: "first_in", sort: "asc", sortIndex: 0 }],
-    defaultState: { sort: null },
-  });
-}
-
 function DailyGridPanelInner({
   workDate,
   periodLocked,
@@ -119,6 +113,7 @@ function DailyGridPanelInner({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi<AttendanceDayGridRow> | null>(null);
+  const [needsFirstOn, setNeedsFirstOn] = useState(false);
   const didInitialSortRef = useRef(false);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
@@ -207,6 +202,14 @@ function DailyGridPanelInner({
         editable: false,
         cellClass: "tk-grid-sel-cell",
         headerClass: "tk-grid-sel-header",
+      },
+      {
+        colId: "needs_action",
+        field: "needs_action",
+        headerName: "Cần xử lý",
+        hide: true,
+        sortable: true,
+        suppressColumnsToolPanel: true,
       },
       {
         field: "employee_code",
@@ -371,9 +374,9 @@ function DailyGridPanelInner({
     [periodLocked, onPickEmployee, leaves],
   );
 
-  function sortMissingFirst() {
+  function sortNeedsFirst() {
     if (!gridApi) return;
-    applyDefaultSort(gridApi);
+    applyDailyGridSort(gridApi, "needs_first");
   }
 
   async function applyCellPatch(
@@ -538,8 +541,13 @@ function DailyGridPanelInner({
           />
           Chỉ người cần xử lý
         </label>
-        <button type="button" className="btn-ghost-dark btn-sm" disabled={!gridApi} onClick={sortMissingFirst}>
-          Xếp thiếu chấm lên đầu
+        <button
+          type="button"
+          className={`btn-ghost-dark btn-sm${needsFirstOn ? " is-on" : ""}`}
+          disabled={!gridApi}
+          onClick={sortNeedsFirst}
+        >
+          {needsFirstOn ? "Đang xếp: cần xử lý" : "Xếp cần xử lý lên đầu"}
         </button>
         {periodLocked && <span className="form-error">Kỳ đã khóa — chỉ xem.</span>}
       </div>
@@ -606,10 +614,14 @@ function DailyGridPanelInner({
             setGridApi(p.api);
             const restored = colPrefs.restore(p.api);
             if (!restored && !didInitialSortRef.current) {
-              applyDefaultSort(p.api);
+              applyDailyGridSort(p.api, "default");
             }
             didInitialSortRef.current = true;
+            setNeedsFirstOn(isNeedsFirstSortActive(p.api.getColumnState()));
             p.api.onFilterChanged();
+          }}
+          onSortChanged={(p) => {
+            setNeedsFirstOn(isNeedsFirstSortActive(p.api.getColumnState()));
           }}
           {...colPrefs.handlers}
           onCellDoubleClicked={(e) => {

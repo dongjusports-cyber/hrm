@@ -17,17 +17,17 @@ Da deploy VPS 2026-08-19 (commit 4843eca). So 8 he so chi dung sau khi HR:
 Chi tiet: Thien-Admin/NO-VE-NHA-2026-08-19.txt
 
 --------------------------------------------------------------------------------
-[WEB-SORT] dailyGridSort chua gan luoi ngay
+[WEB-SORT] dailyGridSort chua gan luoi ngay — DA GAN 2026-08-19
 --------------------------------------------------------------------------------
-File da co: apps/web/src/modules/timekeeping/dailyGridSort.ts (+ test).
-DailyGridPanel nut «xep can xu ly» van goi applyDefaultSort — chua dung applyDailyGridSort.
-Gan helper vao nut, chay npm test dailyGridSort.
+DailyGridPanel nut «Xep can xu ly len dau» goi applyDailyGridSort(api, "needs_first").
+Cot an needs_action de AG Grid xep duoc. Test: npm test -- dailyGridSort.
 
 --------------------------------------------------------------------------------
-[HR-STK] Script nap STK / luong HD tu bang luong
+[HR-STK] Script nap STK / luong HD tu bang luong — SCRIPT XONG, CHUA CHAY VPS
 --------------------------------------------------------------------------------
-apps/api/app/scripts/fill_bank_from_salary.py da mo rong (STK, luong HD, ngay vao, ky HD, SĐT).
-Chua chay tren VPS. Can Excel luong + snapshot employees/*.json, dry-run truoc khi ghi.
+apps/api/app/scripts/fill_bank_from_salary.py: STK, luong HD, ngay vao, ky HD, SĐT.
+Mac dinh dry-run; --apply moi ghi DB. Khong dung ngay sinh / CCCD / dia chi.
+Chua chay tren VPS. Can Excel luong (+ --snapshots) va user bao --apply.
 
 --------------------------------------------------------------------------------
 (chen them muc no moi o day, gom dot sua sau)
