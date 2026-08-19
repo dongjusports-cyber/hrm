@@ -16,8 +16,8 @@ const TILE_ACCENT: Record<string, string> = {
   timekeeping: "emerald",
   payroll: "amber",
   insurance: "cyan",
-  report: "slate",
-  dispute: "slate",
+  report: "violet",
+  dispute: "orange",
   config: "slate",
 };
 
@@ -33,7 +33,8 @@ function readCachedTabs(): PortalTab[] {
 }
 
 /**
- * Portal Lv1 — Deep Dark Space + Bento glass (TITAN-inspired, CSS nhẹ).
+ * Portal Lv1 — nền tím nhạt (hiện tại).
+ * Backup nền đen: themes/Module-Menu-V1.0.css
  */
 export function PortalHome() {
   const navigate = useNavigate();

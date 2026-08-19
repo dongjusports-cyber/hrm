@@ -41,7 +41,6 @@ import { InsurancePage } from "./modules/insurance/InsurancePage";
 import { AiFab } from "./shared/AiFab";
 import { CommandPalette } from "./shared/CommandPalette";
 import { DeniedModal } from "./shared/DeniedModal";
-import { FullscreenToggle } from "./shared/FullscreenToggle";
 import { GlobalEscBack } from "./shared/GlobalEscBack";
 import { KeepAliveGate, KeepAliveHost, KeepAliveRouteSync, type KeepAliveId } from "./shared/keepAlive";
 import { KeyboardHintsBar } from "./shared/KeyboardHintsBar";
@@ -276,7 +275,6 @@ export default function App() {
       <GlobalEscBack />
       <CommandPalette />
       <KeyboardHintsBar />
-      <FullscreenToggle />
       <DeniedModal open={open} message={message} onClose={close} />
       <AiFab />
     </>

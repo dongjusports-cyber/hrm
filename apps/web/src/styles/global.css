@@ -1,4 +1,4 @@
-/* DJ HRM — Portal 8 ô. Phong cách nhà máy sạch, không sidebar, không tím AI-default. */
+/* DJ HRM — Portal 8 ô. Phong cách nhà máy sạch, không sidebar. Portal: tím nhạt + ô trắng. */
 
 :root {
   /* Design system Hiến pháp 02§2.8 — Primary Navy */
@@ -54,7 +54,7 @@ a {
   font-family: inherit;
 }
 
-/* ——— Portal Lv1 (TITAN-inspired: deep space + glass bento) ——— */
+/* ——— Portal Lv1 (tím nhạt + bento trắng, viền màu theo chức năng) ——— */
 
 .portal-page {
   min-height: 100vh;
@@ -68,16 +68,26 @@ a {
 .portal-page.portal-titan {
   max-width: none;
   width: 100%;
-  color: #e2e8f0;
-  background: linear-gradient(to bottom right, #020617, #0f172a, #020617);
+  color: #2e1065;
+  /* Gemini-style: tím đậm giữa, nhạt dần ra mép */
+  background:
+    radial-gradient(
+      ellipse 78% 62% at 50% 42%,
+      #c4b5fd 0%,
+      #ddd6fe 26%,
+      #eee7fb 52%,
+      #f7f4fc 76%,
+      #fcfbfe 100%
+    );
 }
 
 .portal-titan .portal-header,
 .portal-titan .portal-bento,
 .portal-titan .portal-creator,
 .portal-titan .portal-loading,
-.portal-titan .banner-warn {
-  max-width: 1100px;
+.portal-titan .banner-warn,
+.portal-titan .portal-section {
+  max-width: 1260px;
   width: 100%;
   margin-left: auto;
   margin-right: auto;
@@ -102,12 +112,11 @@ a {
 
 .brand-mark {
   display: block;
-  width: 64px;
+  width: 72px;
   height: auto;
-  max-height: 56px;
+  max-height: 64px;
   object-fit: contain;
   flex-shrink: 0;
-  filter: drop-shadow(0 4px 10px rgba(15, 31, 46, 0.22));
 }
 
 .login-brand .brand-mark,
@@ -129,30 +138,37 @@ a {
   font-size: 0.92rem;
 }
 
+.portal-titan .portal-header {
+  color: #2e1065;
+}
+
 .portal-titan .brand-sub {
-  color: #94a3b8;
+  color: #6b5b8c;
 }
 
 .greeting {
   margin: 0;
-  color: #d7e6f5;
+  color: #4c3d6e;
   font-size: 1rem;
 }
 
 .greeting strong {
-  color: #fff;
+  color: #2e1065;
   font-weight: 600;
 }
 
-.portal-btn-ghost {
-  border-color: rgba(148, 163, 184, 0.35);
-  color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.45);
+.portal-titan .btn-ghost.portal-btn-ghost {
+  border: 1px solid #6d28d9;
+  background: #6d28d9;
+  color: #ffffff;
+  font-weight: 650;
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.35);
 }
 
-.portal-btn-ghost:hover {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(148, 163, 184, 0.55);
+.portal-titan .btn-ghost.portal-btn-ghost:hover {
+  background: #5b21b6;
+  border-color: #5b21b6;
+  color: #ffffff;
 }
 
 .banner-warn {
@@ -165,7 +181,7 @@ a {
 }
 
 .portal-loading {
-  color: #d7e6f5;
+  color: #6b5b8c;
 }
 
 .portal-grid {
@@ -230,45 +246,48 @@ a {
 
 /* Portal: glassmorphism bento — hover mượt, KHÔNG flash liên tục */
 .portal-bento-tile {
+  position: relative;
   text-align: center;
   align-items: center;
   justify-content: center;
-  min-height: 168px;
-  padding: 22px 16px 20px;
+  min-height: 180px;
+  padding: 22px 16px 18px;
   border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(126, 87, 194, 0.14);
   border-bottom-width: 4px;
   border-bottom-style: solid;
-  background: rgba(30, 41, 59, 0.4);
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: #e2e8f0;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: #1e1b4b;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .portal-bento-tile .tile-icon {
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 6px;
+  width: 54px;
+  height: 54px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(126, 87, 194, 0.12);
+  margin-bottom: 8px;
   transition: transform 0.3s ease-in-out;
 }
 
 .portal-bento-tile .tile-name {
-  color: #f1f5f9;
+  color: #1e1b4b;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.95rem;
 }
 
 .portal-bento-tile .tile-desc {
-  color: #94a3b8;
+  color: #6b7280;
   font-size: 0.78rem;
 }
 
 .portal-bento-tile:hover {
   transform: translateY(-6px);
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: #ffffff;
+  border-color: rgba(126, 87, 194, 0.28);
 }
 
 .portal-bento-tile:hover .tile-icon {
@@ -284,9 +303,9 @@ a {
 .portal-bento-tile.is-locked:hover,
 .portal-bento-tile.is-locked:active {
   transform: none;
-  background: rgba(30, 41, 59, 0.4);
-  border-color: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(126, 87, 194, 0.14);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   filter: grayscale(0.85);
 }
 
@@ -295,57 +314,63 @@ a {
 }
 
 .portal-bento-tile.tile-blue {
-  border-bottom-color: #3b82f6;
-  --tile-glow: rgba(59, 130, 246, 0.22);
+  border-bottom-color: #4f46e5;
 }
 .portal-bento-tile.tile-blue .tile-icon {
-  color: #60a5fa;
+  color: #4f46e5;
 }
 
 .portal-bento-tile.tile-rose {
-  border-bottom-color: #f43f5e;
-  --tile-glow: rgba(244, 63, 94, 0.22);
+  border-bottom-color: #be123c;
 }
 .portal-bento-tile.tile-rose .tile-icon {
-  color: #fb7185;
+  color: #be123c;
 }
 
 .portal-bento-tile.tile-emerald {
-  border-bottom-color: #10b981;
-  --tile-glow: rgba(16, 185, 129, 0.22);
+  border-bottom-color: #0f766e;
 }
 .portal-bento-tile.tile-emerald .tile-icon {
-  color: #34d399;
+  color: #0f766e;
 }
 
 .portal-bento-tile.tile-amber {
-  border-bottom-color: #f59e0b;
-  --tile-glow: rgba(245, 158, 11, 0.22);
+  border-bottom-color: #b45309;
 }
 .portal-bento-tile.tile-amber .tile-icon {
-  color: #fbbf24;
+  color: #b45309;
 }
 
 .portal-bento-tile.tile-cyan {
-  border-bottom-color: #06b6d4;
-  --tile-glow: rgba(6, 182, 212, 0.22);
+  border-bottom-color: #0369a1;
 }
 .portal-bento-tile.tile-cyan .tile-icon {
-  color: #22d3ee;
+  color: #0369a1;
+}
+
+.portal-bento-tile.tile-violet {
+  border-bottom-color: #6d28d9;
+}
+.portal-bento-tile.tile-violet .tile-icon {
+  color: #6d28d9;
+}
+
+.portal-bento-tile.tile-orange {
+  border-bottom-color: #c2410c;
+}
+.portal-bento-tile.tile-orange .tile-icon {
+  color: #c2410c;
 }
 
 .portal-bento-tile.tile-slate {
   border-bottom-color: #64748b;
-  --tile-glow: rgba(100, 116, 139, 0.25);
 }
 .portal-bento-tile.tile-slate .tile-icon {
-  color: #94a3b8;
+  color: #475569;
 }
 
 .portal-bento-tile:hover {
-  box-shadow:
-    0 20px 44px rgba(0, 0, 0, 0.55),
-    0 0 28px var(--tile-glow, rgba(148, 163, 184, 0.2));
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.1);
 }
 
 .tile-icon {
@@ -384,7 +409,7 @@ a {
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #8b7aa8;
 }
 
 .portal-creator-name {
@@ -393,7 +418,7 @@ a {
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #6b5b8c;
 }
 
 .portal-creator-meta {
@@ -6997,10 +7022,12 @@ body.worker-surface {
   }
 
   .portal-titan .portal-header,
+  .portal-titan .portal-bento,
   .portal-titan .portal-creator,
   .portal-titan .portal-loading,
-  .portal-titan .banner-warn {
-    max-width: 1840px;
+  .portal-titan .banner-warn,
+  .portal-titan .portal-section {
+    max-width: 1584px;
   }
 
   .portal-grid {
@@ -7010,6 +7037,11 @@ body.worker-surface {
   .portal-tile {
     min-height: 128px;
     padding: 20px 18px 16px;
+  }
+
+  .portal-titan .portal-bento-tile {
+    min-height: 198px;
+    padding: 24px 18px 20px;
   }
 
   .module-body-wide,
@@ -7924,7 +7956,7 @@ html.app-fullscreen .module-page {
   font-size: 0.95rem;
   font-weight: 600;
   margin: 0 0 0.75rem;
-  color: #94a3b8;
+  color: #6b5b8c;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

@@ -6,6 +6,8 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import App from "./App";
 import "./styles/global.css";
+/* Module Menu V1.0 (nền đen) — bỏ comment dòng dưới khi cần đổi lại */
+/* import "./portal/themes/Module-Menu-V1.0.css"; */
 import "./styles/ag-grid-djhrm.css";
 
 /* AG Grid 33: dùng file CSS (ag-grid.css) — tránh error #239 xung đột Theming API */

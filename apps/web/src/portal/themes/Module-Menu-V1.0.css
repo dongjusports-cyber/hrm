@@ -1,0 +1,197 @@
+/**
+ * Module Menu V1.0 — Portal nền đen (Deep Space + glass bento)
+ *
+ * Snapshot trước khi đổi tím nhạt (19/08/2026).
+ * Hiện KHÔNG chạy — chỉ backup.
+ *
+ * Bật lại: trong apps/web/src/main.tsx bỏ comment dòng
+ *   import "./portal/themes/Module-Menu-V1.0.css";
+ * (phải đứng SAU import global.css)
+ */
+
+.portal-page.portal-titan {
+  color: #e2e8f0;
+  background: linear-gradient(to bottom right, #020617, #0f172a, #020617);
+}
+
+.portal-titan .portal-header,
+.portal-titan .portal-bento,
+.portal-titan .portal-creator,
+.portal-titan .portal-loading,
+.portal-titan .banner-warn,
+.portal-titan .portal-section {
+  max-width: 1100px;
+}
+
+.portal-titan .portal-header {
+  color: #eef6ff;
+}
+
+.portal-titan .brand-sub {
+  color: #94a3b8;
+}
+
+.portal-titan .greeting {
+  color: #d7e6f5;
+}
+
+.portal-titan .greeting strong {
+  color: #fff;
+}
+
+.portal-titan .btn-ghost.portal-btn-ghost {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.45);
+  color: #e2e8f0;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.portal-titan .btn-ghost.portal-btn-ghost:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(148, 163, 184, 0.55);
+  color: #e2e8f0;
+}
+
+.portal-titan .portal-loading {
+  color: #d7e6f5;
+}
+
+.portal-titan .portal-section-title {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-bento-tile {
+  min-height: 168px;
+  padding: 22px 16px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom-width: 4px;
+  border-bottom-style: solid;
+  background: rgba(30, 41, 59, 0.4);
+  color: #e2e8f0;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.portal-titan .portal-bento-tile::after {
+  display: none;
+}
+
+.portal-titan .portal-bento-tile .tile-icon {
+  width: 52px;
+  height: 52px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 6px;
+}
+
+.portal-titan .portal-bento-tile .tile-name {
+  color: #f1f5f9;
+}
+
+.portal-titan .portal-bento-tile .tile-desc {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-bento-tile:hover {
+  background: rgba(30, 41, 59, 0.8);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.55),
+    0 0 28px var(--tile-glow, rgba(148, 163, 184, 0.2));
+}
+
+.portal-titan .portal-bento-tile.is-locked:hover,
+.portal-titan .portal-bento-tile.is-locked:active {
+  background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.portal-titan .portal-bento-tile.tile-blue {
+  border-bottom-color: #3b82f6;
+  --tile-glow: rgba(59, 130, 246, 0.22);
+}
+.portal-titan .portal-bento-tile.tile-blue .tile-icon {
+  color: #60a5fa;
+}
+
+.portal-titan .portal-bento-tile.tile-rose {
+  border-bottom-color: #f43f5e;
+  --tile-glow: rgba(244, 63, 94, 0.22);
+}
+.portal-titan .portal-bento-tile.tile-rose .tile-icon {
+  color: #fb7185;
+}
+
+.portal-titan .portal-bento-tile.tile-emerald {
+  border-bottom-color: #10b981;
+  --tile-glow: rgba(16, 185, 129, 0.22);
+}
+.portal-titan .portal-bento-tile.tile-emerald .tile-icon {
+  color: #34d399;
+}
+
+.portal-titan .portal-bento-tile.tile-amber {
+  border-bottom-color: #f59e0b;
+  --tile-glow: rgba(245, 158, 11, 0.22);
+}
+.portal-titan .portal-bento-tile.tile-amber .tile-icon {
+  color: #fbbf24;
+}
+
+.portal-titan .portal-bento-tile.tile-cyan {
+  border-bottom-color: #06b6d4;
+  --tile-glow: rgba(6, 182, 212, 0.22);
+}
+.portal-titan .portal-bento-tile.tile-cyan .tile-icon {
+  color: #22d3ee;
+}
+
+.portal-titan .portal-bento-tile.tile-violet {
+  border-bottom-color: #64748b;
+  --tile-glow: rgba(100, 116, 139, 0.25);
+}
+.portal-titan .portal-bento-tile.tile-violet .tile-icon {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-bento-tile.tile-orange {
+  border-bottom-color: #64748b;
+  --tile-glow: rgba(100, 116, 139, 0.25);
+}
+.portal-titan .portal-bento-tile.tile-orange .tile-icon {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-bento-tile.tile-slate {
+  border-bottom-color: #64748b;
+  --tile-glow: rgba(100, 116, 139, 0.25);
+}
+.portal-titan .portal-bento-tile.tile-slate .tile-icon {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-creator-label,
+.portal-titan .portal-creator-name {
+  color: #94a3b8;
+}
+
+.portal-titan .portal-creator-meta {
+  color: #64748b;
+}
+
+@media (min-width: 1600px) and (min-height: 900px) {
+  .portal-titan .portal-header,
+  .portal-titan .portal-bento,
+  .portal-titan .portal-creator,
+  .portal-titan .portal-loading,
+  .portal-titan .banner-warn,
+  .portal-titan .portal-section {
+    max-width: 1100px;
+  }
+
+  .portal-titan .portal-bento-tile {
+    min-height: 168px;
+    padding: 22px 16px 20px;
+  }
+}
