@@ -2167,6 +2167,11 @@ a.hr-layer-btn:active {
   color: #64748b;
 }
 
+.login-field input:read-only {
+  opacity: 0.92;
+  cursor: default;
+}
+
 .login-field input:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);

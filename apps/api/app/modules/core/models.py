@@ -61,6 +61,8 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Worker: 1 MSNV ↔ 1 điện thoại (chống đưa TK cho bạn chấm hộ)
+    worker_device_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

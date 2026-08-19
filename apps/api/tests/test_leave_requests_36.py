@@ -13,13 +13,13 @@ def _hr_headers(client):
 
 
 def _worker_headers(client, code="5290", password=None):
-    from tests.worker_auth import default_login_password
+    from tests.worker_auth import default_login_password, worker_auth_headers, worker_login_json
 
     token = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": password or default_login_password(code)},
+        json=worker_login_json(code, password or default_login_password(code)),
     ).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return worker_auth_headers(token, code)
 
 
 def test_worker_submit_leave_request(client):

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { PWAInstallPrompt } from "./PWAInstallPrompt";
 import { workerChangePassword } from "./workerApi";
 import { clearWorkerAuth, patchWorkerUser, useWorkerAuth } from "./workerAuthStore";
+import { rememberWorkerPhoneLock } from "./workerPhoneLock";
 
 export function WorkerAccountPage() {
   const { worker } = useWorkerAuth();
@@ -32,6 +33,7 @@ export function WorkerAccountPage() {
   }
 
   function logout() {
+    rememberWorkerPhoneLock(worker);
     clearWorkerAuth();
     navigate("/worker/login", { replace: true });
   }

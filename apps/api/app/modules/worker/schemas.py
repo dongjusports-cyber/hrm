@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class WorkerLoginRequest(BaseModel):
     employee_code: str = Field(min_length=1, max_length=40, description="MSNV")
     password: str = Field(min_length=1, max_length=128)
+    device_id: str = Field(min_length=8, max_length=64, description="Mã máy — khóa 1 MSNV / 1 điện thoại")
 
 
 class WorkerChangePasswordRequest(BaseModel):

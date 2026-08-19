@@ -1158,6 +1158,7 @@ def unlock_and_reset_worker_password(
         user.must_change_password = True
         user.full_name = emp.full_name
         user.employee_id = emp.id
+        user.worker_device_id = None
 
     write_audit(
         db,
@@ -1173,7 +1174,8 @@ def unlock_and_reset_worker_password(
     return UnlockResetPasswordOut(
         detail=(
             f"Trợ Lý AI: đã mở khóa và đặt lại mật khẩu cho {emp.full_name} (MSNV {emp.employee_code}). "
-            f"Mật khẩu mới: {new_password}"
+            f"Mật khẩu mới: {new_password}. "
+            "Đã gỡ khóa điện thoại — lần đăng nhập sau sẽ gắn máy mới."
         ),
         employee_id=emp.id,
         employee_code=emp.employee_code,

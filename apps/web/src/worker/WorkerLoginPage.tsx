@@ -4,20 +4,23 @@ import { PWAInstallPrompt } from "./PWAInstallPrompt";
 import { fetchWorkerMe, workerLogin } from "./workerApi";
 import { clearWorkerAuth, useWorkerAuth } from "./workerAuthStore";
 import { workerLoginGate } from "./workerLoginGate";
+import { getWorkerPhoneLock, phoneLockBlocksOtherMsnv, rememberWorkerPhoneLock } from "./workerPhoneLock";
 
 /** Đăng nhập công nhân — Dark Glass, font/nút lớn trên điện thoại. */
 export function WorkerLoginPage() {
   const { accessToken, worker } = useWorkerAuth();
   const navigate = useNavigate();
-  const [msnv, setMsnv] = useState("");
+  const phoneLock = getWorkerPhoneLock();
+  const [msnv, setMsnv] = useState(phoneLock?.employee_code ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const gate = workerLoginGate(accessToken);
+  const lockedCode = phoneLock?.employee_code ?? null;
 
   useEffect(() => {
     function resetFields() {
-      setMsnv("");
+      setMsnv(getWorkerPhoneLock()?.employee_code ?? "");
       setPassword("");
     }
     function onPageShow(e: PageTransitionEvent) {
@@ -38,10 +41,17 @@ export function WorkerLoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    const lock = getWorkerPhoneLock();
+    const code = msnv.trim();
+    if (phoneLockBlocksOtherMsnv(code, lock)) {
+      setError(
+        `Điện thoại này đã khóa với MSNV ${lock!.employee_code}. Không đăng nhập hộ người khác. Đổi máy: liên hệ HR mở khóa.`,
+      );
+      return;
+    }
     setLoading(true);
     try {
-      const next = await workerLogin(msnv.trim(), password);
-      setMsnv("");
+      const next = await workerLogin(code, password);
       setPassword("");
       if (next.must_change_password) {
         navigate("/worker/account", { replace: true });
@@ -63,9 +73,10 @@ export function WorkerLoginPage() {
     navigate("/worker", { replace: true });
   }
 
-  function notMe() {
+  function logoutOnly() {
+    rememberWorkerPhoneLock(worker);
     clearWorkerAuth();
-    setMsnv("");
+    setMsnv(getWorkerPhoneLock()?.employee_code ?? "");
     setPassword("");
     setError(null);
   }
@@ -90,9 +101,12 @@ export function WorkerLoginPage() {
             <button type="button" className="login-submit" onClick={enterExisting}>
               Vào tài khoản này
             </button>
-            <button type="button" className="login-resume-other" onClick={notMe}>
-              Không phải tôi — đăng nhập khác
+            <button type="button" className="login-resume-other" onClick={logoutOnly}>
+              Đăng xuất
             </button>
+            <p className="login-hint login-hint-muted">
+              Máy này chỉ dùng cho MSNV này. Không đăng nhập hộ người khác.
+            </p>
             <footer className="login-credit">
               <p>Designed &amp; Built by NGUYỄN THANH THIỆN</p>
             </footer>
@@ -116,6 +130,7 @@ export function WorkerLoginPage() {
                 autoCapitalize="off"
                 spellCheck={false}
                 placeholder="Nhập MSNV"
+                readOnly={Boolean(lockedCode)}
                 required
               />
             </label>
@@ -133,10 +148,19 @@ export function WorkerLoginPage() {
               />
             </label>
 
-            <p className="login-hint">
-              Lần đầu đăng nhập dùng <strong>4 số cuối CCCD</strong> (nếu chưa có CCCD:{" "}
-              <strong>4 số cuối MSNV</strong>). Hệ thống sẽ yêu cầu đổi mật khẩu mới.
-            </p>
+            {lockedCode ? (
+              <p className="login-hint">
+                Điện thoại này đã khóa với <strong>MSNV {lockedCode}</strong>
+                {phoneLock?.full_name ? ` (${phoneLock.full_name})` : ""}. Không đăng nhập tài khoản
+                khác — tránh chấm công hộ. Đổi máy: liên hệ HR mở khóa.
+              </p>
+            ) : (
+              <p className="login-hint">
+                Lần đầu đăng nhập dùng <strong>4 số cuối CCCD</strong> (nếu chưa có CCCD:{" "}
+                <strong>4 số cuối MSNV</strong>). Hệ thống sẽ yêu cầu đổi mật khẩu mới. Máy này sẽ
+                gắn với MSNV đó — không đăng nhập hộ người khác.
+              </p>
+            )}
             {typeof window !== "undefined" && window.location.hostname !== "localhost" && (
               <p className="login-hint login-hint-muted">
                 Đang mở qua <strong>{window.location.host}</strong> — đúng cho điện thoại trong LAN.

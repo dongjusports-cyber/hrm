@@ -1,4 +1,6 @@
 import { getApiBase } from "../shared/apiBase";
+import { getWorkerDeviceId } from "./workerDevice";
+import { setWorkerPhoneLock } from "./workerPhoneLock";
 import { clearWorkerAuth, getWorkerToken, patchWorkerUser, setWorkerAuth, type WorkerUser } from "./workerAuthStore";
 
 async function readError(res: Response): Promise<string> {
@@ -13,10 +15,16 @@ async function workerFetch(path: string, init: RequestInit = {}): Promise<Respon
   }
   const token = getWorkerToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+  headers.set("X-Worker-Device-Id", getWorkerDeviceId());
   const timeout = AbortSignal.timeout(60_000);
   const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
   const res = await fetch(`${getApiBase()}${path}`, { ...init, headers, signal });
   if (res.status === 401) clearWorkerAuth();
+  if (res.status === 403) {
+    const data = await res.clone().json().catch(() => ({}));
+    const detail = String((data as { detail?: unknown }).detail ?? "");
+    if (detail.includes("điện thoại") && detail.includes("khóa")) clearWorkerAuth();
+  }
   return res;
 }
 
@@ -26,7 +34,7 @@ export async function workerLogin(employee_code: string, password: string): Prom
     res = await fetch(`${getApiBase()}/api/worker/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ employee_code, password }),
+      body: JSON.stringify({ employee_code, password, device_id: getWorkerDeviceId() }),
       signal: AbortSignal.timeout(60_000),
     });
   } catch {
@@ -39,8 +47,10 @@ export async function workerLogin(employee_code: string, password: string): Prom
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { detail?: string }).detail ?? "Đăng nhập thất bại.");
+  const worker = (data as { worker: WorkerUser }).worker;
   setWorkerAuth(data as { access_token: string; worker: WorkerUser });
-  return (data as { worker: WorkerUser }).worker;
+  setWorkerPhoneLock({ employee_code: worker.employee_code, full_name: worker.full_name });
+  return worker;
 }
 
 export type WorkerPayslipListItem = {
@@ -212,6 +222,7 @@ export async function fetchWorkerMe(): Promise<WorkerUser> {
   if (!res.ok) throw new Error(await readError(res));
   const worker = (await res.json()) as WorkerUser;
   patchWorkerUser(worker);
+  setWorkerPhoneLock({ employee_code: worker.employee_code, full_name: worker.full_name });
   return worker;
 }
 

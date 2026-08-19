@@ -3,7 +3,7 @@
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
 from app.modules.worker.service import default_password_from_cccd
-from tests.worker_auth import default_login_password
+from tests.worker_auth import default_login_password, worker_login_json
 
 
 def _hr_headers(client):
@@ -16,7 +16,7 @@ def _hr_headers(client):
 def test_worker_wrong_password_shows_remaining(client):
     res = client.post(
         "/api/worker/login",
-        json={"employee_code": "5290", "password": "sai"},
+        json=worker_login_json("5290", "sai"),
     )
     assert res.status_code == 401
     assert "còn 2 lần thử" in res.json()["detail"]
@@ -25,15 +25,15 @@ def test_worker_wrong_password_shows_remaining(client):
 def test_worker_lock_after_3_failures(client, db):
     code = "5290"
     for _ in range(2):
-        bad = client.post("/api/worker/login", json={"employee_code": code, "password": "sai"})
+        bad = client.post("/api/worker/login", json=worker_login_json(code, "sai"))
         assert bad.status_code == 401
-    locked = client.post("/api/worker/login", json={"employee_code": code, "password": "sai"})
+    locked = client.post("/api/worker/login", json=worker_login_json(code, "sai"))
     assert locked.status_code == 423
     assert "khóa do nhập sai mật khẩu 3 lần" in locked.json()["detail"]
 
     still = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": default_login_password(code)},
+        json=worker_login_json(code, default_login_password(code)),
     )
     assert still.status_code == 423
 
@@ -51,7 +51,7 @@ def test_worker_lock_after_3_failures(client, db):
 
     ok = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": default_login_password(code)},
+        json=worker_login_json(code, default_login_password(code)),
     )
     assert ok.status_code == 200, ok.text
 
@@ -72,7 +72,7 @@ def test_unlock_reset_password_uses_cccd_last4(client, db):
 
     ok = client.post(
         "/api/worker/login",
-        json={"employee_code": "5290", "password": "7890"},
+        json=worker_login_json("5290", "7890"),
     )
     assert ok.status_code == 200, ok.text
 
@@ -90,7 +90,7 @@ def test_resigned_worker_cannot_login(client, db):
 
     res = client.post(
         "/api/worker/login",
-        json={"employee_code": "1514", "password": default_login_password("1514")},
+        json=worker_login_json("1514", default_login_password("1514")),
     )
     assert res.status_code == 403
     assert res.json()["detail"] == "Tài khoản đã ngưng hoạt động do nhân sự đã nghỉ việc."

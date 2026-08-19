@@ -27,7 +27,9 @@ router = APIRouter(prefix="/worker", tags=["worker"])
 
 @router.post("/login", response_model=WorkerTokenResponse)
 def worker_login(body: WorkerLoginRequest, db: DbSession) -> WorkerTokenResponse:
-    return worker_service.authenticate_worker(db, body.employee_code, body.password)
+    return worker_service.authenticate_worker(
+        db, body.employee_code, body.password, body.device_id
+    )
 
 
 @router.get("/me", response_model=WorkerOut)

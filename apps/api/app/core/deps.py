@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.core.security import AUDIENCE_STAFF, AUDIENCE_WORKER, decode_token
 from app.modules.core.models import Role, User
+from app.modules.worker.service import assert_worker_device_header
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -117,6 +118,7 @@ def optional_confirm_step(
 def get_current_worker(
     db: DbSession,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+    x_worker_device_id: Annotated[str | None, Header(alias="X-Worker-Device-Id")] = None,
 ) -> User:
     """JWT audience=worker — tách khỏi Portal staff (file 12§12.2)."""
     if credentials is None or not credentials.credentials:
@@ -148,6 +150,7 @@ def get_current_worker(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Trợ Lý AI: cổng công nhân chỉ dành cho tài khoản worker.",
         )
+    assert_worker_device_header(db, user, x_worker_device_id)
     return user
 
 

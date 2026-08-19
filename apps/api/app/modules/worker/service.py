@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.security import (
@@ -22,6 +25,73 @@ MSG_LOCKED = (
     "Tài khoản đã bị khóa do nhập sai mật khẩu 3 lần. "
     "Vui lòng liên hệ phòng Nhân sự (HR) để mở khóa."
 )
+MSG_ACCOUNT_OTHER_PHONE = (
+    "Tài khoản đã khóa trên điện thoại khác. Liên hệ HR để mở khóa máy."
+)
+MSG_DEVICE_INVALID = "Mã điện thoại không hợp lệ."
+_DEVICE_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{8,64}$")
+
+
+def normalize_device_id(raw: str) -> str:
+    value = (raw or "").strip()
+    if not _DEVICE_ID_RE.fullmatch(value):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=MSG_DEVICE_INVALID)
+    return value
+
+
+def msg_phone_bound_other(msnv: str) -> str:
+    return (
+        f"Điện thoại này đã khóa với MSNV {msnv}. "
+        "Không đăng nhập tài khoản khác. Liên hệ HR nếu đổi máy."
+    )
+
+
+def bind_worker_device(db: Session, user: User, device_id: str) -> None:
+    """Lần đầu gắn máy; sau đó máy này không login MSNV khác, MSNV không login máy khác."""
+    device_id = normalize_device_id(device_id)
+    other = (
+        db.query(User)
+        .filter(User.worker_device_id == device_id, User.id != user.id)
+        .first()
+    )
+    if other is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=msg_phone_bound_other(other.username),
+        )
+    bound = (user.worker_device_id or "").strip()
+    if bound and bound != device_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=MSG_ACCOUNT_OTHER_PHONE,
+        )
+    if not bound:
+        user.worker_device_id = device_id
+
+
+def assert_worker_device_header(db: Session, user: User, device_id: str | None) -> None:
+    """Đã gắn máy thì mọi API worker phải đúng mã máy (kể cả thiếu header)."""
+    incoming = (device_id or "").strip()
+    bound = (user.worker_device_id or "").strip()
+    if bound:
+        if not incoming or bound != incoming:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=MSG_ACCOUNT_OTHER_PHONE,
+            )
+        return
+    if not incoming:
+        return
+    other = (
+        db.query(User)
+        .filter(User.worker_device_id == incoming, User.id != user.id)
+        .first()
+    )
+    if other is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=msg_phone_bound_other(other.username),
+        )
 
 
 def _digits_only(value: str | None) -> str:
@@ -87,7 +157,9 @@ def _assert_worker_may_login(db: Session, user: User) -> None:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail=MSG_LOCKED)
 
 
-def authenticate_worker(db: Session, employee_code: str, password: str) -> WorkerTokenResponse:
+def authenticate_worker(
+    db: Session, employee_code: str, password: str, device_id: str
+) -> WorkerTokenResponse:
     code = employee_code.strip()
     user = db.query(User).filter(User.username == code, User.role == "worker").first()
     if user is None:
@@ -114,11 +186,20 @@ def authenticate_worker(db: Session, employee_code: str, password: str) -> Worke
             detail=f"Mật khẩu không đúng. Bạn còn {remaining} lần thử.",
         )
 
+    bind_worker_device(db, user, device_id)
+
     user.failed_attempts = 0
     user.failed_login_count = 0
     user.is_locked = False
     user.locked_until = None
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Điện thoại này đã khóa với tài khoản khác. Liên hệ HR nếu đổi máy.",
+        ) from None
 
     return WorkerTokenResponse(
         access_token=create_access_token(user.id, "worker", AUDIENCE_WORKER),

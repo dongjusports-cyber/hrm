@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { submitWorkerPunch } from "./workerApi";
+import { getWorkerDeviceId } from "./workerDevice";
 import { useWorkerAuth } from "./workerAuthStore";
 
 async function sha256Hex(file: File): Promise<string> {
@@ -77,7 +78,7 @@ export function WorkerFacePunchButton() {
         longitude,
         accuracy_m,
         photo_hash,
-        device_id: navigator.userAgent.slice(0, 64),
+        device_id: getWorkerDeviceId(),
       });
       setOk(result.detail);
       setVerifyCode(result.verify_code);

@@ -1,6 +1,6 @@
 /**
- * Cổng login công nhân trên điện thoại dùng chung.
- * Cấm tự vào phiên cũ khi mở lại / bấm Trở về — phải thấy tên MSNV rồi chọn.
+ * Cổng login công nhân: phiên cũ phải xác nhận tên — không tự vào.
+ * Không cho đổi MSNV trên cùng điện thoại (khóa máy).
  */
 export type WorkerLoginGate = "credentials" | "confirm-session";
 

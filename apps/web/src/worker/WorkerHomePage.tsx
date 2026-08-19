@@ -4,6 +4,7 @@ import { fetchWorkerMe, fetchWorkerPayslips, type WorkerPayslipListItem } from "
 import { clearWorkerAuth, useWorkerAuth } from "./workerAuthStore";
 import { PWAInstallPrompt } from "./PWAInstallPrompt";
 import { WorkerFacePunchButton } from "./WorkerFacePunchButton";
+import { rememberWorkerPhoneLock } from "./workerPhoneLock";
 
 const STATUS_VI: Record<string, string> = {
   published: "Chờ xác nhận",
@@ -46,6 +47,7 @@ export function WorkerHomePage() {
   }, []);
 
   function logout() {
+    rememberWorkerPhoneLock(worker);
     clearWorkerAuth();
     navigate("/worker/login", { replace: true });
   }
