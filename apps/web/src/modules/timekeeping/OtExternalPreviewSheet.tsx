@@ -31,7 +31,7 @@ function fmtOtOrDash(v: unknown): string {
 function fmtVndOrDash(v: unknown): string {
   const n = Number(v);
   if (v == null || v === "" || Number.isNaN(n) || n === 0) return "—";
-  return formatVnd(v);
+  return formatVnd(n);
 }
 
 const RATE_COLS = [
