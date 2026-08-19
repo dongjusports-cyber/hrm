@@ -15,7 +15,7 @@ import {
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
-import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI, compareHhmmEmptyFirst } from "../../shared/agGridVi";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
@@ -253,8 +253,7 @@ function DailyGridPanelInner({
         editable: !periodLocked,
         sort: "asc",
         sortIndex: 0,
-        comparator: compareHhmmEmptyFirst,
-        headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
+        headerTooltip: "A→Z theo giờ — ô trống xuống cuối",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
         valueGetter: (p) => {
@@ -278,8 +277,7 @@ function DailyGridPanelInner({
         headerName: "Ra",
         width: 76,
         editable: !periodLocked,
-        comparator: compareHhmmEmptyFirst,
-        headerTooltip: "Bấm tiêu đề để xếp A→Z — ô trống (chưa chấm) lên đầu",
+        headerTooltip: "A→Z theo giờ — ô trống xuống cuối",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
         valueGetter: (p) => {

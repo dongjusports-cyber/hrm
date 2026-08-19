@@ -936,6 +936,7 @@ Cách xử lý:
   popupParent = document.body; columnMenu = legacy; comparator locale vi
   (numeric) cho mọi lưới. Sổ bộ phận/tổ/MSNV xếp A→Z tiếng Việt.
   CSS chừa chỗ nút sổ + mũi tên sort.
+  Cột Vào/Ra cùng luật: trống xuống cuối (không còn ngoại lệ trống lên đầu).
 
 Test:
   cd apps/web && npm test -- agGridVi formatOrg

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareHhmmEmptyFirst, compareViAz } from "./agGridVi";
+import { compareViAz } from "./agGridVi";
 
 describe("compareViAz", () => {
   it("A→Z tiếng Việt: Đ sau D, trước E — không đẩy Đ xuống cuối Unicode", () => {
@@ -27,11 +27,10 @@ describe("compareViAz", () => {
     expect(compareViAz(2, 10)).toBeLessThan(0);
     expect(compareViAz(8, 1.5)).toBeGreaterThan(0);
   });
-});
 
-describe("compareHhmmEmptyFirst", () => {
-  it("ô trống lên đầu khi A→Z", () => {
-    expect(compareHhmmEmptyFirst("", "08:00", null, null, false)).toBeLessThan(0);
-    expect(compareHhmmEmptyFirst("08:00", "17:00", null, null, false)).toBeLessThan(0);
+  it("Vào/Ra HH:mm — trống cuối, 08:00 trước 17:00", () => {
+    expect(compareViAz("", "08:00", undefined, undefined, false)).toBeGreaterThan(0);
+    expect(compareViAz("08:00", "17:00")).toBeLessThan(0);
+    expect(compareViAz("7:00", "08:00")).toBeLessThan(0);
   });
 });
