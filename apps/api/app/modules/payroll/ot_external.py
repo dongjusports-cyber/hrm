@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.attendance.timesheet import get_pay_period
+from app.modules.core.excel_filename import company_excel_filename
 from app.modules.core.export_log import log_export
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -607,7 +608,7 @@ def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
 def export_ot_external(db: Session, period: str, actor: User) -> tuple[bytes, str]:
     summary = build_ot_external_summary(db, period)
     data = build_ot_external_excel(summary)
-    filename = f"OT_ngoai_{period}.xlsx"
+    filename = company_excel_filename("OT", period=period)
     log_export(
         db,
         user_id=actor.id,

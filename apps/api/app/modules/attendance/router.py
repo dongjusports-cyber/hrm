@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.core.deps import DbSession, require_module
+from app.modules.core.excel_filename import attachment_content_disposition
 from app.modules.attendance import leave_requests as lr
 from app.modules.attendance import review as review_mod
 from app.modules.attendance.day_grid import bulk_patch_days, list_days_grid, patch_day_cell
@@ -142,7 +143,7 @@ def export_ot_external(
     return Response(
         content=data,
         media_type=media,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
 
 
@@ -223,7 +224,7 @@ def attendance_cycle_leave_xlsx(
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
 
 

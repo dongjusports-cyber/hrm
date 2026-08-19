@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse, Response
 
 from app.core.deps import AdminUser, DbSession, require_module
+from app.modules.core.excel_filename import attachment_content_disposition
 from app.modules.core.models import User
 from app.modules.mdm import annual_leave_snapshot as al_snap
 from app.modules.mdm import service
@@ -173,7 +174,7 @@ def export_employees(
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
 
 

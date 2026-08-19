@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import Response
 
 from app.core.deps import AdminUser, CurrentUser, DbSession, require_module
+from app.modules.core.excel_filename import attachment_content_disposition
 from app.modules.core.models import User
 from app.modules.payroll import adjustments as adj_mod
 from app.modules.payroll import employee_bonuses as bonus_mod
@@ -137,7 +138,7 @@ def export_payroll(
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
 
 
@@ -165,7 +166,7 @@ def export_ot_external_payroll(period: str, user: PayrollUser, db: DbSession) ->
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
 
 

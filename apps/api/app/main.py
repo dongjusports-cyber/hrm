@@ -81,6 +81,7 @@ _cors_kw: dict = {
     "allow_credentials": True,
     "allow_methods": ["*"],
     "allow_headers": ["*"],
+    "expose_headers": ["Content-Disposition"],
 }
 # Local/LAN: ĐT mở http://192.168.x.x:5173 — cho phép origin nội bộ (không dùng khi production)
 if not settings.is_production:

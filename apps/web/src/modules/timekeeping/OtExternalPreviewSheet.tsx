@@ -4,6 +4,7 @@ import {
   fetchOtExternalPreview,
   type OtExternalPreview,
 } from "../../shared/api";
+import { companyExcelFilename } from "../../shared/excelFilename";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { formatVnd } from "../payroll/payrollGridColumns";
@@ -83,7 +84,7 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `OT_ngoai_${period}.xlsx`;
+      a.download = companyExcelFilename("OT", { period });
       a.click();
       URL.revokeObjectURL(url);
       const amt = Number(data.total_amount_vnd);

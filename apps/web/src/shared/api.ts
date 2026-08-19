@@ -7,6 +7,7 @@ import {
 } from "./authStore";
 import { getApiBase } from "./apiBase";
 import { cacheInvalidate, cachedFetch, employeesCacheKey } from "./clientCache";
+import { companyExcelFilename, filenameFromContentDisposition } from "./excelFilename";
 
 export type PortalTab = {
   key: string;
@@ -1376,9 +1377,10 @@ export async function downloadEmployeesExport(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const cd = res.headers.get("Content-Disposition") ?? "";
-  const match = /filename="?([^"]+)"?/.exec(cd);
-  a.download = match ? match[1] : "danh_sach_nv.xlsx";
+  a.download = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    companyExcelFilename("Danh sách nhân viên", { onExportDay: true }),
+  );
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -2952,9 +2954,10 @@ export async function downloadPayrollExport(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const cd = res.headers.get("Content-Disposition") ?? "";
-  const match = /filename="?([^"]+)"?/.exec(cd);
-  a.download = match ? match[1] : `luong_${period}_${channel.toLowerCase()}.xlsx`;
+  a.download = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    companyExcelFilename("Lương", { period, extra: channel === "ALL" ? undefined : channel }),
+  );
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -3035,7 +3038,10 @@ export async function downloadKpiExport(period: string): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `kpi_${period}.xlsx`;
+  a.download = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    companyExcelFilename("KPI", { period }),
+  );
   a.click();
   URL.revokeObjectURL(url);
 }

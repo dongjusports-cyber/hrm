@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.attendance.timesheet import require_pay_period
+from app.modules.core.excel_filename import company_excel_filename
 from app.modules.mdm.models import Department, Employee, Team
 from app.modules.payroll.engine_ot import OtRateBuckets
 from app.modules.payroll.models import Payslip, PayslipComponent
@@ -719,8 +720,6 @@ def build_salary_table_xlsx(
     """Trả (bytes, row_count, filename) — mẫu GenusSuite TOTAL + ATM + CASH."""
     pay = require_pay_period(db, period)
     ch = (channel or "ALL").upper()
-    year, month = _period_parts(period)
-    month_tag = MONTH_EN.get(month, f"M{month:02d}")
     code_filter = employee_code.strip() if employee_code else None
     if code_filter:
         probe = _load_rows(
@@ -779,16 +778,21 @@ def build_salary_table_xlsx(
             first, period, channel_label=" (CASH)", data_rows=cash_rows, db=db, pay=pay, payload=payload
         )
 
-    scope_suffix = ""
+    extra_bits: list[str] = []
+    if ch != "ALL":
+        extra_bits.append(ch)
     if code_filter:
-        scope_suffix = f"_{code_filter}"
+        extra_bits.append(code_filter)
     elif department_id is not None:
         dept = db.get(Department, department_id)
         if dept:
-            safe = dept.code or dept.name.replace(" ", "_")
-            scope_suffix = f"_{safe}"
+            extra_bits.append(dept.code or dept.name.replace(" ", "_"))
 
-    filename = f"2.Salary table for {month_tag}.{year}{scope_suffix}.xlsx"
+    filename = company_excel_filename(
+        "Lương",
+        period=period,
+        extra=" ".join(extra_bits) if extra_bits else None,
+    )
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue(), row_count, filename

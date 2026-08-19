@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.modules.ai.models import AiAlert
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.attendance.timesheet import require_pay_period
+from app.modules.core.excel_filename import company_excel_filename
 from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
 from app.modules.dispute.service import OPEN_STATUSES
@@ -325,7 +326,7 @@ def export_kpi_xlsx(db: Session, period: str, *, user_id=None) -> bytes:
             kind="kpi",
             period=period,
             row_count=len(kpi.by_department),
-            filename=f"kpi_{period}.xlsx",
+            filename=company_excel_filename("KPI", period=period),
         )
     return data
 

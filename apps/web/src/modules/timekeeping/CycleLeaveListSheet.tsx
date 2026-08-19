@@ -4,6 +4,7 @@ import {
   fetchCycleLeaveList,
   type CycleLeaveRow,
 } from "../../shared/api";
+import { companyExcelFilename } from "../../shared/excelFilename";
 import { formatDateDDMMYYYY, formatTimeHHMM } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 
@@ -52,7 +53,7 @@ export function CycleLeaveListSheet({ open, period, onClose, onExported }: Props
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Danh_sach_chu_ky_${period}.xlsx`;
+      a.download = companyExcelFilename("Chu kỳ", { period });
       a.click();
       URL.revokeObjectURL(url);
       onExported?.(`Đã xuất danh sách chu kỳ ${period}: ${rows.length} lượt.`);

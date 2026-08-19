@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from sqlalchemy.orm import Session
 
+from app.modules.core.excel_filename import company_excel_filename
 from app.modules.core.export_log import log_export
 from app.modules.core.models import User
 from app.modules.mdm import service
@@ -108,7 +109,7 @@ def build_employees_export_xlsx(
 
     ws.freeze_panes = "A2"
 
-    filename = f"danh_sach_nv_{date.today().isoformat()}.xlsx"
+    filename = company_excel_filename("Danh sách nhân viên", on_export_day=True)
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue(), len(rows), filename

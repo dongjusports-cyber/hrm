@@ -169,6 +169,8 @@ def test_export_filter_department_and_employee(client, db):
     }
     assert codes_e == {5290} or codes_e == {"5290"}
     assert "5290" in emp_res.headers.get("content-disposition", "")
+    assert "10.2025" in emp_res.headers.get("content-disposition", "")
+    assert "Dongju" in emp_res.headers.get("content-disposition", "")
 
     missing = client.get(
         "/api/payroll/periods/2025-10/export?channel=ALL&employee_code=999999",

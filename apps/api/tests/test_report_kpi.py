@@ -37,7 +37,14 @@ def test_kpi_api_period(client, db):
     emp.status = "resigned"
     db.commit()
 
-    res = client.get("/api/reports/kpi?period=2025-10", headers=_hr_headers(client))
+    headers = _hr_headers(client)
+    client.post(
+        "/api/attendance/timesheets/rebuild",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+
+    res = client.get("/api/reports/kpi?period=2025-10", headers=headers)
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["period"] == "2025-10"
@@ -47,15 +54,18 @@ def test_kpi_api_period(client, db):
     assert len(body["by_category"]) == 3
     assert any(c["category"] == "direct" for c in body["by_category"])
 
-    ov = client.get("/api/reports/overview?period=2025-10", headers=_hr_headers(client))
+    ov = client.get("/api/reports/overview?period=2025-10", headers=headers)
     assert ov.status_code == 200
     assert "total_employees" in ov.json()
     assert "open_disputes" in ov.json()
 
-    xlsx = client.get("/api/reports/kpi/export?period=2025-10", headers=_hr_headers(client))
+    xlsx = client.get("/api/reports/kpi/export?period=2025-10", headers=headers)
     assert xlsx.status_code == 200
     assert (
         xlsx.headers["content-type"]
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     assert len(xlsx.content) > 100
+    cd = xlsx.headers.get("content-disposition", "")
+    assert "10.2025" in cd
+    assert "Dongju" in cd

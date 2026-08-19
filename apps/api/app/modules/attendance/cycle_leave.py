@@ -13,6 +13,7 @@ from app.modules.attendance.engine import VN_TZ, to_vn
 from app.modules.attendance.models import AttendanceDay
 from app.modules.attendance.schemas import CycleLeaveRowOut
 from app.modules.attendance.timesheet import get_pay_period, parse_period
+from app.modules.core.excel_filename import company_excel_filename
 from app.modules.mdm.models import Employee
 
 
@@ -82,4 +83,4 @@ def export_cycle_leave_xlsx(db: Session, period: str) -> tuple[bytes, str]:
         )
     buf = BytesIO()
     wb.save(buf)
-    return buf.getvalue(), f"Chu_ky_{period}.xlsx"
+    return buf.getvalue(), company_excel_filename("Chu kỳ", period=period)

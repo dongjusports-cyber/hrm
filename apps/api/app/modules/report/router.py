@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
 from app.core.deps import CurrentUser, DbSession
+from app.modules.core.excel_filename import attachment_content_disposition, company_excel_filename
 from app.modules.core.models import User
 from app.modules.report import service
 from app.modules.report.schemas import KpiPeriodOut, OverviewOut
@@ -43,9 +44,9 @@ def export_kpi(
     period: Annotated[str, Query(description="YYYY-MM")],
 ) -> Response:
     data = service.export_kpi_xlsx(db, period, user_id=user.id)
-    filename = f"kpi_{period}.xlsx"
+    filename = company_excel_filename("KPI", period=period)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
     )
