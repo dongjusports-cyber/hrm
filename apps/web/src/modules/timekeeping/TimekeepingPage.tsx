@@ -27,6 +27,7 @@ import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridV
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, payPeriodDateBounds, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
@@ -244,6 +245,7 @@ export function TimekeepingPage() {
   const [leavePending, setLeavePending] = useState(0);
   const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
   const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
+  const detailSheetRef = useRef<HTMLDivElement>(null);
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
   const timesheetRowsRef = useRef(rows);
   timesheetRowsRef.current = rows;
@@ -404,6 +406,12 @@ export function TimekeepingPage() {
   const closeDetail = useCallback(() => {
     setDetailOpen(false);
   }, []);
+
+  useSheetKeyboard({
+    open: detailOpen && !!selected,
+    containerRef: detailSheetRef,
+    onClose: closeDetail,
+  });
 
   // ESC: lưới tháng còn banner NV đã chọn → bỏ chọn. Lưới ngày không hiện banner — không nuốt ESC (kẹt trang).
   useHrSubpageEsc({ backTo: "/" });
@@ -771,7 +779,7 @@ export function TimekeepingPage() {
   function renderEmployeeDaysDetail() {
     if (!selected) return null;
     return (
-      <div className="tk-emp-sheet fs-sheet-form-shell">
+      <div ref={detailSheetRef} className="tk-emp-sheet fs-sheet-form-shell">
         {/* Bảng ngày = vùng chính; form sửa tay = thanh gọn dưới (không chiếm nửa màn). */}
         <div className="tk-days-layout tk-days-layout--work">
           <div className="tk-day-scroll tk-day-scroll-full">
@@ -1306,6 +1314,7 @@ export function TimekeepingPage() {
             : undefined
         }
         onClose={closeDetail}
+        closeOnEsc={false}
         inFrameScroll
         bodyClassName="fs-sheet-body-shell"
       >

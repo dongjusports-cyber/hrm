@@ -961,3 +961,22 @@ Test:
   cd apps/web && npm test -- formatDate
   cd apps/web && npx tsc -b --pretty false
 
+[QA-H001] Bàn giao HR — pytest không chạy, phép CN, GET danh mục nghỉ — 2026-08-19
+--------------------------------------------------------------------------------
+Triệu chứng:
+  `pytest` dừng ngay lúc collect vì `DEFAULT_WORKER_PASSWORD` không còn.
+  Công nhân xin phép không thấy số dư. GET `/api/attendance/leave-types`
+  gọi `seed_leave_types` + commit (ghi-on-read). Sheet chi tiết ngày công
+  vừa `closeOnEsc` vừa có ô nhập giờ.
+
+Cách xử lý:
+  - GET `/api/worker/leave-balance` (chỉ SELECT) + hiện số dư trên trang xin phép
+  - GET leave-types không seed; seed lúc `python -m app.scripts.seed`
+  - Sheet chi tiết ngày: `useSheetKeyboard` + `closeOnEsc={false}`
+  - UAT bảo hiểm: `effective_month` (không còn `?month=` bị bỏ qua)
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_worker_self_service.py tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py tests/test_leave_requests_36.py -q
+  cd apps/web && npm test -- --run
+  cd apps/web && npm test -- escKeyboard
+
