@@ -900,3 +900,22 @@ Test:
   cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_engine.py tests/test_attendance_day_calc_33.py -q
   cd apps/web && npm test -- dailyGridTime
 
+[ATT-P001] Lưu giờ / tích chu kỳ 2–4 giây — rebuild cả nhà máy — 2026-08-19
+--------------------------------------------------------------------------
+Triệu chứng:
+  Bấm Lưu giờ hoặc tích/bỏ **Chu kỳ** một NV phải chờ 2–4 giây. Không phải mạng / JSON.
+
+Nguyên nhân:
+  PATCH một ngày (Lưu giờ, sửa ô, tích chu kỳ) gọi rebuild_timesheets cả kỳ
+  (~359 NV, ghi TimesheetMonth + chi tiết) rồi frontend reload() cả lưới + kỳ
+  + phòng ban. Bỏ tích chu kỳ không rebuild NV đó (tổng tháng lệch) nhưng
+  tích chu kỳ thì quét cả nhà máy.
+
+Cách xử lý:
+  rebuild chỉ employee_id (Lưu giờ, ô lưới, tích/bỏ chu kỳ) hoặc employee_ids
+  khi bulk. Không refresh divisor khi chỉ 1 NV.
+  Sau lưu/chu kỳ: chỉ tải ngày của NV đó + timesheets (không reload kỳ/phòng ban).
+
+Test:
+  cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_review.py -q
+

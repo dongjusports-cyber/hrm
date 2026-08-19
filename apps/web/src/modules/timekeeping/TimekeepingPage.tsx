@@ -328,7 +328,16 @@ export function TimekeepingPage() {
       return;
     }
     void loadEmpDays(selected.employee_code, pay.date_from, pay.date_to);
-  }, [selected, pay, loadEmpDays]);
+  }, [selected?.employee_code, pay?.date_from, pay?.date_to, loadEmpDays]);
+
+  async function refreshTimesheetsQuiet() {
+    const sheets = await fetchTimesheets(period);
+    setRows(sheets);
+    setSelected((prev) => {
+      if (!prev) return null;
+      return sheets.find((s) => s.id === prev.id) ?? prev;
+    });
+  }
 
   useEffect(() => {
     if (!ok) return;
@@ -622,10 +631,11 @@ export function TimekeepingPage() {
   }
 
   async function refreshAfterManualDay(day: AttendanceDay) {
-    await reload();
-    if (pay) {
-      await loadEmpDays(day.employee_code, pay.date_from, pay.date_to);
-    }
+    const daysP =
+      pay != null
+        ? loadEmpDays(day.employee_code, pay.date_from, pay.date_to)
+        : Promise.resolve();
+    await Promise.all([daysP, refreshTimesheetsQuiet()]);
   }
 
   async function onManualDay(e: FormEvent) {
@@ -1221,7 +1231,7 @@ export function TimekeepingPage() {
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
               onTimesChanged={() => {
-                void reload();
+                void refreshTimesheetsQuiet();
               }}
             />
           </div>

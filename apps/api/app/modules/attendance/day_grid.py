@@ -343,7 +343,7 @@ def patch_day_cell(
     db.commit()
     db.refresh(row)
     period = f"{work_date.year:04d}-{work_date.month:02d}"
-    rebuild_timesheets(db, period, recalc_days=False)
+    rebuild_timesheets(db, period, recalc_days=False, employee_id=emp.id)
     write_audit(
         db,
         actor=user,
@@ -392,6 +392,7 @@ def bulk_patch_days(
 
     affected: list[str] = []
     skipped: list[dict] = []
+    affected_ids: list[UUID] = []
     for code in employee_codes:
         emp = (
             db.query(Employee)
@@ -410,6 +411,7 @@ def bulk_patch_days(
             skipped.append({"employee_code": emp.employee_code, "reason": "Dòng đã khóa."})
             continue
         affected.append(emp.employee_code)
+        affected_ids.append(emp.id)
 
     msg = f"Sẽ đổi {len(affected)} dòng"
     if skipped:
@@ -467,7 +469,7 @@ def bulk_patch_days(
         raise
 
     period = f"{work_date.year:04d}-{work_date.month:02d}"
-    rebuild_timesheets(db, period, recalc_days=False)
+    rebuild_timesheets(db, period, recalc_days=False, employee_ids=affected_ids)
     write_audit(
         db,
         actor=user,

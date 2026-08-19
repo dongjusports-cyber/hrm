@@ -340,7 +340,7 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
     db.refresh(row)
 
     period = f"{pay.year:04d}-{pay.month:02d}"
-    rebuild_timesheets(db, period, recalc_days=False)
+    rebuild_timesheets(db, period, recalc_days=False, employee_id=emp.id)
     write_audit(
         db,
         actor=user,
@@ -376,6 +376,8 @@ def set_cycle_leave(db: Session, body: CycleLeavePatch, user: User) -> Attendanc
         row.edited_at = datetime.now(tz=VN_TZ)
         db.commit()
         db.refresh(row)
+        period = f"{pay.year:04d}-{pay.month:02d}"
+        rebuild_timesheets(db, period, recalc_days=False, employee_id=emp.id)
         write_audit(
             db,
             actor=user,
@@ -410,7 +412,7 @@ def set_cycle_leave(db: Session, body: CycleLeavePatch, user: User) -> Attendanc
     db.refresh(row)
 
     period = f"{pay.year:04d}-{pay.month:02d}"
-    rebuild_timesheets(db, period, recalc_days=False)
+    rebuild_timesheets(db, period, recalc_days=False, employee_id=emp.id)
     write_audit(
         db,
         actor=user,

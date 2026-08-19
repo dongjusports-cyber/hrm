@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 from datetime import date
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
+from typing import Collection
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -261,11 +262,21 @@ def rebuild_timesheets(
     *,
     recalc_days: bool = True,
     employee_id: UUID | None = None,
+    employee_ids: Collection[UUID] | None = None,
 ) -> RebuildTimesheetResult:
-    pay = ensure_pay_period(db, period, refresh_open=True)
+    """Tổng hợp bảng công tháng. Có employee_id/ids thì chỉ NV vừa sửa — không quét cả nhà máy."""
+    scope: Collection[UUID] | None
+    if employee_id is not None:
+        scope = (employee_id,)
+    elif employee_ids:
+        scope = employee_ids
+    else:
+        scope = None
+
+    pay = ensure_pay_period(db, period, refresh_open=scope is None)
     _assert_open(pay)
     seed_leave_types(db)
-    if employee_id is None:
+    if scope is None:
         _purge_ineligible_timesheets(db, pay)
 
     if recalc_days:
@@ -274,8 +285,8 @@ def rebuild_timesheets(
         recalculate_days(db, date_from=pay.date_from, date_to=pay.date_to)
 
     emp_q = db.query(Employee).filter(Employee.deleted_at.is_(None))
-    if employee_id is not None:
-        emp_q = emp_q.filter(Employee.id == employee_id)
+    if scope is not None:
+        emp_q = emp_q.filter(Employee.id.in_(scope))
     else:
         emp_q = emp_q.filter(Employee.status == "active")
     employees = emp_q.all()
@@ -283,16 +294,16 @@ def rebuild_timesheets(
         AttendanceDay.work_date >= pay.date_from,
         AttendanceDay.work_date <= pay.date_to,
     )
-    if employee_id is not None:
-        days_q = days_q.filter(AttendanceDay.employee_id == employee_id)
+    if scope is not None:
+        days_q = days_q.filter(AttendanceDay.employee_id.in_(scope))
     days = days_q.all()
     by_emp_days: dict[UUID, list[AttendanceDay]] = {}
     for d in days:
         by_emp_days.setdefault(d.employee_id, []).append(d)
 
     adj_q = db.query(TimesheetAdjustment).filter(TimesheetAdjustment.pay_period_id == pay.id)
-    if employee_id is not None:
-        adj_q = adj_q.filter(TimesheetAdjustment.employee_id == employee_id)
+    if scope is not None:
+        adj_q = adj_q.filter(TimesheetAdjustment.employee_id.in_(scope))
     adjustments = adj_q.all()
     by_emp_adj: dict[UUID, list[TimesheetAdjustment]] = {}
     for a in adjustments:
