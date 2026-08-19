@@ -202,6 +202,74 @@ def test_patch_day_cell_clear_times(client):
     assert body["source"] == "manual"
 
 
+def test_lunch_1214_machine_1710_via_ingest(client):
+    """Máy 12:14 rồi 17:10 — lưới phải có cả vào và ra."""
+    res = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "1514", "punch_time": "2025-10-08T12:14:00+07:00"},
+                {"employee_code": "1514", "punch_time": "2025-10-08T17:10:00+07:00"},
+            ]
+        },
+    )
+    assert res.status_code == 200, res.text
+    headers = _hr_headers(client)
+    day = client.get(
+        "/api/attendance/days",
+        headers=headers,
+        params={"from": "2025-10-08", "to": "2025-10-08", "employee_code": "1514"},
+    ).json()[0]
+    assert day["first_in"] is not None
+    assert "T12:14" in day["first_in"]
+    assert day["last_out"] is not None
+    assert "T17:10" in day["last_out"]
+    assert float(day["worked_hours"]) == 4.0
+
+
+def test_hr_in_1214_then_machine_1710_fills_out(client):
+    """HR nhập 12:14 (thiếu ra) → máy bấm 17:10 → tính lại điền giờ ra, không nuốt 12:14."""
+    headers = _hr_headers(client)
+    patched = client.patch(
+        "/api/attendance/days/cell",
+        headers=headers,
+        json={
+            "employee_code": "1514",
+            "work_date": "2025-10-09",
+            "first_in": "2025-10-09T12:14:00+07:00",
+            "note": "Vào buổi trưa",
+        },
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["last_out"] is None
+    assert "T12:14" in (patched.json()["first_in"] or "")
+    assert patched.json()["source"] == "manual"
+
+    push = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "1514", "punch_time": "2025-10-09T17:10:00+07:00"},
+            ]
+        },
+    )
+    assert push.status_code == 200, push.text
+    after = client.get(
+        "/api/attendance/days",
+        headers=headers,
+        params={"from": "2025-10-09", "to": "2025-10-09", "employee_code": "1514"},
+    ).json()[0]
+    assert after["first_in"] is not None
+    assert "T12:14" in after["first_in"]
+    assert after["last_out"] is not None
+    assert "T17:10" in after["last_out"]
+    assert float(after["worked_hours"]) == 4.0
+    assert after["source"] == "manual"
+    assert after["note"] == "Vào buổi trưa"
+
+
 def test_hr_supplement_out_survives_recalculate(client):
     """1519-style: máy chỉ có vào — HR Enter giờ ra — tính lại/tính lương không nuốt công."""
     client.post(

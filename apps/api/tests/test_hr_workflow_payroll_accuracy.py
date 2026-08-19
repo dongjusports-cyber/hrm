@@ -432,3 +432,60 @@ def test_clear_hours_reenter_clear_timesheet_and_payroll(client):
     wd3, sal3 = payroll_days()
     assert wd3 == Decimal("0")
     assert sal3 == Decimal("0")
+
+
+def test_clear_reenter_many_employees_then_payroll(client):
+    """Xóa giờ rồi nhập lại nhiều NV — tính lương không 500, số công/net khớp lần đầu."""
+    headers = _hr(client)
+    d = date(2025, 10, 6)  # Thứ 2
+    period = "2025-10"
+    codes = ["1514", "1643", "5290", "5321", "1732"]
+
+    def nets() -> dict[str, tuple[Decimal, Decimal, Decimal]]:
+        calc = client.post(f"/api/payroll/periods/{period}/calculate", headers=headers)
+        assert calc.status_code == 200, calc.text
+        body = calc.json()
+        out: dict[str, tuple[Decimal, Decimal, Decimal]] = {}
+        for code in codes:
+            s = _slip(body, code)
+            out[code] = (
+                Decimal(str(s["worked_days"])),
+                Decimal(str(s["wd_salary"])),
+                Decimal(str(s["net"])),
+            )
+        return out
+
+    for code in codes:
+        row = _patch_times(client, headers, code, d, 17)
+        assert Decimal(str(row["worked_hours"])) == Decimal("8")
+
+    first = nets()
+    assert all(wd == Decimal("1") and sal > 0 for wd, sal, _net in first.values())
+
+    for code in codes:
+        cleared = client.patch(
+            "/api/attendance/days/cell",
+            headers=headers,
+            json={"employee_code": code, "work_date": d.isoformat(), "clear_times": True},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["first_in"] is None
+        assert Decimal(str(cleared.json()["worked_hours"])) == Decimal("0")
+
+    rec = client.post(
+        "/api/attendance/recalculate",
+        headers=headers,
+        json={"from": d.isoformat(), "to": d.isoformat()},
+    )
+    assert rec.status_code == 200, rec.text
+
+    zero = nets()
+    assert all(wd == Decimal("0") and sal == Decimal("0") for wd, sal, _net in zero.values())
+
+    for code in codes:
+        anew = _patch_times(client, headers, code, d, 17)
+        assert Decimal(str(anew["worked_hours"])) == Decimal("8")
+
+    again = nets()
+    for code in codes:
+        assert again[code] == first[code], code
