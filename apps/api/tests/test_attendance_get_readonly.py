@@ -69,6 +69,7 @@ def test_get_timesheets_and_grid_missing_period_empty_no_insert(client, db):
         review = client.get(
             "/api/attendance/review", headers=headers, params={"period": MISSING}
         )
+        export = client.get("/api/attendance/timesheets/2099-01/export", headers=headers)
 
     assert sheets.status_code == 200, sheets.text
     assert sheets.json() == []
@@ -77,6 +78,8 @@ def test_get_timesheets_and_grid_missing_period_empty_no_insert(client, db):
     assert cycle.json() == []
     assert review.status_code == 200, review.text
     assert review.json()["period_status"] == "none"
+    assert export.status_code == 200, export.text
+    assert export.content[:2] == b"PK"
     assert _period_count(db, 2099, 1) == 0
     assert counter.writes == [], f"GET chấm công ghi DB {counter.writes}"
 

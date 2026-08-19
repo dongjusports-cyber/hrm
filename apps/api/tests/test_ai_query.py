@@ -288,3 +288,51 @@ def test_ai_assist_hr_name_lookup(client, db):
     body = res.json()
     assert body["kind"] == "employee_lookup"
     assert "5290" in body["answer"]
+
+
+def _hrefs(body: dict) -> list[str]:
+    return [s.get("href") or "" for s in body.get("suggestions") or []]
+
+
+def test_ai_assist_open_timesheet_company(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Mở bảng công cả công ty"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    assert body["model_name"] == "direct"
+    assert "bảng công" in body["answer"].lower()
+    hrefs = _hrefs(body)
+    assert any("/m/timekeeping" in h and "view=monthly" in h for h in hrefs)
+
+
+def test_ai_assist_print_timesheet_department(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "In bảng công bộ phận SW1 tháng 2026-08"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    hrefs = _hrefs(body)
+    assert any("dept=SW1" in h and "/m/timekeeping" in h for h in hrefs)
+    assert any("/export" in h and "department_code=SW1" in h for h in hrefs)
+
+
+def test_ai_assist_timesheet_msnv_not_profile(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "mở bảng công 5290"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    assert "5290" in body["answer"]
+    hrefs = _hrefs(body)
+    assert any("q=5290" in h for h in hrefs)
+

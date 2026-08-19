@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 
-# Câu hỏi cần suy luận → vẫn gọi Gemini (chậm hơn nhưng có phân tích).
+from app.modules.ai.timesheet_open import wants_timesheet_open
+
 _ANALYSIS_RE = re.compile(
     r"phân\s*tích|so\s*sánh|đề\s*xuất|tại\s*sao|vì\s*sao|giải\s*thích|"
     r"rà\s*soát|đánh\s*giá|nhận\s*xét|lệch|sai\s*ở|nguyên\s*nhân|"
@@ -78,6 +79,7 @@ _DIRECT_HEADERS: tuple[tuple[str, str], ...] = (
     ("### Chế độ về sớm hết hạn T−3 — đọc từ CSDL", "Kết quả chế độ từ hệ thống:"),
     ("### Nguy cơ chuyên cần kỳ hiện tại — đọc từ CSDL", "Kết quả chuyên cần từ hệ thống:"),
     ("### Việc cần làm hôm nay — đọc từ CSDL", "Tóm tắt việc cần làm hôm nay:"),
+    ("### Bảng công — đọc từ CSDL", "Kết quả bảng công từ hệ thống:"),
     ("### Nhân viên thử việc — đọc từ CSDL", "Danh sách thử việc từ hệ thống:"),
     ("### Thôi việc tháng này — đọc từ CSDL", "Danh sách thôi việc tháng này từ hệ thống:"),
 )
@@ -100,6 +102,8 @@ def detect_ops_kind(message: str) -> str:
         return "daily_briefing"
     if wants_punch_review(text):
         return "punch_review"
+    if wants_timesheet_open(text):
+        return "timesheet_open"
     if _LEAVE_REVIEW_RE.search(text):
         return "leave_review"
     if _CONTRACT_REVIEW_RE.search(text):

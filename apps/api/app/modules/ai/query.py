@@ -10,10 +10,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
-from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.fast_reply import detect_ops_kind, format_employee_lookup_answer, wants_llm_analysis
 from app.modules.ai.inbox import followups_for_kind
 from app.modules.ai.ops_query import OPS_DIRECT_KINDS, resolve_ops_query
 from app.modules.ai.provider import ProviderResult
+from app.modules.ai.schemas import AiSuggestion, AiQueryRequest, AiQueryResponse
 from app.modules.ai.vi_labels import (
     label_ai_mode,
     label_dispute_status,
@@ -22,7 +23,6 @@ from app.modules.ai.vi_labels import (
 )
 from app.modules.ai.models import AiJob
 from app.modules.ai.provider import SYSTEM_PROMPT_BASE, generate_text, resolve_api_key
-from app.modules.ai.schemas import AiQueryRequest, AiQueryResponse
 from app.modules.ai.settings_svc import ensure_settings
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
@@ -104,6 +104,7 @@ _ASSIST_MODULES = ("hr", "timekeeping", "payroll")
 _ASSIST_NEED_GEMINI = (
     "Câu này cần quyền hỏi Gemini (`ai_query`). "
     "HR tra cứu CSDL được: tóm tắt hôm nay, thông tin NV (MSNV hoặc họ tên), "
+    "mở/in bảng công (CTY · bộ phận · MSNV), "
     "chấm lẻ, đơn phép, hợp đồng hết hạn, thử việc, thôi việc tháng này, "
     "BHXH, phiếu lương, khiếu nại, chế độ về sớm, chuyên cần."
 )
@@ -185,17 +186,24 @@ def run_ai_query(
             message = f"Rà soát khiếu nại {dispute.code}: phân tích lệch công/OT/phụ cấp và đề xuất bước tiếp theo cho HR."
 
     emp_codes: list[str] = []
+    extra_suggestions: list[AiSuggestion] = []
     if not context_block and message:
-        emp_codes, emp_ctx = build_employee_context(db, user, message)
-        if emp_ctx:
-            context_block = emp_ctx
-            if emp_codes:
-                kind = "employee_lookup"
-        else:
-            ops_kind, ops_ctx = resolve_ops_query(db, user, message)
+        if detect_ops_kind(message) == "timesheet_open":
+            ops_kind, ops_ctx, extra_suggestions = resolve_ops_query(db, user, message)
             if ops_ctx:
                 context_block = ops_ctx
                 kind = ops_kind
+        if not context_block:
+            emp_codes, emp_ctx = build_employee_context(db, user, message)
+            if emp_ctx:
+                context_block = emp_ctx
+                if emp_codes:
+                    kind = "employee_lookup"
+            else:
+                ops_kind, ops_ctx, extra_suggestions = resolve_ops_query(db, user, message)
+                if ops_ctx:
+                    context_block = ops_ctx
+                    kind = ops_kind
 
     if not message:
         raise HTTPException(
@@ -282,5 +290,5 @@ def run_ai_query(
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
             f"({label_ai_mode(stub=result.stub, direct=direct)}). Còn {remaining} câu hôm nay."
         ),
-        suggestions=followups_for_kind(kind),
+        suggestions=extra_suggestions or followups_for_kind(kind),
     )

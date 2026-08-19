@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_punch_context, cap_note
 from app.modules.ai.fast_reply import detect_ops_kind
+from app.modules.ai.schemas import AiSuggestion
+from app.modules.ai.timesheet_open import build_timesheet_open
 from app.modules.ai.vi_labels import label_dispute_status, label_emp_status, label_period_status
 from app.modules.attendance.engine import VN_TZ
 from app.modules.attendance.models import LeaveRequest, PayPeriod, TimesheetMonth
@@ -34,6 +36,7 @@ OPS_DIRECT_KINDS = frozenset(
         "daily_briefing",
         "probation_list",
         "resign_list",
+        "timesheet_open",
     }
 )
 
@@ -427,11 +430,11 @@ def build_resign_context(db: Session, *, limit: int = 20) -> str:
     return "\n".join(lines)
 
 
-def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
-    """(kind, khối ngữ cảnh) — chuỗi rỗng nếu không phải câu nghiệp vụ nhà máy."""
+def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str, list[AiSuggestion]]:
+    """(kind, khối ngữ cảnh, gợi ý) — chuỗi rỗng nếu không phải câu nghiệp vụ nhà máy."""
     kind = detect_ops_kind(message)
     if not kind:
-        return "", ""
+        return "", "", []
 
     need = {
         "punch_review": ("timekeeping", "hr"),
@@ -445,6 +448,7 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "daily_briefing": (),
         "probation_list": ("hr",),
         "resign_list": ("hr",),
+        "timesheet_open": ("timekeeping", "hr"),
     }[kind]
 
     if kind == "dispute_list":
@@ -466,9 +470,14 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "daily_briefing": "### Việc cần làm hôm nay — đọc từ CSDL",
         "probation_list": "### Nhân viên thử việc — đọc từ CSDL",
         "resign_list": "### Thôi việc tháng này — đọc từ CSDL",
+        "timesheet_open": "### Bảng công — đọc từ CSDL",
     }
     if not allowed:
-        return kind, _denied(headers[kind])
+        return kind, _denied(headers[kind]), []
+
+    if kind == "timesheet_open":
+        ctx, sugg = build_timesheet_open(db, message)
+        return kind, ctx, sugg
 
     builders = {
         "punch_review": lambda: build_punch_context(db),
@@ -483,4 +492,4 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str]:
         "probation_list": lambda: build_probation_context(db),
         "resign_list": lambda: build_resign_context(db),
     }
-    return kind, builders[kind]()
+    return kind, builders[kind](), []

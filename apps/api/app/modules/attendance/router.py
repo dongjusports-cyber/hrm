@@ -15,6 +15,7 @@ from app.modules.attendance.day_grid import bulk_patch_days, list_days_grid, pat
 from app.modules.attendance import service
 from app.modules.attendance import timesheet as ts
 from app.modules.attendance.ot_external_export import build_ot_external_export
+from app.modules.attendance.timesheet_export import export_timesheets_xlsx
 from app.modules.payroll.ot_external import build_ot_external_summary
 from app.modules.payroll.ot_external_schemas import OtExternalPayRowOut, OtExternalSummaryOut
 from app.modules.attendance import cycle_leave as cycle_mod
@@ -93,8 +94,16 @@ def timesheets(
     db: DbSession,
     period: Annotated[str, Query(description="YYYY-MM")],
     employee_code: str | None = None,
+    department_id: UUID | None = None,
+    department_code: str | None = None,
 ) -> list[TimesheetMonthOut]:
-    return ts.list_timesheets(db, period, employee_code=employee_code)
+    return ts.list_timesheets(
+        db,
+        period,
+        employee_code=employee_code,
+        department_id=department_id,
+        department_code=department_code,
+    )
 
 
 @router.get("/attendance/timesheets/details", response_model=list[TimesheetMonthDetailOut])
@@ -114,6 +123,30 @@ def timesheets_rebuild(
     period: Annotated[str, Query(description="YYYY-MM")],
 ) -> RebuildTimesheetResult:
     return ts.rebuild_timesheets(db, period, recalc_days=True)
+
+
+@router.get("/attendance/timesheets/{period}/export")
+def export_timesheets(
+    period: str,
+    _user: TimekeepingUser,
+    db: DbSession,
+    department_id: UUID | None = None,
+    department_code: str | None = None,
+    employee_code: str | None = None,
+) -> Response:
+    """Excel bảng công tháng — GET chỉ SELECT, không tạo kỳ / không rebuild."""
+    data, filename = export_timesheets_xlsx(
+        db,
+        period,
+        department_id=department_id,
+        department_code=department_code,
+        employee_code=employee_code,
+    )
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": attachment_content_disposition(filename)},
+    )
 
 
 @router.get("/attendance/timesheets/{period}/ot-external-preview", response_model=OtExternalSummaryOut)

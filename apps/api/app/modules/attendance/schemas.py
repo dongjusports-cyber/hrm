@@ -117,6 +117,9 @@ class TimesheetMonthOut(BaseModel):
     employee_id: UUID
     employee_code: str
     full_name: str
+    department_id: UUID | None = None
+    department_code: str | None = None
+    department_name: str | None = None
     worked_days: Decimal
     al_days: Decimal
     rem_days: Decimal

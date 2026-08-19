@@ -2114,6 +2114,9 @@ export type TimesheetMonth = {
   ot_hours_external?: string | number;
   ot_hours_weekend: string | number;
   ot_hours_holiday: string | number;
+  department_id?: string | null;
+  department_code?: string | null;
+  department_name?: string | null;
 };
 
 export type LeaveType = {
@@ -2236,6 +2239,39 @@ export async function rebuildTimesheets(period: string): Promise<{
   };
   cacheInvalidate("timesheets:");
   return data;
+}
+
+export async function exportTimesheetsExcel(opts: {
+  period: string;
+  departmentId?: string;
+  departmentCode?: string;
+  employeeCode?: string;
+}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (opts.departmentId) qs.set("department_id", opts.departmentId);
+  if (opts.departmentCode) qs.set("department_code", opts.departmentCode);
+  if (opts.employeeCode) qs.set("employee_code", opts.employeeCode);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  await downloadApiHref(
+    `/api/attendance/timesheets/${encodeURIComponent(opts.period)}/export${suffix}`,
+  );
+}
+
+/** Tải file từ đường /api/... (Excel bảng công do AI hoặc toolbar). */
+export async function downloadApiHref(href: string): Promise<void> {
+  const path = href.startsWith("http") ? new URL(href).pathname + new URL(href).search : href;
+  const res = await apiFetch(path.startsWith("/api") ? path : `/api${path}`);
+  if (!res.ok) throw new Error(await readError(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    companyExcelFilename("Bảng công"),
+  );
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Xuất Excel OT ngoài (ATM riêng) — tách khỏi bảng lương audit. */

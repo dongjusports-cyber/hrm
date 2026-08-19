@@ -9,6 +9,7 @@ from typing import Collection
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,7 +39,7 @@ from app.modules.attendance.timesheet_details import (
 )
 from app.modules.calendar.service import compute_divisor
 from app.modules.core.models import User
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Department, Employee, Team
 from app.modules.policy.models import PolicyPackage
 from app.modules.policy.seed_payload import default_payload
 from app.modules.payroll.attendance_penalty import (
@@ -522,20 +523,36 @@ def list_timesheets(
     db: Session,
     period: str,
     employee_code: str | None = None,
+    department_id: UUID | None = None,
+    department_code: str | None = None,
 ) -> list[TimesheetMonthOut]:
     pay = get_pay_period(db, period)
     if pay is None:
         return []
+    dept_id = department_id
+    if department_code and dept_id is None:
+        dept_row = (
+            db.query(Department)
+            .filter(func.lower(Department.code) == department_code.strip().lower())
+            .one_or_none()
+        )
+        if dept_row is None:
+            return []
+        dept_id = dept_row.id
     q = (
-        db.query(TimesheetMonth, Employee)
+        db.query(TimesheetMonth, Employee, Team, Department)
         .join(Employee, Employee.id == TimesheetMonth.employee_id)
+        .outerjoin(Team, Team.id == Employee.team_id)
+        .outerjoin(Department, Department.id == Team.department_id)
         .filter(TimesheetMonth.pay_period_id == pay.id)
     )
     if employee_code:
         q = q.filter(Employee.employee_code == employee_code.strip())
+    if dept_id is not None:
+        q = q.filter(Team.department_id == dept_id)
     rows = q.order_by(Employee.employee_code).all()
     out: list[TimesheetMonthOut] = []
-    for ts, emp in rows:
+    for ts, emp, team, dept in rows:
         if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
             continue
         out.append(
@@ -546,6 +563,9 @@ def list_timesheets(
                 employee_id=emp.id,
                 employee_code=emp.employee_code,
                 full_name=emp.full_name,
+                department_id=dept.id if dept else None,
+                department_code=dept.code if dept else None,
+                department_name=dept.name if dept else None,
                 worked_days=ts.worked_days,
                 al_days=ts.al_days,
                 rem_days=ts.rem_days,

@@ -11,6 +11,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   askAi,
   askAiAssist,
+  downloadApiHref,
   fetchAiInbox,
   markAlertRead,
   markAllAlertsRead,
@@ -18,6 +19,7 @@ import {
   type AiSuggestion,
   type TodoCard,
 } from "./api";
+import { isTimesheetExportHref } from "./timesheetUrl";
 import { aiFabBadgeCount } from "./aiReminder";
 import {
   clampFabPosition,
@@ -38,9 +40,10 @@ const FAB_SIZE = 56;
 
 const DEFAULT_CHIPS: AiSuggestion[] = [
   { label: "Tóm tắt hôm nay", message: "Tóm tắt việc cần làm hôm nay" },
+  { label: "Mở bảng công", message: "Mở bảng công cả công ty" },
+  { label: "In bảng công", message: "In bảng công cả công ty" },
   { label: "Ai chấm lẻ?", message: "Ai chấm lẻ tháng này" },
   { label: "Đơn phép?", message: "Đơn phép chờ duyệt" },
-  { label: "HĐ hết hạn?", message: "Hợp đồng sắp hết hạn" },
 ];
 
 /**
@@ -172,13 +175,30 @@ export function AiFab() {
         setChatMeta(res.message);
         setFollowups(res.suggestions ?? []);
         setThread((prev) => [...prev.slice(-2), { q, a: res.answer }]);
+        if (res.kind === "timesheet_open") {
+          const sugg = res.suggestions ?? [];
+          const file = sugg.find((s) => isTimesheetExportHref(s.href));
+          const pages = sugg.filter((s) => (s.href || "").startsWith("/m/"));
+          if (file?.href) {
+            try {
+              await downloadApiHref(file.href);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Không tải Excel bảng công.");
+              return;
+            }
+          }
+          if (pages.length === 1 && pages[0].href) {
+            setOpen(false);
+            navigate(pages[0].href);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Không hỏi được AI.");
       } finally {
         setAsking(false);
       }
     },
-    [canAssist, canQuery, asking],
+    [canAssist, canQuery, asking, navigate],
   );
   sendMessageRef.current = sendMessage;
 

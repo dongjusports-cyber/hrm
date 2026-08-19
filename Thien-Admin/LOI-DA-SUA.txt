@@ -12,6 +12,7 @@ LOI DA SUA — DJ-HRM
   [AI-P001] FAB poll 60s chạy compute_kpi; inbox light + tóm tắt hôm nay
   [AI-P002] HR hỏi CSDL không Gemini; đếm chấm lẻ đủ 400 NV; tra cứu theo tên
   [AI-V001] HR điện thoại nói lệnh cho AI (mic → CSDL, không tự ghi)
+  [AI-T001] AI mở / in bảng công CTY · bộ phận · MSNV (Excel, không tự sửa công)
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1134,4 +1135,22 @@ Cách xử lý:
 Test:
   cd apps/web && npm test -- speechToText && npx tsc --noEmit
   cd apps/api && .venv/bin/pytest tests/test_hardening.py -q
+
+[AI-T001] AI mở / in bảng công theo lệnh HR — 2026-08-19
+-------------------------------------------------------
+Triệu chứng:
+  HR gõ/nói «mở bảng công CTY / bộ phận SW1 / MSNV 5290» hoặc «in ra» — AI chỉ trả
+  lời chat, không mở trang Chấm Công, không có Excel bảng công tháng.
+
+Cách xử lý:
+  - Lớp B kind `timesheet_open`: parse CTY · bộ phận · MSNV · kỳ · in/xuất Excel.
+  - Deep-link `/m/timekeeping?view=monthly|daily&period=&dept=&q=`.
+  - GET `/api/attendance/timesheets/{period}/export` — Excel chỉ SELECT, 0 ghi
+    (không ensure kỳ, không rebuild). FAB tải file khi lệnh in + mở trang khi 1 href.
+  - Toolbar Chấm Công → ⋮ → Xuất Excel bảng công. Lọc bộ phận trên tổng hợp tháng.
+  - AI không tự sửa giờ / không tự tổng hợp / không window.print lưới AG Grid.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_timesheet_open.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_timesheet.py tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py -q
+  cd apps/web && npm test -- timesheetUrl && npx tsc --noEmit
 

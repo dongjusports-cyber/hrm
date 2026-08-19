@@ -11,6 +11,7 @@ import {
   fetchLeaveTypes,
   fetchPayPeriod,
   fetchTimesheets,
+  exportTimesheetsExcel,
   patchAttendanceDayCell,
   patchAttendanceDayCycle,
   patchAttendanceDayManual,
@@ -56,14 +57,9 @@ import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 import { cacheInvalidate } from "../../shared/clientCache";
+import { parseTimesheetSearch } from "../../shared/timesheetUrl";
 
 type MainView = "daily" | "monthly" | "leave";
-
-function viewFromSearch(search: string): MainView | null {
-  const v = new URLSearchParams(search).get("view");
-  if (v === "daily" || v === "monthly" || v === "leave") return v;
-  return null;
-}
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
   daily: "Kiểm công một ngày: Công · trễ/sớm · tăng ca sổ/ngoài · OT CN/lễ. CN đi làm hiện OT CN, không cộng Công.",
@@ -245,12 +241,24 @@ export function TimekeepingPage() {
   });
   const [dailyGridRefresh, setDailyGridRefresh] = useState(0);
   const [mainView, setMainView] = useState<MainView>(
-    () => viewFromSearch(typeof window !== "undefined" ? window.location.search : "") ?? "daily",
+    () => parseTimesheetSearch(typeof window !== "undefined" ? window.location.search : "").view ?? "daily",
   );
   useEffect(() => {
     if (!location.pathname.startsWith("/m/timekeeping")) return;
-    const next = viewFromSearch(location.search);
-    if (next) setMainView(next);
+    const parsed = parseTimesheetSearch(location.search);
+    if (parsed.view) setMainView(parsed.view);
+    if (parsed.period) {
+      setPeriod(parsed.period);
+      if (!parsed.date) {
+        const today = todayIsoDateVN();
+        setGridDate(today.slice(0, 7) === parsed.period ? today : `${parsed.period}-01`);
+      }
+    }
+    if (parsed.date) setGridDate(parsed.date);
+    if (parsed.q) {
+      typedQRef.current = parsed.q;
+      setQ(parsed.q);
+    }
   }, [location.pathname, location.search]);
   const [otExternalOpen, setOtExternalOpen] = useState(false);
   const [cycleListOpen, setCycleListOpen] = useState(false);
@@ -394,9 +402,14 @@ export function TimekeepingPage() {
     return () => window.clearTimeout(timer);
   }, [ok]);
 
+  const monthlyRows = useMemo(() => {
+    if (!departmentId) return rows;
+    return rows.filter((r) => r.department_id === departmentId);
+  }, [rows, departmentId]);
+
   const filtered = useMemo(
-    () => rows.filter((r) => employeeMatchesQuery(r, q)),
-    [rows, q],
+    () => monthlyRows.filter((r) => employeeMatchesQuery(r, q)),
+    [monthlyRows, q],
   );
 
   const pickEmployee = useCallback((row: TimesheetMonth) => {
@@ -473,7 +486,7 @@ export function TimekeepingPage() {
   const applySearchSelect = useCallback(
     (needle: string, opts?: { exactOnly?: boolean }) => {
       if (!needle.trim()) return false;
-      const match = findEmployeeByQuery(rows, needle, opts);
+      const match = findEmployeeByQuery(monthlyRows, needle, opts);
       if (!match) {
         setError(`Không tìm thấy MSNV / tên khớp «${needle}».`);
         return false;
@@ -489,8 +502,75 @@ export function TimekeepingPage() {
       }
       return true;
     },
-    [rows, pickEmployee],
+    [monthlyRows, pickEmployee],
   );
+
+  useEffect(() => {
+    if (!departments.length) return;
+    const parsed = parseTimesheetSearch(location.search);
+    if (parsed.departmentId && departments.some((d) => d.id === parsed.departmentId)) {
+      setDepartmentId(parsed.departmentId);
+      return;
+    }
+    if (parsed.deptCode) {
+      const match = departments.find((d) => d.code.toLowerCase() === parsed.deptCode!.toLowerCase());
+      if (match) setDepartmentId(match.id);
+    }
+  }, [departments, location.search]);
+
+  const urlPickKeyRef = useRef("");
+  useEffect(() => {
+    if (mainView !== "monthly" || !monthlyRows.length) return;
+    const parsed = parseTimesheetSearch(location.search);
+    if (!parsed.q) return;
+    const key = `${parsed.q}|${period}|${monthlyRows.length}|${departmentId}`;
+    if (urlPickKeyRef.current === key) return;
+    urlPickKeyRef.current = key;
+    applySearchSelect(parsed.q);
+  }, [mainView, monthlyRows, location.search, period, departmentId, applySearchSelect]);
+
+  const printedRef = useRef("");
+  useEffect(() => {
+    const parsed = parseTimesheetSearch(location.search);
+    if (!parsed.print) return;
+    const key = location.search;
+    if (printedRef.current === key) return;
+    printedRef.current = key;
+    const code = parsed.q && /^\d{3,5}$/.test(parsed.q) ? parsed.q : undefined;
+    void exportTimesheetsExcel({
+      period: parsed.period || period,
+      departmentId: departmentId || undefined,
+      employeeCode: code,
+    })
+      .then(() => {
+        const sp = new URLSearchParams(
+          location.search.startsWith("?") ? location.search.slice(1) : location.search,
+        );
+        sp.delete("print");
+        const next = sp.toString();
+        navigate({ pathname: location.pathname, search: next ? `?${next}` : "" }, { replace: true });
+        setOk("Đã tải Excel bảng công.");
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Không xuất Excel bảng công.");
+      });
+  }, [location.search, location.pathname, period, departmentId, navigate]);
+
+  async function onExportTimesheet() {
+    setBusy(true);
+    setError(null);
+    try {
+      await exportTimesheetsExcel({
+        period,
+        departmentId: departmentId || undefined,
+      });
+      setOk("Đã tải Excel bảng công.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không xuất Excel bảng công.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
@@ -1085,7 +1165,7 @@ export function TimekeepingPage() {
               />
             </label>
           ) : null}
-          {mainView === "daily" ? (
+          {mainView === "daily" || mainView === "monthly" ? (
             <label className="period-picker period-picker-compact">
               Bộ phận
               <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
@@ -1156,6 +1236,14 @@ export function TimekeepingPage() {
             <button type="button" className="toolbar-more-item" onClick={() => void onRebuild()}>
               Tổng hợp công
             </button>
+            <button
+              type="button"
+              className="toolbar-more-item"
+              title="Tải Excel bảng công kỳ đang xem"
+              onClick={() => void onExportTimesheet()}
+            >
+              Xuất Excel bảng công
+            </button>
             <button type="button" className="toolbar-more-item" onClick={() => setSyncOpen(true)}>
               Nhật ký đồng bộ
             </button>
@@ -1212,7 +1300,7 @@ export function TimekeepingPage() {
                 </>
               ) : (
                 <>
-                  {filtered.length}/{rows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
+                  {filtered.length}/{monthlyRows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
                   <strong>{labelPeriodStatus(pay.status)}</strong>
                 </>
               )
@@ -1314,7 +1402,7 @@ export function TimekeepingPage() {
             <section className="tk-grid-section tk-grid-primary">
               <div className="tk-grid-wrap ag-theme-quartz">
                 <AgGridReact<TimesheetMonth>
-                  rowData={rows}
+                  rowData={monthlyRows}
                   columnDefs={columnDefs}
                   localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}

@@ -77,6 +77,9 @@ def followups_for_kind(kind: str) -> list[AiSuggestion]:
         "resign_list": [
             AiSuggestion(label="Tab thôi việc", href="/m/hr/lists/resigned"),
         ],
+        "timesheet_open": [
+            AiSuggestion(label="Tổng hợp tháng", href="/m/timekeeping?view=monthly"),
+        ],
     }
     return mapping.get(kind, [])
 

@@ -282,3 +282,64 @@ def test_list_timesheets_filter_employee_code(client):
     body = one.json()
     assert len(body) == 1
     assert body[0]["employee_code"] == "5290"
+    assert body[0]["department_code"] == "SW1"
+
+
+def test_list_timesheets_filter_department_code(client):
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-01T08:00:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-01T17:00:00+07:00"},
+                {"employee_code": "5321", "punch_time": "2025-10-01T08:00:00+07:00"},
+                {"employee_code": "5321", "punch_time": "2025-10-01T17:00:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    client.post("/api/attendance/timesheets/rebuild", headers=headers, params={"period": "2025-10"})
+    sw1 = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10", "department_code": "SW1"},
+    )
+    assert sw1.status_code == 200, sw1.text
+    codes = {r["employee_code"] for r in sw1.json()}
+    assert "5290" in codes
+    assert "5321" not in codes
+
+
+def test_export_timesheets_xlsx_pk_and_filter(client):
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-01T08:00:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-01T17:00:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    client.post("/api/attendance/timesheets/rebuild", headers=headers, params={"period": "2025-10"})
+    res = client.get("/api/attendance/timesheets/2025-10/export", headers=headers)
+    assert res.status_code == 200, res.text
+    assert res.content[:2] == b"PK"
+    assert "spreadsheetml" in res.headers.get("content-type", "")
+    one = client.get(
+        "/api/attendance/timesheets/2025-10/export",
+        headers=headers,
+        params={"employee_code": "5290"},
+    )
+    assert one.status_code == 200
+    assert one.content[:2] == b"PK"
+    from openpyxl import load_workbook
+    from io import BytesIO
+
+    wb = load_workbook(BytesIO(one.content))
+    ws = wb.active
+    texts = [str(c.value or "") for row in ws.iter_rows(max_row=12) for c in row]
+    assert any("5290" in t for t in texts)
+

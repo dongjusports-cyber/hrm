@@ -38,6 +38,7 @@ def test_hr_profile_and_modules(client):
         ("GET", "/api/attendance/days?from=2025-10-01&to=2025-10-31", 200),
         ("GET", "/api/attendance/leave-types", 200),
         ("GET", "/api/attendance/leave-requests", 200),
+        ("GET", "/api/attendance/timesheets/2099-01/export", 200),
         ("GET", "/api/payroll/payslips?period=2025-10", 200),
         ("GET", "/api/payroll/allowances/types", 200),
         ("GET", "/api/disputes", 200),
