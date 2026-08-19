@@ -2,8 +2,7 @@
 
 Hệ thống HRM cloud (Web) cho nhà máy **DONGJU Sports Việt Nam** (~500 nhân sự).
 
-> Hiến pháp hiện hành: [`HIEN_PHAP_V2/`](./HIEN_PHAP_V2/) — đọc `00_README_V2.md` trước.  
-> Nghiệp vụ lương/công (V1 tham chiếu): [`HIEN_PHAP/`](./HIEN_PHAP/).
+> Luật tiền / công / OT (HR đọc, sai thì sửa): thư mục [`Luật/`](./Luật/) — bắt đầu `00-DOC-TRUOC.txt`.
 
 ## Stack
 
@@ -37,17 +36,10 @@ docker compose exec api python -m app.scripts.seed
 Click ô không có quyền → popup COSMOS AI tiếng Việt (ô vẫn hiện đủ).  
 Worker Portal: http://localhost:5173/worker/login
 
-### Agent Mitapro (máy nhà máy)
+### Agent Mitapro (máy nhà máy .122)
 
-Xem [`apps/agent/README.md`](./apps/agent/README.md). Mock thử:
-
-```powershell
-cd apps\agent
-copy config.example.env .env
-python -m venv .venv
-.\.venv\Scripts\pip install -r requirements.txt
-python -m dj_agent.main --mock --once
-```
+Cài bằng USB: `Thien-Admin\08-CHUAN-USB-122.bat` → máy .122 chạy `122/` (`01` → `02` → `04`).
+Chi tiết: [`apps/agent/README.md`](./apps/agent/README.md).
 
 ## Nguyên tắc vàng (rút gọn)
 
@@ -65,6 +57,6 @@ python -m dj_agent.main --mock --once
 - Agent cloud: `apps/agent/config.cloud.example.env`
 - Backup: [`ops/README.md`](./ops/README.md)
 
-## Lộ trình
+## Vận hành
 
-Xem `HIEN_PHAP/09_LO_TRINH_PHIEN.md`.
+`Thien-Admin/README.txt` · luật: [`Luật/`](./Luật/)

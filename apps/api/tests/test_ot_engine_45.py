@@ -1,4 +1,4 @@
-"""4.5 — OT theo 22§22.8: nền policy, làm tròn 30p, lễ >8h."""
+"""4.5 — OT theo 22§22.8: nền policy, theo phút, lễ >8h."""
 
 from decimal import Decimal
 

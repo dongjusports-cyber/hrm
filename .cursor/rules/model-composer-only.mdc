@@ -12,4 +12,4 @@ Dự án DJ-HRM **chỉ** dùng mô hình **Composer 2.5** cho mọi tác vụ: 
 - Khi cần sub-agent / tác vụ phụ: vẫn chỉ định **Composer 2.5**.
 - Nếu phiên đang chạy mô hình khác: dừng và chuyển về Composer 2.5 trước khi sửa code.
 
-Repo: `dongjusports-cyber/hrm` · Kế hoạch kỹ sư: `Thien-Admin/KE-HOACH-KY-SU-2026-08-15.md`
+Repo: `dongjusports-cyber/hrm`

@@ -19,7 +19,7 @@ from app.modules.attendance.day_enrich import (
 )
 from app.modules.attendance.engine import VN_TZ, Schedule, calculate_day, to_vn
 from app.modules.attendance.models import AttendanceDay, WorkShift
-from app.modules.attendance.shift_schedule import timing_from_shift
+from app.modules.attendance.shift_schedule import engine_ot_kwargs, timing_from_shift
 from app.modules.attendance.schemas import AttendanceDayOut, RecalculateResult
 from app.modules.calendar.models import Holiday
 from app.modules.calendar.service import get_work_week
@@ -164,7 +164,7 @@ def recalculate_days(
 
     from app.modules.attendance.seed_shifts import ADMIN_SHIFT_CODE
 
-    # Ca chỉ vài mã (ADMIN, CLEANER) — nạp 1 query, tránh N+1 trong vòng lặp.
+    # Ca ADMIN / CLEANER / COOKER — nạp 1 query, tránh N+1 trong vòng lặp.
     shift_map = {s.code: s for s in db.query(WorkShift).all()}
 
     from app.modules.mdm.service import active_wt_regime_hours_batch
@@ -188,9 +188,8 @@ def recalculate_days(
             timing.schedule,
             punch_dedupe_window_seconds=dedupe_window,
             ot_split=ot_split,
-            ot_start=timing.ot_start_time,
             wt_hours_early=regime_map.get((emp.id, wd)),
-            standard_hours=timing.standard_hours,
+            **engine_ot_kwargs(timing),
         )
         if row is None:
             row = AttendanceDay(employee_id=emp.id, work_date=wd)
@@ -258,9 +257,8 @@ def reapply_wt_on_manual_days(
             row.work_date,
             timing.schedule,
             ot_split=ot_split,
-            ot_start=timing.ot_start_time,
             wt_hours_early=wt_hours_early_on(db, emp.id, row.work_date),
-            standard_hours=timing.standard_hours,
+            **engine_ot_kwargs(timing),
         )
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
         row.source = src

@@ -152,11 +152,11 @@ def hours_map_from_timesheet(ts: Any, channel: str) -> dict[str, Decimal]:
 
 
 def quantize_ot_hours(hours: Decimal, policy: dict[str, Any]) -> Decimal:
-    """22§22.8 — bậc 30 phút, floor; dưới 30 phút = 0."""
+    """Tiền OT theo phút (hours_step_minutes=1). Giờ chỉ để hiện. Floor theo bước phút."""
     rounding = (policy or {}).get("rounding") or {}
-    step = int(rounding.get("hours_step_minutes", 30))
+    step = int(rounding.get("hours_step_minutes", 1))
     if step <= 0:
-        step = 30
+        step = 1
     h = D(hours)
     if h <= 0:
         return ZERO

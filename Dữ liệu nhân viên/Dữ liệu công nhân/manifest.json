@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-08-15T16:26:50.790971+00:00",
+  "employee_count": 453,
+  "files_written": 453,
+  "sources": {
+    "empinfo_dir": "/Dữ liệu nhân viên/Thông tin danh sách nhân viên",
+    "salary_dir": "/Dữ liệu nhân viên/Salary",
+    "cong_dir": "/Dữ liệu nhân viên/Công",
+    "cong_file_count": 1,
+    "salary_employees": 438,
+    "profile_employees": 359,
+    "assignment_employees": 354
+  },
+  "warnings": [],
+  "reload_command": "python -m app.scripts.import_employee_snapshots \"Dữ liệu nhân viên/Dữ liệu công nhân\""
+}

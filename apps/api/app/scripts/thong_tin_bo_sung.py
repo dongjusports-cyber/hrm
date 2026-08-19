@@ -73,7 +73,7 @@ _SINGLE_FLAGS = {0, False, "0"}
 
 def default_xlsx_path() -> Path:
     root = Path(__file__).resolve().parents[4]
-    folder = root / "HIEN_PHAP" / "Dữ liệu công nhân"
+    folder = root / "Dữ liệu nhân viên" / "Dữ liệu công nhân"
     matches = sorted(
         p
         for p in list(folder.glob("*bổ sung*.xlsx")) + list(folder.glob("*bo sung*.xlsx"))
@@ -87,7 +87,7 @@ def default_xlsx_path() -> Path:
 
 
 def default_snapshot_dir() -> Path:
-    return Path(__file__).resolve().parents[4] / "HIEN_PHAP" / "Dữ liệu công nhân"
+    return Path(__file__).resolve().parents[4] / "Dữ liệu nhân viên" / "Dữ liệu công nhân"
 
 
 def default_extract_dir(xlsx_path: Path | None = None) -> Path:

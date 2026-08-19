@@ -22,8 +22,8 @@
 3. Sua loi → commit → **push GitHub**
 
 ### Sang — Dong bo (ban hoac AI tren may co SSH)
-1. **VPS:** `DEPLOY_VPS_TU_GIT.bat` hoac `python ops/deploy_vps_from_git.py`
-2. **May .123:** `PULL_VE_123.bat` (git pull)
+1. **VPS:** `Thien-Admin\05-DEPLOY-VPS.bat` hoac `python ops/deploy_vps_from_git.py`
+2. **May .123:** `Thien-Admin\04-PULL-VE-123.bat`
 
 ---
 
@@ -31,11 +31,11 @@
 
 | File | Viec |
 |------|------|
-| `THEM_DEPLOY_KEY_GITHUB.bat` | **Mot lan** — copy key, mo GitHub, kiem tra |
-| `DONG_BO_SANG.bat` | **Hang ngay** — deploy VPS + pull .123 (1 click) |
-| `PULL_VE_123.bat` | Chi git pull ve may dev |
-| `DEPLOY_VPS_TU_GIT.bat` | Chi VPS pull + deploy |
-| `MO_KHOA_PORTAL.bat` | Mo khoa admin/hr.demo |
+| `Thien-Admin\01-THEM-DEPLOY-KEY.bat` | Khi VPS moi — copy key, mo GitHub |
+| `Thien-Admin\02-DONG-BO-SANG.bat` | **Hang ngay** — deploy VPS + pull .123 |
+| `Thien-Admin\04-PULL-VE-123.bat` | Chi git pull ve may .123 |
+| `Thien-Admin\05-DEPLOY-VPS.bat` | Chi VPS pull + deploy |
+| `Thien-Admin\03-MO-KHOA-PORTAL.bat` | Mo khoa admin/hr.demo |
 | `ops/setup_github_deploy_key.py` | Tao Deploy Key tren VPS |
 | `ops/verify_github_deploy_key.py` | Test VPS ↔ GitHub |
 
@@ -67,4 +67,4 @@ Prompt mau:
 
 > Chay full test API + web, sua fail, commit push main. Khong doi DB production.
 
-Sang ban (hoac toi tren .123): `DEPLOY_VPS_TU_GIT.bat` + `PULL_VE_123.bat`.
+Sang: `Thien-Admin\02-DONG-BO-SANG.bat`.

@@ -3,7 +3,7 @@
 Không xóa DB — upsert PayPeriod + TimesheetMonth + Payslip theo MSNV/kỳ.
 Dùng sau export_employee_snapshots (GenusSuite đóng băng số liệu).
 
-  python -m app.scripts.import_salary_from_snapshots HIEN_PHAP/Dữ liệu công nhân
+  python -m app.scripts.import_salary_from_snapshots "Dữ liệu nhân viên/Dữ liệu công nhân"
   python -m app.scripts.import_salary_from_snapshots ... --dry-run
 """
 

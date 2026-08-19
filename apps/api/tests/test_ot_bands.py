@@ -86,14 +86,6 @@ def test_engine_weekday_night_210():
     assert r.ot_rate_minutes["external"].get("2.1") == 60  # 22–23
 
 
-def test_engine_morning_ot_150():
-    d = date(2025, 10, 1)
-    r = calculate_day([_dt(d, 6, 0), _dt(d, 17, 0)], d, _sched())
-    assert r.ot_rate_minutes["external"].get("1.5") == 120  # 6–8
-    assert r.ot_on_books_minutes == 0
-    assert r.worked_hours > 0
-
-
 def test_engine_sunday_core_200_minus_lunch():
     d = date(2025, 10, 5)  # Sunday
     r = calculate_day([_dt(d, 8, 0), _dt(d, 17, 0)], d, _sched())

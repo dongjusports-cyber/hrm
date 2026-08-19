@@ -7,7 +7,7 @@ Ngày sinh suy từ 12 số CCCD (năm + tháng/ngày = 01/01 nếu không có n
 File lương KHÔNG có địa chỉ — cần nguồn THR_ABEMP riêng nếu có sau.
 
 Chạy (Docker):
-  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Salary/2.Salary table for July.2026.xls" djhrm-api:/tmp/salary.xls
+  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/Dữ liệu nhân viên/Salary/2.Salary table for July.2026.xls" djhrm-api:/tmp/salary.xls
   docker compose exec api python -m app.scripts.import_salary_employee_profile /tmp/salary.xls
 
   # Hoặc cả thư mục — lấy bản ghi mới nhất theo MSNV (tháng 7 thắng):

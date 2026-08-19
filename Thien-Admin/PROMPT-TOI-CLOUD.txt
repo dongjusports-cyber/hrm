@@ -8,7 +8,7 @@ Quy trình:
 3. cd apps/web && npm test -- --run
 4. cd apps/web && npm test -- escKeyboard  (bắt buộc nếu sửa ESC)
 5. Nếu fail: sửa tối thiểu, chạy lại test đến pass
-6. Không commit .env, vps-root.txt, THONG_TIN_VPS.txt, Dữ liệu công nhân/
+6. Không commit .env, vps-root.txt, THONG_TIN_VPS.txt, Excel/ảnh trong Dữ liệu nhân viên/
 7. Tuân thủ .cursor/rules/ (đặc biệt esc-keyboard.mdc)
 8. Không đụng DB production — chỉ Postgres local trong ops/cloud/
 

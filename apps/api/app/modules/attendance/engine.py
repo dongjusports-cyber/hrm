@@ -1,8 +1,7 @@
 """
 Tính late / early / ot_minutes từ punch thô + lịch công ty (04§4.3, 3.3).
 Ca 08:00–17:00, trừ 1 giờ trưa; dung sai trễ/sớm theo giây.
-OT ngày thường: sáng trước giờ vào ca + sau 17h, cắt hệ số theo khung giờ.
-Ngày nghỉ (CN/lễ): toàn bộ giờ có mặt trừ cơm, hệ số theo khung.
+Luật OT (cổng, Cooker, 8 hệ số, theo phút): Luật/02-OT.md
 """
 
 from __future__ import annotations
@@ -155,6 +154,8 @@ def _calc_partial_workday(
     schedule: Schedule,
     split_policy: OtSplitPolicy,
     ot_start: time | None = None,
+    morning_ot_from: time | None = None,
+    morning_ot_qualify_before: time | None = None,
 ) -> tuple[int, int, int, int, int, Decimal, str | None, dict]:
     """Late / early / OT / worked khi thiếu vào hoặc thiếu ra."""
     shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
@@ -185,6 +186,8 @@ def _calc_partial_workday(
             schedule=schedule,
             split_policy=split_policy,
             ot_start=ot_start,
+            morning_ot_from=morning_ot_from,
+            morning_ot_qualify_before=morning_ot_qualify_before,
         )
         ot_on_books = _sum_rate_map(rates["on_books"])
         ot_external = _sum_rate_map(rates["external"])
@@ -263,15 +266,73 @@ def _sum_rate_map(m: dict[str, int] | None) -> int:
     return sum(int(v) for v in (m or {}).values())
 
 
+def _rest_day_paid_start(
+    first_in: datetime,
+    work_date: date,
+    schedule: Schedule,
+    morning_ot_from: time | None,
+    morning_ot_qualify_before: time | None,
+) -> datetime:
+    """CN/lễ: kẹp giờ vào ca. Cooker bấm trước 6:00 → bắt đầu trả từ 6:00."""
+    shift_start = combine_vn(work_date, schedule.morning_start)
+    if (
+        morning_ot_from is not None
+        and morning_ot_qualify_before is not None
+        and first_in < combine_vn(work_date, morning_ot_qualify_before)
+    ):
+        return combine_vn(work_date, morning_ot_from)
+    if first_in < shift_start:
+        return shift_start
+    return first_in
+
+
+def _allocate_morning_ot(
+    rates: dict,
+    *,
+    first_in: datetime | None,
+    last_out: datetime | None,
+    work_date: date,
+    schedule: Schedule,
+    morning_ot_from: time | None,
+    morning_ot_qualify_before: time | None,
+) -> None:
+    """OT sáng chỉ khi bấm trước mốc qualify (Cooker: trước 6:00). Phút từ paid_from đến giờ vào ca."""
+    if morning_ot_from is None or morning_ot_qualify_before is None:
+        return
+    if first_in is None or last_out is None:
+        return
+    gate = combine_vn(work_date, morning_ot_qualify_before)
+    if first_in >= gate:
+        return
+    paid_from = combine_vn(work_date, morning_ot_from)
+    paid_until = combine_vn(work_date, schedule.morning_start)
+    end = min(last_out, paid_until)
+    if end <= paid_from:
+        return
+    add_interval_minutes(
+        rates["external"],
+        paid_from,
+        end,
+        schedule.holiday_dates,
+        skip_lunch=False,
+    )
+
+
 def _allocate_rest_day_ot(
     first_in: datetime,
     last_out: datetime,
     schedule: Schedule,
+    work_date: date,
+    morning_ot_from: time | None = None,
+    morning_ot_qualify_before: time | None = None,
 ) -> dict:
     rates = empty_channel_map()
+    paid_start = _rest_day_paid_start(
+        first_in, work_date, schedule, morning_ot_from, morning_ot_qualify_before
+    )
     add_interval_minutes(
         rates["external"],
-        first_in,
+        paid_start,
         last_out,
         schedule.holiday_dates,
         skip_lunch=True,
@@ -289,19 +350,21 @@ def _allocate_workday_ot(
     schedule: Schedule,
     split_policy: OtSplitPolicy,
     ot_start: time | None,
+    morning_ot_from: time | None = None,
+    morning_ot_qualify_before: time | None = None,
 ) -> dict:
-    """OT sáng 6–8 + OT sau 17h, cắt hệ số; T3/T5 17–20 vào sổ."""
+    """OT chiều sau 17:30 (phút từ 17:00); OT sáng chỉ Cooker khi bấm trước 6:00. T3/T5 17–20 vào sổ."""
     rates = empty_channel_map()
     holidays = schedule.holiday_dates
-    morning_end = combine_vn(work_date, schedule.morning_start)
-    if first_in is not None and last_out is not None and first_in < morning_end:
-        add_interval_minutes(
-            rates["external"],
-            first_in,
-            min(last_out, morning_end),
-            holidays,
-            skip_lunch=False,
-        )
+    _allocate_morning_ot(
+        rates,
+        first_in=first_in,
+        last_out=last_out,
+        work_date=work_date,
+        schedule=schedule,
+        morning_ot_from=morning_ot_from,
+        morning_ot_qualify_before=morning_ot_qualify_before,
+    )
 
     if last_out is None:
         return rates
@@ -336,6 +399,8 @@ def calculate_day(
     ot_start: time | None = None,
     wt_hours_early: int | None = None,
     standard_hours: Decimal | None = None,
+    morning_ot_from: time | None = None,
+    morning_ot_qualify_before: time | None = None,
 ) -> DayCalcResult:
     split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
@@ -379,6 +444,8 @@ def calculate_day(
                 schedule=schedule,
                 split_policy=split_policy,
                 ot_start=ot_start,
+                morning_ot_from=morning_ot_from,
+                morning_ot_qualify_before=morning_ot_qualify_before,
             )
         return DayCalcResult(
             work_date=work_date,
@@ -426,6 +493,8 @@ def calculate_day(
                 schedule=schedule,
                 split_policy=split_policy,
                 ot_start=ot_start,
+                morning_ot_from=morning_ot_from,
+                morning_ot_qualify_before=morning_ot_qualify_before,
             )
             ot_on_books = _sum_rate_map(rates["on_books"])
             ot_external = _sum_rate_map(rates["external"])
@@ -449,12 +518,21 @@ def calculate_day(
                 schedule=schedule,
                 split_policy=split_policy,
                 ot_start=ot_start,
+                morning_ot_from=morning_ot_from,
+                morning_ot_qualify_before=morning_ot_qualify_before,
             )
     else:
-        # Ngày nghỉ (lễ/CN): toàn bộ thời gian có mặt = OT, trừ nghỉ trưa.
+        # CN/lễ: OT từ giờ vào ca (kẹp); Cooker đủ cổng 6:00 thì từ 6:00. Trừ cơm.
         first_in = times[0]
         last_out = times[-1]
-        rates = _allocate_rest_day_ot(first_in, last_out, schedule)
+        rates = _allocate_rest_day_ot(
+            first_in,
+            last_out,
+            schedule,
+            work_date,
+            morning_ot_from=morning_ot_from,
+            morning_ot_qualify_before=morning_ot_qualify_before,
+        )
         ot_external = _sum_rate_map(rates["external"])
         ot_on_books = 0
         ot = ot_external

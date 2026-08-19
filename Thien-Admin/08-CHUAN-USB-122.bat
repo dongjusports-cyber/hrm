@@ -3,7 +3,7 @@ chcp 65001 >nul
 title [Thien-Admin] Chuan USB Agent cho may .122
 cd /d "%~dp0\.."
 echo.
-echo May .123: dong goi 1 folder USB-122-AGENT
+echo May .123: dong goi USB-122-AGENT — CHI khi Agent .122 hong / can ban moi
 echo (code Agent + .env VPS, KHONG kem .venv)
 echo.
 py -3.12 ops\pack_usb_122.py

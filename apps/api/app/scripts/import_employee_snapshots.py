@@ -1,11 +1,11 @@
 """Nạp lại hồ sơ NV từ «Dữ liệu công nhân» JSON (export_employee_snapshots.py).
 
 Chạy:
-  python -m app.scripts.import_employee_snapshots HIEN_PHAP/Dữ liệu công nhân
-  python -m app.scripts.import_employee_snapshots HIEN_PHAP/Dữ liệu công nhân --dry-run
+  python -m app.scripts.import_employee_snapshots "Dữ liệu nhân viên/Dữ liệu công nhân"
+  python -m app.scripts.import_employee_snapshots "Dữ liệu nhân viên/Dữ liệu công nhân" --dry-run
   python -m app.scripts.import_employee_snapshots ... --with-attendance
 
-(Vẫn chấp nhận đường dẫn cũ HIEN_PHAP/_SNAPSHOTS/nhan-vien.)
+(Vẫn chấp nhận đường dẫn cũ _SNAPSHOTS/nhan-vien.)
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from app.modules.core.models import User  # noqa: F401
 from app.modules.mdm.models import Department, Employee, LabourContract, Team
 from app.modules.payroll.models import EmployeeAllowanceAssignment, PayComponent
 from app.modules.payroll.seed_allowances import normalize_legacy_allowance_amount
-from app.scripts.employee_data_paths import resolve_hien_phap
+from app.scripts.employee_data_paths import find_empinfo_dir, resolve_data_root
 from app.scripts.import_employee_list_1108 import (
     ORG_EFFECTIVE,
     _apply_profile,
@@ -242,12 +242,13 @@ def run(
     if limit:
         files = files[:limit]
 
-    hien_phap = resolve_hien_phap(snapshot_dir)
-    empinfo = None
-    for child in hien_phap.iterdir():
-        if child.is_dir() and "nh" in child.name.lower():
-            empinfo = child
-            break
+    empinfo = find_empinfo_dir()
+    if empinfo is None:
+        data_root = resolve_data_root(snapshot_dir)
+        for child in data_root.iterdir():
+            if child.is_dir() and ("danh sách" in child.name.casefold() or "danh sach" in child.name.casefold()):
+                empinfo = child
+                break
     valid_teams: set[str] = set()
     if empinfo:
         xlsx = empinfo / "Bộ phận_11.08.xlsx"
@@ -283,7 +284,7 @@ def main() -> None:
     parser.add_argument(
         "snapshot_dir",
         type=Path,
-        help="Thư mục chứa employees/*.json (vd. HIEN_PHAP/Dữ liệu công nhân)",
+        help="Thư mục chứa employees/*.json (vd. Dữ liệu nhân viên/Dữ liệu công nhân)",
     )
     parser.add_argument("--with-attendance", action="store_true", help="Ghi cả attendance_days")
     parser.add_argument("--dry-run", action="store_true")

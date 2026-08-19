@@ -1,4 +1,4 @@
-"""OT ngoài — làm tròn 30p + công thức 22§22.8 (không qua payslip)."""
+"""OT ngoài — theo phút + công thức 22§22.8 (không qua payslip)."""
 
 from io import BytesIO
 from decimal import Decimal

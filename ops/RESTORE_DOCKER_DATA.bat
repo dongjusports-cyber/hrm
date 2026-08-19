@@ -48,6 +48,6 @@ if errorlevel 1 (
 
 echo.
 echo XONG. Mo lai Docker Desktop, cho WSL khoi dong.
-echo Kiem tra Portal — neu van 5 NV, chay NAP_NV_HIEN_PHAP.bat
+echo Kiem tra Portal — neu van 5 NV, chay Thien-Admin\12-NAP-NV-LOCAL.bat
 echo.
 pause

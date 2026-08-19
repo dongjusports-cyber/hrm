@@ -1,4 +1,4 @@
-"""Nạp hồ sơ + đồng bộ Bộ phận › Tổ từ 3 file HIEN_PHAP (11.08.2026).
+"""Nạp hồ sơ + đồng bộ Bộ phận › Tổ từ Excel danh sách NV (11.08.2026).
 
 Nguồn:
   - Bộ phận_11.08.xlsx          → danh sách 30 tổ còn hiệu lực (tháng 7)
@@ -6,7 +6,7 @@ Nguồn:
   - Thông tin danh sách công nhân 11.08.26.xls   → hồ sơ chi tiết (ngày sinh, ĐC, SĐT…)
 
 Chạy:
-  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Thông tin danh sách nhân viên" djhrm-api:/tmp/empinfo
+  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/Dữ liệu nhân viên/Thông tin danh sách nhân viên" djhrm-api:/tmp/empinfo
   docker compose exec api python -m app.scripts.import_employee_list_1108 /tmp/empinfo --profiles-only [--dry-run]
 
   # Full (đồng bộ tổ — cẩn thận trên DB công ty):

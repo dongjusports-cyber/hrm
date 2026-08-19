@@ -25,7 +25,7 @@ User **không** muốn Git/SSH/remote phức tạp. Mọi thao tác vận hành 
 | **.122** | Máy nhà máy: Mitapro + Agent. USB `122\`, chỉ `.bat`. **Không** sửa code, **không** Git. |
 | **VPS** | Portal + DB thật. Agent .122 đẩy công về đây. |
 
-Copy USB: trên .123 chạy `Thien-Admin\08-CHUAN-USB-122.bat` → copy folder `C:\DATA\HRM\USB-122-AGENT`. Trên .122 xóa agent cũ, dán `D:\122-AGENT`, chạy 01 → 02 → 04.
+Copy USB **chỉ khi Agent .122 hỏng:** `.123` chạy `Thien-Admin\08-CHUAN-USB-122.bat` → copy `C:\DATA\HRM\USB-122-AGENT`. `.122` xóa cũ, dán `D:\122-AGENT`, chạy 01 → 02 → 04.
 
 ## Thư mục chuẩn (repo)
 

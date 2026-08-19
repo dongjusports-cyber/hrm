@@ -1,6 +1,6 @@
 """
 
-Seed payload mặc định — nguồn: HIEN_PHAP 22§22.12 + 03/07 (KPI, pit, night OT).
+Seed payload mặc định — nguồn: thư mục Luật/ (HR đọc, sai thì sửa đó).
 
 Runtime payroll đọc từ DB — không import hằng số này vào công thức tính lương.
 
@@ -102,7 +102,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "ignore_punches_until": "17:30",
 
-        "note": "Bấm 17h00–17h30 không tính vân tay / không OT. Bấm ra sau 17h30 mới có OT; số phút vẫn tính từ 17h00 (vd. ra 20h00 = 3 giờ). OT trong: chỉ Th3+Th5 17h–20h. OT ngoài: ngày khác, sau 20h, CN, lễ.",
+        "note": "Luật OT: Luật/02-OT.md. OT trong Th3+Th5 17–20; còn lại OT ngoài. Tiền theo phút.",
 
         "ot_external": {
 
@@ -280,6 +280,9 @@ def normalize_si_policy(payload: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(out.get("si_month_rule"), dict):
         out["si_month_rule"] = dict(defaults["si_month_rule"])
     out["ot_split"] = _normalize_ot_split(out.get("ot_split"), defaults["ot_split"])
+    rnd = out.get("rounding")
+    if isinstance(rnd, dict) and "hours_step_minutes" not in rnd:
+        rnd["hours_step_minutes"] = defaults["rounding"]["hours_step_minutes"]
     return out
 
 

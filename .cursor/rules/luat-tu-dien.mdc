@@ -1,0 +1,15 @@
+---
+description: Luật DJ-HRM — từ điển duy nhất (HR đọc, AI tuân theo)
+globs:
+alwaysApply: true
+---
+
+# Luật — từ điển duy nhất
+
+Thư mục **`Luật/`** (bắt đầu `00-DOC-TRUOC.txt`) là nguồn luật tiền/công/OT/BHXH.
+
+- HR thấy sai → sửa file trong `Luật/`, rồi bảo AI khớp code.
+- Code (`seed_payload`, engine) phải theo `Luật/`. Lệch = bug.
+
+Hồ sơ / ảnh / Excel: **`Dữ liệu nhân viên/`** — không xóa. Không phải luật.
+Hiến pháp V1/V2 đã cắt khỏi dự án.

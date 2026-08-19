@@ -15,7 +15,7 @@ import paramiko
 from scp import SCPClient
 
 ROOT = Path(__file__).resolve().parents[1]
-XLSX_DIR = ROOT / "HIEN_PHAP" / "Dữ liệu công nhân"
+XLSX_DIR = ROOT / "Dữ liệu nhân viên" / "Dữ liệu công nhân"
 COUNT_PY = ROOT / "ops" / "_count_employee_profile_fill.py"
 
 

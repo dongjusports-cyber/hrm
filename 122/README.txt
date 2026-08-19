@@ -1,7 +1,10 @@
-Folder nay = goi USB cho may .122 (Mitapro + Agent).
+Folder nay = mau goi USB cho may .122 (Mitapro + Agent).
 
-  May .123 chi CHUAN GOI (Thien-Admin\08-CHUAN-USB-122.bat).
-  May .122 chi DAN folder + chay 01, 02, 04.
+Agent .122 DA chay nen. Khong copy USB moi ngay.
+
+Chi dung lai khi Agent hong / can ban moi:
+  May .123: Thien-Admin\08-CHUAN-USB-122.bat
+  May .122: xoa cu, dan D:\122-AGENT, chay 01 → 02 → 04
 
   01-KIEM-TRA-ODBC.bat
   02-CAI-DAT.bat

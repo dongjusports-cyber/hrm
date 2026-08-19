@@ -1,4 +1,4 @@
-"""Hạng mục 1.2 (HIEN_PHAP 24§ĐỢT 1) — dựng lại cây tổ chức thật từ GenusSuite.
+"""Dựng lại cây tổ chức thật từ CSV đã trích GenusSuite.
 
 Xóa sạch nhân viên + phiếu lương test hiện có (dữ liệu test, được phép xóa — N2),
 rồi nạp:
@@ -7,13 +7,10 @@ rồi nạp:
 - 52 chức vụ thật từ `HRAB0060`    → positions
 - 82 mã công việc thật từ `HRAB0100` → jobs
 
-Nguồn dữ liệu đã được trích sạch (không PII) ra CSV tại
-`apps/api/data/org_structure/*.csv` bằng `extract_org_structure.py` (chạy trên host,
-vì container không mount thư mục HIEN_PHAP). Script này CHỈ đọc CSV, không đọc
-HIEN_PHAP trực tiếp.
+Nguồn: `apps/api/data/org_structure/*.csv` (trích bằng extract_org_structure.py).
+Script này CHỈ đọc CSV.
 
-KHÔNG nạp lại nhân viên/lương ở hạng mục này — đó là việc của 1.3 (ánh xạ nhân viên
-vào tổ đúng, đóng Line 1-12 ở 2026-06-30, mở 5 tổ mới 2026-07-01).
+KHÔNG nạp lại nhân viên/lương ở đây.
 
 Chạy trong container:
     docker exec djhrm-api python -m app.scripts.load_org_structure [--dry-run]

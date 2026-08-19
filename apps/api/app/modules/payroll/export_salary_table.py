@@ -1,4 +1,4 @@
-"""Xuất bảng lương theo mẫu GenusSuite (HIEN_PHAP/Salary/2.Salary table for *.xls).
+"""Xuất bảng lương theo mẫu GenusSuite (Dữ liệu nhân viên/Salary/2.Salary table for *.xls).
 
 Layout copy từ file Genus tháng 1–7/2026: 4 dòng header (EN + VI + số cột),
 merge ô, nền xám header / bạc số cột, viền toàn bảng.

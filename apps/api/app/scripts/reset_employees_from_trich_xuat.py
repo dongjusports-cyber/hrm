@@ -1,6 +1,6 @@
 """Xóa sạch dữ liệu nhân viên test và nạp lại từ trich_xuat GenusSuite.
 
-Nguồn: HIEN_PHAP/Thông tin danh sách nhân viên/trich_xuat_140826/employees.json
+Nguồn: Dữ liệu nhân viên/Thông tin danh sách nhân viên/trich_xuat_140826/employees.json
        + photos/{MSNV}.jpg
 
 Chạy (host — DB localhost:5432):
@@ -82,7 +82,7 @@ def repo_root() -> Path:
 
 def _load_valid_teams() -> set[str]:
     roots: list[Path] = []
-    hi = repo_root() / "HIEN_PHAP"
+    hi = repo_root() / "Dữ liệu nhân viên"
     if hi.is_dir():
         roots.append(hi)
     for extra in (Path("/tmp/empinfo"), Path("/tmp/trich_xuat")):
@@ -102,7 +102,7 @@ def _load_valid_teams() -> set[str]:
 
 
 def default_trich_xuat_dir() -> Path:
-    base = repo_root() / "HIEN_PHAP"
+    base = repo_root() / "Dữ liệu nhân viên"
     for child in base.iterdir():
         if child.is_dir() and "nh" in child.name.lower() and "vi" in child.name.lower():
             for sub in sorted(child.glob("trich_xuat_*"), reverse=True):

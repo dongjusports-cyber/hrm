@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Trích 10 bộ phận (TCO_EODEPT), 73 tổ (THR_ABWORKGRP), 52 chức vụ (HRAB0060),
 82 công việc (HRAB0100) từ file gốc GenusSuite ra CSV sạch, không PII, để loader
-trong container đọc (container không mount thư mục HIEN_PHAP).
+trong container đọc (CSV đã trích, không mount hồ sơ).
 
 Chạy MỘT LẦN trên máy host (không cần Docker) — hạng mục 1.2.
     python apps/api/data/org_structure/extract_org_structure.py
@@ -18,7 +18,7 @@ from pathlib import Path
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 ROOT = Path(__file__).resolve().parents[4]  # repo root (tự nhận — .123: C:\DATA\HRM\dj-hrm\dj-hrm)
-SRC = ROOT / "HIEN_PHAP" / "GenuSuite HRM"
+SRC = ROOT / "Dữ liệu nhân viên" / "GenuSuite HRM"
 OUT = Path(__file__).resolve().parent
 
 

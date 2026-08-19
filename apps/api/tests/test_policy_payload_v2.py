@@ -22,6 +22,7 @@ def test_default_payload_has_22_12_blocks():
     assert "probation" in p and "annual_leave" in p and "rounding" in p
     assert p["annual_leave"]["days_per_year"] == 14
     assert p["annual_leave"]["extra_day_every_years"] == 5
+    assert p["rounding"]["hours_step_minutes"] == 1
 
 
 def test_validate_rejects_legacy_exempt_leave_codes():

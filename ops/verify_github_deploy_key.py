@@ -45,7 +45,7 @@ def main() -> int:
     if ok:
         print("\nOK — VPS co the git pull tu GitHub.")
         return 0
-    print("\nCHUA OK — hay them Deploy Key tren GitHub (THEM_DEPLOY_KEY_GITHUB.bat).")
+    print("\nCHUA OK — hay them Deploy Key tren GitHub (Thien-Admin\\01-THEM-DEPLOY-KEY.bat).")
     return 1
 
 

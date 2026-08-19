@@ -33,7 +33,7 @@ Một lần đã xong: Deploy Key GitHub, repo mới, Cloud Environment Save.
 
 Đọc file **local** `ops/THONG_TIN_VPS.txt` (gitignore) — SSH root, portal admin, Postgres, AGENT_TOKEN.
 
-Không commit: `vps-root.txt`, `.env.prod`, `THONG_TIN_VPS.txt`, `Dữ liệu công nhân/`.
+Không commit: `vps-root.txt`, `.env.prod`, `THONG_TIN_VPS.txt`, Excel/ảnh trong `Dữ liệu nhân viên/` (Salary, trich_xuat).
 
 ## Deploy VPS từ AI
 
@@ -56,7 +56,7 @@ Repo `hrm`, `.cursor/environment.json` + `ops/cloud/install.sh`. Prompt: `Thien-
 
 **Bài học:** TTFB 2.734s, transfer 5ms → GET đang **ghi DB** (2.170 SQL/request) rồi rollback. Sửa read-only batch; ghi qua `sync_accrual_batch` khi tính lương → **377 ms**.
 
-Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]` · báo cáo `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`.
+Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]`.
 
 - `GET /api/employees` **không được ghi DB** — test đếm SQL Session mới.
 - Script đo VPS: `python ops/bench_employees_vps.py`
@@ -65,7 +65,7 @@ Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]` ·
 
 **Triệu chứng:** đăng nhập báo khóa sau 3 lần sai pass.
 
-**User:** double-click `Thien-Admin\03-MO-KHOA-PORTAL.bat` (hoặc `MO_KHOA_PORTAL.bat` gốc repo).
+**User:** double-click `Thien-Admin\03-MO-KHOA-PORTAL.bat`.
 
 **AI trên .123:** `python ops/unlock_portal.py` — cần `ops/vps-root.txt` (local).
 
@@ -75,12 +75,6 @@ Chi tiết: rule `.cursor/rules/hrm-perf-readonly-get.mdc` · LOI `[HR-H002]` ·
 
 **Deploy VPS lỗi Permission denied:** `chmod +x ops/*.sh` trên VPS hoặc commit `mode 100755` cho `ops/deploy.sh` (đã sửa a378224).
 
-## Nợ kỹ thuật (chưa sửa — gom 1 lần sau)
+## Nợ kỹ thuật (chưa sửa)
 
-Xem **`Thien-Admin/NO-KY-THUAT.txt`**.
-
-| Mã | Triệu chứng | Nguyên nhân ngắn |
-|----|-------------|------------------|
-| **REP-OV001** | Tổng Quan trắng / «Đang tải…» | `GET /api/reports/overview` **500** — hai class `TodoCardOut` (ai vs report), lỗi khi có todo card (HĐ sắp hết hạn trên VPS) |
-
-AI: user nói «Tổng Quan không hiển thị» → gọi API overview trước; **đừng sửa vội từng mảnh** — user muốn gom sửa 1 lần theo NO-KY-THUAT.
+Danh sách sống: **`Thien-Admin/NO-KY-THUAT.txt`**. Luật tra cứu: thư mục **`Luật/`**.

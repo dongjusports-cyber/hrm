@@ -1,10 +1,10 @@
 """Trích xuất phép năm từ Excel GenuSuite (export màn Annual Leave).
 
 Nguồn mặc định:
-  HIEN_PHAP/Phép năm GenuSuite/phép năm 17.08.26.xls
+  Dữ liệu nhân viên/Phép năm GenuSuite/phép năm 17.08.26.xls
 
 Output:
-  HIEN_PHAP/Phép năm GenuSuite/trich_xuat_<ngày>/
+  Dữ liệu nhân viên/Phép năm GenuSuite/trich_xuat_<ngày>/
     employees.json   — 1 file, mỗi NV: số ngày + dùng theo tháng
     annual_leave.csv — bảng HR (cột gần màn GenuSuite)
     manifest.json
@@ -26,18 +26,15 @@ from typing import Any
 
 import xlrd
 
+from app.scripts.employee_data_paths import annual_leave_source_dir, repo_root
 from app.scripts.import_employee_list_1108 import _parse_vn_date
 
 SCHEMA_VERSION = 1
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
 
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
-
-
 def default_source_dir() -> Path:
-    return repo_root() / "HIEN_PHAP" / "Phép năm GenuSuite"
+    return annual_leave_source_dir()
 
 
 def _find_xls(folder: Path) -> Path:

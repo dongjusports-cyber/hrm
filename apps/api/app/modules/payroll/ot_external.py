@@ -1,5 +1,5 @@
 """
-OT ngoài — tính tiền theo 22§22.8 (cùng ot_base, làm tròn 30p) nhưng KHÔNG vào payslip/BHXH/PIT.
+OT ngoài — tính tiền theo 22§22.8 (cùng ot_base, theo phút) nhưng KHÔNG vào payslip/BHXH/PIT.
 
 Chi trả kênh ATM riêng (policy ot_split.exclude_from_payslip).
 """

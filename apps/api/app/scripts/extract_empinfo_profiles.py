@@ -4,7 +4,7 @@
   «Thông tin full DS công nhân 14.08.xls» (có ~359 ảnh nhúng)
 
 Output (mặc định):
-  HIEN_PHAP/Thông tin danh sách nhân viên/trich_xuat_<ngày>/
+  Dữ liệu nhân viên/Thông tin danh sách nhân viên/trich_xuat_<ngày>/
     employees.json          — toàn bộ NV trong 1 file
     photos/{MSNV}.{ext}     — ảnh chân dung (nếu có trong file)
     BAO_CAO_THIEU.csv       — MSNV thiếu / không tách được
@@ -104,7 +104,7 @@ def repo_root() -> Path:
 
 
 def find_empinfo_dir() -> Path:
-    base = repo_root() / "HIEN_PHAP"
+    base = repo_root() / "Dữ liệu nhân viên"
     for child in base.iterdir():
         if child.is_dir() and "nh" in child.name.lower() and "vi" in child.name.lower():
             return child

@@ -3,7 +3,7 @@
 Cho phép date_from trong quá khứ (đường import, không qua API HR).
 
   python -m app.scripts.import_wt_regimes
-  python -m app.scripts.import_wt_regimes --xlsx "HIEN_PHAP/Dữ liệu công nhân/Chế độ thai sản nuôi con nhỏ18.08.xlsx"
+  python -m app.scripts.import_wt_regimes --xlsx "Dữ liệu nhân viên/Dữ liệu công nhân/Chế độ thai sản nuôi con nhỏ18.08.xlsx"
   python -m app.scripts.import_wt_regimes --dry-run
 """
 
@@ -28,7 +28,7 @@ def _default_xlsx() -> Path:
     here = Path(__file__).resolve()
     name = "Chế độ thai sản nuôi con nhỏ18.08.xlsx"
     for parent in here.parents:
-        cand = parent / "HIEN_PHAP" / "Dữ liệu công nhân" / name
+        cand = parent / "Dữ liệu nhân viên" / "Dữ liệu công nhân" / name
         if cand.is_file():
             return cand
     return Path("/tmp/che_do.xlsx")

@@ -1,50 +1,39 @@
 ---
-description: Nguồn dữ liệu nhân viên chuẩn — trich_xuat GenusSuite (truy vấn, nạp, xuất dj-hrm)
+description: Nguồn hồ sơ NV — Dữ liệu nhân viên / trich_xuat GenusSuite
 alwaysApply: true
 ---
 
-# Nguồn hồ sơ công nhân — trich_xuat (GenusSuite)
+# Nguồn hồ sơ nhân viên
 
-Thư mục **`HIEN_PHAP/Thông tin danh sách nhân viên/trich_xuat_140826/`** (hoặc `trich_xuat_*` mới nhất cùng cấp) là **nguồn chuẩn** để:
+Thư mục gốc: **`Dữ liệu nhân viên/`** (không phải luật).
 
-- **Truy vấn** hồ sơ từng MSNV (22 cột Excel + ảnh)
-- **Nạp / bổ sung** dữ liệu thiếu vào dj-hrm
-- **Xuất** phục vụ test và vận hành
+`trich_xuat_140826/` (hoặc `trich_xuat_*` mới nhất trong `Thông tin danh sách nhân viên/`) là nguồn chuẩn để:
 
-Nguồn gốc: file GenusSuite `Thông tin full DS công nhân 14.08.xls` (cột D = ảnh).
+- Tra cứu hồ sơ từng MSNV (22 cột Excel + ảnh)
+- Nạp / bổ sung thiếu vào dj-hrm
+- Xuất phục vụ test
 
-## Cấu trúc bắt buộc biết
+Nguồn gốc: `Thông tin full DS công nhân 14.08.xls` (cột D = ảnh).
+
+## Cấu trúc trich_xuat
 
 | File / thư mục | Vai trò |
 |----------------|---------|
-| `employees.json` | 1 file — 360 MSNV; mỗi NV có `profile` (chuẩn hoá) + `raw_excel` (22 cột gốc) |
+| `employees.json` | 1 file — mỗi NV có `profile` + `raw_excel` |
 | `photos/{MSNV}.jpg` | Ảnh chân dung cột D |
-| `ANH_BO_SUNG_TAY.csv` | MSNV thiếu ảnh — **không bỏ qua**, HR copy ảnh vào `photos/` |
-| `BAO_CAO_THIEU.csv` | MSNV thiếu trường dữ liệu (SĐT, BHXH, …) |
+| `ANH_BO_SUNG_TAY.csv` | MSNV thiếu ảnh — HR copy vào `photos/` |
+| `BAO_CAO_THIEU.csv` | Thiếu SĐT, BHXH, … |
 | `manifest.json` | Thống kê lần trích xuất |
 
-## Khi nào dùng thư mục này
+## Phân biệt trong `Dữ liệu nhân viên/`
 
-- Hỏi / tra cứu hồ sơ NV, so sánh với DB, seed test
-- Bổ sung hồ sơ thiếu trên web hoặc import API
-- Cập nhật ảnh: thêm file vào `photos/` rồi chạy lại extract (hoặc import)
-
-## Lệnh cập nhật (apps/api)
+| Thư mục | Dùng khi |
+|---------|----------|
+| `Thông tin danh sách nhân viên/trich_xuat_*` | Hồ sơ Excel + ảnh — ưu tiên tra cứu / bổ sung |
+| `Dữ liệu công nhân/` | Snapshot JSON đầy đủ (DB + lương + HĐ) — nạp lại DB test |
+| `Salary/` | Bảng lương Excel |
 
 ```powershell
-# Trích xuất đầy đủ từ Excel GenusSuite (dữ liệu + ảnh)
 python -m app.scripts.extract_empinfo_profiles
-
-# Chỉ cập nhật JSON/báo cáo sau khi bổ sung photos/ tay
-python -m app.scripts.extract_empinfo_profiles --no-com-photos
-
-# Nạp hồ sơ vào DB (từ Excel gốc hoặc sau khi đã bổ sung)
-python -m app.scripts.import_employee_list_1108 "HIEN_PHAP/Thông tin danh sách nhân viên" --profiles-only
+python -m app.scripts.import_employee_list_1108 "Dữ liệu nhân viên/Thông tin danh sách nhân viên" --profiles-only
 ```
-
-## Phân biệt với `HIEN_PHAP/Dữ liệu công nhân/`
-
-- **`trich_xuat_*`**: từ Excel GenusSuite (22 cột + ảnh) — **ưu tiên** cho hồ sơ cơ bản và bổ sung thiếu.
-- **`Dữ liệu công nhân/`**: snapshot đầy đủ (DB + lương + HĐ + phụ cấp…) — dùng nạp lại toàn bộ sau khi xóa DB test.
-
-Khi task liên quan hồ sơ NV / import / thiếu dữ liệu: **đọc `employees.json` và CSV báo cáo trong `trich_xuat_*` trước**, không đoán từ Excel gốc nếu đã có bản trích xuất.

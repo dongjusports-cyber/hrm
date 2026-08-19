@@ -3,102 +3,55 @@
   DJ-HRM · máy .123 · GitHub · VPS hrm.dongju-v.com
 ================================================================================
 
-Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click các file .bat theo thứ tự bên dưới.
+Bạn KHÔNG cần biết Git hay SSH. Chỉ double-click file .bat.
+
+Agent máy nhà máy (.122) ĐÃ chạy nền. Không gói USB mỗi ngày.
 
 --------------------------------------------------------------------------------
-  BƯỚC 0 — MỘT LẦN DUY NHẤT (GitHub mới + Deploy Key)
+  HẰNG NGÀY — SÁNG
 --------------------------------------------------------------------------------
 
-  Đọc trước:  00-CHUYEN-GITHUB-MOI.txt
-
-  File 1:  00-PUSH-GITHUB-MOI.bat     → đẩy code lên dongjusports-cyber/hrm
-  File 2:  01-THEM-DEPLOY-KEY.bat     → nối VPS với GitHub
-  File 3:  01-KIEM-TRA-DEPLOY-KEY.bat → kiểm tra OK
-
-  Tài khoản GitHub:  dongjusports-cyber
-  Repo:              https://github.com/dongjusports-cyber/hrm
-
-  Nếu trang GitHub báo 404:
-    → Đọc file:  HUONG-DAN-DEPLOY-KEY.txt
-    → Phải đăng nhập đúng tài khoản dongjusports-cyber
-
-  Khi thấy dòng "OK — VPS co the git pull tu GitHub" → xong bước 0.
+  02-DONG-BO-SANG.bat
+    VPS pull code mới + deploy · máy .123 pull code mới
+    Portal: https://hrm.dongju-v.com
 
 --------------------------------------------------------------------------------
-  HẰNG NGÀY — SÁNG (sau khi AI sửa code đêm qua)
+  KHI CẦN
 --------------------------------------------------------------------------------
 
-  File:  02-DONG-BO-SANG.bat
+  03-MO-KHOA-PORTAL.bat     Admin / hr.demo bị khóa pass
+  04-PULL-VE-123.bat        Chỉ cập nhật code máy .123 (không deploy VPS)
+  05-DEPLOY-VPS.bat         Chỉ deploy VPS
+  07-KEO-BACKUP-VE.bat      Kéo backup lương/công từ VPS về
+  11-TAI-DB-VPS-VE-MAY-NHA.bat   Máy nhà: kéo bản sao DB VPS (không ghi production)
 
-  Làm gì (1 click):
-    • VPS production pull code mới + deploy
-    • Máy .123 pull code mới
+  08-CHUAN-USB-122.bat      CHỈ khi Agent .122 hỏng / cần bản Agent mới
+                            → copy USB-122-AGENT sang USB → máy .122 dán D:\122-AGENT
+                            → chạy 01 → 02 → 04
 
-  Portal: https://hrm.dongju-v.com
+  09-NAP-THONG-TIN-BO-SUNG.bat   Nạp hôn nhân / số con / SĐT (Excel)
+  10-NAP-CHE-DO-THAI-SAN.bat     Nạp thai sản / nuôi con (Excel)
+  12-NAP-NV-LOCAL.bat            Docker local: nạp hồ sơ NV (không phải VPS)
 
---------------------------------------------------------------------------------
-  KHI CẦN — KHẨN CẤP
---------------------------------------------------------------------------------
-
-  File:  03-MO-KHOA-PORTAL.bat
-    → Admin hoặc hr.demo bị khóa / quên mật khẩu
-    → Pass mặc định sau khi mở khóa:
-         admin    → Thanhthien0918283825@
-         hr.demo  → demo123456
-
-  File:  04-PULL-VE-123.bat
-    → Chỉ cập nhật code trên máy .123 (không deploy VPS)
-
-  File:  05-DEPLOY-VPS.bat
-    → Chỉ deploy lên VPS (không pull máy .123)
-
-  File:  07-KEO-BACKUP-VE.bat
-    → Kéo bản sao bảng lương/chấm công từ VPS về thư mục backups\ (USB)
-
-  File:  08-CHUAN-USB-122.bat
-    → Máy .123: gói folder USB-122-AGENT (Agent cho máy .122)
-    → Copy folder đó sang USB. Máy .122: xóa cũ, dán D:\122-AGENT, chạy 01 → 02 → 04
-
-  File:  09-NAP-THONG-TIN-BO-SUNG.bat
-    → Nạp hôn nhân / số con / SĐT từ Excel 14.08 lên VPS
-    → Chạy sau khi đã deploy code mới (05 hoặc 02)
-
-  File:  10-NAP-CHE-DO-THAI-SAN.bat
-    → Nạp 13 NV từ Excel 18.08: 5 nuôi con, 3 mang thai, 5 nghỉ sau sanh
-    → F5 Portal → lọc «Chế độ đặc biệt» (cần đã deploy code 3 giai đoạn)
-
-  File:  11-TAI-DB-VPS-VE-MAY-NHA.bat
-    → Máy nhà: kéo bản sao DB VPS về Docker local (chỉ đọc VPS, không ghi production)
+  01-KIEM-TRA-DEPLOY-KEY.bat     VPS có kéo được GitHub không
+  01-THEM-DEPLOY-KEY.bat         Chỉ khi làm lại Deploy Key (VPS mới)
 
 --------------------------------------------------------------------------------
-  TỐI — CURSOR CLOUD (AI tự làm, bạn không cần chạy gì)
+  TỐI — Cursor Cloud (máy .123 không cần bật)
 --------------------------------------------------------------------------------
 
-  Mở Cursor Cloud, gửi:
-
-    "Chạy full test API + web, sửa lỗi fail, commit push main.
-     Không đụng DB production VPS."
-
-  Sáng hôm sau: chạy 02-DONG-BO-SANG.bat
+  Prompt: PROMPT-TOI-CLOUD.txt
+  Sáng hôm sau: 02-DONG-BO-SANG.bat
 
 --------------------------------------------------------------------------------
-  BA BẢN PHẦN MỀM — HIỂU NHANH
+  BA NƠI CODE
 --------------------------------------------------------------------------------
 
-  GitHub     = code chuẩn (AI push sau khi sửa trên .123)
-  VPS        = chạy thật + dữ liệu 359 công nhân
-  Máy .123   = sửa code / GitHub / deploy (KHÔNG Mitapro, KHÔNG Agent)
-  Máy .122   = Mitapro + Agent (USB folder 122\ — chỉ .bat)
+  GitHub   = code chuẩn
+  VPS      = chạy thật + DB 359 NV
+  Máy .123 = sửa code / GitHub / deploy (KHÔNG Mitapro, KHÔNG Agent)
+  Máy .122 = Mitapro + Agent (đã chạy)
 
-  → .123 + VPS cùng PHIÊN BẢN CODE khi bạn chạy 02-DONG-BO-SANG.bat
-  → Agent .122 copy USB khi AI bảo cập nhật agent (không kéo Git)
-
---------------------------------------------------------------------------------
-  THÔNG TIN THÊM (mật khẩu VPS, portal…)
---------------------------------------------------------------------------------
-
-  ops\THONG_TIN_VPS.txt   (trong thư mục repo, file local — không lên Git)
-
-  Hỏi AI: "kiểm tra VPS" / "deploy code mới" / "backup"
+  Secret local: ops\THONG_TIN_VPS.txt  (không lên Git)
 
 ================================================================================

@@ -9,7 +9,7 @@ from app.scripts.extract_annual_leave import parse_workbook
 
 XLS = (
     Path(__file__).resolve().parents[3]
-    / "HIEN_PHAP"
+    / "Dữ liệu nhân viên"
     / "Phép năm GenuSuite"
     / "phép năm 17.08.26.xls"
 )

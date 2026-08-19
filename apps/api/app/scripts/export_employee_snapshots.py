@@ -1,16 +1,15 @@
-"""Trích xuất 1 file JSON / nhân viên — gom HIEN_PHAP + DB để nạp lại sau khi test.
+"""Trích xuất 1 file JSON / nhân viên — gom hồ sơ + DB để nạp lại sau khi test.
 
-Thư mục mặc định: HIEN_PHAP/Dữ liệu công nhân/ (trước đây: _SNAPSHOTS/nhan-vien).
+Thư mục mặc định: Dữ liệu nhân viên/Dữ liệu công nhân/
 
 Nguồn:
-  - HIEN_PHAP/Thông tin danh sách nhân viên/ (3 file Excel)
-  - HIEN_PHAP/Salary/2.Salary table for *.2026.xls
-  - HIEN_PHAP/Công/ (quét file — nếu có)
-  - PostgreSQL hiện tại (hồ sơ, HĐ, phụ cấp, ngày công…)
+  - Dữ liệu nhân viên/Thông tin danh sách nhân viên/ (Excel + ảnh)
+  - Dữ liệu nhân viên/Salary/2.Salary table for *.2026.xls
+  - Dữ liệu nhân viên/Công/ (nếu có)
+  - PostgreSQL hiện tại
 
 Chạy (từ apps/api):
   python -m app.scripts.export_employee_snapshots
-  python -m app.scripts.export_employee_snapshots --out C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Dữ liệu công nhân
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import unicodedata
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -33,7 +31,7 @@ from app.modules.mdm.models import Department, Employee, EmployeeFamilyMember, L
 from app.modules.payroll.models import EmployeeAllowanceAssignment, PayComponent
 from app.modules.payroll.seed_allowances import normalize_legacy_allowance_amount
 from app.scripts import import_genussuite_2026 as gs
-from app.scripts.employee_data_paths import default_employee_data_dir, import_command
+from app.scripts.employee_data_paths import cong_dir, find_empinfo_dir, import_command, salary_dir, snapshot_dir
 from app.scripts.import_employee_list_1108 import load_assignments, load_profiles
 
 SCHEMA_VERSION = 1
@@ -46,32 +44,6 @@ SALARY_MONTH_TAGS = {
     "June": "2026-06",
     "July": "2026-07",
 }
-
-
-def repo_root() -> Path:
-    """Tìm thư mục gốc repo (có HIEN_PHAP hoặc docker-compose.yml)."""
-    start = Path(__file__).resolve()
-    for anc in start.parents:
-        if (anc / "HIEN_PHAP").is_dir() or (anc / "docker-compose.yml").is_file():
-            return anc
-    return start.parents[4]
-
-
-def find_empinfo_dir(hien_phap: Path) -> Path | None:
-    for child in hien_phap.iterdir():
-        if child.is_dir() and "nh" in child.name.lower() and "vi" in child.name.lower():
-            return child
-    return None
-
-
-def find_cong_dir(hien_phap: Path) -> Path | None:
-    for child in hien_phap.iterdir():
-        if not child.is_dir():
-            continue
-        name = unicodedata.normalize("NFC", child.name).lower()
-        if name in ("công", "cong") or name.endswith("công"):
-            return child
-    return None
 
 
 def _json_default(value: Any) -> Any:
@@ -261,23 +233,22 @@ def build_snapshot(
 
 def run(
     *,
-    hien_phap: Path,
     out_dir: Path,
     attendance_year: int | None = 2026,
     dry_run: bool = False,
 ) -> None:
-    empinfo = find_empinfo_dir(hien_phap)
-    salary_dir = hien_phap / "Salary"
-    cong_dir = find_cong_dir(hien_phap)
+    empinfo = find_empinfo_dir()
+    salary_path = salary_dir()
+    cong_path = cong_dir()
 
     if empinfo is None:
-        raise FileNotFoundError(f"Không tìm thấy thư mục danh sách NV trong {hien_phap}")
-    if not salary_dir.is_dir():
-        raise FileNotFoundError(f"Không tìm thấy {salary_dir}")
+        raise FileNotFoundError("Không tìm thấy «Thông tin danh sách nhân viên» trong Dữ liệu nhân viên/")
+    if not salary_path.is_dir():
+        raise FileNotFoundError(f"Không tìm thấy {salary_path}")
 
     profiles, assignments, warnings = load_empinfo_sources(empinfo)
-    salary = load_salary_sources(salary_dir)
-    cong_files = scan_cong_files(cong_dir)
+    salary = load_salary_sources(salary_path)
+    cong_files = scan_cong_files(cong_path)
 
     codes: set[str] = set(profiles) | set(assignments) | set(salary)
     db = SessionLocal()
@@ -324,15 +295,15 @@ def run(
         "files_written": written,
         "sources": {
             "empinfo_dir": str(empinfo),
-            "salary_dir": str(salary_dir),
-            "cong_dir": str(cong_dir) if cong_dir else None,
+            "salary_dir": str(salary_path),
+            "cong_dir": str(cong_path) if cong_path else None,
             "cong_file_count": len(cong_files),
             "salary_employees": len(salary),
             "profile_employees": len(profiles),
             "assignment_employees": len(assignments),
         },
         "warnings": warnings,
-        "reload_command": import_command(hien_phap),
+        "reload_command": import_command(),
     }
     if not dry_run:
         (out_dir / "manifest.json").write_text(_dump(manifest) + "\n", encoding="utf-8")
@@ -350,16 +321,10 @@ def run(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trích xuất Dữ liệu công nhân (JSON từng nhân viên)")
     parser.add_argument(
-        "--hien-phap",
-        type=Path,
-        default=None,
-        help="Thư mục HIEN_PHAP",
-    )
-    parser.add_argument(
         "--out",
         type=Path,
         default=None,
-        help="Thư mục output (manifest + employees/) — mặc định: HIEN_PHAP/Dữ liệu công nhân",
+        help="Thư mục output (manifest + employees/) — mặc định: Dữ liệu nhân viên/Dữ liệu công nhân",
     )
     parser.add_argument(
         "--attendance-year",
@@ -370,10 +335,8 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     year = args.attendance_year if args.attendance_year > 0 else None
-    hien_phap = (args.hien_phap or repo_root() / "HIEN_PHAP").resolve()
-    out_dir = (args.out or default_employee_data_dir(hien_phap)).resolve()
+    out_dir = (args.out or snapshot_dir()).resolve()
     run(
-        hien_phap=hien_phap,
         out_dir=out_dir,
         attendance_year=year,
         dry_run=args.dry_run,

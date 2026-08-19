@@ -48,6 +48,5 @@ alwaysApply: true
 
 ## Tài liệu & script
 
-- Báo cáo đầy đủ: `Thien-Admin/BAO-CAO-BENCHMARK-API-EMPLOYEES-2026-08-15.md`
 - LOI: `[HR-H002]` trong `Thien-Admin/LOI-DA-SUA.txt`
 - Đo lại VPS: `python ops/bench_employees_vps.py`

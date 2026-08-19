@@ -271,9 +271,7 @@ class TimesheetAdjustment(Base):
 
 
 class WorkShift(Base):
-    """Ca làm việc (21§21.5, hạng mục 2.4) — thực tế công ty CHỈ dùng 1 ca hành chính
-    08:00–17:00, nghỉ trưa 12:00–13:00 (trừ 1 giờ). Dựng đủ cột để sau này thêm ca
-    (2/3 kíp) không phải chạy migration — không seed sẵn ca nào ngoài ca hành chính."""
+    """Ca làm việc (21§21.5). ADMIN 08–17, CLEANER 07–16, COOKER 08–17 + OT sáng 6–8."""
 
     __tablename__ = "work_shifts"
 

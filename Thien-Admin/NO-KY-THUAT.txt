@@ -4,30 +4,17 @@ NO KY THUAT — DJ-HRM (sua 1 lan sau)
 Danh sach loi da biet, CHUA sua. User yeu cau ghi no — khong code voi.
 
 --------------------------------------------------------------------------------
-[REP-OV001] Tong Quan HTTP 500 — DA SUA 2026-08-16 (QA-02)
+[HR-OT8] Tinh lai bang cong sau luat OT (cong 17:30 / Cooker)
 --------------------------------------------------------------------------------
-Chuyen sang Thien-Admin/LOI-DA-SUA.txt muc [QA-02] / [REP-OV001].
-Giu MOT TodoCardOut tu ai/schemas; test overview co HD het han → 200.
+Luat: Luật/02-OT.md. Sau khi deploy VPS: Cham cong → ky dang dung
+→ tinh lai ngay / tong hop bang cong → roi moi xuat Excel.
 
 --------------------------------------------------------------------------------
-[HR-OT8] Rebuild bang cong sau OT 8 he so (lam tren portal, khong can code)
---------------------------------------------------------------------------------
-Da deploy VPS 2026-08-19 (commit 4843eca). So 8 he so chi dung sau khi HR:
-  Cham cong → ky dang dung → tinh lai ngay / tong hop bang cong → roi moi xuat Excel.
-Chi tiet: Thien-Admin/NO-VE-NHA-2026-08-19.txt
-
---------------------------------------------------------------------------------
-[WEB-SORT] dailyGridSort chua gan luoi ngay — DA GAN 2026-08-19
---------------------------------------------------------------------------------
-DailyGridPanel nut «Xep can xu ly len dau» goi applyDailyGridSort(api, "needs_first").
-Cot an needs_action de AG Grid xep duoc. Test: npm test -- dailyGridSort.
-
---------------------------------------------------------------------------------
-[HR-STK] Script nap STK / luong HD tu bang luong — SCRIPT XONG, CHUA CHAY VPS
+[HR-STK] Script nap STK / luong HD tu bang luong — CHUA CHAY VPS
 --------------------------------------------------------------------------------
 apps/api/app/scripts/fill_bank_from_salary.py: STK, luong HD, ngay vao, ky HD, SĐT.
 Mac dinh dry-run; --apply moi ghi DB. Khong dung ngay sinh / CCCD / dia chi.
-Chua chay tren VPS. Can Excel luong (+ --snapshots) va user bao --apply.
+Can Excel luong (+ --snapshots) va user bao --apply.
 
 --------------------------------------------------------------------------------
 (chen them muc no moi o day, gom dot sua sau)

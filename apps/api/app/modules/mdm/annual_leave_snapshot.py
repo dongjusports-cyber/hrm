@@ -60,10 +60,10 @@ def snapshot_path() -> Path | None:
             p = p / "employees.json"
         return p if p.is_file() else None
     candidates: list[Path] = [_API_ROOT / "data" / "annual_leave" / "employees.json"]
-    hien = _REPO_ROOT / "HIEN_PHAP" / "Phép năm GenuSuite"
-    if hien.is_dir():
+    al_dir = _REPO_ROOT / "Dữ liệu nhân viên" / "Phép năm GenuSuite"
+    if al_dir.is_dir():
         extracts = sorted(
-            hien.glob("trich_xuat_*/employees.json"),
+            al_dir.glob("trich_xuat_*/employees.json"),
             key=lambda x: x.stat().st_mtime,
             reverse=True,
         )

@@ -1,0 +1,28 @@
+LUẬT DJ-HRM — ĐỌC FILE NÀY TRƯỚC
+================================
+
+Đây là **từ điển luật duy nhất** của nhà máy Dongju.
+HR đọc. Thấy sai → sửa đúng file trong thư mục này (ghi ngày + chữ ký/tên), rồi bảo AI sửa phần mềm cho khớp.
+
+Không còn tra Hiến pháp V1 / V2 để biết tiền, công, OT, BHXH.
+Phần mềm phải theo thư mục này. Lệch = lỗi — sửa code, không sửa miệng.
+
+Cách dùng
+---------
+1. Mở file đúng việc (xem mục lục dưới).
+2. Đọc bảng. Số trong bảng = số đang chạy trên portal (đã nạp).
+3. Sai một dòng → sửa dòng đó. Không viết luật mới ở chat rồi quên.
+
+Mục lục
+-------
+01-CHAM-CONG.md     Chấm vân tay, giờ công, trễ/sớm, ngày công
+02-OT.md            Tăng ca (cổng mốc, 8 hệ số, trong sổ / ngoài ATM, Cooker)
+03-LUONG.md         Kỳ lương, mẫu số, lương ngày, thử việc, làm tròn
+04-PHU-CAP.md       Chuyên cần, đi lại, thâm niên, nền OT
+05-NGHI-PHEP.md     14 loại nghỉ, phép năm
+06-BHXH-THUE.md     Bảo hiểm, công đoàn, thuế TNCN
+07-CA-CHE-DO.md     Ca ADMIN / tạp vụ / nấu ăn, thai sản–nuôi con về sớm
+
+Cắt Hiến pháp
+-------------
+Đã cắt khỏi dự án. Luật duy nhất: thư mục này. Hồ sơ: `Dữ liệu nhân viên/`.

@@ -8,10 +8,10 @@ Nạp dữ liệu test từ bảng lương Dec.2025
 → departments + employees + phụ cấp gán + timesheet kỳ 2025-12.
 
 Nguồn chuẩn trên máy Chủ (.123):
-  C:\\DATA\\HRM\\dj-hrm\\dj-hrm\\HIEN_PHAP\\Salary\\  (hoặc file ngoài repo tại D:\\HRM\\)
+  C:\\DATA\\HRM\\dj-hrm\\dj-hrm\\Dữ liệu nhân viên\\Salary\\  (hoặc file ngoài repo tại D:\\HRM\\)
 
 Chạy (Docker, máy dev .123):
-  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/HIEN_PHAP/Salary/2.Salary table for Dec.2025.xlsx" djhrm-api:/tmp/salary_dec.xlsx
+  docker cp "C:/DATA/HRM/dj-hrm/dj-hrm/Dữ liệu nhân viên/Salary/2.Salary table for Dec.2025.xlsx" djhrm-api:/tmp/salary_dec.xlsx
   docker compose exec api python -m app.scripts.load_salary_dec_2025 /tmp/salary_dec.xlsx
 """
 

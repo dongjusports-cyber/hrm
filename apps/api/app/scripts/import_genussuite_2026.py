@@ -1,10 +1,9 @@
-"""Nạp dữ liệu lương thật Jan-Jul/2026 từ export GenusSuite (HIEN_PHAP/Salary).
+"""Nạp dữ liệu lương thật Jan-Jul/2026 từ export GenusSuite (Dữ liệu nhân viên/Salary).
 
 Chạy: python -m app.scripts.import_genussuite_2026 [--dry-run]
 
-V2 — HIEN_PHAP hạng mục 1.3 (24§ĐỢT 1): nạp lương với ÁNH XẠ TỔ ĐÚNG, dùng cây tổ
-chức thật đã nạp ở hạng mục 1.2 (10 departments, 73 teams), KHÔNG tự tạo Department
-giả từ tên trong file lương như bản V1.
+Nạp lương với ánh xạ tổ đúng, dùng cây tổ chức thật (10 departments, 73 teams),
+không tự tạo Department giả từ tên trong file lương.
 
 Chiến lược (đã chốt với người dùng):
 - "Đông cứng" số liệu GenusSuite làm phiếu lương lịch sử đã phát hành (KHÔNG bắt
@@ -35,6 +34,7 @@ import sys
 from calendar import monthrange
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import xlrd
@@ -47,8 +47,23 @@ from app.modules.audit.models import AuditLog
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee, Team
 from app.modules.payroll.models import Payslip
+from app.scripts.employee_data_paths import salary_dir
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "genussuite_2026")
+
+def _salary_data_dir() -> str:
+    """Bảng lương Excel — `Dữ liệu nhân viên/Salary` (Docker: docker cp → /tmp/salary_dir)."""
+    candidates = [
+        salary_dir(),
+        Path("/tmp/salary_dir"),
+        Path(__file__).resolve().parents[2] / "data" / "genussuite_2026",
+    ]
+    for folder in candidates:
+        if folder.is_dir() and any(folder.glob("2.Salary table for *.xls")):
+            return str(folder)
+    return str(salary_dir())
+
+
+DATA_DIR = _salary_data_dir()
 
 MONTHS = [
     (1, "Jan"),

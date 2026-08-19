@@ -19,7 +19,7 @@ from app.modules.attendance.day_enrich import (
 )
 from app.modules.attendance.engine import VN_TZ, calculate_day, combine_vn, is_company_workday, to_vn
 from app.modules.attendance.models import AttendanceDay, PayPeriod, WorkShift
-from app.modules.attendance.shift_schedule import timing_from_shift
+from app.modules.attendance.shift_schedule import engine_ot_kwargs, timing_from_shift
 from app.modules.attendance.schemas import AttendanceDayOut, CycleLeavePatch
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
@@ -136,9 +136,8 @@ def _recalc_manual_times(
         work_date,
         timing.schedule,
         ot_split=load_ot_split_policy(db),
-        ot_start=timing.ot_start_time,
         wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
-        standard_hours=timing.standard_hours,
+        **engine_ot_kwargs(timing),
     )
     apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
     row.source = "manual"

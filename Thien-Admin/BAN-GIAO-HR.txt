@@ -76,7 +76,7 @@ Phiếu 9415 kỳ 08/2026 (÷26):
 BIẾT TRƯỚC (không phải lỗi phần mềm)
 --------------------------------------------------------------------------------
 - Cloud chưa có file trích xuất phép năm GenuSuite → màn Phép năm 0 NV.
-  VPS/máy .123 có HIEN_PHAP thì chạy extract_annual_leave.
+  Máy .123 có file phép năm trong Dữ liệu nhân viên thì chạy extract_annual_leave.
 - Hầu hết 360 NV Cloud không có chấm công tháng 8 → phiếu âm vì BHXH cả tháng.
   NV có công (9415) ra lương đúng.
 - Không xóa cứng hồ sơ NV. Thôi việc + tái tuyển.
