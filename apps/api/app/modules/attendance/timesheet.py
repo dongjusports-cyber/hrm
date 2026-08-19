@@ -585,7 +585,7 @@ def get_pay_period_out(db: Session, period: str) -> PayPeriodOut:
 
 
 def list_leave_types(db: Session) -> list[LeaveTypeOut]:
-    seed_leave_types(db)
+    """GET danh mục nghỉ — chỉ SELECT. Seed lúc `python -m app.scripts.seed` / POST."""
     rows = db.query(LeaveType).order_by(LeaveType.code).all()
     return [LeaveTypeOut.model_validate(r) for r in rows]
 

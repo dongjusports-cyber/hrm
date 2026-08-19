@@ -41,7 +41,7 @@ def test_hr_profile_and_modules(client):
         ("GET", "/api/payroll/payslips?period=2025-10", 200),
         ("GET", "/api/payroll/allowances/types", 200),
         ("GET", "/api/disputes", 200),
-        ("GET", "/api/insurance/declarations?month=2025-10", 200),
+        ("GET", "/api/insurance/declarations?effective_month=2025-10", 200),
         ("GET", "/api/reports/kpi?period=2025-10", 200),
         ("GET", "/api/reports/overview?period=2025-10", 200),
         ("GET", "/api/ai/todos", 200),
