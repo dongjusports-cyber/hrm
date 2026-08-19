@@ -1,10 +1,11 @@
 """Lọc NV theo trạng thái suy ra — thử việc / thai sản."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from uuid import UUID
 
 from app.modules.attendance.models import LeaveRequest
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Employee, EmployeeWtRegime
 
 
 def _hr_headers(client):
@@ -198,3 +199,126 @@ def test_special_regime_filter_by_wt_regime(client):
     # Vẫn còn ở tab Chính thức (chế độ đặc biệt không đổi effective_status)
     active_after = client.get("/api/employees?status=active", headers=headers).json()
     assert code in {e["employee_code"] for e in active_after}
+
+
+def test_special_regime_includes_maternity_even_if_resigned(client, db):
+    """Nghỉ thai sản vẫn vào tab Chế độ đặc biệt dù hồ sơ gắn resigned (GenusSuite)."""
+    headers = _hr_headers(client)
+    today = date.today()
+    mat = client.post(
+        "/api/employees",
+        headers=headers,
+        json={
+            "employee_code": "9105",
+            "full_name": "NV Nghi Thai San Resigned",
+            "team_code": "T1",
+            "department_code": "SW1",
+            "contract_salary": "6000000",
+            "probation_salary": "5100000",
+            "pay_channel": "ATM",
+            "join_date": "2020-01-15",
+            "contract_signed_at": "2020-01-15",
+            "status": "resigned",
+            "resign_date": today.isoformat(),
+        },
+    )
+    assert mat.status_code == 201, mat.text
+    mat_id = mat.json()["id"]
+    db.add(
+        EmployeeWtRegime(
+            employee_id=UUID(mat_id),
+            regime_type="MATERNITY",
+            hours_early=0,
+            date_from=today - timedelta(days=10),
+            date_to=today + timedelta(days=60),
+            note="test maternity resigned",
+        )
+    )
+
+    child = client.post(
+        "/api/employees",
+        headers=headers,
+        json={
+            "employee_code": "9106",
+            "full_name": "NV Nuoi Con Resigned",
+            "team_code": "T1",
+            "department_code": "SW1",
+            "contract_salary": "6000000",
+            "probation_salary": "5100000",
+            "pay_channel": "ATM",
+            "join_date": "2020-01-15",
+            "contract_signed_at": "2020-01-15",
+            "status": "resigned",
+            "resign_date": today.isoformat(),
+        },
+    )
+    assert child.status_code == 201, child.text
+    db.add(
+        EmployeeWtRegime(
+            employee_id=UUID(child.json()["id"]),
+            regime_type="CHILD",
+            hours_early=2,
+            date_from=today - timedelta(days=10),
+            date_to=today + timedelta(days=60),
+            note="test child resigned",
+        )
+    )
+    db.commit()
+
+    special = client.get("/api/employees?status=special_regime", headers=headers).json()
+    codes = {e["employee_code"] for e in special}
+    assert "9105" in codes
+    assert "9106" not in codes
+    row = next(e for e in special if e["employee_code"] == "9105")
+    assert row["wt_regime_type"] == "MATERNITY"
+
+
+def test_special_regime_skips_ended_overlap(client, db):
+    """Regime đã cắt (ended_at) không đè regime mở còn hiệu lực."""
+    headers = _hr_headers(client)
+    today = date.today()
+    created = client.post(
+        "/api/employees",
+        headers=headers,
+        json={
+            "employee_code": "9107",
+            "full_name": "NV Regime Ended Overlap",
+            "team_code": "T1",
+            "department_code": "SW1",
+            "contract_salary": "6000000",
+            "probation_salary": "5100000",
+            "pay_channel": "ATM",
+            "join_date": "2020-01-15",
+            "contract_signed_at": "2020-01-15",
+            "status": "active",
+        },
+    )
+    assert created.status_code == 201, created.text
+    emp_id = UUID(created.json()["id"])
+    db.add(
+        EmployeeWtRegime(
+            employee_id=emp_id,
+            regime_type="CHILD",
+            hours_early=1,
+            date_from=today,
+            date_to=today,
+            ended_at=datetime.now(tz=timezone.utc),
+            note="ended 1-day",
+        )
+    )
+    db.add(
+        EmployeeWtRegime(
+            employee_id=emp_id,
+            regime_type="CHILD",
+            hours_early=2,
+            date_from=today - timedelta(days=30),
+            date_to=today + timedelta(days=90),
+            note="open real",
+        )
+    )
+    db.commit()
+
+    special = client.get("/api/employees?status=special_regime", headers=headers).json()
+    row = next(e for e in special if e["employee_code"] == "9107")
+    assert row["wt_regime_date_to"] == (today + timedelta(days=90)).isoformat()
+    assert row["wt_regime_date_from"] == (today - timedelta(days=30)).isoformat()

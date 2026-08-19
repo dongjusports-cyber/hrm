@@ -783,10 +783,12 @@ def list_employees(
     if status == "resigned":
         query = query.filter(Employee.status == "resigned")
     elif status == "special_regime":
-        # Tab «Chế độ đặc biệt» — NV có chế độ về sớm hiệu lực hôm nay (không dùng status).
-        query = query.filter(
-            Employee.status != "resigned", Employee.id.in_(list(regime_ids))
-        )
+        # Tab «Chế độ đặc biệt» — NV có regime mở hiệu lực hôm nay.
+        # Nghỉ thai sản (MATERNITY) vẫn hiện dù hồ sơ từng gắn resigned (GenusSuite
+        # hay đánh thôi việc khi nghỉ đẻ). PREGNANT/CHILD đã thôi việc thì không.
+        if not regime_ids:
+            return []
+        query = query.filter(Employee.id.in_(list(regime_ids)))
     elif status in ("active", "probation", "maternity"):
         query = query.filter(Employee.status != "resigned")
     elif status:
@@ -851,6 +853,12 @@ def list_employees(
                 si_base=si_base_map.get(e.id),
             )
         )
+    if status == "special_regime":
+        out = [
+            o
+            for o in out
+            if o.status != "resigned" or o.wt_regime_type == "MATERNITY"
+        ]
     if status in ("active", "probation", "maternity"):
         if not (q and q.strip()):
             out = [o for o in out if o.effective_status == status]
@@ -3109,6 +3117,7 @@ def active_wt_regime(
         db.query(EmployeeWtRegime)
         .filter(
             EmployeeWtRegime.employee_id == employee_id,
+            EmployeeWtRegime.ended_at.is_(None),
             EmployeeWtRegime.date_from <= today,
             EmployeeWtRegime.date_to >= today,
         )
@@ -3130,6 +3139,7 @@ def active_wt_regime_hours_batch(
         db.query(EmployeeWtRegime)
         .filter(
             EmployeeWtRegime.employee_id.in_(employee_ids),
+            EmployeeWtRegime.ended_at.is_(None),
             EmployeeWtRegime.date_from <= date_to,
             EmployeeWtRegime.date_to >= date_from,
         )
@@ -3159,6 +3169,7 @@ def active_wt_regimes_map(db: Session, as_of: date | None = None) -> dict[UUID, 
     rows = (
         db.query(EmployeeWtRegime)
         .filter(
+            EmployeeWtRegime.ended_at.is_(None),
             EmployeeWtRegime.date_from <= today,
             EmployeeWtRegime.date_to >= today,
         )
@@ -3186,6 +3197,7 @@ def maternity_si_pause_employee_ids(
         db.query(EmployeeWtRegime.employee_id)
         .filter(
             EmployeeWtRegime.regime_type == "MATERNITY",
+            EmployeeWtRegime.ended_at.is_(None),
             EmployeeWtRegime.date_from <= date_to,
             EmployeeWtRegime.date_to >= date_from,
         )

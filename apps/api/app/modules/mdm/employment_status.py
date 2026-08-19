@@ -40,6 +40,7 @@ def maternity_employee_ids(db: Session, as_of: date | None = None) -> set[UUID]:
         db.query(EmployeeWtRegime.employee_id)
         .filter(
             EmployeeWtRegime.regime_type == "MATERNITY",
+            EmployeeWtRegime.ended_at.is_(None),
             EmployeeWtRegime.date_from <= today,
             EmployeeWtRegime.date_to >= today,
         )

@@ -56,7 +56,12 @@ const TILES: HubTile[] = [
     description: "Mang thai / Nghỉ thai sản / Nuôi con nhỏ",
     to: "/m/hr/lists/special_regime",
     countKey: "employees",
-    countFn: (r) => r.filter((e) => e.wt_regime_active).length,
+    countFn: (r) =>
+      r.filter(
+        (e) =>
+          Boolean(e.wt_regime_active) &&
+          (e.status !== "resigned" || e.wt_regime_type === "MATERNITY"),
+      ).length,
   },
   {
     key: "new",

@@ -159,6 +159,9 @@ def run(xlsx: Path, *, dry_run: bool = False) -> None:
                 print(f"  thiếu NV {row.employee_code} {row.full_name}")
                 missing += 1
                 continue
+            if row.regime_type == "MATERNITY" and emp.status == "resigned":
+                emp.status = "maternity"
+                emp.resign_date = None
             existing = (
                 db.query(EmployeeWtRegime)
                 .filter(EmployeeWtRegime.employee_id == emp.id, EmployeeWtRegime.ended_at.is_(None))
