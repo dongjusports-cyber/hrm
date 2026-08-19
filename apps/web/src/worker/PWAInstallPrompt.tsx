@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useEscLayer } from "../shared/useEscLayer";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -61,6 +62,8 @@ export function PWAInstallPrompt() {
       window.removeEventListener("appinstalled", onInstalled);
     };
   }, []);
+
+  useEscLayer(iosOpen, () => setIosOpen(false));
 
   if (installed) return null;
 

@@ -152,6 +152,7 @@ export function CommandPalette() {
         <input
           className="cmdk-input"
           autoFocus
+          data-hotkey-search
           placeholder="Gõ tên màn hoặc MSNV… (Ctrl+K đóng)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

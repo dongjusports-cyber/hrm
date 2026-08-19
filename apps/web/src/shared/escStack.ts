@@ -2,8 +2,8 @@
  * @locked Ngăn xếp ESC — KHÔNG sửa tùy tiện. Xem `.cursor/rules/esc-keyboard.mdc`
  * Chạy: `npm test -- escKeyboard`
  *
- * Thứ tự: (1) ô nhập đang focus → hoàn tác (nếu sửa) + blur, không đóng sheet
- * (2) AG Grid đang sửa ô → để grid tự hủy
+ * Thứ tự: (1) AG Grid đang sửa ô / menu / lọc → để grid tự hủy, không chặn
+ * (2) ô nhập đang focus → hoàn tác (nếu sửa) + blur, không đóng sheet
  * (3) overlay stack — tầng không xử lý (`return false`) đi tiếp tầng dưới
  * (4) GlobalEscBack quay trang. Fallback không bị nuốt bởi tầng im lặng.
  */
@@ -22,10 +22,12 @@ const stack: EscHandler[] = [];
 let fallback: (() => void) | null = null;
 let rootInstalled = false;
 
-/** AG Grid đang sửa ô — để ESC hủy edit như Excel, không chặn. */
+/** AG Grid đang sửa ô / menu / lọc — để ESC hủy như Excel, không chặn. */
 export function isGridCellEditing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest(".ag-cell-inline-editing, .ag-popup-editor");
+  return !!target.closest(
+    ".ag-cell-inline-editing, .ag-popup-editor, .ag-menu, .ag-filter, .ag-popup, .ag-dialog, .ag-panel",
+  );
 }
 
 /** Ô nhập đang focus nhưng chưa kịp đăng ký snapshot (race focusin). */
@@ -55,13 +57,14 @@ function ensureRoot() {
     (e) => {
       if (e.key !== "Escape") return;
 
-      if (tryRevertActiveFieldEsc() || tryRevertFocusedFieldEsc()) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
+      // (2) Grid trước ô nhập — ô editor nằm trong cell thì không được nuốt ESC của grid.
+      if (isGridCellEditing(e.target)) {
         return;
       }
 
-      if (isGridCellEditing(e.target)) {
+      if (tryRevertActiveFieldEsc() || tryRevertFocusedFieldEsc()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         return;
       }
 

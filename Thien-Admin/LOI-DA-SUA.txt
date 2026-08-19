@@ -4,6 +4,7 @@ LOI DA SUA — DJ-HRM
 Đợt bàn giao HR 19/08/2026 (cuối file):
   [QA-H001] pytest không chạy, phép CN, GET danh mục nghỉ, ESC sheet công
   [QA-H002] dashboard KPI/overview 404 khi chưa tính lương, giờ công JSON thiếu +07
+  [ESC-K002] ESC nuốt: AG Grid editor/menu, bảng lệnh, ô tìm MSNV trong ⋮ Thêm
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1005,4 +1006,28 @@ Cách xử lý:
 
 Test:
   cd apps/api && .venv/bin/pytest tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py tests/test_kpi_thresholds.py tests/test_todos_57.py tests/test_cycle_leave.py tests/test_worker_self_service.py tests/test_timesheet.py tests/test_import_wt_regimes.py tests/test_sync_perf_claimed_job.py -q
+
+[ESC-K002] ESC nuốt — grid editor/menu, bảng lệnh, ô tìm MSNV — 2026-08-19
+-------------------------------------------------------------------------
+Triệu chứng:
+  Sửa ô lưới ngày công: ESC không hủy edit (nuốt), lần sau mới quay trang.
+  Menu cột / ô lọc AG Grid: ESC không đóng popup.
+  Ctrl+K (ô tìm autofocus rỗng): ESC chỉ blur, không đóng bảng lệnh.
+  ⋮ Thêm → tìm MSNV: ESC không đóng menu khi ô rỗng.
+  TimeInput24 `stopPropagation` mọi phím kể cả ESC.
+
+Nguyên nhân:
+  escStack hoàn tác ô nhập TRƯỚC khi nhường AG Grid → ô editor bị coi Excel,
+  preventDefault, grid không nhận ESC. Menu/lọc `.ag-menu` / `.ag-filter`
+  không nằm trong pass-through. Bảng lệnh / EmployeeCodePicker thiếu
+  `data-hotkey-search` (ô rỗng phải fallthrough overlay).
+
+Cách xử lý:
+  - Grid editor/menu/filter/popup: không chặn (nhường grid), kiểm tra TRƯỚC ô nhập.
+  - CommandPalette + EmployeeCodePicker: `data-hotkey-search` — ô rỗng 1 ESC đóng.
+  - TimeInput24: không stopPropagation khi Escape.
+  - Dialog cài PWA iOS: useEscLayer đóng hướng dẫn.
+
+Test:
+  cd apps/web && npm test -- escKeyboard
 

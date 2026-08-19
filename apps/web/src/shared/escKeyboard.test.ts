@@ -153,7 +153,7 @@ describe("escStack priority", () => {
     setEscFallback(null);
   });
 
-  it("reverts Escape in AG Grid cell editor before overlay", () => {
+  it("does not intercept Escape in AG Grid cell editor so grid can cancel", () => {
     const grid = document.createElement("div");
     grid.className = "ag-theme-quartz";
     const cell = document.createElement("div");
@@ -176,15 +176,40 @@ describe("escStack priority", () => {
     event.preventDefault = () => {
       prevented.value = true;
     };
+    Object.defineProperty(event, "target", { value: input });
     window.dispatchEvent(event);
 
-    expect(prevented.value).toBe(true);
-    expect(input.value).toBe("07:30");
+    expect(prevented.value).toBe(false);
+    expect(input.value).toBe("08:00");
     expect(overlay).not.toHaveBeenCalled();
 
     unreg();
     document.body.removeChild(grid);
     clearActiveFieldEsc();
+  });
+
+  it("does not intercept Escape in AG Grid column menu", () => {
+    const menu = document.createElement("div");
+    menu.className = "ag-menu";
+    const item = document.createElement("div");
+    item.className = "ag-menu-option";
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+
+    const overlay = vi.fn();
+    const unreg = registerEscHandler(overlay);
+    const fallback = vi.fn();
+    setEscFallback(fallback);
+
+    const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    Object.defineProperty(event, "target", { value: item });
+    window.dispatchEvent(event);
+
+    expect(overlay).not.toHaveBeenCalled();
+    expect(fallback).not.toHaveBeenCalled();
+
+    unreg();
+    document.body.removeChild(menu);
   });
 
   it("does not close overlay when focused field is unchanged", () => {
@@ -304,5 +329,13 @@ describe("escStack priority", () => {
     const el = document.createElement("div");
     el.className = "ag-cell-inline-editing";
     expect(isGridCellEditing(el)).toBe(true);
+    const menu = document.createElement("div");
+    menu.className = "ag-menu";
+    expect(isGridCellEditing(menu)).toBe(true);
+    const filter = document.createElement("div");
+    filter.className = "ag-filter";
+    const input = document.createElement("input");
+    filter.appendChild(input);
+    expect(isGridCellEditing(input)).toBe(true);
   });
 });

@@ -119,6 +119,7 @@ Portal khóa pass 3 lần: Thien-Admin\03-MO-KHOA-PORTAL.bat
 Danh mục nghỉ trống (không có ALE): chạy seed — python -m app.scripts.seed
   (GET không tự tạo danh mục; Cloud start.sh đã seed)
 Tổng Quan: luôn truyền ?period=YYYY-MM; chưa tính lương vẫn 200 (QA-H002)
-ESC: rule khóa — không tự gắn listener Escape mới.
+ESC: ô giờ = hoàn tác+blur; ô tìm rỗng / Ctrl+K rỗng = đóng hoặc quay trang 1 lần.
+  Menu/lọc lưới AG Grid: ESC đóng popup (không quay trang). Không tự gắn listener Escape.
 
 Sáng đồng bộ VPS: Thien-Admin\02-DONG-BO-SANG.bat
