@@ -941,3 +941,23 @@ Cách xử lý:
 Test:
   cd apps/web && npm test -- agGridVi formatOrg
 
+[ATT-G001] GET chấm công tự tạo kỳ + POST duyệt phép rebuild cả nhà máy — 2026-08-19
+--------------------------------------------------------------------------------
+Triệu chứng:
+  Mở Chấm Công (GET) INSERT kỳ lương nếu tháng chưa có. Duyệt đơn phép /
+  nhập điều chỉnh / đồng bộ Mitapro rebuild bảng công ~359 NV.
+
+Nguyên nhân:
+  GET gọi ensure_pay_period (docstring cấm). Một số POST không truyền
+  employee_id vào rebuild_timesheets.
+
+Cách xử lý:
+  GET: get_pay_period / require_pay_period (404 hoặc []). Frontend vẫn mở
+  lưới ngày theo lịch tháng khi chưa có kỳ.
+  POST: rebuild đúng employee_id / ids (phép, điều chỉnh, ingest punch).
+
+Test:
+  cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_get_readonly.py tests/test_timesheet.py tests/test_leave_requests_36.py tests/test_attendance_day_grid_37.py tests/test_attendance_review.py tests/test_cycle_leave.py tests/test_payroll_period_get_readonly.py tests/test_ot_external_pay.py -q
+  cd apps/web && npm test -- formatDate
+  cd apps/web && npx tsc -b --pretty false
+

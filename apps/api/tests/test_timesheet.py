@@ -183,6 +183,7 @@ def test_manual_leave_and_ot_adjustment(client):
 
 def test_pay_period_oct_2025_divisor(client):
     headers = _hr_headers(client)
+    client.post("/api/attendance/timesheets/rebuild", headers=headers, params={"period": "2025-10"})
     res = client.get("/api/attendance/pay-periods/2025-10", headers=headers)
     assert res.status_code == 200
     body = res.json()
@@ -208,3 +209,42 @@ def test_get_timesheets_does_not_refresh_open_divisor(client, db):
     db.expire_all()
     again = db.query(PayPeriod).filter(PayPeriod.id == pay.id).one()
     assert Decimal(again.salary_divisor) == Decimal("99")
+
+
+def test_ingest_rebuilds_only_employees_with_punches(client, db):
+    """Mitapro push không tổng hợp cả nhà máy — chỉ NV có vân tay trong khoảng ngày."""
+    from app.modules.attendance.models import TimesheetMonth
+    from app.modules.mdm.models import Employee
+
+    active_n = (
+        db.query(Employee)
+        .filter(Employee.deleted_at.is_(None), Employee.status == "active")
+        .count()
+    )
+    assert active_n > 1
+
+    push = client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-01T08:01:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-01T17:05:00+07:00"},
+            ]
+        },
+    )
+    assert push.status_code == 200, push.text
+
+    db.expire_all()
+    rows = db.query(TimesheetMonth).all()
+    assert len(rows) == 1, f"ingest rebuild cả nhà máy: {len(rows)} dòng / {active_n} NV active"
+
+    headers = _hr_headers(client)
+    sheets = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert sheets.status_code == 200, sheets.text
+    codes = {r["employee_code"] for r in sheets.json()}
+    assert codes == {"5290"}

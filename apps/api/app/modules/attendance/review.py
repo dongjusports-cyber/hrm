@@ -23,7 +23,13 @@ from app.modules.attendance.shift_schedule import engine_ot_kwargs, timing_from_
 from app.modules.attendance.schemas import AttendanceDayOut, CycleLeavePatch
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
-from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, parse_period, rebuild_timesheets
+from app.modules.attendance.timesheet import (
+    _assert_open,
+    calendar_month_bounds,
+    ensure_pay_period,
+    parse_period,
+    rebuild_timesheets,
+)
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -183,7 +189,19 @@ def build_review(db: Session, period: str) -> ReviewSummary:
         .one_or_none()
     )
     if pay is None:
-        pay = ensure_pay_period(db, period)
+        date_from, date_to = calendar_month_bounds(period)
+        return ReviewSummary(
+            period=period,
+            date_from=date_from,
+            date_to=date_to,
+            period_status="none",
+            issue_count=0,
+            missing_punch=0,
+            odd_punch=0,
+            no_data=0,
+            issues=[],
+            note="Chưa có kỳ lương — tổng hợp bảng công hoặc tính lương trước.",
+        )
 
     schedule = _load_schedule(db)
     date_from = pay.date_from

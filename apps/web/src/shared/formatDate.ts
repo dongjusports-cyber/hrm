@@ -56,6 +56,18 @@ export function payPeriodStartDate(period: string): string {
   return `${y}-${m}-01`;
 }
 
+/** Biên lịch tháng YYYY-MM — dùng khi GET chưa có kỳ lương (không tự tạo kỳ). */
+export function payPeriodDateBounds(period: string): { date_from: string; date_to: string } {
+  const [ys, ms] = period.split("-");
+  const y = Number(ys);
+  const m = Number(ms);
+  const last = new Date(y, m, 0).getDate();
+  return {
+    date_from: `${ys}-${ms}-01`,
+    date_to: `${ys}-${ms}-${String(last).padStart(2, "0")}`,
+  };
+}
+
 /** Hôm nay theo giờ VN — YYYY-MM-DD (chọn ngày mặc định trên lưới chấm công). */
 export function todayIsoDateVN(ref: Date = new Date()): string {
   return ref.toLocaleDateString("en-CA", { timeZone: VN_TZ });

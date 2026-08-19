@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.modules.attendance.engine import VN_TZ, to_vn
 from app.modules.attendance.models import AttendanceDay
 from app.modules.attendance.schemas import CycleLeaveRowOut
-from app.modules.attendance.timesheet import ensure_pay_period, parse_period
+from app.modules.attendance.timesheet import get_pay_period, parse_period
 from app.modules.mdm.models import Employee
 
 
@@ -25,7 +25,9 @@ def _fmt_hm(dt: datetime | None) -> str:
 
 def list_cycle_leave(db: Session, period: str) -> list[CycleLeaveRowOut]:
     parse_period(period)
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     rows = (
         db.query(AttendanceDay, Employee)
         .join(Employee, Employee.id == AttendanceDay.employee_id)

@@ -149,8 +149,6 @@ def list_days_grid(
     department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
     schedule = _load_schedule(db)
-    period = f"{work_date.year:04d}-{work_date.month:02d}"
-    ensure_pay_period(db, period)
 
     employees = (
         db.query(Employee, Team, Department)

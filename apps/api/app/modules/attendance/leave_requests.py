@@ -312,7 +312,7 @@ def bulk_decide_leave_requests(
     skipped: list[dict] = []
     note = (decided_note or "").strip()
     now = _now()
-    rebuild_periods: set[str] = set()
+    rebuild_by_period: dict[str, set[UUID]] = {}
 
     for rid in request_ids:
         pair = by_id.get(rid)
@@ -353,7 +353,8 @@ def bulk_decide_leave_requests(
                     days=req.total_days,
                     entry_date=req.from_date,
                 )
-            rebuild_periods.update(_months_covering(req.from_date, req.to_date))
+            for month in _months_covering(req.from_date, req.to_date):
+                rebuild_by_period.setdefault(month, set()).add(emp.id)
             approved += 1
         else:
             req.status = "rejected"
@@ -364,12 +365,12 @@ def bulk_decide_leave_requests(
 
     db.commit()
     # QA-10: cộng lại bảng công tháng sau khi duyệt phép (leave_code đã ghi lên ngày).
-    if rebuild_periods:
+    if rebuild_by_period:
         from app.modules.attendance.timesheet import rebuild_timesheets
 
-        for period in sorted(rebuild_periods):
+        for period, emp_ids in sorted(rebuild_by_period.items()):
             try:
-                rebuild_timesheets(db, period, recalc_days=False)
+                rebuild_timesheets(db, period, recalc_days=False, employee_ids=emp_ids)
             except HTTPException:
                 pass
     msg = f"Đã duyệt {approved}, từ chối {rejected} đơn."

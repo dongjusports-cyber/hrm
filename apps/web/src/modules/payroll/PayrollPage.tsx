@@ -509,8 +509,10 @@ export function PayrollPage() {
 
         <div className="payroll-status-bar" aria-live="polite">
           <span>
-            {rows.length} phiếu · {STATUS_LABEL[periodStatus] ?? periodStatus}
-            {periodMeta ? ` · ÷${periodMeta.salary_divisor}` : ""}
+            {rows.length} phiếu ·{" "}
+            {periodMeta
+              ? `${STATUS_LABEL[periodStatus] ?? periodStatus} · ÷${periodMeta.salary_divisor}`
+              : "Chưa có kỳ — bấm Tính lương"}
           </span>
           {exportEmpCode || exportDeptId ? (
             <span className="payroll-status-scope">Xuất: {exportScopeLabel}</span>

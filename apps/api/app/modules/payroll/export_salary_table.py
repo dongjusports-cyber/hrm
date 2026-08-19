@@ -20,7 +20,7 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import require_pay_period
 from app.modules.mdm.models import Department, Employee, Team
 from app.modules.payroll.engine_ot import OtRateBuckets
 from app.modules.payroll.models import Payslip, PayslipComponent
@@ -717,7 +717,7 @@ def build_salary_table_xlsx(
     employee_code: str | None = None,
 ) -> tuple[bytes, int, str]:
     """Trả (bytes, row_count, filename) — mẫu GenusSuite TOTAL + ATM + CASH."""
-    pay = ensure_pay_period(db, period)
+    pay = require_pay_period(db, period)
     ch = (channel or "ALL").upper()
     year, month = _period_parts(period)
     month_tag = MONTH_EN.get(month, f"M{month:02d}")

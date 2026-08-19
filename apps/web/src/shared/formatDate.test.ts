@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY, formatTimeHHMM, currentPayPeriod } from "./formatDate";
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodDateBounds } from "./formatDate";
 
 describe("formatTimeHHMM", () => {
   it("UTC punch → giờ VN (+7)", () => {
@@ -18,6 +18,19 @@ describe("currentPayPeriod", () => {
   it("trả YYYY-MM theo tham chiếu", () => {
     expect(currentPayPeriod(new Date(2026, 7, 12))).toBe("2026-08");
     expect(currentPayPeriod(new Date(2025, 9, 1))).toBe("2025-10");
+  });
+});
+
+describe("payPeriodDateBounds", () => {
+  it("tháng 8 → 01..31", () => {
+    expect(payPeriodDateBounds("2026-08")).toEqual({
+      date_from: "2026-08-01",
+      date_to: "2026-08-31",
+    });
+  });
+
+  it("tháng 2 nhuận", () => {
+    expect(payPeriodDateBounds("2024-02").date_to).toBe("2024-02-29");
   });
 });
 

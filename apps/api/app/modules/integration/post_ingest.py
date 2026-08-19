@@ -23,12 +23,11 @@ def run_post_ingest_recalc(
     db = SessionLocal()
     try:
         from app.modules.attendance.service import recalculate_days
-        from app.modules.attendance.timesheet import rebuild_timesheets
+        from app.modules.attendance.timesheet import rebuild_timesheets_for_date_window
         from app.modules.ai.service import emit_sync_job_alert
 
         recalculate_days(db, date_from=date_from, date_to=date_to)
-        for y, m in {(d.year, d.month) for d in _date_span(date_from, date_to)}:
-            rebuild_timesheets(db, f"{y:04d}-{m:02d}", recalc_days=False)
+        rebuild_timesheets_for_date_window(db, date_from, date_to)
 
         job = db.get(SyncJob, job_id)
         if job is None:

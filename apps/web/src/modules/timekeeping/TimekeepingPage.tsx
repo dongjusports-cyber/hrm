@@ -25,7 +25,7 @@ import {
 import { formatDepartmentLabel, sortByViName } from "../../shared/formatOrg";
 import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
-import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
+import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, payPeriodDateBounds, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
@@ -54,6 +54,7 @@ import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress"
 import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
+import { cacheInvalidate } from "../../shared/clientCache";
 
 type MainView = "daily" | "monthly" | "leave";
 
@@ -246,6 +247,10 @@ export function TimekeepingPage() {
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
   const timesheetRowsRef = useRef(rows);
   timesheetRowsRef.current = rows;
+  const periodBounds = useMemo(() => {
+    if (pay) return { date_from: pay.date_from, date_to: pay.date_to };
+    return payPeriodDateBounds(period);
+  }, [pay, period]);
 
   const onTypedSearch = useCallback((value: string) => {
     typedQRef.current = value;
@@ -278,11 +283,14 @@ export function TimekeepingPage() {
       const pendingP = fetchLeaveRequests({ status: "submitted" }).catch(() => []);
       const [pp, lt] = await Promise.all([fetchPayPeriod(period), fetchLeaveTypes()]);
       setPay(pp);
+      const bounds = pp
+        ? { date_from: pp.date_from, date_to: pp.date_to }
+        : payPeriodDateBounds(period);
       setGridDate((prev) => {
-        if (prev >= pp.date_from && prev <= pp.date_to) return prev;
+        if (prev >= bounds.date_from && prev <= bounds.date_to) return prev;
         const today = todayIsoDateVN();
-        if (today >= pp.date_from && today <= pp.date_to) return today;
-        return pp.date_from;
+        if (today >= bounds.date_from && today <= bounds.date_to) return today;
+        return bounds.date_from;
       });
       setLeaves(lt);
       void fetchIntegrationStatus()
@@ -305,12 +313,15 @@ export function TimekeepingPage() {
 
   const refreshAfterSync = useCallback(async () => {
     try {
-      const [st, sheets] = await Promise.all([
+      cacheInvalidate("timesheets:");
+      const [st, sheets, pp] = await Promise.all([
         fetchIntegrationStatus(),
         fetchTimesheets(period),
+        fetchPayPeriod(period),
       ]);
       setStatus(st);
       setRows(sheets);
+      setPay(pp);
       setDailyGridRefresh((n) => n + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không cập nhật sau đồng bộ.");
@@ -323,12 +334,12 @@ export function TimekeepingPage() {
   }, [reload, paneActive]);
 
   useEffect(() => {
-    if (!selected || !pay) {
+    if (!selected) {
       setEmpDays([]);
       return;
     }
-    void loadEmpDays(selected.employee_code, pay.date_from, pay.date_to);
-  }, [selected?.employee_code, pay?.date_from, pay?.date_to, loadEmpDays]);
+    void loadEmpDays(selected.employee_code, periodBounds.date_from, periodBounds.date_to);
+  }, [selected?.employee_code, periodBounds.date_from, periodBounds.date_to, loadEmpDays]);
 
   async function refreshTimesheetsQuiet() {
     const sheets = await fetchTimesheets(period);
@@ -371,9 +382,9 @@ export function TimekeepingPage() {
   }, []);
 
   const calendar = useMemo(() => {
-    if (!pay || !selected) return [];
-    return buildCalendar(pay.date_from, pay.date_to, empDays);
-  }, [pay, selected, empDays]);
+    if (!selected) return [];
+    return buildCalendar(periodBounds.date_from, periodBounds.date_to, empDays);
+  }, [periodBounds, selected, empDays]);
 
   const dayStats = useMemo(() => {
     const lateDays = calendar.filter((d) => d.late > 0).length;
@@ -631,10 +642,7 @@ export function TimekeepingPage() {
   }
 
   async function refreshAfterManualDay(day: AttendanceDay) {
-    const daysP =
-      pay != null
-        ? loadEmpDays(day.employee_code, pay.date_from, pay.date_to)
-        : Promise.resolve();
+    const daysP = loadEmpDays(day.employee_code, periodBounds.date_from, periodBounds.date_to);
     await Promise.all([daysP, refreshTimesheetsQuiet()]);
   }
 
@@ -1021,14 +1029,14 @@ export function TimekeepingPage() {
             Kỳ
             <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
           </label>
-          {mainView === "daily" && pay ? (
+          {mainView === "daily" ? (
             <label className="period-picker period-picker-compact">
               Ngày công
               <input
                 type="date"
                 value={gridDate}
-                min={pay.date_from}
-                max={pay.date_to}
+                min={periodBounds.date_from}
+                max={periodBounds.date_to}
                 onChange={(e) => setGridDate(e.target.value)}
               />
             </label>
@@ -1165,7 +1173,7 @@ export function TimekeepingPage() {
                 </>
               )
             ) : (
-              "Đang tải…"
+              "Chưa có kỳ lương — bấm Tổng hợp công"
             )}
           </span>
           <span className="tk-status-sync" title={status?.detail ?? "Cấu hình máy đồng bộ trong Cấu Hình"}>
@@ -1219,11 +1227,11 @@ export function TimekeepingPage() {
           )}
         </div>
 
-        {mainView === "daily" && pay ? (
+        {mainView === "daily" ? (
           <div className="tk-stack tk-stack-panel">
             <DailyGridPanel
               workDate={gridDate}
-              periodLocked={pay.status === "locked"}
+              periodLocked={pay?.status === "locked"}
               leaves={leaves}
               searchQuery={q}
               departmentId={departmentId}

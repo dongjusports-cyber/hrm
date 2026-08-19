@@ -17,7 +17,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import get_pay_period
 from app.modules.core.export_log import log_export
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -384,7 +384,7 @@ def compute_ot_external_row(
 
 
 def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
     _, payload = _active_policy(db)
     ot_split = payload.get("ot_split") or {}
     ext_cfg = ot_split.get("ot_external") or {}
@@ -394,6 +394,16 @@ def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
             "OT ngoài: x1,5 ngày thường · x2 CN/lễ≤8h · x2,1 đêm · x3 lễ>8h — không vào payslip/BHXH/PIT, chi ATM riêng.",
         )
     )
+    if pay is None:
+        return OtExternalSummary(
+            period=period,
+            employee_count=0,
+            total_raw_hours=ZERO,
+            total_effective_hours=ZERO,
+            total_amount_vnd=money_vnd(ZERO),
+            rows=[],
+            policy_note=note,
+        )
 
     q = (
         db.query(TimesheetMonth, Employee)

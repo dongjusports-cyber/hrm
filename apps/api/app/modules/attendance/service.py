@@ -440,7 +440,7 @@ def sync_maternity_mle_days(db: Session, employee_id: UUID, date_from: date, dat
 
         for period in _months_covering(date_from, date_to):
             try:
-                rebuild_timesheets(db, period, recalc_days=False)
+                rebuild_timesheets(db, period, recalc_days=False, employee_id=employee_id)
             except FastHTTPException:
                 pass
     return changed

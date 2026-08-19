@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.ai.models import AiAlert
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import require_pay_period
 from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
 from app.modules.dispute.service import OPEN_STATUSES
@@ -73,7 +73,7 @@ def _was_on_payroll(emp: Employee, start: date, end: date) -> bool:
 
 
 def compute_kpi(db: Session, period: str) -> KpiPeriodOut:
-    pay = ensure_pay_period(db, period)
+    pay = require_pay_period(db, period)
     start, end = _period_bounds(pay.year, pay.month)
     payload = _active_policy(db)
 

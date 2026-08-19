@@ -90,18 +90,10 @@ def _is_mock_punch(ma_cham_cong: str | None) -> bool:
 
 def _recalc_after_ingest(db: Session, date_from: date, date_to: date) -> None:
     from app.modules.attendance.service import recalculate_days
-    from app.modules.attendance.timesheet import rebuild_timesheets
+    from app.modules.attendance.timesheet import rebuild_timesheets_for_date_window
 
     recalculate_days(db, date_from=date_from, date_to=date_to)
-    y, m = date_from.year, date_from.month
-    end_y, end_m = date_to.year, date_to.month
-    while (y, m) <= (end_y, end_m):
-        rebuild_timesheets(db, f"{y:04d}-{m:02d}", recalc_days=False)
-        if m == 12:
-            y += 1
-            m = 1
-        else:
-            m += 1
+    rebuild_timesheets_for_date_window(db, date_from, date_to)
 
 
 def _ingest_recalc_window(body: MitaproPushRequest, known_codes: set[str]) -> tuple[date, date] | None:

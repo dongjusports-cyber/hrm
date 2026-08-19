@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.timesheet import ensure_pay_period
+from app.modules.attendance.timesheet import ensure_pay_period, get_pay_period
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
@@ -101,7 +101,9 @@ def list_bonuses(
 ) -> list[dict]:
     query = db.query(EmployeeBonus, Employee).join(Employee, Employee.id == EmployeeBonus.employee_id)
     if period:
-        pay = ensure_pay_period(db, period)
+        pay = get_pay_period(db, period)
+        if pay is None:
+            return []
         query = query.filter(EmployeeBonus.pay_period_id == pay.id)
     if employee_code:
         emp = _resolve_employee(db, employee_code)

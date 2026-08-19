@@ -163,6 +163,49 @@ def get_pay_period(db: Session, period: str) -> PayPeriod | None:
     )
 
 
+def calendar_month_bounds(period: str) -> tuple[date, date]:
+    year, month = parse_period(period)
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last_day)
+
+
+def employee_ids_with_punches_in_range(db: Session, date_from: date, date_to: date) -> list[UUID]:
+    """NV có vân tay trong khoảng — dùng để rebuild bảng công sau ingest, không quét cả nhà máy."""
+    from datetime import datetime
+
+    from app.modules.attendance.engine import VN_TZ
+    from app.modules.integration.models import AttendancePunch
+    from app.modules.mdm.models import Employee
+
+    start = datetime(date_from.year, date_from.month, date_from.day, tzinfo=VN_TZ)
+    end = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=VN_TZ)
+    codes = [
+        code
+        for (code,) in db.query(AttendancePunch.employee_code)
+        .filter(AttendancePunch.punch_time >= start, AttendancePunch.punch_time <= end)
+        .distinct()
+        .all()
+        if code
+    ]
+    if not codes:
+        return []
+    return [eid for (eid,) in db.query(Employee.id).filter(Employee.employee_code.in_(codes)).all()]
+
+
+def rebuild_timesheets_for_date_window(db: Session, date_from: date, date_to: date) -> None:
+    ids = employee_ids_with_punches_in_range(db, date_from, date_to)
+    if not ids:
+        return
+    y, m = date_from.year, date_from.month
+    end_y, end_m = date_to.year, date_to.month
+    while (y, m) <= (end_y, end_m):
+        rebuild_timesheets(db, f"{y:04d}-{m:02d}", recalc_days=False, employee_ids=ids)
+        if m == 12:
+            y, m = y + 1, 1
+        else:
+            m += 1
+
+
 def require_pay_period(db: Session, period: str) -> PayPeriod:
     """GET chi tiết kỳ: có thì trả, chưa có thì 404 — không INSERT."""
     row = get_pay_period(db, period)
@@ -460,7 +503,9 @@ def rebuild_timesheets(
 
 
 def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     rows = (
         db.query(TimesheetMonth, Employee)
         .join(Employee, Employee.id == TimesheetMonth.employee_id)
@@ -500,7 +545,9 @@ def list_timesheet_details(
     period: str,
     employee_code: str | None = None,
 ) -> list[TimesheetMonthDetailOut]:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     q = (
         db.query(TimesheetMonthDetail, TimesheetMonth, Employee)
         .join(TimesheetMonth, TimesheetMonth.id == TimesheetMonthDetail.timesheet_month_id)
@@ -533,7 +580,7 @@ def list_timesheet_details(
 
 
 def get_pay_period_out(db: Session, period: str) -> PayPeriodOut:
-    pay = ensure_pay_period(db, period)
+    pay = require_pay_period(db, period)
     return PayPeriodOut.model_validate(pay)
 
 
@@ -618,7 +665,7 @@ def create_adjustment(db: Session, body: AdjustmentCreate, user: User) -> Adjust
     db.commit()
     db.refresh(row)
 
-    rebuild_timesheets(db, body.period, recalc_days=False)
+    rebuild_timesheets(db, body.period, recalc_days=False, employee_id=emp.id)
     from app.modules.audit.service import write_audit
 
     write_audit(
@@ -640,7 +687,9 @@ def create_adjustment(db: Session, body: AdjustmentCreate, user: User) -> Adjust
 
 
 def list_adjustments(db: Session, period: str, employee_code: str | None = None) -> list[AdjustmentOut]:
-    pay = ensure_pay_period(db, period)
+    pay = get_pay_period(db, period)
+    if pay is None:
+        return []
     q = (
         db.query(TimesheetAdjustment, Employee, User)
         .join(Employee, Employee.id == TimesheetAdjustment.employee_id)
@@ -673,7 +722,7 @@ def delete_adjustment(db: Session, adjustment_id: UUID, user: User) -> dict:
     adj_id = str(row.id)
     db.delete(row)
     db.commit()
-    rebuild_timesheets(db, period, recalc_days=False)
+    rebuild_timesheets(db, period, recalc_days=False, employee_id=row.employee_id)
     from app.modules.audit.service import write_audit
 
     write_audit(

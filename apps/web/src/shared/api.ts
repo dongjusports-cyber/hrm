@@ -2031,6 +2031,7 @@ export async function fetchSyncJobs(limit = 50): Promise<{ total: number; items:
 export async function requestSyncNow(): Promise<SyncJob> {
   const res = await apiFetch("/api/attendance/sync-now", { method: "POST" });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2041,6 +2042,7 @@ export async function requestSyncRange(from: string, to: string): Promise<SyncJo
     body: JSON.stringify({ from, to }),
   });
   if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2157,8 +2159,9 @@ export async function fetchAttendanceDays(params: {
   return res.json();
 }
 
-export async function fetchPayPeriod(period: string): Promise<PayPeriod> {
+export async function fetchPayPeriod(period: string): Promise<PayPeriod | null> {
   const res = await apiFetch(`/api/attendance/pay-periods/${period}`);
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
