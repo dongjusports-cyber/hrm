@@ -455,6 +455,30 @@ def _wd_days(db: Session, payslip_id: UUID) -> tuple[Decimal, Decimal]:
     return prob, off
 
 
+def _ot_trong_pay(db: Session, payslip_id: UUID, fallback: Decimal) -> Decimal:
+    """Cột AD = tiền OT trong (T3/T5 đến 20:00). CN/lễ không vào đây."""
+    rows = (
+        db.query(PayslipComponent)
+        .filter(PayslipComponent.payslip_id == payslip_id, PayslipComponent.component_code == "OT")
+        .all()
+    )
+    if not rows:
+        return fallback
+    trong = ZERO
+    has_split = False
+    for row in rows:
+        note = (row.note or "").lower()
+        if any(k in note for k in ("weekend", "sunday", "holiday", "night")):
+            has_split = True
+            continue
+        if "weekday" in note:
+            has_split = True
+        trong += D(row.amount)
+    if has_split:
+        return money_vnd(trong)
+    return fallback
+
+
 def _build_data_row(
     db: Session,
     stt: int,
@@ -492,7 +516,7 @@ def _build_data_row(
         row[col] = _num(allow.get(code, ZERO))
     row[27] = _num(slip.allowance_total)
     row[28] = _num(ts.ot_hours_weekday)
-    row[29] = _num(slip.ot_pay)
+    row[29] = _num(_ot_trong_pay(db, slip.id, D(slip.ot_pay)))
     row[30] = _num(slip.gross)
     row[31] = _num(slip.bhxh)
     row[32] = _num(slip.bhyt)

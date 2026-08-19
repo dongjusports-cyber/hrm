@@ -102,7 +102,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
         "ignore_punches_until": "17:30",
 
-        "note": "Bấm 17h00–17h30 không tính vân tay / không OT. Bấm ra sau 17h30 mới có OT; số phút vẫn tính từ 17h00 (vd. ra 20h00 = 3 giờ). Th3+Th5: 17h–20h sổ; sau 20h → ngoài.",
+        "note": "Bấm 17h00–17h30 không tính vân tay / không OT. Bấm ra sau 17h30 mới có OT; số phút vẫn tính từ 17h00 (vd. ra 20h00 = 3 giờ). OT trong: chỉ Th3+Th5 17h–20h. OT ngoài: ngày khác, sau 20h, CN, lễ.",
 
         "ot_external": {
 
@@ -112,7 +112,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
             "payment_channel": "ATM",
 
-            "note": "Cùng công thức 22§22.8 (ot_base) — trả theo phút, không BHXH/PIT trên payslip chính.",
+            "note": "OT ngoài (ngày thường 1,5 · CN 2,0 · lễ 2–3) — không vào payslip/BHXH/PIT, chi ATM riêng.",
 
         },
 

@@ -89,7 +89,7 @@ def test_sunday_is_weekend_ot():
     assert not r.is_workday
     assert r.ot_minutes == 240
     assert r.ot_type == "weekend"
-    assert r.ot_external_minutes == 0
+    assert r.ot_external_minutes == 240
     assert r.ot_on_books_minutes == 0
     assert r.worked_hours == Decimal("0")
     assert r.late_minutes == 0
@@ -105,7 +105,7 @@ def test_sunday_full_day_excludes_lunch():
     r = calculate_day(punches, d, _sched())
     assert r.ot_type == "weekend"
     assert r.ot_minutes == 480
-    assert r.ot_external_minutes == 0
+    assert r.ot_external_minutes == 480
 
 
 def test_sunday_morning_only_no_lunch_to_subtract():
@@ -124,7 +124,7 @@ def test_holiday_ot():
     r = calculate_day(punches, d, _sched(holiday_dates={d}))
     assert r.ot_type == "holiday"
     assert r.ot_minutes == 120
-    assert r.ot_external_minutes == 0
+    assert r.ot_external_minutes == 120
     assert r.ot_on_books_minutes == 0
 
 

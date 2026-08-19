@@ -87,8 +87,8 @@ def test_rebuild_afternoon_only_half_day(client):
     assert row["late_count"] == 1
 
 
-def test_rebuild_sunday_ot_goes_to_weekend_not_external(client):
-    """QA-01: Chủ nhật 4 giờ → ot_hours_weekend, không vào OT ngoài ATM."""
+def test_rebuild_sunday_ot_goes_to_external(client):
+    """Chủ nhật 4 giờ → OT ngoài (ATM) + giữ ot_hours_weekend để hệ số 2."""
     client.post(
         "/api/integrations/mitapro/push",
         headers=_agent_headers(),
@@ -115,7 +115,7 @@ def test_rebuild_sunday_ot_goes_to_weekend_not_external(client):
     row = next(r for r in sheets.json() if r["employee_code"] == "5290")
     assert float(row["ot_hours_weekend"]) == 4.0
     assert float(row["ot_hours_holiday"]) == 0.0
-    assert float(row["ot_hours_external"]) == 0.0
+    assert float(row["ot_hours_external"]) == 4.0
     assert float(row["ot_hours_weekday"]) == 0.0
 
 

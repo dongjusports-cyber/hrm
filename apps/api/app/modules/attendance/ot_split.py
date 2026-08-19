@@ -2,7 +2,8 @@
 Tách OT trên sổ vs OT ngoài (ATM riêng) — policy ot_split.
 
 Quy tắc mặc định (Hiến pháp công ty):
-- Thứ 3, Thứ 5 (ISO 2, 4): OT 17:00–20:00 → sổ; sau 20:00 → ngoài.
+- OT trong (sổ / AC-AD bảng lương): chỉ Thứ 3 và Thứ 5 (ISO 2, 4), 17:00–20:00.
+- OT ngoài (ATM): T2/T4/T6/T7, sau 20:00 T3/T5, Chủ nhật, ngày lễ.
 - Bấm 17:00–17:30: không tính vân tay (nếu còn bấm sau 17:30) và không OT.
 - Bấm ra sau 17:30 mới có OT; số phút OT vẫn tính từ 17:00 (ra 20:00 = 180 phút).
 """

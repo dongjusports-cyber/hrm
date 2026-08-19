@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.modules.payroll.engine_allowances import AllowanceLine
 from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay, quantize_ot_hours
-from app.modules.payroll.ot_external import _external_rate
+from app.modules.payroll.ot_external import _external_rate, split_external_ot_hours
 from app.modules.policy.seed_payload import default_payload
 
 
@@ -39,3 +39,35 @@ def test_external_pay_same_formula_as_weekday_ot():
     )
     assert r.ot_pay > 0
     assert r.detail["effective_hours"]["weekday"] == "2.00"
+
+
+def test_split_external_hours_new_rebuild_includes_sunday():
+    h = split_external_ot_hours(
+        external=Decimal("11.17"),
+        weekend=Decimal("9.17"),
+        holiday=Decimal("0"),
+    )
+    assert h.weekday == Decimal("2.00")
+    assert h.weekend == Decimal("9.17")
+    assert h.holiday == Decimal("0")
+
+
+def test_split_external_hours_legacy_weekday_plus_sunday():
+    """Dữ liệu cũ: external chỉ ngày thường, CN nằm weekend — không trừ âm."""
+    h = split_external_ot_hours(
+        external=Decimal("2"),
+        weekend=Decimal("4"),
+        holiday=Decimal("0"),
+    )
+    assert h.weekday == Decimal("2")
+    assert h.weekend == Decimal("4")
+
+
+def test_split_external_hours_sunday_only_legacy():
+    h = split_external_ot_hours(
+        external=Decimal("0"),
+        weekend=Decimal("9.17"),
+        holiday=Decimal("0"),
+    )
+    assert h.weekday == Decimal("0")
+    assert h.weekend == Decimal("9.17")

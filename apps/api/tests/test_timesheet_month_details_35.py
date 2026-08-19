@@ -56,7 +56,7 @@ def test_rebuild_creates_wt_and_ot_details(client):
     assert float(m[("OT", "official")]["hours"]) == 3.0  # 180 phút từ 17:00
 
 
-def test_rebuild_sunday_st_hours(client):
+def test_rebuild_sunday_ot_ext_hours(client):
     client.post(
         "/api/integrations/mitapro/push",
         headers=_agent_headers(),
@@ -79,8 +79,9 @@ def test_rebuild_sunday_st_hours(client):
         params={"period": "2025-10", "employee_code": "5290"},
     ).json()
     m = _detail_map(details)
-    assert ("ST", "official") in m
-    assert float(m[("ST", "official")]["hours"]) == 4.0
+    assert ("OT_EXT", "official") in m
+    assert float(m[("OT_EXT", "official")]["hours"]) == 4.0
+    assert ("ST", "official") not in m
 
 
 def test_adjustment_abs_ale_detail(client):
@@ -190,8 +191,8 @@ def test_aggregate_half_day_leave_not_full_day(db):
     assert buckets[("official", "WT")]["days"] == Decimal("0.50")
 
 
-def test_aggregate_sunday_ot_not_also_ot_ext(db):
-    """QA-08: Chủ nhật chỉ ST, không cộng OT_EXT trùng giờ."""
+def test_aggregate_sunday_ot_is_ot_ext(db):
+    """Chủ nhật → OT_EXT (ATM), không ST trên phiếu lương."""
     emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
     day = AttendanceDay(
         employee_id=emp.id,
@@ -208,7 +209,7 @@ def test_aggregate_sunday_ot_not_also_ot_ext(db):
         segment="official",
     )
     buckets = aggregate_month_details([day], [], emp)
-    assert ("official", "ST") in buckets
-    assert buckets[("official", "ST")]["hours"] == Decimal("4.00")
-    assert ("official", "OT_EXT") not in buckets
+    assert ("official", "OT_EXT") in buckets
+    assert buckets[("official", "OT_EXT")]["hours"] == Decimal("4.00")
+    assert ("official", "ST") not in buckets
     assert ("official", "OT") not in buckets

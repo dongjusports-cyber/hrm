@@ -47,17 +47,17 @@ type MainView = "daily" | "monthly" | "leave";
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
   daily: "Kiểm công một ngày: Công · trễ/sớm · tăng ca sổ/ngoài · OT CN/lễ. CN đi làm hiện OT CN, không cộng Công.",
-  monthly: "Tổng hợp tháng — một dòng một NV. Cột Công = giờ/8. OT CN tách khỏi tăng ca sổ.",
+  monthly: "Tổng hợp tháng — một dòng một NV. Cột Công = giờ/8. OT trong (T3/T5) tách khỏi OT ngoài (CN/lễ/ngày khác).",
   leave: "Đơn phép công nhân gửi từ điện thoại — chọn dòng rồi Duyệt / Từ chối.",
 };
 
 const TK_HEADER_TIPS = {
   al: "Nghỉ phép năm",
   rem: "Nghỉ theo mã REM",
-  otBooks: "Tăng ca trên sổ lương — T3/T5, 17:00–20:00 (ra sau 17:30; vân tay 17:00–17:30 không tính)",
-  otExt: "Tăng ca trả ATM riêng — sau 20:00 T3/T5, hoặc sau 17:00 ngày khác T3/T5",
-  otWeekend: "Tăng ca Chủ nhật — không cộng cột Công; hệ số 2 khi tính lương",
-  otHoliday: "Tăng ca ngày lễ — không cộng cột Công; hệ số 3 khi tính lương",
+  otBooks: "OT trong — chỉ T3/T5, 17:00–20:00 (ra sau 17:30; vân tay 17:00–17:30 không tính). Cột AC/AD bảng lương.",
+  otExt: "OT ngoài (ATM) — T2/T4/T6/T7, sau 20:00 T3/T5, CN, lễ. Không vào bảng lương chính.",
+  otWeekend: "OT Chủ nhật — thuộc OT ngoài (ATM), hệ số 2. Không cộng cột Công.",
+  otHoliday: "OT ngày lễ — thuộc OT ngoài (ATM), hệ số 2/3. Không cộng cột Công.",
 } as const;
 
 type CalendarRow = {

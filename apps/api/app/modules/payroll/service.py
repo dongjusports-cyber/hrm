@@ -577,15 +577,11 @@ def compute_employee_payslip(
             salary_divisor=pay.salary_divisor,
             allowance_lines=allow_res.lines,
             attend_full_monthly=allow_res.attend_full_monthly,
-            hours=OtHours(
-                weekday=D(ts.ot_hours_weekday),
-                weekend=D(ts.ot_hours_weekend),
-                holiday=D(ts.ot_hours_holiday),
-            ),
+            hours=OtHours(weekday=D(ts.ot_hours_weekday)),
             policy=payload,
         )
     )
-    # ot_hours_external → bảng OT ngoài (ATM), không cộng gross — xem payroll.ot_external
+    # OT ngoài (ngày thường ngoài sổ + CN + lễ) → ATM, không cộng gross — payroll.ot_external
     other_adj, other_ded, _adj_detail = sums_for_employee(db, pay.id, emp.id)
     bonus_res = get_bonus_for_period(db, emp.id, pay.id)
     gross = money_vnd(
@@ -803,11 +799,7 @@ def calculate_period(db: Session, period: str, *, actor: User | None = None) -> 
                     salary_divisor=pay.salary_divisor,
                     allowance_lines=allow_res.lines,
                     attend_full_monthly=allow_res.attend_full_monthly,
-                    hours=OtHours(
-                        weekday=D(ts.ot_hours_weekday),
-                        weekend=D(ts.ot_hours_weekend),
-                        holiday=D(ts.ot_hours_holiday),
-                    ),
+                    hours=OtHours(weekday=D(ts.ot_hours_weekday)),
                     policy=payload,
                 )
             )

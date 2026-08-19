@@ -12,6 +12,7 @@ from io import BytesIO
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
@@ -20,7 +21,7 @@ from app.modules.core.export_log import log_export
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
 from app.modules.payroll.engine_allowances import AllowanceInput, compute_allowances, should_zero_probation_allowances
-from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay, quantize_ot_hours
+from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay
 from app.modules.payroll.money import D, ZERO, money_vnd
 from app.modules.payroll.period_eligibility import employee_on_payroll_period
 from app.modules.payroll.service import (
@@ -65,6 +66,39 @@ def _external_rate(policy: dict) -> Decimal:
     return D(rates.get(rate_key, rates.get("weekday", "1.5")))
 
 
+def split_external_ot_hours(
+    *,
+    external: Decimal,
+    weekend: Decimal = ZERO,
+    holiday: Decimal = ZERO,
+) -> OtHours:
+    """Tách giờ OT ngoài để tính tiền (ngày thường 1,5 · CN 2,0 · lễ 2–3).
+
+    Sau rebuild: `external` = weekday_ext + CN + lễ.
+    Dữ liệu cũ: `external` chỉ weekday_ext — nếu trừ CN/lễ ra âm thì giữ nguyên external.
+    """
+    ext = D(external)
+    we = D(weekend)
+    ho = D(holiday)
+    wd = ext - we - ho
+    if wd < 0:
+        wd = ext
+    return OtHours(weekday=wd, weekend=we, holiday=ho)
+
+
+def _display_rate(hours: OtHours, policy: dict) -> Decimal:
+    rates = policy.get("ot_rates") or {}
+    pairs = [
+        (hours.weekday, D(rates.get("weekday", "1.5"))),
+        (hours.weekend, D(rates.get("weekend", rates.get("sunday", "2.0")))),
+        (hours.holiday, D(rates.get("holiday", "2.0"))),
+    ]
+    best = max(pairs, key=lambda p: p[0])
+    if best[0] <= 0:
+        return _external_rate(policy)
+    return best[1]
+
+
 def compute_ot_external_row(
     db: Session,
     pay: PayPeriod,
@@ -72,7 +106,12 @@ def compute_ot_external_row(
     ts: TimesheetMonth,
     payload: dict,
 ) -> OtExternalPayRow | None:
-    raw = D(ts.ot_hours_external)
+    hours = split_external_ot_hours(
+        external=D(ts.ot_hours_external),
+        weekend=D(ts.ot_hours_weekend),
+        holiday=D(ts.ot_hours_holiday),
+    )
+    raw = hours.weekday + hours.weekend + hours.holiday
     if raw <= 0:
         return None
 
@@ -105,8 +144,19 @@ def compute_ot_external_row(
         )
     )
 
-    eff = quantize_ot_hours(raw, payload)
-    if eff <= 0:
+    ot_res = compute_ot_pay(
+        OtInput(
+            contract_salary=emp.contract_salary,
+            salary_divisor=pay.salary_divisor,
+            allowance_lines=allow_res.lines,
+            attend_full_monthly=allow_res.attend_full_monthly,
+            hours=hours,
+            policy=payload,
+        )
+    )
+    eff_map = ot_res.detail.get("effective_hours") or {}
+    eff = D(eff_map.get("weekday", "0")) + D(eff_map.get("weekend", "0")) + D(eff_map.get("holiday", "0"))
+    if eff <= 0 and ot_res.ot_pay <= 0:
         return OtExternalPayRow(
             employee_code=emp.employee_code,
             full_name=emp.full_name,
@@ -115,20 +165,9 @@ def compute_ot_external_row(
             effective_hours=ZERO,
             ot_base=ZERO,
             hourly_base=ZERO,
-            rate=_external_rate(payload),
+            rate=_display_rate(hours, payload),
             amount_vnd=ZERO,
         )
-
-    ot_res = compute_ot_pay(
-        OtInput(
-            contract_salary=emp.contract_salary,
-            salary_divisor=pay.salary_divisor,
-            allowance_lines=allow_res.lines,
-            attend_full_monthly=allow_res.attend_full_monthly,
-            hours=OtHours(weekday=eff),
-            policy=payload,
-        )
-    )
     return OtExternalPayRow(
         employee_code=emp.employee_code,
         full_name=emp.full_name,
@@ -137,7 +176,7 @@ def compute_ot_external_row(
         effective_hours=eff,
         ot_base=ot_res.ot_base,
         hourly_base=ot_res.ot_hourly_base,
-        rate=_external_rate(payload),
+        rate=_display_rate(hours, payload),
         amount_vnd=ot_res.ot_pay,
     )
 
@@ -150,7 +189,7 @@ def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
     note = str(
         ext_cfg.get(
             "note",
-            "OT ngoài: cùng công thức 22§22.8, không vào payslip/BHXH/PIT — chi ATM riêng.",
+            "OT ngoài: ngày thường 1,5 · CN 2,0 · lễ 2–3 — không vào payslip/BHXH/PIT, chi ATM riêng.",
         )
     )
 
@@ -159,7 +198,11 @@ def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
         .join(Employee, Employee.id == TimesheetMonth.employee_id)
         .filter(
             TimesheetMonth.pay_period_id == pay.id,
-            TimesheetMonth.ot_hours_external > 0,
+            or_(
+                TimesheetMonth.ot_hours_external > 0,
+                TimesheetMonth.ot_hours_weekend > 0,
+                TimesheetMonth.ot_hours_holiday > 0,
+            ),
             Employee.deleted_at.is_(None),
         )
         .order_by(Employee.employee_code.asc())

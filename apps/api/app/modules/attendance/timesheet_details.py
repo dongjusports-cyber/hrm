@@ -82,29 +82,24 @@ def aggregate_month_details(
         elif d.is_workday and Decimal(d.worked_hours or 0) > 0:
             add(seg, "WT", days=work_days_from_hours(d.worked_hours))
 
-        # QA-08: CN/lễ chỉ ST/HT — không cộng thêm OT_EXT (trùng giờ).
+        # CN/lễ + OT ngày thường ngoài sổ → OT_EXT (ATM). Phiếu lương chỉ OT trên sổ.
         ot_kind = (d.ot_type or "").strip().lower()
+        if (d.ot_on_books_minutes or 0) > 0:
+            add(seg, "OT", hours=_hours(d.ot_on_books_minutes))
         if ot_kind == "weekend":
             st_h = Decimal(d.sunday_hours or 0)
             if st_h <= 0 and (d.ot_minutes or 0) > 0:
                 st_h = _hours(d.ot_minutes)
             if st_h > 0:
-                add(seg, "ST", hours=st_h)
+                add(seg, "OT_EXT", hours=st_h)
         elif ot_kind == "holiday":
             ht_h = Decimal(d.holiday_hours or 0)
             if ht_h <= 0 and (d.ot_minutes or 0) > 0:
                 ht_h = _hours(d.ot_minutes)
             if ht_h > 0:
-                add(seg, "HT", hours=ht_h)
-        else:
-            if (d.ot_on_books_minutes or 0) > 0:
-                add(seg, "OT", hours=_hours(d.ot_on_books_minutes))
-            if (d.ot_external_minutes or 0) > 0:
-                add(seg, "OT_EXT", hours=_hours(d.ot_external_minutes))
-            if d.sunday_hours and d.sunday_hours > 0:
-                add(seg, "ST", hours=Decimal(d.sunday_hours))
-            if d.holiday_hours and d.holiday_hours > 0:
-                add(seg, "HT", hours=Decimal(d.holiday_hours))
+                add(seg, "OT_EXT", hours=ht_h)
+        elif (d.ot_external_minutes or 0) > 0:
+            add(seg, "OT_EXT", hours=_hours(d.ot_external_minutes))
         if d.ot_night_hours and d.ot_night_hours > 0:
             add(seg, "OT_NIGHT", hours=Decimal(d.ot_night_hours))
         # Ca đêm tắt mặc định — gom vào NT30 khi có dữ liệu (NT45/NT60 bổ sung sau).
@@ -119,9 +114,9 @@ def aggregate_month_details(
             ot_type = (a.ot_type or "weekday").strip().lower()
             h = Decimal(a.ot_hours).quantize(Q2, rounding=ROUND_HALF_UP)
             if ot_type == "weekend":
-                add(adj_seg, "ST", hours=h)
+                add(adj_seg, "OT_EXT", hours=h)
             elif ot_type == "holiday":
-                add(adj_seg, "HT", hours=h)
+                add(adj_seg, "OT_EXT", hours=h)
             else:
                 add(adj_seg, "OT", hours=h)
 

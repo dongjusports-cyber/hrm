@@ -119,3 +119,16 @@ def test_dinner_punch_ignored_when_out_at_2000():
     assert r.ot_external_minutes == 0
     assert r.ot_minutes == 180
     assert r.punch_count == 2
+
+
+def test_sunday_all_external():
+    """CN — toàn bộ OT ngoài."""
+    d = date(2025, 10, 5)
+    punches = [
+        datetime(2025, 10, 5, 8, 0, tzinfo=VN),
+        datetime(2025, 10, 5, 12, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched(), ot_split=_policy())
+    assert r.ot_on_books_minutes == 0
+    assert r.ot_external_minutes == 240
+    assert r.ot_type == "weekend"

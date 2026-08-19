@@ -345,11 +345,15 @@ def rebuild_timesheets(
                     worked += work_days_from_hours(hours)
             if d.ot_on_books_minutes > 0:
                 ot_w += _hours(d.ot_on_books_minutes)
-            # Ưu tiên loại ngày: CN/lễ không bị OT ngoài «nuốt» giờ (QA-01)
+            # OT ngoài = ngày thường ngoài sổ + CN + lễ (cột «Tăng ca ngoài» gồm cả CN/lễ)
             if d.ot_type == "weekend" and (d.ot_minutes or 0) > 0:
-                ot_we += _hours(d.ot_minutes)
+                h = _hours(d.ot_minutes)
+                ot_we += h
+                ot_ext += h
             elif d.ot_type == "holiday" and (d.ot_minutes or 0) > 0:
-                ot_h += _hours(d.ot_minutes)
+                h = _hours(d.ot_minutes)
+                ot_h += h
+                ot_ext += h
             elif (d.ot_external_minutes or 0) > 0:
                 ot_ext += _hours(d.ot_external_minutes)
 
@@ -368,8 +372,10 @@ def rebuild_timesheets(
                 h = Decimal(a.ot_hours)
                 if a.ot_type == "weekend":
                     ot_we += h
+                    ot_ext += h
                 elif a.ot_type == "holiday":
                     ot_h += h
+                    ot_ext += h
                 else:
                     ot_w += h
 

@@ -152,7 +152,7 @@ def test_recalculate_sunday_hours(client):
     assert day["ot_type"] == "weekend"
     assert float(day["sunday_hours"]) == 4.0
     assert float(day["holiday_hours"]) == 0.0
-    assert int(day["ot_external_minutes"]) == 0
+    assert int(day["ot_external_minutes"]) == 240
     assert int(day["ot_minutes"]) == 240
 
 
