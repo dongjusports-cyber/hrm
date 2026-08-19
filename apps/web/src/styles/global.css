@@ -648,7 +648,7 @@ a {
   transform: translateY(0);
 }
 
-/* Tầng điều hướng HR — nút dài nổi, mỗi tầng 1 nút */
+/* Tầng điều hướng mọi tab Portal — nút dài nổi, mỗi tầng 1 nút */
 .hr-layer-header {
   gap: 10px;
   justify-content: space-between;
@@ -4338,6 +4338,39 @@ a.hr-layer-btn:active {
   font-size: 0.72rem;
   font-weight: 600;
   color: #b45309;
+}
+
+.tk-cycle-hint {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9d174d;
+}
+
+.tk-cycle-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.4rem;
+  padding: 0 8px 2px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #9d174d;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tk-cycle-check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: #be185d;
+  cursor: pointer;
+}
+
+.tk-cycle-list {
+  padding: 0.5rem 0 1rem;
 }
 
 .tk-ot-ext {

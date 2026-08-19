@@ -38,8 +38,25 @@ class AttendanceDayOut(BaseModel):
     segment: str = "official"
     is_locked: bool = False
     note: str = ""
+    cycle_leave: bool = False
     edited_by_user_id: UUID | None = None
     edited_at: datetime | None = None
+
+
+class CycleLeavePatch(BaseModel):
+    employee_code: str
+    work_date: date
+    cycle_leave: bool
+
+
+class CycleLeaveRowOut(BaseModel):
+    employee_code: str
+    full_name: str
+    work_date: date
+    first_in: datetime | None
+    last_out: datetime | None
+    worked_hours: Decimal
+    note: str = ""
 
 
 class RecalculateRequest(BaseModel):

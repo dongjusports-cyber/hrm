@@ -327,6 +327,7 @@ def list_days(
                 segment=day.segment,
                 is_locked=day.is_locked,
                 note=day.note,
+                cycle_leave=bool(day.cycle_leave),
                 edited_by_user_id=day.edited_by_user_id,
                 edited_at=day.edited_at,
             )

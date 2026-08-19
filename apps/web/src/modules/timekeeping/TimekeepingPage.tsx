@@ -1,6 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
 import {
@@ -12,6 +11,7 @@ import {
   fetchPayPeriod,
   fetchTimesheets,
   patchAttendanceDayCell,
+  patchAttendanceDayCycle,
   patchAttendanceDayManual,
   rebuildTimesheets,
   type AttendanceDay,
@@ -29,9 +29,11 @@ import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDat
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
+import { CycleLeaveListSheet } from "./CycleLeaveListSheet";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
 import { employeeMatchesQuery, findEmployeeByQuery } from "../../shared/employeeSearch";
 import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
@@ -76,6 +78,7 @@ type CalendarRow = {
   firstIn: string;
   lastOut: string;
   hours: string;
+  cycleLeave: boolean;
   flag: "ok" | "late" | "early" | "both" | "empty" | "off" | "odd" | "missing";
   oddPunch: boolean;
   missingPunch: boolean;
@@ -180,6 +183,7 @@ function buildCalendar(
       lastOut: cellTime(day?.last_out),
       hours:
         hasComplete && day?.worked_hours != null ? String(day.worked_hours) : "",
+      cycleLeave: Boolean(day?.cycle_leave),
       flag,
       oddPunch,
       missingPunch,
@@ -212,6 +216,7 @@ export function TimekeepingPage() {
   const [fixIn, setFixIn] = useState("08:00");
   const [fixOut, setFixOut] = useState("17:00");
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
+  const [fixCycle, setFixCycle] = useState(false);
   const [gridDate, setGridDate] = useState(() => {
     const p = defaultPeriod();
     const today = todayIsoDateVN();
@@ -220,6 +225,7 @@ export function TimekeepingPage() {
   const [dailyGridRefresh, setDailyGridRefresh] = useState(0);
   const [mainView, setMainView] = useState<MainView>("daily");
   const [otExternalOpen, setOtExternalOpen] = useState(false);
+  const [cycleListOpen, setCycleListOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
   const [dailySummary, setDailySummary] = useState<DailyGridSummary>({ total: 0, needsAction: 0 });
   const [leavePending, setLeavePending] = useState(0);
@@ -360,16 +366,20 @@ export function TimekeepingPage() {
     setSelected(null);
     setEmpDays([]);
     setOk(null);
+    setFixCycle(false);
   }, []);
 
   const closeDetail = useCallback(() => {
     setDetailOpen(false);
   }, []);
 
-  // ESC: (sheet chi tiết / OT ngoài / sync tự xử lý qua FullScreenSheet) → bỏ chọn NV
-  useEscLayer(!!selected && !detailOpen && !otExternalOpen && !syncOpen, () => {
-    clearSelection();
-  });
+  // ESC: lưới tháng còn banner NV đã chọn → bỏ chọn. Lưới ngày không hiện banner — không nuốt ESC (kẹt trang).
+  useEscLayer(
+    !!selected && mainView === "monthly" && !detailOpen && !otExternalOpen && !cycleListOpen && !syncOpen,
+    () => {
+      clearSelection();
+    },
+  );
 
   const monthlySearchRef = useRef(q);
   monthlySearchRef.current = q;
@@ -520,6 +530,7 @@ export function TimekeepingPage() {
     setFixIn(row.firstIn || "");
     setFixOut(row.lastOut || "");
     setFixNote(row.hasData ? "Sửa tay chỉnh công" : "Bổ sung công tay");
+    setFixCycle(row.cycleLeave);
   }
 
   async function onSyncNow() {
@@ -614,6 +625,7 @@ export function TimekeepingPage() {
           first_in: `${fixDate}T${inT}:00+07:00`,
           last_out: `${fixDate}T${outT}:00+07:00`,
           note: fixNote,
+          cycle_leave: fixCycle,
         });
         setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
       }
@@ -651,6 +663,35 @@ export function TimekeepingPage() {
       await refreshAfterManualDay(day);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không xóa giờ được.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onToggleCycle(on: boolean) {
+    const code = (fixEmp || selected?.employee_code || "").trim();
+    if (!code || !fixDate) return;
+    setBusy(true);
+    setError(null);
+    setOk(null);
+    setFixCycle(on);
+    try {
+      const day = await patchAttendanceDayCycle({
+        employee_code: code,
+        work_date: fixDate,
+        cycle_leave: on,
+      });
+      setFixCycle(Boolean(day.cycle_leave));
+      setFixOut(cellTime(day.last_out) || fixOut);
+      setOk(
+        on
+          ? `Đã tích chu kỳ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)} — giờ ra hết ca, đủ 8 giờ.`
+          : `Đã bỏ tích chu kỳ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`,
+      );
+      await refreshAfterManualDay(day);
+    } catch (err) {
+      setFixCycle(!on);
+      setError(err instanceof Error ? err.message : "Không tích chu kỳ được.");
     } finally {
       setBusy(false);
     }
@@ -718,7 +759,11 @@ export function TimekeepingPage() {
                       {formatOtHours(row.otHoliday)}
                     </td>
                     <td className="tk-day-flag-cell">
-                      {row.oddPunch ? (
+                      {row.cycleLeave ? (
+                        <span className="tk-cycle-hint" title="Chu kỳ — giờ ra hết ca, đủ 8 giờ">
+                          CK
+                        </span>
+                      ) : row.oddPunch ? (
                         <span className="tk-odd-hint" title="Chấm lẻ / bấm đúp — cần HR sửa tay">
                           Lẻ
                         </span>
@@ -787,6 +832,15 @@ export function TimekeepingPage() {
                 placeholder="Tuỳ chọn"
               />
             </label>
+            <label className="tk-cycle-check" title="Tích: giờ ra sớm thành hết ca (17:00), đủ 8 giờ">
+              <input
+                type="checkbox"
+                checked={fixCycle}
+                disabled={busy}
+                onChange={(e) => void onToggleCycle(e.target.checked)}
+              />
+              Chu kỳ
+            </label>
             <button
               type="button"
               className="btn-secondary"
@@ -807,16 +861,12 @@ export function TimekeepingPage() {
 
   return (
     <div className="module-page tk-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>Chấm Công</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Chấm Công", current: true },
+        ]}
+      />
 
       <main className="module-body module-body-wide tk-main">
         <form className="tk-toolbar" onSubmit={onSearchSubmit}>
@@ -919,6 +969,14 @@ export function TimekeepingPage() {
               Tăng ca ngoài
             </button>
           </ToolbarMoreMenu>
+          <button
+            type="button"
+            className="btn-ghost-dark btn-compact"
+            disabled={busy}
+            onClick={() => setCycleListOpen(true)}
+          >
+            Danh sách chu kỳ
+          </button>
         </form>
 
         {syncProgress?.active ? (
@@ -1112,6 +1170,15 @@ export function TimekeepingPage() {
         period={period}
         onClose={() => setOtExternalOpen(false)}
         onExported={onOtExternalExported}
+      />
+      <CycleLeaveListSheet
+        open={cycleListOpen}
+        period={period}
+        onClose={() => setCycleListOpen(false)}
+        onExported={(message) => {
+          setOk(message);
+          setCycleListOpen(false);
+        }}
       />
       {(error || ok) &&
         !detailOpen &&

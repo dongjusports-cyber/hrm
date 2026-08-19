@@ -16,12 +16,15 @@ from app.modules.attendance import timesheet as ts
 from app.modules.attendance.ot_external_export import build_ot_external_export
 from app.modules.payroll.ot_external import build_ot_external_summary
 from app.modules.payroll.ot_external_schemas import OtExternalPayRowOut, OtExternalSummaryOut
+from app.modules.attendance import cycle_leave as cycle_mod
 from app.modules.attendance.review import ManualDayPatch, ReviewSummary
 from app.modules.attendance.schemas import (
     AdjustmentCreate,
     AdjustmentOut,
     AttendanceDayGridOut,
     AttendanceDayOut,
+    CycleLeavePatch,
+    CycleLeaveRowOut,
     DayBulkPatchRequest,
     DayBulkPatchResult,
     DayCellPatch,
@@ -202,6 +205,39 @@ def attendance_day_manual(
 ) -> AttendanceDayOut:
     """HR sửa tay giờ vào/ra một ngày công."""
     return review_mod.manual_set_day(db, body, user)
+
+
+@router.patch("/attendance/days/cycle", response_model=AttendanceDayOut)
+def attendance_day_cycle(
+    body: CycleLeavePatch,
+    user: TimekeepingUser,
+    db: DbSession,
+) -> AttendanceDayOut:
+    """HR tích chu kỳ: giờ ra sớm → hết ca (17:00), đủ 8 giờ."""
+    return review_mod.set_cycle_leave(db, body, user)
+
+
+@router.get("/attendance/cycle-leave", response_model=list[CycleLeaveRowOut])
+def attendance_cycle_leave_list(
+    _user: TimekeepingUser,
+    db: DbSession,
+    period: Annotated[str, Query(description="YYYY-MM")],
+) -> list[CycleLeaveRowOut]:
+    return cycle_mod.list_cycle_leave(db, period)
+
+
+@router.get("/attendance/cycle-leave.xlsx")
+def attendance_cycle_leave_xlsx(
+    _user: TimekeepingUser,
+    db: DbSession,
+    period: Annotated[str, Query(description="YYYY-MM")],
+) -> Response:
+    data, filename = cycle_mod.export_cycle_leave_xlsx(db, period)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/attendance/leave-requests", response_model=list[LeaveRequestOut])

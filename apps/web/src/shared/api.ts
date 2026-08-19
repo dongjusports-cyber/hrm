@@ -2136,6 +2136,8 @@ export type AttendanceDay = {
   is_workday?: boolean;
   sunday_hours?: string | number;
   holiday_hours?: string | number;
+  cycle_leave?: boolean;
+  note?: string;
 };
 
 export async function fetchAttendanceDays(params: {
@@ -2441,6 +2443,7 @@ export async function patchAttendanceDayManual(body: {
   first_in: string;
   last_out: string;
   note?: string;
+  cycle_leave?: boolean;
 }): Promise<AttendanceDay> {
   const res = await apiFetch("/api/attendance/days/manual", {
     method: "PATCH",
@@ -2449,6 +2452,44 @@ export async function patchAttendanceDayManual(body: {
   if (!res.ok) throw new Error(await readError(res));
   cacheInvalidate("timesheets:");
   return res.json();
+}
+
+export async function patchAttendanceDayCycle(body: {
+  employee_code: string;
+  work_date: string;
+  cycle_leave: boolean;
+}): Promise<AttendanceDay> {
+  const res = await apiFetch("/api/attendance/days/cycle", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  cacheInvalidate("timesheets:");
+  return res.json();
+}
+
+export type CycleLeaveRow = {
+  employee_code: string;
+  full_name: string;
+  work_date: string;
+  first_in: string | null;
+  last_out: string | null;
+  worked_hours: string | number;
+  note: string;
+};
+
+export async function fetchCycleLeaveList(period: string): Promise<CycleLeaveRow[]> {
+  const res = await apiFetch(`/api/attendance/cycle-leave?period=${encodeURIComponent(period)}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function exportCycleLeaveExcel(period: string): Promise<Blob> {
+  const res = await apiFetch(
+    `/api/attendance/cycle-leave.xlsx?period=${encodeURIComponent(period)}`,
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  return res.blob();
 }
 
 export type AiAlert = {

@@ -84,12 +84,24 @@ export function clearActiveFieldEsc(el?: HTMLElement) {
   if (!el || activeFieldEsc.el === el) activeFieldEsc = null;
 }
 
+/** Ô trên pane keep-alive ẩn / aria-hidden — không được coi là đang sửa (nuốt ESC, kẹt trang). */
+function isHiddenEscSurface(el: HTMLElement): boolean {
+  if (el.closest('[aria-hidden="true"]')) return true;
+  const pane = el.closest(".keep-alive-pane");
+  return !!pane && !pane.classList.contains("is-active");
+}
+
 /** Gọi từ escStack — hoàn tác ô đang focus (Excel-like).
  *  Đang trong ô: luôn blur (+ hoàn tác nếu đã sửa) và trả true → không đóng sheet/trang. */
 export function tryRevertActiveFieldEsc(): boolean {
   if (!activeFieldEsc) return false;
   const { el, value } = activeFieldEsc;
   if (document.activeElement !== el) return false;
+  if (isHiddenEscSurface(el)) {
+    el.blur();
+    activeFieldEsc = null;
+    return false;
+  }
   const current = getFieldValue(el);
   if (current !== value) {
     setFormFieldValue(el, value);

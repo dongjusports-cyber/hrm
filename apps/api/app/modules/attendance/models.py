@@ -66,6 +66,7 @@ class AttendanceDay(Base):
     segment: Mapped[str] = mapped_column(String(10), default="official", nullable=False, index=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    cycle_leave: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     edited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

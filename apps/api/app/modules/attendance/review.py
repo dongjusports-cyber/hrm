@@ -17,10 +17,10 @@ from app.modules.attendance.day_enrich import (
     resolve_work_shift_id,
     wt_hours_early_on,
 )
-from app.modules.attendance.engine import VN_TZ, calculate_day, is_company_workday, to_vn
+from app.modules.attendance.engine import VN_TZ, calculate_day, combine_vn, is_company_workday, to_vn
 from app.modules.attendance.models import AttendanceDay, PayPeriod, WorkShift
 from app.modules.attendance.shift_schedule import timing_from_shift
-from app.modules.attendance.schemas import AttendanceDayOut
+from app.modules.attendance.schemas import AttendanceDayOut, CycleLeavePatch
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
 from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, parse_period, rebuild_timesheets
@@ -64,6 +64,115 @@ class ManualDayPatch(BaseModel):
     first_in: datetime | None = None
     last_out: datetime | None = None
     note: str = ""
+    cycle_leave: bool | None = None
+
+
+def _cycle_out_at_shift_end(work_date: date, schedule, last_out: datetime | None):
+    """Tích chu kỳ: giờ ra sớm hơn hết ca → ghi hết ca (17:00). Engine cũ tự ra 8 giờ."""
+    end = combine_vn(work_date, schedule.afternoon_end)
+    if last_out is None:
+        return end
+    if to_vn(last_out) < end:
+        return end
+    return to_vn(last_out)
+
+
+def _get_open_emp_day(db: Session, employee_code: str, work_date: date):
+    pay = ensure_pay_period(db, f"{work_date.year:04d}-{work_date.month:02d}")
+    _assert_open(pay)
+    emp = (
+        db.query(Employee)
+        .filter(
+            Employee.employee_code == employee_code.strip(),
+            Employee.deleted_at.is_(None),
+        )
+        .one_or_none()
+    )
+    if emp is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Trợ Lý AI: không tìm thấy MSNV {employee_code}.",
+        )
+    row = (
+        db.query(AttendanceDay)
+        .filter(
+            AttendanceDay.employee_id == emp.id,
+            AttendanceDay.work_date == work_date,
+        )
+        .one_or_none()
+    )
+    if row is not None and row.is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: ngày công đã khóa — không sửa.",
+        )
+    return pay, emp, row
+
+
+def _recalc_manual_times(
+    db: Session,
+    *,
+    emp: Employee,
+    row: AttendanceDay,
+    work_date: date,
+    first_in: datetime,
+    last_out: datetime | None,
+    user: User,
+    note: str | None,
+    cycle_leave: bool,
+):
+    schedule = _load_schedule(db)
+    shift_id = resolve_work_shift_id(db, emp, work_date)
+    timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
+    if cycle_leave:
+        last_out = _cycle_out_at_shift_end(work_date, timing.schedule, last_out)
+    if last_out is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: sửa tay cần đủ giờ vào và giờ ra (không tự bịa mốc còn lại).",
+        )
+    calc = calculate_day(
+        [to_vn(first_in), to_vn(last_out)],
+        work_date,
+        timing.schedule,
+        ot_split=load_ot_split_policy(db),
+        ot_start=timing.ot_start_time,
+        wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+        standard_hours=timing.standard_hours,
+    )
+    apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
+    row.source = "manual"
+    row.cycle_leave = cycle_leave
+    if note is not None:
+        row.note = note.strip()
+    row.edited_by_user_id = user.id
+    row.edited_at = datetime.now(tz=VN_TZ)
+
+
+def _listed_day(db: Session, emp: Employee, row: AttendanceDay) -> AttendanceDayOut:
+    listed = list_days(db, row.work_date, row.work_date, emp.employee_code)
+    if listed:
+        return listed[0]
+    return AttendanceDayOut(
+        id=row.id,
+        employee_id=emp.id,
+        employee_code=emp.employee_code,
+        full_name=emp.full_name,
+        work_date=row.work_date,
+        first_in=row.first_in,
+        last_out=row.last_out,
+        worked_hours=row.worked_hours,
+        late_minutes=row.late_minutes,
+        early_minutes=row.early_minutes,
+        ot_minutes=row.ot_minutes,
+        ot_on_books_minutes=row.ot_on_books_minutes,
+        ot_external_minutes=row.ot_external_minutes,
+        ot_type=row.ot_type,
+        punch_count=row.punch_count,
+        is_workday=row.is_workday,
+        cycle_leave=bool(row.cycle_leave),
+        note=row.note,
+    )
 
 
 def build_review(db: Session, period: str) -> ReviewSummary:
@@ -198,63 +307,29 @@ def count_blocking_issues(db: Session, period: str) -> int:
 
 def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceDayOut:
     """HR ghi giờ vào/ra tay → tính lại late/early/OT ngày đó."""
-    pay = ensure_pay_period(db, f"{body.work_date.year:04d}-{body.work_date.month:02d}")
-    _assert_open(pay)
+    pay, emp, row = _get_open_emp_day(db, body.employee_code, body.work_date)
+    if row is None:
+        row = AttendanceDay(employee_id=emp.id, work_date=body.work_date)
+        db.add(row)
 
-    emp = (
-        db.query(Employee)
-        .filter(
-            Employee.employee_code == body.employee_code.strip(),
-            Employee.deleted_at.is_(None),
-        )
-        .one_or_none()
-    )
-    if emp is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Trợ Lý AI: không tìm thấy MSNV {body.employee_code}.",
-        )
-    if body.first_in is None or body.last_out is None:
+    cycle = body.cycle_leave if body.cycle_leave is not None else bool(row.cycle_leave)
+    if body.first_in is None or (body.last_out is None and not cycle):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Trợ Lý AI: sửa tay cần đủ giờ vào và giờ ra (không tự bịa mốc còn lại).",
         )
 
-    row = (
-        db.query(AttendanceDay)
-        .filter(
-            AttendanceDay.employee_id == emp.id,
-            AttendanceDay.work_date == body.work_date,
-        )
-        .one_or_none()
+    _recalc_manual_times(
+        db,
+        emp=emp,
+        row=row,
+        work_date=body.work_date,
+        first_in=body.first_in,
+        last_out=body.last_out,
+        user=user,
+        note=body.note,
+        cycle_leave=cycle,
     )
-    if row is None:
-        row = AttendanceDay(employee_id=emp.id, work_date=body.work_date)
-        db.add(row)
-    if row.is_locked:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Trợ Lý AI: ngày công đã khóa — không sửa.",
-        )
-
-    schedule = _load_schedule(db)
-    punches = [to_vn(body.first_in), to_vn(body.last_out)]
-    shift_id = resolve_work_shift_id(db, emp, body.work_date)
-    timing = timing_from_shift(db.get(WorkShift, shift_id), schedule)
-    calc = calculate_day(
-        punches,
-        body.work_date,
-        timing.schedule,
-        ot_split=load_ot_split_policy(db),
-        ot_start=timing.ot_start_time,
-        wt_hours_early=wt_hours_early_on(db, emp.id, body.work_date),
-        standard_hours=timing.standard_hours,
-    )
-    apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
-    row.source = "manual"
-    row.note = (body.note or "").strip()
-    row.edited_by_user_id = user.id
-    row.edited_at = datetime.now(tz=VN_TZ)
     db.commit()
     db.refresh(row)
 
@@ -274,28 +349,73 @@ def manual_set_day(db: Session, body: ManualDayPatch, user: User) -> AttendanceD
             "employee_code": emp.employee_code,
             "work_date": body.work_date.isoformat(),
             "punch_count": row.punch_count,
+            "cycle_leave": cycle,
             "note": (body.note or "")[:200],
         },
     )
+    return _listed_day(db, emp, row)
 
-    listed = list_days(db, body.work_date, body.work_date, emp.employee_code)
-    if listed:
-        return listed[0]
-    return AttendanceDayOut(
-        id=row.id,
-        employee_id=emp.id,
-        employee_code=emp.employee_code,
-        full_name=emp.full_name,
-        work_date=row.work_date,
+
+def set_cycle_leave(db: Session, body: CycleLeavePatch, user: User) -> AttendanceDayOut:
+    """Tích/bỏ chu kỳ: ra sớm → ghi hết ca (17:00), không đổi công thức engine."""
+    pay, emp, row = _get_open_emp_day(db, body.employee_code, body.work_date)
+    if not body.cycle_leave:
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Trợ Lý AI: ngày này chưa có công — không bỏ tích chu kỳ.",
+            )
+        row.cycle_leave = False
+        row.edited_by_user_id = user.id
+        row.edited_at = datetime.now(tz=VN_TZ)
+        db.commit()
+        db.refresh(row)
+        write_audit(
+            db,
+            actor=user,
+            action="attendance.day.cycle",
+            entity_type="attendance_day",
+            entity_id=str(row.id),
+            summary=f"Bỏ chu kỳ {emp.employee_code} ngày {body.work_date.isoformat()}",
+            meta={"employee_code": emp.employee_code, "work_date": body.work_date.isoformat()},
+        )
+        return _listed_day(db, emp, row)
+
+    if row is None or row.first_in is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Trợ Lý AI: cần giờ vào (vân tay hoặc chấm tay) trước khi tích chu kỳ.",
+        )
+
+    _recalc_manual_times(
+        db,
+        emp=emp,
+        row=row,
+        work_date=body.work_date,
         first_in=row.first_in,
         last_out=row.last_out,
-        worked_hours=row.worked_hours,
-        late_minutes=row.late_minutes,
-        early_minutes=row.early_minutes,
-        ot_minutes=row.ot_minutes,
-        ot_on_books_minutes=row.ot_on_books_minutes,
-        ot_external_minutes=row.ot_external_minutes,
-        ot_type=row.ot_type,
-        punch_count=row.punch_count,
-        is_workday=row.is_workday,
+        user=user,
+        note=None,
+        cycle_leave=True,
     )
+    if not (row.note or "").strip():
+        row.note = "Chu kỳ"
+    db.commit()
+    db.refresh(row)
+
+    period = f"{pay.year:04d}-{pay.month:02d}"
+    rebuild_timesheets(db, period, recalc_days=False)
+    write_audit(
+        db,
+        actor=user,
+        action="attendance.day.cycle",
+        entity_type="attendance_day",
+        entity_id=str(row.id),
+        summary=f"Tích chu kỳ {emp.employee_code} ngày {body.work_date.isoformat()}",
+        meta={
+            "employee_code": emp.employee_code,
+            "work_date": body.work_date.isoformat(),
+            "last_out": row.last_out.isoformat() if row.last_out else None,
+        },
+    )
+    return _listed_day(db, emp, row)

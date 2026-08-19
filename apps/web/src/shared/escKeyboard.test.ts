@@ -84,6 +84,25 @@ describe("tryRevertActiveFieldEsc", () => {
     document.body.removeChild(input);
     clearActiveFieldEsc();
   });
+
+  it("does not swallow Escape when field is on a hidden keep-alive pane", () => {
+    const pane = document.createElement("div");
+    pane.className = "keep-alive-pane";
+    pane.setAttribute("aria-hidden", "true");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = "8851";
+    pane.appendChild(input);
+    document.body.appendChild(pane);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    expect(tryRevertActiveFieldEsc()).toBe(false);
+    expect(document.activeElement).not.toBe(input);
+
+    document.body.removeChild(pane);
+    clearActiveFieldEsc();
+  });
 });
 
 describe("setFormFieldValue", () => {
@@ -195,6 +214,31 @@ describe("escStack priority", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
     expect(fallback).toHaveBeenCalledTimes(1);
     unreg();
+  });
+
+  it("Escape on hidden keep-alive search field falls through to page back", () => {
+    const pane = document.createElement("div");
+    pane.className = "keep-alive-pane";
+    pane.setAttribute("aria-hidden", "true");
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = "8851";
+    pane.appendChild(input);
+    document.body.appendChild(pane);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    const fallback = vi.fn();
+    setEscFallback(fallback);
+    const unreg = registerEscHandler(() => false);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+
+    expect(fallback).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).not.toBe(input);
+
+    unreg();
+    document.body.removeChild(pane);
+    clearActiveFieldEsc();
   });
 
   it("runEscStack skips false layers then hits fallback", () => {

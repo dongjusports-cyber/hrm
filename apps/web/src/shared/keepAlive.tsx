@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useRef,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -130,6 +131,39 @@ type HostProps = {
   render: (id: KeepAliveId, snap: KeepAliveSnapshot | undefined) => ReactNode;
 };
 
+/** Pane ẩn vẫn giữ DOM — phải inert + bỏ focus, không thì ESC bị ô tìm cũ nuốt. */
+function KeepAlivePane({
+  id,
+  active,
+  children,
+}: {
+  id: KeepAliveId;
+  active: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (active) return;
+    const root = ref.current;
+    const el = document.activeElement;
+    if (root && el instanceof HTMLElement && root.contains(el)) {
+      el.blur();
+    }
+  }, [active]);
+
+  return (
+    <div
+      ref={ref}
+      className={`keep-alive-pane${active ? " is-active" : ""}`}
+      aria-hidden={!active}
+      inert={!active}
+    >
+      <PaneContext.Provider value={id}>{children}</PaneContext.Provider>
+    </div>
+  );
+}
+
 export function KeepAliveHost({ render }: HostProps) {
   const { current, visited, snaps } = useKeepAliveState();
 
@@ -142,13 +176,9 @@ export function KeepAliveHost({ render }: HostProps) {
   return (
     <div className="keep-alive-host">
       {visited.map((id) => (
-        <div
-          key={id}
-          className={`keep-alive-pane${current === id ? " is-active" : ""}`}
-          aria-hidden={current !== id}
-        >
-          <PaneContext.Provider value={id}>{render(id, snaps[id])}</PaneContext.Provider>
-        </div>
+        <KeepAlivePane key={id} id={id} active={current === id}>
+          {render(id, snaps[id])}
+        </KeepAlivePane>
       ))}
     </div>
   );
