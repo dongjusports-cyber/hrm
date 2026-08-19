@@ -22,9 +22,9 @@ Agent .122 đã chạy nền — không gói USB mỗi ngày.
 | 06-CLOUD-AGENT.txt | Setup Cloud Agent tối (đã làm thì thôi) |
 | PROMPT-TOI-CLOUD.txt | Prompt dán Cloud |
 | QUY-TRINH-HANG-NGAY.txt | Tối / sáng |
-| BAN-GIAO-HR.txt | Việc HR làm hàng ngày |
-| LOI-DA-SUA.txt | Lỗi đã sửa |
-| NO-KY-THUAT.txt | Nợ chưa sửa |
+| BAN-GIAO-HR.txt | Việc HR làm hàng ngày + kết quả QA 19/08 |
+| LOI-DA-SUA.txt | Lỗi đã sửa — đầu file có mục đợt 19/08 |
+| NO-KY-THUAT.txt | Nợ chưa sửa ([HR-OT8] [HR-STK]) |
 | ../Luật/00-DOC-TRUOC.txt | Từ điển luật |
 | ../Dữ liệu nhân viên/README.txt | Hồ sơ / ảnh / Excel |
 

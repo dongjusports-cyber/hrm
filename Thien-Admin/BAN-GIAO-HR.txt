@@ -1,4 +1,4 @@
-BAN GIAO HR — DJ-HRM (Cloud test 17/08/2026)
+BAN GIAO HR — DJ-HRM (cập nhật QA 19/08/2026)
 ============================================
 
 Portal: http://127.0.0.1:5173  (máy .123 / VPS: https://hrm.dongju-v.com)
@@ -9,20 +9,48 @@ Công nhân mẫu: MSNV 5290 (lần đầu bắt buộc đổi mật khẩu mớ
 Đọc mật khẩu: ops/THONG_TIN_VPS.txt hoặc Thien-Admin/DOC_BAT_DAU.txt (máy .123).
 Không gửi mật khẩu qua chat/zalo.
 
---------------------------------------------------------------------------------
-KẾT QUẢ TEST BÀN GIAO
---------------------------------------------------------------------------------
-API pytest:     472 passed, 1 skipped
-Web vitest:     61 passed (gồm ESC)
-UAT hr.demo:    ma trận GET 7 module + 403 Cấu Hình — passed
-Quy trình kín:  tạo NV / thôi việc / phép / thai sản / chấm công / tính lương /
-                phiếu / phát hành — passed (MSNV 9415)
+Lỗi ĐÃ SỬA: Thien-Admin/LOI-DA-SUA.txt
+Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt
 
-Live Cloud (hr.demo):
-  362 NV, kỳ 2026-08 ĐÃ PHÁT HÀNH
-  Tổng Quan ?period=2026-08 → 200
-  Chấm công lưới ngày / tổng hợp tháng → 200
+--------------------------------------------------------------------------------
+KẾT QUẢ TEST BÀN GIAO (19/08/2026)
+--------------------------------------------------------------------------------
+API pytest:     607 passed, 2 skipped
+Web vitest:     112 passed (gồm 19 ESC)
+tsc web:        sạch
+UAT hr.demo:    16/16 live + ma trận GET 7 module + 403 Cấu Hình
+
+Live Cloud (hr.demo) 19/08:
+  Tổng Quan / KPI kỳ 2026-08 → 200 (kể cả khi chưa có kỳ lương)
+  GET kỳ lương 2099-01 → 404 (không tự tạo kỳ)
+  Danh mục nghỉ sau seed → 14 loại (ALE, FLE, …)
+
+Đợt 17/08 (còn đúng, không làm lại):
+  Quy trình kín tạo NV / thôi việc / phép / thai sản / chấm công / tính lương /
+  phiếu / phát hành — passed (MSNV 9415)
   Phiếu 9415: Công 3 · AL 1 · WD 600.000 · ALE 200.000 · thực lãnh 425.285
+
+--------------------------------------------------------------------------------
+LỖI TÌM ĐƯỢC KHI RÀ SOÁT 19/08 — ĐÃ SỬA
+--------------------------------------------------------------------------------
+Chi tiết trong LOI-DA-SUA.txt:
+
+  [QA-H001] pytest không collect (mật khẩu CN cũ)
+            Công nhân xin phép không thấy số dư phép năm
+            GET danh mục nghỉ tự ghi DB
+            ESC sheet chi tiết ngày đóng khi đang nhập giờ
+            UAT BHXH sai query ?month=
+
+  [QA-H002] Tổng Quan / KPI 404 khi chưa bấm Tính lương
+            Giờ Vào/Ra JSON thiếu +07:00 (17:00 thành 00:00)
+            Ingest công 0 dòng vì cache Settings giữa các test
+
+--------------------------------------------------------------------------------
+NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
+--------------------------------------------------------------------------------
+  [HR-OT8]  Sau deploy: Chấm công → kỳ đang dùng → tính lại ngày /
+            tổng hợp bảng công → mới xuất Excel (luật OT cổng 17:30 / Cooker)
+  [HR-STK]  Script nạp STK / lương HĐ từ Excel — chưa --apply trên VPS
 
 --------------------------------------------------------------------------------
 HR LÀM GÌ HÀNG NGÀY (thứ tự)
@@ -42,7 +70,8 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - Kiểm theo ngày: sửa Vào/Ra, gán phép năm (ALE)
    - Tổng hợp tháng: cột Công / Phép năm
    - Tab Duyệt phép: đơn công nhân gửi từ điện thoại
-   - ESC trong ô giờ = hoàn tác + thoát ô, không đóng trang
+   - ESC trong ô giờ = hoàn tác + thoát ô, không đóng sheet/trang
+   - Công nhân (điện thoại): trang xin phép hiện số dư phép năm
 
 4. Tính Lương (kỳ YYYY-MM)
    - Tính lương (Admin mở lại kỳ nếu đã phát hành)
@@ -53,7 +82,7 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - BHXH trừ cả tháng nếu NV đang đóng (dù ít ngày công → có thể âm)
 
 5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan
-   - Tổng Quan chọn kỳ tháng
+   - Tổng Quan chọn kỳ tháng — chưa Tính lương vẫn mở được (todo, KPI 0 công)
    - Khiếu nại: danh sách đơn công nhân
 
 --------------------------------------------------------------------------------
@@ -87,7 +116,9 @@ BIẾT TRƯỚC (không phải lỗi phần mềm)
 NẾU LỖI
 --------------------------------------------------------------------------------
 Portal khóa pass 3 lần: Thien-Admin\03-MO-KHOA-PORTAL.bat
-Tổng Quan trắng: gọi GET /api/reports/overview?period=YYYY-MM (cần query period)
+Danh mục nghỉ trống (không có ALE): chạy seed — python -m app.scripts.seed
+  (GET không tự tạo danh mục; Cloud start.sh đã seed)
+Tổng Quan: luôn truyền ?period=YYYY-MM; chưa tính lương vẫn 200 (QA-H002)
 ESC: rule khóa — không tự gắn listener Escape mới.
 
 Sáng đồng bộ VPS: Thien-Admin\02-DONG-BO-SANG.bat

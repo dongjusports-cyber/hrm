@@ -1,6 +1,14 @@
 LOI DA SUA — DJ-HRM
 ====================
 
+Đợt bàn giao HR 19/08/2026 (cuối file):
+  [QA-H001] pytest không chạy, phép CN, GET danh mục nghỉ, ESC sheet công
+  [QA-H002] dashboard KPI/overview 404 khi chưa tính lương, giờ công JSON thiếu +07
+
+Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
+Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
+
+
 [POL-A001] Ngưỡng chuyên cần mới (Bước A) — 2026-08-15
 ------------------------------------------------------
 Triệu chứng:
