@@ -15,7 +15,7 @@ import {
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
-import { AG_GRID_LOCALE_VI, compareHhmmEmptyFirst } from "../../shared/agGridVi";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI, compareHhmmEmptyFirst } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
@@ -650,6 +650,7 @@ function DailyGridPanelInner({
             return undefined;
           }}
           defaultColDef={{
+            ...AG_GRID_DEFAULT_COL_DEF,
             sortable: true,
             resizable: true,
             filter: false,

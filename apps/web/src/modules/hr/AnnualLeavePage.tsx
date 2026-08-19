@@ -13,6 +13,7 @@ import { textMatchesQuery } from "../../shared/employeeSearch";
 import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { useAgGridExternalFilter } from "../../shared/useAgGridExternalFilter";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 
 const MONTHS: { key: keyof AnnualLeaveMonthDays; label: string }[] = [
@@ -270,7 +271,9 @@ export function AnnualLeavePage() {
           onGridReady={(e: GridReadyEvent<AnnualLeaveGridRow>) => {
             leaveFilter.onGridReady(e);
           }}
+          localeText={AG_GRID_LOCALE_VI}
           defaultColDef={{
+            ...AG_GRID_DEFAULT_COL_DEF,
             sortable: true,
             resizable: true,
             filter: false,

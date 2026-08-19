@@ -13,6 +13,7 @@ import {
 } from "../../shared/api";
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { labelJobStatus } from "../../shared/viLabels";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { runSyncWithProgress, type SyncProgressState } from "./syncWithProgress";
 
 function fmtDt(iso: string | null | undefined): string {
@@ -271,7 +272,9 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
             getRowId={(p) => p.data.id}
             animateRows={false}
             domLayout="autoHeight"
+            localeText={AG_GRID_LOCALE_VI}
             defaultColDef={{
+              ...AG_GRID_DEFAULT_COL_DEF,
               sortable: true,
               resizable: true,
               filter: false,
@@ -300,7 +303,9 @@ export function MitaproSyncPanel({ period, onChanged }: Props) {
             getRowId={(p) => String(p.data.id)}
             animateRows={false}
             domLayout="autoHeight"
+            localeText={AG_GRID_LOCALE_VI}
             defaultColDef={{
+              ...AG_GRID_DEFAULT_COL_DEF,
               sortable: true,
               resizable: true,
               filter: false,

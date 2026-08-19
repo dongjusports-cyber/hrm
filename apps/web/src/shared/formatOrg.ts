@@ -62,16 +62,27 @@ export function isOrgUnitActive(item: { is_active?: boolean }): boolean {
   return item.is_active !== false;
 }
 
-export function activeTeams<T extends { is_active?: boolean }>(teams: T[]): T[] {
-  return teams.filter(isOrgUnitActive);
+const VI_LABEL = new Intl.Collator("vi", { numeric: true, sensitivity: "base" });
+
+/** A→Z tiếng Việt theo tên hiển thị (bỏ mã số đầu dòng). */
+export function sortByViName<T extends { name?: string | null }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) =>
+    VI_LABEL.compare(formatOrgName(a.name) || a.name || "", formatOrgName(b.name) || b.name || ""),
+  );
 }
 
-export function departmentsWithActiveTeams<T extends { id: string; is_active?: boolean }>(
+export function activeTeams<T extends { is_active?: boolean; name?: string | null }>(teams: T[]): T[] {
+  return sortByViName(teams.filter(isOrgUnitActive));
+}
+
+export function departmentsWithActiveTeams<
+  T extends { id: string; is_active?: boolean; name?: string | null },
+>(
   departments: T[],
   teams: { department_id: string; is_active?: boolean }[],
 ): T[] {
   const activeDeptIds = new Set(
     activeTeams(teams).map((t) => t.department_id),
   );
-  return departments.filter((d) => isOrgUnitActive(d) && activeDeptIds.has(d.id));
+  return sortByViName(departments.filter((d) => isOrgUnitActive(d) && activeDeptIds.has(d.id)));
 }

@@ -8,6 +8,7 @@ import {
 } from "../../shared/api";
 import { formatDateDDMMYYYY } from "../../shared/formatDate";
 import { formatDeptTeam } from "../../shared/formatOrg";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 
 export function LeaveApprovalPanel({ onChanged }: { onChanged?: () => void }) {
   const [rows, setRows] = useState<LeaveRequestRow[]>([]);
@@ -161,7 +162,8 @@ export function LeaveApprovalPanel({ onChanged }: { onChanged?: () => void }) {
             rowSelection="multiple"
             suppressRowClickSelection
             onGridReady={(e) => setGridApi(e.api)}
-            defaultColDef={{ sortable: true, resizable: true, filter: false }}
+            localeText={AG_GRID_LOCALE_VI}
+            defaultColDef={{ ...AG_GRID_DEFAULT_COL_DEF, sortable: true, resizable: true, filter: false }}
             animateRows={false}
           />
         )}

@@ -120,7 +120,7 @@ export function PayrollPage() {
   );
 
   const exportEmployeeOptions = useMemo(() => {
-    const list = [...rows].sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+    const list = [...rows].sort((a, b) => a.employee_code.localeCompare(b.employee_code, "vi", { numeric: true }));
     if (!exportDeptId) return list;
     return list.filter((r) => empDeptByCode.get(r.employee_code) === exportDeptId);
   }, [rows, exportDeptId, empDeptByCode]);

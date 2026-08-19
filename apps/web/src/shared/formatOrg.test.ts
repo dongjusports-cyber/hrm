@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatOrgColumnCell, orgColumnHeader, type OrgListFilter } from "./formatOrg";
+import { formatOrgColumnCell, orgColumnHeader, sortByViName, type OrgListFilter } from "./formatOrg";
 
 describe("formatOrgColumnCell", () => {
   const row = {
@@ -39,5 +39,12 @@ describe("orgColumnHeader", () => {
   it("chưa chọn tổ → tiêu đề Bộ phận", () => {
     expect(orgColumnHeader({ departmentId: "d1", teamId: "" })).toBe("Bộ phận");
     expect(orgColumnHeader({ departmentId: "", teamId: "" })).toBe("Bộ phận");
+  });
+});
+
+describe("sortByViName", () => {
+  it("A→Z tiếng Việt: Đ không nhảy xuống cuối", () => {
+    const rows = [{ name: "Đóng gói" }, { name: "Cắt" }, { name: "01 May" }];
+    expect(sortByViName(rows).map((r) => r.name)).toEqual(["Cắt", "Đóng gói", "01 May"]);
   });
 });

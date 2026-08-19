@@ -919,3 +919,24 @@ Cách xử lý:
 Test:
   cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_review.py -q
 
+[UI-S001] Nút sổ A→Z / Z→A nhảy lung tung — 2026-08-19
+-------------------------------------------------------
+Triệu chứng:
+  Mở menu cột lưới (A → Z / Z → A) bị nhảy vị trí. Bấm xếp thì họ tên
+  Đ/Ă/Â/Ơ/Ư chạy xuống cuối — không theo alphabet tiếng Việt.
+
+Nguyên nhân:
+  1. Menu AG Grid gắn trong lưới; `.module-page` / `.hr-grid` overflow:hidden
+     cắt popup rồi engine lật vị trí liên tục.
+  2. Sort mặc định so mã Unicode (Đ sau Z), không phải locale `vi`.
+  3. CSS `width:100%` trên tiêu đề cột đẩy nút sổ ra ngoài, header co giãn
+     khi mở menu.
+
+Cách xử lý:
+  popupParent = document.body; columnMenu = legacy; comparator locale vi
+  (numeric) cho mọi lưới. Sổ bộ phận/tổ/MSNV xếp A→Z tiếng Việt.
+  CSS chừa chỗ nút sổ + mũi tên sort.
+
+Test:
+  cd apps/web && npm test -- agGridVi formatOrg
+

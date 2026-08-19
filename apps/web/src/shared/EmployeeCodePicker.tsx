@@ -41,7 +41,10 @@ export function EmployeeCodePicker({
             o.full_name.toLowerCase().includes(q),
         )
       : options;
-    return list.slice(0, 40);
+    const collator = new Intl.Collator("vi", { numeric: true, sensitivity: "base" });
+    return [...list]
+      .sort((a, b) => collator.compare(a.full_name, b.full_name) || collator.compare(a.employee_code, b.employee_code))
+      .slice(0, 40);
   }, [options, query]);
 
   useEffect(() => {

@@ -39,6 +39,7 @@ import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { cacheHydrate, cachePeek, employeesCacheKey } from "../../shared/clientCache";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { useAliveParams, useKeepAlivePaneActive } from "../../shared/keepAlive";
 
 type StatusFilter =
@@ -845,7 +846,9 @@ export function EmployeesPage() {
           }}
           onColumnPinned={(e) => persistColumns(e.api)}
           onColumnVisible={(e) => persistColumns(e.api)}
+          localeText={AG_GRID_LOCALE_VI}
           defaultColDef={{
+            ...AG_GRID_DEFAULT_COL_DEF,
             sortable: true,
             resizable: true,
             filter: false,

@@ -22,8 +22,8 @@ import {
   type PayPeriod,
   type TimesheetMonth,
 } from "../../shared/api";
-import { formatDepartmentLabel } from "../../shared/formatOrg";
-import { AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
+import { formatDepartmentLabel, sortByViName } from "../../shared/formatOrg";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
@@ -290,7 +290,7 @@ export function TimekeepingPage() {
         .catch(() => {});
       void pendingP.then((pendingLeaves) => setLeavePending(pendingLeaves.length));
       void fetchDepartments()
-        .then((depts) => setDepartments(depts.filter((d) => d.is_active !== false)))
+        .then((depts) => setDepartments(sortByViName(depts.filter((d) => d.is_active !== false))))
         .catch(() => {});
       const sheets = await sheetsP;
       setRows(sheets);
@@ -1272,6 +1272,7 @@ export function TimekeepingPage() {
                     p.data?.id === selected?.id ? "hr-row-selected" : undefined
                   }
                   defaultColDef={{
+                    ...AG_GRID_DEFAULT_COL_DEF,
                     sortable: true,
                     resizable: true,
                     filter: false,

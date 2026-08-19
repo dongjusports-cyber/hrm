@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { AllCommunityModule, ModuleRegistry, provideGlobalGridOptions } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "./shared/agGridVi";
 import App from "./App";
 import "./styles/global.css";
 /* Module Menu V1.0 (nền đen) — bỏ comment dòng dưới khi cần đổi lại */
@@ -11,7 +12,14 @@ import "./styles/global.css";
 import "./styles/ag-grid-djhrm.css";
 
 /* AG Grid 33: dùng file CSS (ag-grid.css) — tránh error #239 xung đột Theming API */
-provideGlobalGridOptions({ theme: "legacy" });
+provideGlobalGridOptions({
+  theme: "legacy",
+  /* Menu A→Z neo body: .module-page overflow:hidden không cắt rồi nhảy vị trí */
+  popupParent: document.body,
+  columnMenu: "legacy",
+  localeText: AG_GRID_LOCALE_VI,
+  defaultColDef: AG_GRID_DEFAULT_COL_DEF,
+});
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 

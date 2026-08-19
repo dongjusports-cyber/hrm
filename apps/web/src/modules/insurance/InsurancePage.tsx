@@ -13,6 +13,7 @@ import { currentPayPeriod } from "../../shared/formatDate";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { InsuranceDeclarationsSection } from "./InsuranceDeclarationsSection";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 
@@ -233,7 +234,8 @@ export function InsurancePage() {
                     columnDefs={columnDefs}
                     getRowId={(p) => p.data.employee_id}
                     animateRows={false}
-                    defaultColDef={{ sortable: true, resizable: true }}
+                    localeText={AG_GRID_LOCALE_VI}
+                    defaultColDef={{ ...AG_GRID_DEFAULT_COL_DEF, sortable: true, resizable: true }}
                   />
                 </div>
               </>

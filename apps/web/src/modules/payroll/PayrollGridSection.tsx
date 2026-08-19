@@ -10,6 +10,7 @@ import {
   sumPayslipField,
   type PayrollViewMode,
 } from "./payrollGridColumns";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 
 type Props = {
   period: string;
@@ -81,7 +82,8 @@ export function PayrollGridSection({
           rowSelection="single"
           onRowClicked={onRowClicked}
           getRowClass={(p) => (p.data?.id === selectedId ? "payroll-row-selected" : undefined)}
-          defaultColDef={{ sortable: true, resizable: true, filter: true }}
+          localeText={AG_GRID_LOCALE_VI}
+          defaultColDef={{ ...AG_GRID_DEFAULT_COL_DEF, sortable: true, resizable: true, filter: true }}
           suppressHorizontalScroll={!allowHorizontalScroll}
           onGridReady={(e) => fitGridColumns()(e.api)}
           onGridSizeChanged={(e) => fitGridColumns()(e.api)}

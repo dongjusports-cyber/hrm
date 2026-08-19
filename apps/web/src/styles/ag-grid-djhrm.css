@@ -138,5 +138,29 @@
 
 .ag-theme-quartz .ag-header-cell.tk-header-time-center .ag-header-cell-label {
   justify-content: center;
-  width: 100%;
+}
+
+/*
+ * Menu cột A→Z: neo document.body (popupParent).
+ * Chừa chỗ nút sổ + mũi tên sort — tiêu đề không co giãn khi mở menu (nhảy lung tung).
+ */
+body > .ag-popup {
+  z-index: 400;
+}
+
+.ag-theme-quartz .ag-header-cell .ag-header-cell-menu-button,
+.ag-theme-quartz .ag-header-cell .ag-header-menu-button {
+  opacity: 1;
+  flex: 0 0 auto;
+}
+
+.ag-theme-quartz .ag-sort-indicator-container {
+  min-width: 14px;
+  flex: 0 0 auto;
+}
+
+.ag-theme-quartz .ag-header-cell-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
 }

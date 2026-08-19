@@ -19,6 +19,7 @@ import {
   formatTeamLabel,
 } from "../../shared/formatOrg";
 import { formatVnd, NET_DELTA_WARN_THRESHOLD } from "./payrollGridColumns";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
 
 type Scope = "all" | "department" | "team" | "employees";
 
@@ -245,6 +246,8 @@ export function PayrollSimulateSection({ period }: Props) {
             columnDefs={cols}
             suppressCellFocus
             getRowId={(p) => p.data.employee_id}
+            localeText={AG_GRID_LOCALE_VI}
+            defaultColDef={AG_GRID_DEFAULT_COL_DEF}
             animateRows={false}
             headerHeight={32}
             rowHeight={36}
