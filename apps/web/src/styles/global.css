@@ -6599,6 +6599,16 @@ body.worker-surface {
   line-height: 1.4;
 }
 
+.worker-leave-balance {
+  margin-bottom: 16px;
+}
+
+.worker-leave-balance p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.5;
+}
+
 .worker-ok {
   color: #047857;
   margin: 0;

@@ -1,18 +1,27 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  fetchWorkerLeaveBalance,
   fetchWorkerLeaveRequests,
   fetchWorkerLeaveTypes,
   submitWorkerLeaveRequest,
+  type WorkerLeaveBalance,
   type WorkerLeaveRequest,
   type WorkerLeaveType,
 } from "./workerApi";
 import { useWorkerAuth } from "./workerAuthStore";
 
+function fmtDays(v: string | number | null | undefined): string {
+  const n = Number(v);
+  if (Number.isNaN(n)) return "—";
+  return n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+}
+
 export function WorkerLeavePage() {
   const { worker } = useWorkerAuth();
   const [leaves, setLeaves] = useState<WorkerLeaveType[]>([]);
   const [history, setHistory] = useState<WorkerLeaveRequest[]>([]);
+  const [balance, setBalance] = useState<WorkerLeaveBalance | null>(null);
   const [leaveCode, setLeaveCode] = useState("ALE");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -22,9 +31,14 @@ export function WorkerLeavePage() {
   const [loading, setLoading] = useState(false);
 
   async function reload() {
-    const [types, reqs] = await Promise.all([fetchWorkerLeaveTypes(), fetchWorkerLeaveRequests()]);
+    const [types, reqs, bal] = await Promise.all([
+      fetchWorkerLeaveTypes(),
+      fetchWorkerLeaveRequests(),
+      fetchWorkerLeaveBalance(),
+    ]);
     setLeaves(types);
     setHistory(reqs);
+    setBalance(bal);
   }
 
   useEffect(() => {
@@ -39,6 +53,10 @@ export function WorkerLeavePage() {
     setError(null);
     setOk(null);
     try {
+      if (fromDate && toDate && toDate < fromDate) {
+        setError("Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.");
+        return;
+      }
       await submitWorkerLeaveRequest({
         leave_type_code: leaveCode,
         from_date: fromDate,
@@ -79,6 +97,19 @@ export function WorkerLeavePage() {
 
       {error && <p className="worker-error">{error}</p>}
       {ok && <p className="worker-banner">{ok}</p>}
+
+      {balance && (
+        <section className="worker-section worker-leave-balance" aria-live="polite">
+          <h2>Phép năm {balance.year}</h2>
+          <p>
+            Còn <strong>{fmtDays(balance.remaining)}</strong> / {fmtDays(balance.days_per_year)} ngày
+            {Number(balance.pending_submitted) > 0
+              ? ` (đang chờ duyệt ${fmtDays(balance.pending_submitted)} ngày)`
+              : ""}
+            .
+          </p>
+        </section>
+      )}
 
       <form className="worker-section worker-leave-form" onSubmit={(e) => void onSubmit(e)}>
         <h2>Gửi đơn mới</h2>

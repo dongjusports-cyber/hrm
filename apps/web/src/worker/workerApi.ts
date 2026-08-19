@@ -173,6 +173,15 @@ export async function workerChangePassword(
   return (data as { detail: string }).detail;
 }
 
+export type WorkerLeaveBalance = {
+  year: number;
+  days_per_year: string | number;
+  accrued: string | number;
+  used: string | number;
+  pending_submitted: string | number;
+  remaining: string | number;
+};
+
 export type WorkerLeaveType = {
   code: string;
   name: string;
@@ -189,6 +198,12 @@ export type WorkerLeaveRequest = {
   status: string;
   annual_leave_remaining: string | number | null;
 };
+
+export async function fetchWorkerLeaveBalance(): Promise<WorkerLeaveBalance> {
+  const res = await workerFetch("/api/worker/leave-balance");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
 
 export async function fetchWorkerLeaveTypes(): Promise<WorkerLeaveType[]> {
   const res = await workerFetch("/api/worker/leave-types");
