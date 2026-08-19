@@ -49,7 +49,7 @@ export function speechBlockReason(
 /** Bỏ «trợ lý ơi / hỏi AI» đầu câu để khớp rule CSDL. */
 export function normalizeVoiceCommand(raw: string): string {
   let text = (raw || "").trim().replace(/\s+/g, " ");
-  text = text.replace(/^(?:ơ+\s*)?(?:trợ lý(?:\s+ai)?|hỏi ai|alo)[\s,.:;]+/i, "");
+  text = text.replace(/^(?:ơ+\s*)?(?:trợ lý(?:\s+ai)?(?:\s+ơi)?|hỏi ai|alo)[\s,.:;]+/i, "");
   text = text.replace(/[.?!,…]+$/g, "").trim();
   return text;
 }

@@ -69,7 +69,7 @@ describe("startSpeechSession", () => {
     const onFinal = vi.fn();
     const onError = vi.fn();
     startSpeechSession({
-      ctor: FakeRec as unknown as new () => FakeRec,
+      ctor: FakeRec as never,
       onFinal,
       onError,
     });
