@@ -30,6 +30,7 @@ import {
 } from "./aiFabPosition";
 import { useAuth } from "./authStore";
 import { useEscLayer } from "./useEscLayer";
+import { speechBlockReason, startSpeechSession, type SpeechSession } from "./speechToText";
 
 type Tab = "alerts" | "chat";
 
@@ -82,6 +83,9 @@ export function AiFab() {
   const [chatAnswer, setChatAnswer] = useState<string | null>(null);
   const [chatMeta, setChatMeta] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const [listening, setListening] = useState(false);
+  const speechRef = useRef<SpeechSession | null>(null);
+  const sendMessageRef = useRef<(text: string) => Promise<void>>(async () => undefined);
 
   const onWorker = location.pathname.startsWith("/worker");
   const onLogin = location.pathname === "/login" || location.pathname === "/worker/login";
@@ -142,18 +146,59 @@ export function AiFab() {
 
   useEscLayer(open, () => setOpen(false));
 
-  const panelBox = useMemo(
-    () =>
-      computePanelBox(pos, viewport.w, viewport.h, {
-        fabSize: FAB_SIZE,
-        panelWidth: tab === "chat" ? Math.min(520, Math.max(400, viewport.w - 32)) : 400,
-        preferredHeight:
-          tab === "chat"
-            ? Math.min(720, Math.max(480, Math.floor(viewport.h * 0.82)))
-            : Math.min(560, Math.max(360, Math.floor(viewport.h * 0.65))),
-      }),
-    [pos, viewport.w, viewport.h, tab],
+  useEffect(() => {
+    if (open) return;
+    speechRef.current?.stop();
+    speechRef.current = null;
+    setListening(false);
+  }, [open]);
+
+  useEffect(
+    () => () => {
+      speechRef.current?.stop();
+    },
+    [],
   );
+
+  const sendMessage = useCallback(
+    async (text: string) => {
+      if (!canAssist || asking || !text.trim()) return;
+      const q = text.trim();
+      setAsking(true);
+      setError(null);
+      try {
+        const res = canQuery ? await askAi(q) : await askAiAssist(q);
+        setChatAnswer(res.answer);
+        setChatMeta(res.message);
+        setFollowups(res.suggestions ?? []);
+        setThread((prev) => [...prev.slice(-2), { q, a: res.answer }]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Không hỏi được AI.");
+      } finally {
+        setAsking(false);
+      }
+    },
+    [canAssist, canQuery, asking],
+  );
+  sendMessageRef.current = sendMessage;
+
+  const panelBox = useMemo(() => {
+    const phone = viewport.w < 640;
+    const chat = tab === "chat";
+    return computePanelBox(pos, viewport.w, viewport.h, {
+      fabSize: FAB_SIZE,
+      panelWidth: phone
+        ? viewport.w - 16
+        : chat
+          ? Math.min(520, Math.max(400, viewport.w - 32))
+          : 400,
+      preferredHeight: phone
+        ? Math.min(viewport.h - 24, Math.max(420, Math.floor(viewport.h * 0.9)))
+        : chat
+          ? Math.min(720, Math.max(480, Math.floor(viewport.h * 0.82)))
+          : Math.min(560, Math.max(360, Math.floor(viewport.h * 0.65))),
+    });
+  }, [pos, viewport.w, viewport.h, tab]);
 
   if (!accessToken || onWorker || onLogin) return null;
 
@@ -196,27 +241,49 @@ export function AiFab() {
     }
   }
 
-  async function sendMessage(text: string) {
-    if (!canAssist || asking || !text.trim()) return;
-    const q = text.trim();
-    setAsking(true);
-    setError(null);
-    try {
-      const res = canQuery ? await askAi(q) : await askAiAssist(q);
-      setChatAnswer(res.answer);
-      setChatMeta(res.message);
-      setFollowups(res.suggestions ?? []);
-      setThread((prev) => [...prev.slice(-2), { q, a: res.answer }]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không hỏi được AI.");
-    } finally {
-      setAsking(false);
-    }
-  }
-
   async function onAsk(e: FormEvent) {
     e.preventDefault();
     await sendMessage(chatInput);
+  }
+
+  function stopSpeech() {
+    speechRef.current?.stop();
+    speechRef.current = null;
+    setListening(false);
+  }
+
+  function toggleVoice() {
+    if (asking) return;
+    if (listening) {
+      stopSpeech();
+      return;
+    }
+    const blocked = speechBlockReason();
+    if (blocked) {
+      setError(blocked);
+      return;
+    }
+    setError(null);
+    setTab("chat");
+    setListening(true);
+    speechRef.current = startSpeechSession({
+      onInterim: (text) => setChatInput(text),
+      onFinal: (text) => {
+        speechRef.current = null;
+        setListening(false);
+        setChatInput(text);
+        if (text) void sendMessageRef.current(text);
+      },
+      onError: (message) => {
+        speechRef.current = null;
+        setListening(false);
+        if (message) setError(message);
+      },
+      onEnd: () => {
+        speechRef.current = null;
+        setListening(false);
+      },
+    });
   }
 
   async function askPreset(s: AiSuggestion) {
@@ -431,7 +498,8 @@ export function AiFab() {
                 <p className="field-hint ai-fab-chat-hint">
                   {canQuery
                     ? "Tra cứu MSNV/họ tên và việc nhà máy trả lời ngay từ CSDL. Câu phân tích mới gọi Gemini. Không tự sửa dữ liệu."
-                    : "Bạn đang tra cứu CSDL (không gọi Gemini): tóm tắt hôm nay, thông tin NV, chấm lẻ, đơn phép, HĐ, thử việc. Câu phân tích cần Admin cấp quyền ai_query. Không tự sửa dữ liệu."}
+                    : "Bạn đang tra cứu CSDL (không gọi Gemini): tóm tắt hôm nay, thông tin NV, chấm lẻ, đơn phép, HĐ, thử việc. Câu phân tích cần Admin cấp quyền ai_query. Không tự sửa dữ liệu."}{" "}
+                  Nói trên điện thoại: bấm mic, nói xong máy hỏi hộ. Không tự duyệt phép / sửa công / tính lương.
                 </p>
                 {(followups.length > 0 || suggestions.length > 0 || DEFAULT_CHIPS.length > 0) && (
                   <div className="ai-fab-chips" role="group" aria-label="Gợi ý hỏi">
@@ -458,12 +526,29 @@ export function AiFab() {
                   onChange={(e) => setChatInput(e.target.value)}
                   rows={2}
                   maxLength={4000}
-                  placeholder="Ví dụ: Tóm tắt việc cần làm hôm nay · Thông tin Lê Văn C · Ai chấm lẻ tháng này"
+                  placeholder={
+                    listening
+                      ? "Đang nghe… nói ví dụ: ai chấm lẻ tháng này"
+                      : "Gõ hoặc bấm mic. Ví dụ: Tóm tắt việc cần làm hôm nay · Thông tin Lê Văn C"
+                  }
                   disabled={asking}
                 />
-                <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>
-                  {asking ? "Đang hỏi…" : "Gửi"}
-                </button>
+                <div className="ai-fab-chat-row">
+                  <button
+                    type="button"
+                    className={`ai-fab-mic${listening ? " is-listening" : ""}`}
+                    aria-pressed={listening}
+                    aria-label={listening ? "Dừng nghe" : "Nói lệnh cho Trợ Lý AI"}
+                    title={listening ? "Dừng nghe" : "Nói (tiếng Việt)"}
+                    disabled={asking}
+                    onClick={toggleVoice}
+                  >
+                    {listening ? "●" : "🎤"}
+                  </button>
+                  <button type="submit" className="btn-primary" disabled={asking || listening || !chatInput.trim()}>
+                    {asking ? "Đang hỏi…" : "Gửi"}
+                  </button>
+                </div>
                 {chatMeta && <p className="field-hint ai-fab-chat-meta">{chatMeta}</p>}
                 {(chatAnswer || thread.length > 0) && (
                   <div className="ai-fab-answer-wrap" aria-live="polite">

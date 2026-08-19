@@ -61,6 +61,7 @@ Chi tiết trong LOI-DA-SUA.txt:
 
   [AI-P001] Nút AI không còn kéo KPI cả nhà máy mỗi 60 giây (poll inbox nhẹ)
   [AI-P002] Đếm chấm lẻ đủ số thật (~400 NV); HR hỏi theo tên; /assist không Gemini
+  [AI-V001] HR ĐT: Portal /login → nút AI → mic nói lệnh (Chrome/HTTPS). Không tự sửa CSDL.
 
 --------------------------------------------------------------------------------
 NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
@@ -104,6 +105,10 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - Nút AI: Việc cần làm (0 token). HR hỏi «Tóm tắt hôm nay», «Ai chấm lẻ»,
      «Thông tin [họ tên/MSNV]» từ CSDL (không Gemini). Thiếu chấm vào/ra
      → gọi NV lập biên bản, rồi chấm tay đủ cặp — không bịa giờ.
+   - Điện thoại HR: mở https://hrm.dongju-v.com/login (không cổng /worker).
+     Tab Hỏi AI → nút mic → nói tiếng Việt (vd. «ai chấm lẻ tháng này»).
+     Cần Chrome/Edge Android hoặc Safari iOS mới + cho phép micro + HTTPS.
+     Giọng nói = hỏi CSDL, không tự duyệt phép / sửa công / tính lương.
 
 --------------------------------------------------------------------------------
 MSNV KIỂM TRA SẴN TRÊN CLOUD

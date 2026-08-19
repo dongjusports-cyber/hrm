@@ -43,3 +43,6 @@ def test_health_exposes_env(client):
     body = res.json()
     assert body["version"].startswith("0.6.")
     assert "env" in body
+    policy = res.headers.get("permissions-policy") or res.headers.get("Permissions-Policy") or ""
+    assert "microphone=(self)" in policy
+    assert "geolocation=(self)" in policy
