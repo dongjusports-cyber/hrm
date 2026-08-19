@@ -10,4 +10,24 @@ Chuyen sang Thien-Admin/LOI-DA-SUA.txt muc [QA-02] / [REP-OV001].
 Giu MOT TodoCardOut tu ai/schemas; test overview co HD het han → 200.
 
 --------------------------------------------------------------------------------
+[HR-OT8] Rebuild bang cong sau OT 8 he so (lam tren portal, khong can code)
+--------------------------------------------------------------------------------
+Da deploy VPS 2026-08-19 (commit 4843eca). So 8 he so chi dung sau khi HR:
+  Cham cong → ky dang dung → tinh lai ngay / tong hop bang cong → roi moi xuat Excel.
+Chi tiet: Thien-Admin/NO-VE-NHA-2026-08-19.txt
+
+--------------------------------------------------------------------------------
+[WEB-SORT] dailyGridSort chua gan luoi ngay
+--------------------------------------------------------------------------------
+File da co: apps/web/src/modules/timekeeping/dailyGridSort.ts (+ test).
+DailyGridPanel nut «xep can xu ly» van goi applyDefaultSort — chua dung applyDailyGridSort.
+Gan helper vao nut, chay npm test dailyGridSort.
+
+--------------------------------------------------------------------------------
+[HR-STK] Script nap STK / luong HD tu bang luong
+--------------------------------------------------------------------------------
+apps/api/app/scripts/fill_bank_from_salary.py da mo rong (STK, luong HD, ngay vao, ky HD, SĐT).
+Chua chay tren VPS. Can Excel luong + snapshot employees/*.json, dry-run truoc khi ghi.
+
+--------------------------------------------------------------------------------
 (chen them muc no moi o day, gom dot sua sau)
