@@ -11,7 +11,8 @@ from decimal import Decimal
 from io import BytesIO
 
 from openpyxl import Workbook
-from openpyxl.styles import Font
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from app.modules.payroll.engine_allowances import AllowanceInput, compute_allowa
 from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay
 from app.modules.payroll.money import D, ZERO, money_vnd
 from app.modules.payroll.period_eligibility import employee_on_payroll_period
+from app.modules.print.context import COMPANY
 from app.modules.payroll.service import (
     _active_policy,
     _detail_days_by_category,
@@ -56,6 +58,122 @@ class OtExternalSummary:
     total_amount_vnd: Decimal
     rows: list[OtExternalPayRow]
     policy_note: str
+
+
+_MONTH_EN = {
+    1: "JANUARY",
+    2: "FEBRUARY",
+    3: "MARCH",
+    4: "APRIL",
+    5: "MAY",
+    6: "JUNE",
+    7: "JULY",
+    8: "AUGUST",
+    9: "SEPTEMBER",
+    10: "OCTOBER",
+    11: "NOVEMBER",
+    12: "DECEMBER",
+}
+
+# In giống bảng lương: khối công ty + viền; màu theo yêu cầu in OT ngoài.
+_LAST_COL = 11
+_ROW_COMPANY = 1
+_ROW_TITLE = 5
+_ROW_PERIOD = 6
+_ROW_NOTE = 7
+_ROW_HDR_EN = 9
+_ROW_HDR_VI = 10
+_ROW_HDR_NUM = 11
+_ROW_DATA = 12
+
+_NAVY = "0A4D8C"
+_LIGHT_BLUE = "BDD7EE"
+_FOOTER_BLUE = "5B9BD5"
+_WHITE = "FFFFFF"
+
+_FILL_COMPANY = PatternFill(fill_type="solid", start_color=_NAVY, end_color=_NAVY)
+_FILL_HEADER = PatternFill(fill_type="solid", start_color=_LIGHT_BLUE, end_color=_LIGHT_BLUE)
+_FILL_NUM = PatternFill(fill_type="solid", start_color="D6EAF8", end_color="D6EAF8")
+_FILL_FOOTER = PatternFill(fill_type="solid", start_color=_FOOTER_BLUE, end_color=_FOOTER_BLUE)
+
+_FONT_COMPANY = Font(name="Arial", bold=True, size=14, color=_WHITE)
+_FONT_META = Font(name="Arial", size=10, color="FFFFFF")
+_FONT_TITLE = Font(name="Arial", bold=True, size=15, color=_NAVY)
+_FONT_PERIOD = Font(name="Arial", bold=True, size=13, color=_NAVY)
+_FONT_NOTE = Font(name="Arial", italic=True, size=9, color="5D6D7E")
+_FONT_HDR = Font(name="Arial", bold=True, size=10, color="1A365D")
+_FONT_NUM = Font(name="Arial", bold=True, size=9, color="1A365D")
+_FONT_DATA = Font(name="Arial", size=10)
+_FONT_FOOTER = Font(name="Arial", bold=True, size=10, color=_WHITE)
+
+_ALIGN_C = Alignment(horizontal="center", vertical="center", wrap_text=True)
+_ALIGN_L = Alignment(horizontal="left", vertical="center", wrap_text=True)
+_ALIGN_R = Alignment(horizontal="right", vertical="center")
+
+_THIN = Side(style="thin", color="7F8C8D")
+_BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
+
+_HEADERS_EN = [
+    "No",
+    "Staff No",
+    "Full Name",
+    "Raw hours",
+    "Hours (30 min)",
+    "OT base",
+    "Rate / hour",
+    "Coeff.",
+    "OT pay (VND)",
+    "Account No.",
+    "Note",
+]
+_HEADERS_VI = [
+    "STT",
+    "MSNV",
+    "Họ tên",
+    "Giờ thô",
+    "Giờ tính (30p)",
+    "Nền OT",
+    "Đơn giá/giờ",
+    "Hệ số",
+    "Tiền OT (VND)",
+    "Số tài khoản",
+    "Ghi chú",
+]
+_COL_WIDTHS = [6, 12, 28, 11, 14, 12, 13, 9, 16, 18, 22]
+_MONEY_COLS = frozenset({6, 7, 9})
+_HOUR_COLS = frozenset({4, 5, 8})
+
+
+def _period_title(period: str) -> str:
+    year_s, month_s = period.split("-", 1)
+    year, month = int(year_s), int(month_s)
+    month_en = _MONTH_EN.get(month, f"M{month:02d}")
+    return f"{month_en} {year} / THÁNG {month:02d} NĂM {year}"
+
+
+def _style_header(cell, *, number_row: bool = False) -> None:
+    cell.fill = _FILL_NUM if number_row else _FILL_HEADER
+    cell.font = _FONT_NUM if number_row else _FONT_HDR
+    cell.alignment = _ALIGN_C
+    cell.border = _BORDER
+
+
+def _style_data(cell, col: int) -> None:
+    cell.font = _FONT_DATA
+    cell.border = _BORDER
+    if col in (1, 2, 8):
+        cell.alignment = _ALIGN_C
+    elif col in _MONEY_COLS or col in _HOUR_COLS:
+        cell.alignment = _ALIGN_R
+    else:
+        cell.alignment = _ALIGN_L
+
+
+def _style_footer(cell) -> None:
+    cell.font = _FONT_FOOTER
+    cell.fill = _FILL_FOOTER
+    cell.alignment = _ALIGN_C
+    cell.border = _BORDER
 
 
 def _external_rate(policy: dict) -> Decimal:
@@ -234,62 +352,150 @@ def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
 def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
     wb = Workbook()
     ws = wb.active
-    ws.title = "OT_NGOAI"
-    bold = Font(bold=True)
+    assert ws is not None
+    ws.title = "OT ngoài"
 
-    ws.append(["Bảng OT ngoài — chi ATM riêng (không vào audit lương chính)"])
-    ws.append([f"Kỳ: {summary.period}", summary.policy_note])
-    ws.append([])
+    def merge_row(row: int) -> None:
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=_LAST_COL)
 
-    headers = [
-        "STT",
-        "MSNV",
-        "Họ tên",
-        "Giờ thô",
-        "Giờ tính (30p)",
-        "Nền OT",
-        "Đơn giá/h",
-        "Hệ số",
-        "Tiền OT (VND)",
-        "Số TK",
-        "Ghi chú",
-    ]
-    ws.append(headers)
-    header_row = ws.max_row
-    for c in range(1, len(headers) + 1):
-        ws.cell(row=header_row, column=c).font = bold
+    def paint_banner(row: int) -> None:
+        for col in range(1, _LAST_COL + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.fill = _FILL_COMPANY
+            cell.alignment = _ALIGN_C
+            cell.font = _FONT_META
+
+    for r in (_ROW_COMPANY, _ROW_COMPANY + 1, _ROW_COMPANY + 2):
+        paint_banner(r)
+        merge_row(r)
+
+    c_name = ws.cell(row=_ROW_COMPANY, column=1, value=COMPANY["name_vi"])
+    c_name.font = _FONT_COMPANY
+    c_name.fill = _FILL_COMPANY
+    c_name.alignment = _ALIGN_C
+    ws.row_dimensions[_ROW_COMPANY].height = 24
+
+    c_addr = ws.cell(row=_ROW_COMPANY + 1, column=1, value=COMPANY["address_vi"])
+    c_addr.font = _FONT_META
+    c_addr.fill = _FILL_COMPANY
+    c_addr.alignment = _ALIGN_C
+
+    c_tel = ws.cell(row=_ROW_COMPANY + 2, column=1, value=f"Tel: {COMPANY['phone']}")
+    c_tel.font = _FONT_META
+    c_tel.fill = _FILL_COMPANY
+    c_tel.alignment = _ALIGN_C
+
+    merge_row(_ROW_TITLE)
+    t1 = ws.cell(
+        row=_ROW_TITLE,
+        column=1,
+        value="OT NGOÀI / BẢNG OT NGOÀI — CHI ATM RIÊNG",
+    )
+    t1.font = _FONT_TITLE
+    t1.alignment = _ALIGN_C
+    ws.row_dimensions[_ROW_TITLE].height = 22
+
+    merge_row(_ROW_PERIOD)
+    t2 = ws.cell(row=_ROW_PERIOD, column=1, value=_period_title(summary.period))
+    t2.font = _FONT_PERIOD
+    t2.alignment = _ALIGN_C
+    ws.row_dimensions[_ROW_PERIOD].height = 20
+
+    merge_row(_ROW_NOTE)
+    note = ws.cell(
+        row=_ROW_NOTE,
+        column=1,
+        value=summary.policy_note or "Không vào phiếu lương / BHXH / PIT — chi ATM riêng.",
+    )
+    note.font = _FONT_NOTE
+    note.alignment = _ALIGN_C
+
+    for col, val in enumerate(_HEADERS_EN, start=1):
+        cell = ws.cell(row=_ROW_HDR_EN, column=col, value=val)
+        _style_header(cell)
+    for col, val in enumerate(_HEADERS_VI, start=1):
+        cell = ws.cell(row=_ROW_HDR_VI, column=col, value=val)
+        _style_header(cell)
+    for col in range(1, _LAST_COL + 1):
+        cell = ws.cell(row=_ROW_HDR_NUM, column=col, value=col)
+        _style_header(cell, number_row=True)
+
+    ws.row_dimensions[_ROW_HDR_EN].height = 22
+    ws.row_dimensions[_ROW_HDR_VI].height = 28
+    ws.row_dimensions[_ROW_HDR_NUM].height = 18
+
+    hour_fmt = "0.00"
+    money_fmt = "#,##0"
+    rate_fmt = "0.0"
 
     for i, r in enumerate(summary.rows, start=1):
-        ws.append(
-            [
-                i,
-                r.employee_code,
-                r.full_name,
-                float(r.raw_hours),
-                float(r.effective_hours),
-                int(r.ot_base),
-                int(r.hourly_base),
-                float(r.rate),
-                int(r.amount_vnd),
-                r.bank_account,
-                f"OT ngoài {summary.period}",
-            ]
-        )
-
-    ws.append([])
-    ws.append(
-        [
-            "",
-            "Tổng NV",
-            summary.employee_count,
-            float(summary.total_raw_hours),
-            float(summary.total_effective_hours),
-            "",
-            "",
-            "",
-            int(summary.total_amount_vnd),
+        excel_row = _ROW_DATA + i - 1
+        values = [
+            i,
+            r.employee_code,
+            r.full_name,
+            float(r.raw_hours),
+            float(r.effective_hours),
+            int(r.ot_base),
+            int(r.hourly_base),
+            float(r.rate),
+            int(r.amount_vnd),
+            r.bank_account or "",
+            f"OT ngoài {summary.period}",
         ]
+        for col, val in enumerate(values, start=1):
+            cell = ws.cell(row=excel_row, column=col, value=val)
+            _style_data(cell, col)
+            if col in (4, 5):
+                cell.number_format = hour_fmt
+            elif col in (6, 7, 9):
+                cell.number_format = money_fmt
+            elif col == 8:
+                cell.number_format = rate_fmt
+
+    footer = _ROW_DATA + len(summary.rows)
+    ws.merge_cells(start_row=footer, start_column=1, end_row=footer, end_column=3)
+    fc = ws.cell(
+        row=footer,
+        column=1,
+        value=f"Tổng cộng  ({summary.employee_count} nhân viên)",
     )
+    _style_footer(fc)
+    for col in range(2, 4):
+        _style_footer(ws.cell(row=footer, column=col))
+
+    tot_raw = ws.cell(row=footer, column=4, value=float(summary.total_raw_hours))
+    tot_eff = ws.cell(row=footer, column=5, value=float(summary.total_effective_hours))
+    tot_amt = ws.cell(row=footer, column=9, value=int(summary.total_amount_vnd))
+    for col in range(4, _LAST_COL + 1):
+        cell = ws.cell(row=footer, column=col)
+        _style_footer(cell)
+        if col in (4, 5):
+            cell.number_format = hour_fmt
+            cell.alignment = _ALIGN_R
+        elif col == 9:
+            cell.number_format = money_fmt
+            cell.alignment = _ALIGN_R
+    tot_raw.number_format = hour_fmt
+    tot_eff.number_format = hour_fmt
+    tot_amt.number_format = money_fmt
+
+    for idx, w in enumerate(_COL_WIDTHS, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
+
+    ws.freeze_panes = ws.cell(row=_ROW_DATA, column=1).coordinate
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.page_setup.paperSize = 9  # A4
+    ws.print_title_rows = f"{_ROW_COMPANY}:{_ROW_HDR_NUM}"
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_margins.left = 0.4
+    ws.page_margins.right = 0.4
+    ws.page_margins.top = 0.5
+    ws.page_margins.bottom = 0.5
+    ws.print_options.horizontalCentered = True
 
     buf = BytesIO()
     wb.save(buf)

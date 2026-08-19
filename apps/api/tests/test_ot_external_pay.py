@@ -1,10 +1,19 @@
 """OT ngoài — làm tròn 30p + công thức 22§22.8 (không qua payslip)."""
 
+from io import BytesIO
 from decimal import Decimal
+
+from openpyxl import load_workbook
 
 from app.modules.payroll.engine_allowances import AllowanceLine
 from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay, quantize_ot_hours
-from app.modules.payroll.ot_external import _external_rate, split_external_ot_hours
+from app.modules.payroll.ot_external import (
+    OtExternalPayRow,
+    OtExternalSummary,
+    _external_rate,
+    build_ot_external_excel,
+    split_external_ot_hours,
+)
 from app.modules.policy.seed_payload import default_payload
 
 
@@ -71,3 +80,50 @@ def test_split_external_hours_sunday_only_legacy():
     )
     assert h.weekday == Decimal("0")
     assert h.weekend == Decimal("9.17")
+
+
+def _cell_fill(cell) -> str:
+    rgb = getattr(cell.fill.fgColor, "rgb", None)
+    return str(rgb or "")[-6:].upper()
+
+
+def test_ot_external_excel_matches_print_layout():
+    summary = OtExternalSummary(
+        period="2026-08",
+        employee_count=1,
+        total_raw_hours=Decimal("2.00"),
+        total_effective_hours=Decimal("2.00"),
+        total_amount_vnd=Decimal("150000"),
+        rows=[
+            OtExternalPayRow(
+                employee_code="5290",
+                full_name="Nguyen Van A",
+                bank_account="123456",
+                raw_hours=Decimal("2.00"),
+                effective_hours=Decimal("2.00"),
+                ot_base=Decimal("5675000"),
+                hourly_base=Decimal("25000"),
+                rate=Decimal("1.5"),
+                amount_vnd=Decimal("150000"),
+            )
+        ],
+        policy_note="OT ngoài: ngày thường 1,5 · CN 2,0 · lễ 2–3.",
+    )
+    wb = load_workbook(BytesIO(build_ot_external_excel(summary)))
+    ws = wb.active
+    assert ws["A1"].value and "DONGJU" in str(ws["A1"].value).upper()
+    assert _cell_fill(ws["A1"]) == "0A4D8C"
+    assert ws["A1"].font.color.rgb[-6:].upper() == "FFFFFF"
+    assert ws["A5"].value and "OT NGOÀI" in str(ws["A5"].value)
+    assert "THÁNG 08" in str(ws["A6"].value)
+    assert ws["A10"].value == "STT"
+    assert ws["I10"].value and "Tiền OT" in str(ws["I10"].value)
+    assert _cell_fill(ws["A10"]) == "BDD7EE"
+    assert _cell_fill(ws["I10"]) == "BDD7EE"
+    assert ws["B12"].value == "5290"
+    assert ws["I12"].value == 150000
+    assert ws.freeze_panes == "A12"
+    footer = 13
+    assert "Tổng cộng" in str(ws.cell(row=footer, column=1).value)
+    assert _cell_fill(ws.cell(row=footer, column=1)) == "5B9BD5"
+
