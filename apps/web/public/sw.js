@@ -1,5 +1,5 @@
 /* PWA Worker — icon/manifest cache; HTML/JS/CSS luôn network-first (tránh màn hình trắng sau deploy). */
-const CACHE = "dj-hrm-worker-v8";
+const CACHE = "dj-hrm-worker-v9";
 const STATIC_ASSETS = [
   "/manifest.json",
   "/manifest.webmanifest",
