@@ -112,7 +112,7 @@ DEFAULT_POLICY_PAYLOAD: dict[str, Any] = {
 
             "payment_channel": "ATM",
 
-            "note": "OT ngoài (ngày thường 1,5 · CN 2,0 · lễ 2–3) — không vào payslip/BHXH/PIT, chi ATM riêng.",
+            "note": "OT ngoài (x1,5 ngày thường · x2 CN/lễ≤8h · x2,1 đêm · x3 lễ>8h) — không vào payslip/BHXH/PIT, chi ATM riêng.",
 
         },
 

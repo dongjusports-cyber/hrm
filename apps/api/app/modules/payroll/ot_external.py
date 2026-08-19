@@ -22,7 +22,13 @@ from app.modules.core.export_log import log_export
 from app.modules.core.models import User
 from app.modules.mdm.models import Employee
 from app.modules.payroll.engine_allowances import AllowanceInput, compute_allowances, should_zero_probation_allowances
-from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay
+from app.modules.payroll.engine_ot import (
+    OtHours,
+    OtInput,
+    OtRateBuckets,
+    buckets_from_parts,
+    compute_ot_pay,
+)
 from app.modules.payroll.money import D, ZERO, money_vnd
 from app.modules.payroll.period_eligibility import employee_on_payroll_period
 from app.modules.print.context import COMPANY
@@ -47,6 +53,27 @@ class OtExternalPayRow:
     hourly_base: Decimal
     rate: Decimal
     amount_vnd: Decimal
+    hours_x15: Decimal = ZERO
+    pay_x15: Decimal = ZERO
+    hours_x20: Decimal = ZERO
+    pay_x20: Decimal = ZERO
+    hours_x21: Decimal = ZERO
+    pay_x21: Decimal = ZERO
+    hours_x30: Decimal = ZERO
+    pay_x30: Decimal = ZERO
+
+    @property
+    def buckets(self) -> OtRateBuckets:
+        return OtRateBuckets(
+            hours_x15=self.hours_x15,
+            pay_x15=self.pay_x15,
+            hours_x20=self.hours_x20,
+            pay_x20=self.pay_x20,
+            hours_x21=self.hours_x21,
+            pay_x21=self.pay_x21,
+            hours_x30=self.hours_x30,
+            pay_x30=self.pay_x30,
+        )
 
 
 @dataclass(frozen=True)
@@ -76,7 +103,7 @@ _MONTH_EN = {
 }
 
 # In giống bảng lương: khối công ty + viền; màu theo yêu cầu in OT ngoài.
-_LAST_COL = 11
+_LAST_COL = 18
 _ROW_COMPANY = 1
 _ROW_TITLE = 5
 _ROW_PERIOD = 6
@@ -121,7 +148,14 @@ _HEADERS_EN = [
     "Hours (30 min)",
     "OT base",
     "Rate / hour",
-    "Coeff.",
+    "Hour x1.5",
+    "Pay x1.5",
+    "Hour x2",
+    "Pay x2",
+    "Hour x2.1",
+    "Pay x2.1",
+    "Hour x3",
+    "Pay x3",
     "OT pay (VND)",
     "Account No.",
     "Note",
@@ -134,14 +168,22 @@ _HEADERS_VI = [
     "Giờ tính (30p)",
     "Nền OT",
     "Đơn giá/giờ",
-    "Hệ số",
-    "Tiền OT (VND)",
+    "Giờ x1.5\n(ngày thường)",
+    "Tiền x1.5",
+    "Giờ x2\n(CN · lễ ≤8h)",
+    "Tiền x2",
+    "Giờ x2.1\n(đêm)",
+    "Tiền x2.1",
+    "Giờ x3\n(lễ >8h)",
+    "Tiền x3",
+    "Tổng tiền OT",
     "Số tài khoản",
     "Ghi chú",
 ]
-_COL_WIDTHS = [6, 12, 28, 11, 14, 12, 13, 9, 16, 18, 22]
-_MONEY_COLS = frozenset({6, 7, 9})
-_HOUR_COLS = frozenset({4, 5, 8})
+_COL_WIDTHS = [6, 12, 26, 10, 12, 12, 12, 11, 12, 11, 12, 11, 12, 11, 12, 14, 16, 18]
+_MONEY_COLS = frozenset({6, 7, 9, 11, 13, 15, 16})
+_HOUR_COLS = frozenset({4, 5, 8, 10, 12, 14})
+_CENTER_COLS = frozenset({1, 2})
 
 
 def _period_title(period: str) -> str:
@@ -161,7 +203,7 @@ def _style_header(cell, *, number_row: bool = False) -> None:
 def _style_data(cell, col: int) -> None:
     cell.font = _FONT_DATA
     cell.border = _BORDER
-    if col in (1, 2, 8):
+    if col in _CENTER_COLS:
         cell.alignment = _ALIGN_C
     elif col in _MONEY_COLS or col in _HOUR_COLS:
         cell.alignment = _ALIGN_R
@@ -274,6 +316,7 @@ def compute_ot_external_row(
     )
     eff_map = ot_res.detail.get("effective_hours") or {}
     eff = D(eff_map.get("weekday", "0")) + D(eff_map.get("weekend", "0")) + D(eff_map.get("holiday", "0"))
+    buckets = buckets_from_parts(ot_res.detail.get("parts") or [])
     if eff <= 0 and ot_res.ot_pay <= 0:
         return OtExternalPayRow(
             employee_code=emp.employee_code,
@@ -296,6 +339,14 @@ def compute_ot_external_row(
         hourly_base=ot_res.ot_hourly_base,
         rate=_display_rate(hours, payload),
         amount_vnd=ot_res.ot_pay,
+        hours_x15=buckets.hours_x15,
+        pay_x15=buckets.pay_x15,
+        hours_x20=buckets.hours_x20,
+        pay_x20=buckets.pay_x20,
+        hours_x21=buckets.hours_x21,
+        pay_x21=buckets.pay_x21,
+        hours_x30=buckets.hours_x30,
+        pay_x30=buckets.pay_x30,
     )
 
 
@@ -307,7 +358,7 @@ def build_ot_external_summary(db: Session, period: str) -> OtExternalSummary:
     note = str(
         ext_cfg.get(
             "note",
-            "OT ngoài: ngày thường 1,5 · CN 2,0 · lễ 2–3 — không vào payslip/BHXH/PIT, chi ATM riêng.",
+            "OT ngoài: x1,5 ngày thường · x2 CN/lễ≤8h · x2,1 đêm · x3 lễ>8h — không vào payslip/BHXH/PIT, chi ATM riêng.",
         )
     )
 
@@ -426,10 +477,18 @@ def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
 
     hour_fmt = "0.00"
     money_fmt = "#,##0"
-    rate_fmt = "0.0"
 
+    tot_h15 = tot_p15 = tot_h20 = tot_p20 = tot_h21 = tot_p21 = tot_h30 = tot_p30 = ZERO
     for i, r in enumerate(summary.rows, start=1):
         excel_row = _ROW_DATA + i - 1
+        tot_h15 += r.hours_x15
+        tot_p15 += r.pay_x15
+        tot_h20 += r.hours_x20
+        tot_p20 += r.pay_x20
+        tot_h21 += r.hours_x21
+        tot_p21 += r.pay_x21
+        tot_h30 += r.hours_x30
+        tot_p30 += r.pay_x30
         values = [
             i,
             r.employee_code,
@@ -438,7 +497,14 @@ def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
             float(r.effective_hours),
             int(r.ot_base),
             int(r.hourly_base),
-            float(r.rate),
+            float(r.hours_x15),
+            int(r.pay_x15),
+            float(r.hours_x20),
+            int(r.pay_x20),
+            float(r.hours_x21),
+            int(r.pay_x21),
+            float(r.hours_x30),
+            int(r.pay_x30),
             int(r.amount_vnd),
             r.bank_account or "",
             f"OT ngoài {summary.period}",
@@ -446,12 +512,10 @@ def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
         for col, val in enumerate(values, start=1):
             cell = ws.cell(row=excel_row, column=col, value=val)
             _style_data(cell, col)
-            if col in (4, 5):
+            if col in _HOUR_COLS:
                 cell.number_format = hour_fmt
-            elif col in (6, 7, 9):
+            elif col in _MONEY_COLS:
                 cell.number_format = money_fmt
-            elif col == 8:
-                cell.number_format = rate_fmt
 
     footer = _ROW_DATA + len(summary.rows)
     ws.merge_cells(start_row=footer, start_column=1, end_row=footer, end_column=3)
@@ -464,21 +528,28 @@ def build_ot_external_excel(summary: OtExternalSummary) -> bytes:
     for col in range(2, 4):
         _style_footer(ws.cell(row=footer, column=col))
 
-    tot_raw = ws.cell(row=footer, column=4, value=float(summary.total_raw_hours))
-    tot_eff = ws.cell(row=footer, column=5, value=float(summary.total_effective_hours))
-    tot_amt = ws.cell(row=footer, column=9, value=int(summary.total_amount_vnd))
+    footer_vals = {
+        4: float(summary.total_raw_hours),
+        5: float(summary.total_effective_hours),
+        8: float(tot_h15),
+        9: int(tot_p15),
+        10: float(tot_h20),
+        11: int(tot_p20),
+        12: float(tot_h21),
+        13: int(tot_p21),
+        14: float(tot_h30),
+        15: int(tot_p30),
+        16: int(summary.total_amount_vnd),
+    }
     for col in range(4, _LAST_COL + 1):
-        cell = ws.cell(row=footer, column=col)
+        cell = ws.cell(row=footer, column=col, value=footer_vals.get(col))
         _style_footer(cell)
-        if col in (4, 5):
+        if col in _HOUR_COLS:
             cell.number_format = hour_fmt
             cell.alignment = _ALIGN_R
-        elif col == 9:
+        elif col in _MONEY_COLS:
             cell.number_format = money_fmt
             cell.alignment = _ALIGN_R
-    tot_raw.number_format = hour_fmt
-    tot_eff.number_format = hour_fmt
-    tot_amt.number_format = money_fmt
 
     for idx, w in enumerate(_COL_WIDTHS, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = w

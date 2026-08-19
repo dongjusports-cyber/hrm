@@ -44,6 +44,76 @@ class OtResult:
     detail: dict = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class OtRateBuckets:
+    """Giờ + tiền theo mốc hệ số HR đọc trên Excel (22§22.8)."""
+
+    hours_x15: Decimal = ZERO
+    pay_x15: Decimal = ZERO
+    hours_x20: Decimal = ZERO
+    pay_x20: Decimal = ZERO
+    hours_x21: Decimal = ZERO
+    pay_x21: Decimal = ZERO
+    hours_x30: Decimal = ZERO
+    pay_x30: Decimal = ZERO
+
+    def plus(self, other: "OtRateBuckets") -> "OtRateBuckets":
+        return OtRateBuckets(
+            hours_x15=self.hours_x15 + other.hours_x15,
+            pay_x15=self.pay_x15 + other.pay_x15,
+            hours_x20=self.hours_x20 + other.hours_x20,
+            pay_x20=self.pay_x20 + other.pay_x20,
+            hours_x21=self.hours_x21 + other.hours_x21,
+            pay_x21=self.pay_x21 + other.pay_x21,
+            hours_x30=self.hours_x30 + other.hours_x30,
+            pay_x30=self.pay_x30 + other.pay_x30,
+        )
+
+
+def buckets_from_parts(parts: list[dict] | None) -> OtRateBuckets:
+    """Gom parts của compute_ot_pay → cột x1.5 / x2 / x2.1 (đêm) / x3."""
+    h15 = p15 = h20 = p20 = h21 = p21 = h30 = p30 = ZERO
+    for part in parts or []:
+        kind = str(part.get("type") or "")
+        hours = D(part.get("hours", 0))
+        raw = D(part.get("raw", 0))
+        rate = D(part.get("rate", 0))
+        if kind == "weekday":
+            h15 += hours
+            p15 += raw
+        elif kind in ("weekend", "holiday"):
+            h20 += hours
+            p20 += raw
+        elif kind == "holiday_over_8":
+            h30 += hours
+            p30 += raw
+        elif kind in ("night_nt", "night"):
+            h21 += hours
+            p21 += raw
+        elif rate == D("1.5"):
+            h15 += hours
+            p15 += raw
+        elif rate in (D("2"), D("2.0")):
+            h20 += hours
+            p20 += raw
+        elif rate == D("2.1"):
+            h21 += hours
+            p21 += raw
+        elif rate in (D("3"), D("3.0")):
+            h30 += hours
+            p30 += raw
+    return OtRateBuckets(
+        hours_x15=h15,
+        pay_x15=money_vnd(p15),
+        hours_x20=h20,
+        pay_x20=money_vnd(p20),
+        hours_x21=h21,
+        pay_x21=money_vnd(p21),
+        hours_x30=h30,
+        pay_x30=money_vnd(p30),
+    )
+
+
 def quantize_ot_hours(hours: Decimal, policy: dict[str, Any]) -> Decimal:
     """22§22.8 — bậc 30 phút, floor; dưới 30 phút = 0."""
     rounding = (policy or {}).get("rounding") or {}

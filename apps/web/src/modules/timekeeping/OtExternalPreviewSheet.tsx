@@ -22,11 +22,20 @@ function fmtOt(v: unknown): string {
   return formatOtHours(n * 60, "—");
 }
 
-function fmtRate(v: unknown): string {
-  if (v == null || v === "") return "—";
+function fmtOtOrDash(v: unknown): string {
   const n = Number(v);
-  if (Number.isNaN(n)) return String(v);
-  return n.toFixed(2);
+  if (v == null || v === "" || Number.isNaN(n) || n === 0) return "—";
+  return fmtOt(v);
+}
+
+function fmtVndOrDash(v: unknown): string {
+  const n = Number(v);
+  if (v == null || v === "" || Number.isNaN(n) || n === 0) return "—";
+  return formatVnd(v);
+}
+
+function sumRows(rows: OtExternalPreview["rows"], key: keyof OtExternalPreview["rows"][number]): number {
+  return rows.reduce((s, r) => s + Number(r[key] ?? 0), 0);
 }
 
 export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Props) {
@@ -83,7 +92,7 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
     <FullScreenSheet
       open={open}
       title={`OT ngoài · kỳ ${period}`}
-      subtitle="Bảng trả ATM riêng — không vào payslip / BHXH / PIT"
+      subtitle="Chi tiết theo hệ số x1.5 / x2 / x2.1 / x3 — ATM riêng, không vào payslip / BHXH / PIT"
       onClose={onClose}
       actions={
         <button
@@ -140,10 +149,16 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                       <th>STK</th>
                       <th className="num">Giờ gốc</th>
                       <th className="num">Giờ HL</th>
-                      <th className="num">Cơ sở OT</th>
                       <th className="num">Đơn giá/giờ</th>
-                      <th className="num">Hệ số</th>
-                      <th className="num">Thành tiền</th>
+                      <th className="num">Giờ x1.5</th>
+                      <th className="num">Tiền x1.5</th>
+                      <th className="num">Giờ x2</th>
+                      <th className="num">Tiền x2</th>
+                      <th className="num">Giờ x2.1</th>
+                      <th className="num">Tiền x2.1</th>
+                      <th className="num">Giờ x3</th>
+                      <th className="num">Tiền x3</th>
+                      <th className="num">Tổng tiền</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -154,9 +169,15 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                         <td>{r.bank_account || "—"}</td>
                         <td className="num">{fmtOt(r.raw_hours)}</td>
                         <td className="num tk-ot-ext">{fmtOt(r.effective_hours)}</td>
-                        <td className="num">{formatVnd(r.ot_base)}</td>
                         <td className="num">{formatVnd(r.hourly_base)}</td>
-                        <td className="num">{fmtRate(r.rate)}</td>
+                        <td className="num">{fmtOtOrDash(r.hours_x15)}</td>
+                        <td className="num">{fmtVndOrDash(r.pay_x15)}</td>
+                        <td className="num">{fmtOtOrDash(r.hours_x20)}</td>
+                        <td className="num">{fmtVndOrDash(r.pay_x20)}</td>
+                        <td className="num">{fmtOtOrDash(r.hours_x21)}</td>
+                        <td className="num">{fmtVndOrDash(r.pay_x21)}</td>
+                        <td className="num">{fmtOtOrDash(r.hours_x30)}</td>
+                        <td className="num">{fmtVndOrDash(r.pay_x30)}</td>
                         <td className="num ot-ext-amt">{formatVnd(r.amount_vnd)}</td>
                       </tr>
                     ))}
@@ -168,7 +189,15 @@ export function OtExternalPreviewSheet({ open, period, onClose, onExported }: Pr
                       </td>
                       <td className="num">{fmtOt(preview.total_raw_hours)}</td>
                       <td className="num tk-ot-ext">{fmtOt(preview.total_effective_hours)}</td>
-                      <td colSpan={3} />
+                      <td />
+                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x15"))}</td>
+                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x15"))}</td>
+                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x20"))}</td>
+                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x20"))}</td>
+                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x21"))}</td>
+                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x21"))}</td>
+                      <td className="num">{fmtOtOrDash(sumRows(preview.rows, "hours_x30"))}</td>
+                      <td className="num">{fmtVndOrDash(sumRows(preview.rows, "pay_x30"))}</td>
                       <td className="num ot-ext-amt">
                         <strong>{formatVnd(preview.total_amount_vnd)}</strong>
                       </td>

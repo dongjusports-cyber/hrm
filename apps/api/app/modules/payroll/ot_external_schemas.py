@@ -17,6 +17,14 @@ class OtExternalPayRowOut(BaseModel):
     hourly_base: Decimal
     rate: Decimal
     amount_vnd: Decimal
+    hours_x15: Decimal = Decimal("0")
+    pay_x15: Decimal = Decimal("0")
+    hours_x20: Decimal = Decimal("0")
+    pay_x20: Decimal = Decimal("0")
+    hours_x21: Decimal = Decimal("0")
+    pay_x21: Decimal = Decimal("0")
+    hours_x30: Decimal = Decimal("0")
+    pay_x30: Decimal = Decimal("0")
 
 
 class OtExternalSummaryOut(BaseModel):

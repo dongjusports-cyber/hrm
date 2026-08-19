@@ -78,8 +78,22 @@ def test_export_atm_cash_and_audit(client, db):
     assert sheet.cell(row=1, column=1).value == "CÔNG TY TNHH DONGJU SPORTS VIỆT NAM"
     assert sheet.cell(row=10, column=1).value == "No"
     assert sheet.cell(row=12, column=3).value == "MSNV"
-    assert sheet.cell(row=12, column=37).value == "Thực lãnh"
+    assert "x1.5" in str(sheet.cell(row=12, column=29).value)
+    assert "x2" in str(sheet.cell(row=12, column=31).value)
+    assert "x2.1" in str(sheet.cell(row=12, column=33).value)
+    assert "x3" in str(sheet.cell(row=12, column=35).value)
+    assert sheet.cell(row=12, column=43).value == "Thực lãnh"
     assert sheet.cell(row=13, column=10).value == 10
+    from app.modules.payroll.export_salary_table import (
+        COL_WIDTHS,
+        HEADER_EN_1,
+        HEADER_EN_2,
+        HEADER_ROW_VI,
+        LAST_COL,
+    )
+
+    assert LAST_COL == 44
+    assert len(HEADER_EN_1) == len(HEADER_EN_2) == len(HEADER_ROW_VI) == len(COL_WIDTHS) == LAST_COL
     hdr = sheet.cell(row=12, column=1)
     assert hdr.fill.start_color.rgb in ("00BDD7EE", "BDD7EE")
     company = sheet.cell(row=1, column=1)

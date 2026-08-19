@@ -127,20 +127,7 @@ def ot_external_preview_attendance(
         total_effective_hours=summary.total_effective_hours,
         total_amount_vnd=summary.total_amount_vnd,
         policy_note=summary.policy_note,
-        rows=[
-            OtExternalPayRowOut(
-                employee_code=r.employee_code,
-                full_name=r.full_name,
-                bank_account=r.bank_account,
-                raw_hours=r.raw_hours,
-                effective_hours=r.effective_hours,
-                ot_base=r.ot_base,
-                hourly_base=r.hourly_base,
-                rate=r.rate,
-                amount_vnd=r.amount_vnd,
-            )
-            for r in summary.rows
-        ],
+        rows=[OtExternalPayRowOut.model_validate(r, from_attributes=True) for r in summary.rows],
     )
 
 

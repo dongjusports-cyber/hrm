@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from app.modules.payroll.money import money_vnd
 from app.modules.payroll.engine_allowances import AllowanceLine
-from app.modules.payroll.engine_ot import OtHours, OtInput, compute_ot_pay, quantize_ot_hours
+from app.modules.payroll.engine_ot import OtHours, OtInput, buckets_from_parts, compute_ot_pay, quantize_ot_hours
 from app.modules.payroll.component_bases import compute_si_and_ot_bases
 from app.modules.policy.seed_payload import default_payload
 
@@ -88,6 +88,32 @@ def test_ot_holiday_over_8_tiered():
     types = [p["type"] for p in r.detail["parts"]]
     assert "holiday" in types
     assert "holiday_over_8" in types
+    b = buckets_from_parts(r.detail["parts"])
+    assert b.hours_x20 == Decimal("8")
+    assert b.hours_x30 == Decimal("2")
+    assert b.hours_x15 == 0
+    assert abs(b.pay_x20 + b.pay_x30 - r.ot_pay) <= 1
+
+
+def test_buckets_weekday_and_weekend():
+    r = compute_ot_pay(
+        OtInput(
+            contract_salary=Decimal("5675000"),
+            salary_divisor=Decimal("26"),
+            allowance_lines=[AllowanceLine("TOXIC", "Độc hại", Decimal("100000"), Decimal("100000"), True, True)],
+            attend_full_monthly=Decimal("0"),
+            hours=OtHours(weekday=Decimal("2"), weekend=Decimal("4")),
+            policy=default_payload(),
+        )
+    )
+    b = buckets_from_parts(r.detail["parts"])
+    assert b.hours_x15 == Decimal("2.00")
+    assert b.hours_x20 == Decimal("4.00")
+    assert b.hours_x21 == 0
+    assert b.hours_x30 == 0
+    assert b.pay_x15 > 0
+    assert b.pay_x20 > b.pay_x15
+    assert abs(b.pay_x15 + b.pay_x20 - r.ot_pay) <= 1
 
 
 def test_si_base_includes_pccc_hse_excludes_train_and_attend():

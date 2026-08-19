@@ -105,9 +105,11 @@ def test_ot_external_excel_matches_print_layout():
                 hourly_base=Decimal("25000"),
                 rate=Decimal("1.5"),
                 amount_vnd=Decimal("150000"),
+                hours_x15=Decimal("2.00"),
+                pay_x15=Decimal("150000"),
             )
         ],
-        policy_note="OT ngoài: ngày thường 1,5 · CN 2,0 · lễ 2–3.",
+        policy_note="OT ngoài: x1,5 · x2 · x2,1 · x3.",
     )
     wb = load_workbook(BytesIO(build_ot_external_excel(summary)))
     ws = wb.active
@@ -117,13 +119,59 @@ def test_ot_external_excel_matches_print_layout():
     assert ws["A5"].value and "OT NGOÀI" in str(ws["A5"].value)
     assert "THÁNG 08" in str(ws["A6"].value)
     assert ws["A10"].value == "STT"
-    assert ws["I10"].value and "Tiền OT" in str(ws["I10"].value)
+    assert "x1.5" in str(ws["H10"].value)
+    assert "x2" in str(ws["J10"].value)
+    assert "x2.1" in str(ws["L10"].value)
+    assert "x3" in str(ws["N10"].value)
+    assert ws["P10"].value and "Tổng tiền" in str(ws["P10"].value)
     assert _cell_fill(ws["A10"]) == "BDD7EE"
-    assert _cell_fill(ws["I10"]) == "BDD7EE"
+    assert _cell_fill(ws["P10"]) == "BDD7EE"
     assert ws["B12"].value == "5290"
+    assert ws["H12"].value == 2.0
     assert ws["I12"].value == 150000
+    assert ws["P12"].value == 150000
     assert ws.freeze_panes == "A12"
     footer = 13
     assert "Tổng cộng" in str(ws.cell(row=footer, column=1).value)
     assert _cell_fill(ws.cell(row=footer, column=1)) == "5B9BD5"
+
+
+def test_ot_external_excel_mixed_rates():
+    summary = OtExternalSummary(
+        period="2026-08",
+        employee_count=1,
+        total_raw_hours=Decimal("12.00"),
+        total_effective_hours=Decimal("12.00"),
+        total_amount_vnd=Decimal("900000"),
+        rows=[
+            OtExternalPayRow(
+                employee_code="5290",
+                full_name="Nguyen Van A",
+                bank_account="123456",
+                raw_hours=Decimal("12.00"),
+                effective_hours=Decimal("12.00"),
+                ot_base=Decimal("5675000"),
+                hourly_base=Decimal("25000"),
+                rate=Decimal("2.0"),
+                amount_vnd=Decimal("900000"),
+                hours_x15=Decimal("2.00"),
+                pay_x15=Decimal("75000"),
+                hours_x20=Decimal("8.00"),
+                pay_x20=Decimal("400000"),
+                hours_x21=Decimal("0"),
+                pay_x21=Decimal("0"),
+                hours_x30=Decimal("2.00"),
+                pay_x30=Decimal("150000"),
+            )
+        ],
+        policy_note="chi tiết hệ số",
+    )
+    ws = load_workbook(BytesIO(build_ot_external_excel(summary))).active
+    assert ws["H12"].value == 2.0
+    assert ws["J12"].value == 8.0
+    assert ws["N12"].value == 2.0
+    assert ws["P12"].value == 900000
+    assert ws.cell(row=13, column=8).value == 2.0
+    assert ws.cell(row=13, column=10).value == 8.0
+    assert ws.cell(row=13, column=16).value == 900000
 

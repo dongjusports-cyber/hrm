@@ -22,9 +22,12 @@ from sqlalchemy.orm import Session
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.attendance.timesheet import ensure_pay_period
 from app.modules.mdm.models import Department, Employee, Team
+from app.modules.payroll.engine_ot import OtRateBuckets
 from app.modules.payroll.models import Payslip, PayslipComponent
 from app.modules.payroll.money import D, ZERO, money_vnd
+from app.modules.payroll.ot_external import compute_ot_external_row
 from app.modules.payroll.period_eligibility import employee_on_payroll_period
+from app.modules.payroll.service import _active_policy
 from app.modules.print.context import COMPANY
 
 MONTH_EN = {
@@ -72,7 +75,13 @@ HEADER_EN_1 = [
     "",
     "",
     "",
-    "NOR OT/ Tăng ca thường",
+    "NOR OT / Tăng ca",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     "",
     "GROSS\nSALARY",
     "S.I",
@@ -113,8 +122,14 @@ HEADER_EN_2 = [
     "Serverance",
     "Other",
     "Total",
-    "Nor Hour",
-    "NOT PAYMENT",
+    "Hour\nx1.5",
+    "Pay\nx1.5",
+    "Hour\nx2",
+    "Pay\nx2",
+    "Hour\nx2.1",
+    "Pay\nx2.1",
+    "Hour\nx3",
+    "Pay\nx3",
     "",
     "",
     "",
@@ -154,8 +169,14 @@ HEADER_ROW_VI = [
     "Thâm niên",
     "Khác",
     "Tổng",
-    "Giờ TC\n thường",
-    "Ngày thường",
+    "Giờ x1.5\nngày thường",
+    "Tiền x1.5",
+    "Giờ x2\nCN · lễ ≤8h",
+    "Tiền x2",
+    "Giờ x2.1\nđêm",
+    "Tiền x2.1",
+    "Giờ x3\nlễ >8h",
+    "Tiền x3",
     "Tổng\nthu nhập",
     "BHXH",
     "BHYT",
@@ -185,15 +206,15 @@ HEADER_MERGES = [
     (9, 11, 16, 17),
     (9, 11, 17, 18),
     (9, 10, 18, 28),
-    (9, 10, 28, 30),
-    (9, 11, 30, 31),
-    (9, 11, 31, 32),
-    (9, 11, 32, 33),
-    (9, 11, 33, 34),
-    (9, 11, 34, 35),
-    (9, 11, 35, 36),
+    (9, 10, 28, 36),
     (9, 11, 36, 37),
     (9, 11, 37, 38),
+    (9, 11, 38, 39),
+    (9, 11, 39, 40),
+    (9, 11, 40, 41),
+    (9, 11, 41, 42),
+    (9, 11, 42, 43),
+    (9, 11, 43, 44),
     (10, 12, 12, 13),
     (10, 12, 13, 14),
     (10, 12, 14, 15),
@@ -219,9 +240,9 @@ ROW_HEADER_EN_2 = 11
 ROW_HEADER_VI = 12
 ROW_HEADER_NUM = 13
 ROW_DATA_START = 14
-LAST_COL = 38
+LAST_COL = 44
 
-NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 38))  # 1-based
+NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 44))  # 1-based, trừ SEX
 
 NAVY = "0A4D8C"
 LIGHT_BLUE = "BDD7EE"
@@ -268,6 +289,12 @@ COL_WIDTHS = [
     8,
     8,
     12,
+    10,
+    10,
+    10,
+    10,
+    10,
+    10,
     10,
     10,
     10,
@@ -471,7 +498,7 @@ def _wd_days(db: Session, payslip_id: UUID) -> tuple[Decimal, Decimal]:
 
 
 def _ot_trong_pay(db: Session, payslip_id: UUID, fallback: Decimal) -> Decimal:
-    """Cột AD = tiền OT trong (T3/T5 đến 20:00). CN/lễ không vào đây."""
+    """Tiền OT trong phiếu (T3/T5 đến 20:00). CN/lễ không vào đây."""
     rows = (
         db.query(PayslipComponent)
         .filter(PayslipComponent.payslip_id == payslip_id, PayslipComponent.component_code == "OT")
@@ -494,6 +521,25 @@ def _ot_trong_pay(db: Session, payslip_id: UUID, fallback: Decimal) -> Decimal:
     return fallback
 
 
+def _ot_salary_buckets(
+    db: Session,
+    pay: PayPeriod,
+    emp: Employee,
+    ts: TimesheetMonth,
+    slip: Payslip,
+    payload: dict,
+) -> OtRateBuckets:
+    """Giờ + tiền 4 mốc: OT trong phiếu + OT ngoài (x2/x2.1/x3 chi ATM riêng, không cộng GROSS)."""
+    trong = OtRateBuckets(
+        hours_x15=D(ts.ot_hours_weekday),
+        pay_x15=_ot_trong_pay(db, slip.id, D(slip.ot_pay)),
+    )
+    ngoai = compute_ot_external_row(db, pay, emp, ts, payload)
+    if ngoai is None:
+        return trong
+    return trong.plus(ngoai.buckets)
+
+
 def _build_data_row(
     db: Session,
     stt: int,
@@ -501,6 +547,8 @@ def _build_data_row(
     emp: Employee,
     ts: TimesheetMonth,
     team_name: str,
+    pay: PayPeriod,
+    payload: dict,
 ) -> list:
     allow = _allowances_by_code(db, slip.id)
     prob_days, off_days = _wd_days(db, slip.id)
@@ -530,16 +578,23 @@ def _build_data_row(
     for code, col in ALLOW_COLS.items():
         row[col] = _num(allow.get(code, ZERO))
     row[27] = _num(slip.allowance_total)
-    row[28] = _num(ts.ot_hours_weekday)
-    row[29] = _num(_ot_trong_pay(db, slip.id, D(slip.ot_pay)))
-    row[30] = _num(slip.gross)
-    row[31] = _num(slip.bhxh)
-    row[32] = _num(slip.bhyt)
-    row[33] = _num(slip.bhtn)
-    row[34] = _num(slip.union_fee)
-    row[35] = _num(slip.other_deductions)
-    row[36] = int(money_vnd(slip.net))
-    row[37] = _fmt_sex(emp.gender)
+    ot = _ot_salary_buckets(db, pay, emp, ts, slip, payload)
+    row[28] = _num(ot.hours_x15)
+    row[29] = _num(ot.pay_x15)
+    row[30] = _num(ot.hours_x20)
+    row[31] = _num(ot.pay_x20)
+    row[32] = _num(ot.hours_x21)
+    row[33] = _num(ot.pay_x21)
+    row[34] = _num(ot.hours_x30)
+    row[35] = _num(ot.pay_x30)
+    row[36] = _num(slip.gross)
+    row[37] = _num(slip.bhxh)
+    row[38] = _num(slip.bhyt)
+    row[39] = _num(slip.bhtn)
+    row[40] = _num(slip.union_fee)
+    row[41] = _num(slip.other_deductions)
+    row[42] = int(money_vnd(slip.net))
+    row[43] = _fmt_sex(emp.gender)
     return row
 
 
@@ -550,6 +605,8 @@ def _write_sheet(
     channel_label: str,
     data_rows: list[tuple[Payslip, Employee, TimesheetMonth, str]],
     db: Session,
+    pay: PayPeriod,
+    payload: dict,
 ) -> int:
     year, month = _period_parts(period)
     month_en = MONTH_EN.get(month, str(month).upper())
@@ -584,7 +641,7 @@ def _write_sheet(
 
     total_net = 0
     for i, (slip, emp, ts, team_name) in enumerate(data_rows, start=1):
-        row_vals = _build_data_row(db, i, slip, emp, ts, team_name)
+        row_vals = _build_data_row(db, i, slip, emp, ts, team_name, pay, payload)
         excel_row = ROW_DATA_START + i - 1
         for col, val in enumerate(row_vals, start=1):
             cell = ws.cell(row=excel_row, column=col, value=val)
@@ -597,11 +654,11 @@ def _write_sheet(
     _style_footer_cell(fc)
     for col in range(2, 11):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    for col in range(11, 37):
+    for col in range(11, 43):
         _style_footer_cell(ws.cell(row=footer, column=col))
-    nc = ws.cell(row=footer, column=37, value=total_net)
+    nc = ws.cell(row=footer, column=43, value=total_net)
     _style_footer_cell(nc)
-    _style_footer_cell(ws.cell(row=footer, column=38))
+    _style_footer_cell(ws.cell(row=footer, column=44))
 
     for idx, w in enumerate(COL_WIDTHS, start=1):
         ws.column_dimensions[get_column_letter(idx)].width = w
@@ -639,37 +696,48 @@ def build_salary_table_xlsx(
     first = wb.active
     assert first is not None
     row_count = 0
+    _, payload = _active_policy(db)
 
     if ch == "ALL":
         first.title = "TOTAL"
         all_rows = _load_rows(
             db, pay, department_id=department_id, employee_code=code_filter
         )
-        row_count += _write_sheet(first, period, channel_label="", data_rows=all_rows, db=db)
+        row_count += _write_sheet(
+            first, period, channel_label="", data_rows=all_rows, db=db, pay=pay, payload=payload
+        )
 
         ws_atm = wb.create_sheet("ATM")
         atm_rows = _load_rows(
             db, pay, channel="ATM", department_id=department_id, employee_code=code_filter
         )
-        row_count += _write_sheet(ws_atm, period, channel_label=" (ATM)", data_rows=atm_rows, db=db)
+        row_count += _write_sheet(
+            ws_atm, period, channel_label=" (ATM)", data_rows=atm_rows, db=db, pay=pay, payload=payload
+        )
 
         ws_cash = wb.create_sheet("CASH")
         cash_rows = _load_rows(
             db, pay, channel="CASH", department_id=department_id, employee_code=code_filter
         )
-        row_count += _write_sheet(ws_cash, period, channel_label=" (CASH)", data_rows=cash_rows, db=db)
+        row_count += _write_sheet(
+            ws_cash, period, channel_label=" (CASH)", data_rows=cash_rows, db=db, pay=pay, payload=payload
+        )
     elif ch == "ATM":
         first.title = "ATM"
         atm_rows = _load_rows(
             db, pay, channel="ATM", department_id=department_id, employee_code=code_filter
         )
-        row_count = _write_sheet(first, period, channel_label=" (ATM)", data_rows=atm_rows, db=db)
+        row_count = _write_sheet(
+            first, period, channel_label=" (ATM)", data_rows=atm_rows, db=db, pay=pay, payload=payload
+        )
     else:
         first.title = "CASH"
         cash_rows = _load_rows(
             db, pay, channel="CASH", department_id=department_id, employee_code=code_filter
         )
-        row_count = _write_sheet(first, period, channel_label=" (CASH)", data_rows=cash_rows, db=db)
+        row_count = _write_sheet(
+            first, period, channel_label=" (CASH)", data_rows=cash_rows, db=db, pay=pay, payload=payload
+        )
 
     scope_suffix = ""
     if code_filter:

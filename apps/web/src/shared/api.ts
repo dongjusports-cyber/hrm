@@ -2209,6 +2209,14 @@ export type OtExternalPreviewRow = {
   hourly_base: number | string;
   rate: number | string;
   amount_vnd: number | string;
+  hours_x15?: number | string;
+  pay_x15?: number | string;
+  hours_x20?: number | string;
+  pay_x20?: number | string;
+  hours_x21?: number | string;
+  pay_x21?: number | string;
+  hours_x30?: number | string;
+  pay_x30?: number | string;
 };
 
 export type OtExternalPreview = {
