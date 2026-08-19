@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   calculatePayroll,
   createPayAdjustment,
@@ -33,6 +32,7 @@ import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { EmployeeCodePicker } from "../../shared/EmployeeCodePicker";
 import { disabledTitle } from "../../shared/disabledHint";
@@ -364,18 +364,13 @@ export function PayrollPage() {
 
   return (
     <div className="module-page payroll-shell">
-      <header className="module-header">
-        <Link to="/" className="btn-back">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>Tính Lương</span>
-          <span aria-hidden> › </span>
-          <span>Kỳ {period}</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Tính Lương", current: true },
+          ...(period ? [{ label: `Kỳ ${period}`, current: true }] : []),
+        ]}
+      />
       <main className="module-body payroll-main">
         {error && <p className="banner-warn">{error}</p>}
         {ok && <p className="banner-ok">{ok}</p>}

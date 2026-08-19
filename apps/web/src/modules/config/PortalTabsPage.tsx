@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   fetchConfigTabs,
   resetConfigTabs,
@@ -95,21 +94,8 @@ export function PortalTabsPage() {
   const sorted = [...tabs].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <div className="module-page">
-      <header className="module-header">
-        <Link to="/m/config" className="btn-back">
-          ← Cấu Hình
-        </Link>
-        <nav className="breadcrumb">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <Link to="/m/config">Cấu Hình</Link>
-          <span aria-hidden> › </span>
-          <span>Ô Portal</span>
-        </nav>
-      </header>
-      <main className="module-body">
-        <h1>Ô Portal</h1>
+    <div>
+      <h1>Ô Portal</h1>
         <p className="field-hint">
           Đổi tên, mô tả, thứ tự, bật/tắt 8 ô Lv1. Không thêm/xóa mã module (cố định). Ô Cấu Hình
           không tắt được.
@@ -207,7 +193,6 @@ export function PortalTabsPage() {
             </div>
           </form>
         )}
-      </main>
     </div>
   );
 }

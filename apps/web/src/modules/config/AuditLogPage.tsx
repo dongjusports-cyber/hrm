@@ -31,7 +31,9 @@ export function AuditLogPage() {
   return (
     <div className="config-section-page">
       <p className="field-hint">
-        <Link to="/m/config">← Cấu Hình</Link>
+        <Link to="/m/config" className="hr-layer-btn">
+          ← Cấu Hình
+        </Link>
       </p>
       <div className="module-toolbar">
         <h1>Log / Hộp đen</h1>

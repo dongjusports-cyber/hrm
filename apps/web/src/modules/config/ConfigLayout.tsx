@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../shared/authStore";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { showDenied } from "../../shared/deniedStore";
 
 /** Lv2 Cấu Hình — chỉ Admin (file 02). */
@@ -20,16 +21,12 @@ export function ConfigLayout() {
 
   return (
     <div className="module-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back" aria-label="Về Portal">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb" aria-label="Đường dẫn">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <Link to="/m/config">Cấu Hình</Link>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Cấu Hình", to: "/m/config" },
+        ]}
+      />
       <main className="module-body">
         <Outlet />
       </main>

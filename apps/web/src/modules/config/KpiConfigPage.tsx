@@ -108,7 +108,9 @@ export function KpiConfigPage() {
   return (
     <div className="config-section-page">
       <p className="field-hint">
-        <Link to="/m/config">← Cấu Hình</Link>
+        <Link to="/m/config" className="hr-layer-btn">
+          ← Cấu Hình
+        </Link>
       </p>
       <h1>KPI — ngưỡng cảnh báo</h1>
       <p className="field-hint">

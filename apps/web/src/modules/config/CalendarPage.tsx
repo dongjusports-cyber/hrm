@@ -136,7 +136,7 @@ export function CalendarPage() {
             Tuần làm việc + ngày lễ → tự tính ngày công chuẩn và mẫu số (rule 27→26 từ Policy).
           </p>
         </div>
-        <Link to="/m/config" className="btn-back">
+        <Link to="/m/config" className="hr-layer-btn">
           ← Cấu Hình
         </Link>
       </div>

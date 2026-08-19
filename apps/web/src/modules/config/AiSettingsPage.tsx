@@ -79,7 +79,9 @@ export function AiSettingsPage() {
     <div className="config-section-page">
       <ConfigTabNav />
       <p className="field-hint">
-        <Link to="/m/config">← Cấu Hình</Link>
+        <Link to="/m/config" className="hr-layer-btn">
+          ← Cấu Hình
+        </Link>
       </p>
       <h1>AI Gemini (Trợ Lý AI)</h1>
       <p className="field-hint">

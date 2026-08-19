@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../shared/authStore";
+import { ModuleLayerHeader } from "../shared/ModuleLayerHeader";
 import { showDenied } from "../shared/deniedStore";
 
 const MODULE_TITLES: Record<string, string> = {
@@ -40,16 +41,12 @@ export function ModuleShell() {
 
   return (
     <div className="module-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back" aria-label="Về Portal">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb" aria-label="Đường dẫn">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>{title}</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: title, current: true },
+        ]}
+      />
 
       <main className="module-body">
         <h1>{title}</h1>

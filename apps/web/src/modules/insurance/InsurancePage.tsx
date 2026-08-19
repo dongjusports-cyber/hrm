@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import {
@@ -10,6 +10,7 @@ import {
   type InsuranceSummary,
 } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { InsuranceDeclarationsSection } from "./InsuranceDeclarationsSection";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -151,16 +152,12 @@ export function InsurancePage() {
 
   return (
     <div className="module-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>Bảo Hiểm</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Bảo Hiểm", current: true },
+        ]}
+      />
       <main className="module-body">
         <div className="module-toolbar">
           <h1>Bảo Hiểm</h1>

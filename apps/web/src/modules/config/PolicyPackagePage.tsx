@@ -182,7 +182,7 @@ export function PolicyPackagePage() {
             Sửa biểu mẫu hoặc JSON — lưu bản nháp qua xác nhận 3 bước (policy_confirm_logs).
           </p>
         </div>
-        <Link to="/m/config" className="btn-back">
+        <Link to="/m/config" className="hr-layer-btn">
           ← Cấu Hình
         </Link>
       </div>

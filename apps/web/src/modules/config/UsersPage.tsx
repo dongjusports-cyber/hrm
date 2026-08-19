@@ -175,7 +175,7 @@ export function UsersPage({ embedded = false }: { embedded?: boolean }) {
           </p>
         </div>
         {!embedded && (
-          <Link to="/m/config" className="btn-back">
+          <Link to="/m/config" className="hr-layer-btn">
             ← Cấu Hình
           </Link>
         )}

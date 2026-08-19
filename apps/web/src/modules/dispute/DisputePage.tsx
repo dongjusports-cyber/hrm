@@ -9,6 +9,7 @@ import {
 } from "../../shared/api";
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { useAuth } from "../../shared/authStore";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 
 const STATUS_VI: Record<string, string> = {
   open: "Mở",
@@ -111,16 +112,12 @@ export function DisputePage() {
 
   return (
     <div className="module-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back" aria-label="Về Portal">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb" aria-label="Đường dẫn">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>Khiếu Nại</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Khiếu Nại", current: true },
+        ]}
+      />
 
       <main className="module-body">
         <div className="module-toolbar">

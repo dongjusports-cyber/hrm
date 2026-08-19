@@ -133,7 +133,7 @@ export function PolicyEditorPage() {
             Gói thông số mùa (không hard-code). Lưu tham số tiền bắt buộc xác nhận 3 lần (P10).
           </p>
         </div>
-        <Link to="/m/config" className="btn-back">
+        <Link to="/m/config" className="hr-layer-btn">
           ← Cấu Hình
         </Link>
       </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { downloadKpiExport, fetchKpi, type KpiPeriod } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
+import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 
 function fmtPct(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -56,16 +56,12 @@ export function ReportPage() {
 
   return (
     <div className="module-page">
-      <header className="module-header">
-        <Link to="/" className="btn-back">
-          ← Portal
-        </Link>
-        <nav className="breadcrumb">
-          <Link to="/">Portal</Link>
-          <span aria-hidden> › </span>
-          <span>Báo Cáo / KPI</span>
-        </nav>
-      </header>
+      <ModuleLayerHeader
+        layers={[
+          { label: "← Portal", to: "/" },
+          { label: "Báo Cáo / KPI", current: true },
+        ]}
+      />
       <main className="module-body">
         <div className="module-toolbar">
           <h1>Báo Cáo / KPI</h1>
