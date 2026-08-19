@@ -93,8 +93,8 @@ type Props = {
   refreshToken?: number;
   onSummaryChange?: (summary: DailyGridSummary) => void;
   onPickEmployee?: (row: AttendanceDayGridRow) => void;
-  /** Sau sửa/xóa giờ — tab tổng hợp tháng lấy timesheet mới. */
-  onTimesChanged?: () => void;
+  /** Sau sửa/xóa giờ — tab tổng hợp tháng chỉ lấy timesheet NV đó (không GET cả nhà máy). */
+  onTimesChanged?: (employeeCode?: string) => void;
 };
 
 function DailyGridPanelInner({
@@ -387,9 +387,8 @@ function DailyGridPanelInner({
     const day = await patchAttendanceDayCell(patchBody);
     const merged = applyDayToGridRow(row, day);
     setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
-    gridApi?.applyTransaction({ update: [merged] });
     setToast(`Đã lưu ${code}`);
-    onTimesChanged?.();
+    onTimesChanged?.(code);
   }
 
   async function saveTimeCell(row: AttendanceDayGridRow, col: "first_in" | "last_out", editedRaw: string) {

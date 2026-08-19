@@ -273,10 +273,10 @@ export function EmployeesPage() {
     }
   }, [appliedQ, statusFilter, departmentId, teamId]);
 
+  // Chỉ refetch khi bộ lọc đổi. Quay lại tab keep-alive không GET lại cả danh sách.
   useEffect(() => {
-    if (!paneActive) return;
     void reload();
-  }, [reload, paneActive]);
+  }, [reload]);
 
   function onDepartmentChange(id: string) {
     setDepartmentId(id);

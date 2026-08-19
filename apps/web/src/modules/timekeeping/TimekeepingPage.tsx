@@ -30,7 +30,6 @@ import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useSheetKeyboard } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
-import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
@@ -204,7 +203,6 @@ function buildCalendar(
 }
 
 export function TimekeepingPage() {
-  const paneActive = useKeepAlivePaneActive();
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
   const typedQRef = useRef("");
@@ -331,9 +329,9 @@ export function TimekeepingPage() {
   }, [period]);
 
   useEffect(() => {
-    if (!paneActive) return;
+    // Kỳ đổi thì tải lại. Quay lại tab keep-alive không GET timesheet cả nhà máy.
     void reload();
-  }, [reload, paneActive]);
+  }, [reload]);
 
   useEffect(() => {
     if (!selected) {
@@ -343,7 +341,29 @@ export function TimekeepingPage() {
     void loadEmpDays(selected.employee_code, periodBounds.date_from, periodBounds.date_to);
   }, [selected?.employee_code, periodBounds.date_from, periodBounds.date_to, loadEmpDays]);
 
-  async function refreshTimesheetsQuiet() {
+  async function refreshTimesheetsQuiet(employeeCode?: string) {
+    const code = employeeCode?.trim();
+    if (code) {
+      const one = await fetchTimesheets(period, code);
+      const next = one[0];
+      if (!next) return;
+      setRows((prev) => {
+        const i = prev.findIndex(
+          (s) => s.id === next.id || s.employee_code === next.employee_code,
+        );
+        if (i < 0) return [...prev, next];
+        const copy = prev.slice();
+        copy[i] = next;
+        return copy;
+      });
+      setSelected((prev) => {
+        if (!prev) return null;
+        if (prev.id === next.id || prev.employee_code === next.employee_code) return next;
+        return prev;
+      });
+      return;
+    }
+    cacheInvalidate(`timesheets:${period}`);
     const sheets = await fetchTimesheets(period);
     setRows(sheets);
     setSelected((prev) => {
@@ -651,7 +671,7 @@ export function TimekeepingPage() {
 
   async function refreshAfterManualDay(day: AttendanceDay) {
     const daysP = loadEmpDays(day.employee_code, periodBounds.date_from, periodBounds.date_to);
-    await Promise.all([daysP, refreshTimesheetsQuiet()]);
+    await Promise.all([daysP, refreshTimesheetsQuiet(day.employee_code)]);
   }
 
   async function onManualDay(e: FormEvent) {
@@ -1246,8 +1266,8 @@ export function TimekeepingPage() {
               refreshToken={dailyGridRefresh}
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
-              onTimesChanged={() => {
-                void refreshTimesheetsQuiet();
+              onTimesChanged={(code) => {
+                void refreshTimesheetsQuiet(code);
               }}
             />
           </div>

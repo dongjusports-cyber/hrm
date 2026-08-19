@@ -6,7 +6,7 @@ import {
   type AuthUser,
 } from "./authStore";
 import { getApiBase } from "./apiBase";
-import { cacheInvalidate, cachedFetch, employeesCacheKey } from "./clientCache";
+import { cacheInvalidate, cacheUpsertListItem, cachedFetch, employeesCacheKey } from "./clientCache";
 import { companyExcelFilename, filenameFromContentDisposition } from "./excelFilename";
 
 export type PortalTab = {
@@ -2168,7 +2168,26 @@ export async function fetchPayPeriod(period: string): Promise<PayPeriod | null> 
   return res.json();
 }
 
-export async function fetchTimesheets(period: string): Promise<TimesheetMonth[]> {
+export async function fetchTimesheets(
+  period: string,
+  employeeCode?: string,
+): Promise<TimesheetMonth[]> {
+  const code = employeeCode?.trim();
+  if (code) {
+    const qs = new URLSearchParams({ period, employee_code: code });
+    const res = await apiFetch(`/api/attendance/timesheets?${qs}`);
+    if (!res.ok) throw new Error(await readError(res));
+    const rows = (await res.json()) as TimesheetMonth[];
+    const row = rows[0];
+    if (row) {
+      cacheUpsertListItem(
+        `timesheets:${period}`,
+        row,
+        (x) => x.id === row.id || x.employee_code === row.employee_code,
+      );
+    }
+    return rows;
+  }
   return cachedFetch(`timesheets:${period}`, async () => {
     const res = await apiFetch(`/api/attendance/timesheets?period=${encodeURIComponent(period)}`);
     if (!res.ok) throw new Error(await readError(res));
@@ -2354,7 +2373,6 @@ export async function patchAttendanceDayCell(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2471,7 +2489,6 @@ export async function patchAttendanceDayManual(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2485,7 +2502,6 @@ export async function patchAttendanceDayCycle(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 

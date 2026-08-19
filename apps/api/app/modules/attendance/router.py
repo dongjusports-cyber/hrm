@@ -92,8 +92,9 @@ def timesheets(
     _user: TimekeepingUser,
     db: DbSession,
     period: Annotated[str, Query(description="YYYY-MM")],
+    employee_code: str | None = None,
 ) -> list[TimesheetMonthOut]:
-    return ts.list_timesheets(db, period)
+    return ts.list_timesheets(db, period, employee_code=employee_code)
 
 
 @router.get("/attendance/timesheets/details", response_model=list[TimesheetMonthDetailOut])

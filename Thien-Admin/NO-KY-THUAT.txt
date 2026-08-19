@@ -19,7 +19,7 @@ Can Excel luong (+ --snapshots) va user bao --apply.
 --------------------------------------------------------------------------------
 Dot QA ban giao HR 19/08/2026 — khong them no moi
 --------------------------------------------------------------------------------
-Loi da sua: Thien-Admin/LOI-DA-SUA.txt  [QA-H001] [QA-H002]
+Loi da sua: Thien-Admin/LOI-DA-SUA.txt  [QA-H001] [QA-H002] [ESC-K002] [ATT-P002]
 Huong dan HR: Thien-Admin/BAN-GIAO-HR.txt
 
 --------------------------------------------------------------------------------

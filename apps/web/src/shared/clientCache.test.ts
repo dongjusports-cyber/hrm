@@ -4,6 +4,7 @@ import {
   cacheInvalidate,
   cachePeek,
   cacheSet,
+  cacheUpsertListItem,
   cachedFetch,
   employeesCacheKey,
 } from "./clientCache";
@@ -42,6 +43,21 @@ describe("clientCache", () => {
     expect(a).toBe("ok");
     expect(b).toBe("ok");
     expect(n).toBe(1);
+  });
+
+  it("upsert 1 phần tử, không tạo cache khi chưa có list", () => {
+    cacheUpsertListItem("timesheets:2026-08", { id: "a", n: 1 }, (x: { id: string }) => x.id === "a");
+    expect(cachePeek("timesheets:2026-08")).toBeUndefined();
+
+    cacheSet("timesheets:2026-08", [
+      { id: "a", n: 1 },
+      { id: "b", n: 2 },
+    ]);
+    cacheUpsertListItem("timesheets:2026-08", { id: "b", n: 9 }, (x: { id: string }) => x.id === "b");
+    expect(cachePeek("timesheets:2026-08")).toEqual([
+      { id: "a", n: 1 },
+      { id: "b", n: 9 },
+    ]);
   });
 
   it("employeesCacheKey ổn định", () => {

@@ -20,7 +20,7 @@ from app.modules.attendance.shift_schedule import engine_ot_kwargs, timing_from_
 from app.modules.attendance.schemas import AttendanceDayGridOut, AttendanceDayOut
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
-from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets, seed_leave_types
+from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.integration.models import AttendancePunch
@@ -266,7 +266,6 @@ def patch_day_cell(
     clear_last_out: bool = False,
 ) -> AttendanceDayOut:
     _assert_day_editable(db, work_date)
-    seed_leave_types(db)
     emp = _get_employee(db, employee_code)
     row = _get_or_create_day(db, emp, work_date)
     schedule = _load_schedule(db)
@@ -375,7 +374,6 @@ def bulk_patch_days(
         raise HTTPException(status_code=400, detail="Trợ Lý AI: chọn ít nhất một nhân viên.")
 
     _assert_day_editable(db, work_date)
-    seed_leave_types(db)
     schedule = _load_schedule(db)
     lt_code = None
     if action == "set_leave":

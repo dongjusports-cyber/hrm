@@ -5,6 +5,7 @@ LOI DA SUA — DJ-HRM
   [QA-H001] pytest không chạy, phép CN, GET danh mục nghỉ, ESC sheet công
   [QA-H002] dashboard KPI/overview 404 khi chưa tính lương, giờ công JSON thiếu +07
   [ESC-K002] ESC nuốt: AG Grid editor/menu, bảng lệnh, ô tìm MSNV trong ⋮ Thêm
+  [ATT-P002] giật khi vào tab keep-alive + sửa ô công GET timesheet cả nhà máy
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1030,4 +1031,27 @@ Cách xử lý:
 
 Test:
   cd apps/web && npm test -- escKeyboard
+
+[ATT-P002] Giật tab keep-alive + sửa ô công chậm (GET cả nhà máy) — 2026-08-19
+------------------------------------------------------------------------------
+Triệu chứng:
+  Vào lại Nhân Sự / Chấm Công / Tính Lương bị giật (lưới tải lại).
+  Nhập giờ tay, sửa ô Vào/Ra, gán loại nghỉ: sau mỗi ô chờ GET bảng công
+  cả nhà máy (~359 NV) dù backend đã rebuild 1 NV (ATT-P001).
+
+Nguyên nhân:
+  1) Keep-alive giữ DOM nhưng useEffect([reload, paneActive]) refetch
+     khi quay lại tab → setRows AG Grid.
+  2) Sau PATCH ô: cacheInvalidate("timesheets:") + fetchTimesheets(period)
+     không lọc MSNV. DailyGrid vừa setRows vừa applyTransaction.
+
+Cách xử lý:
+  - Keep-alive: chỉ reload khi kỳ/bộ lọc đổi, không vì paneActive.
+  - GET /api/attendance/timesheets?employee_code= — UI merge 1 dòng cache.
+  - PATCH ô / Lưu giờ / chu kỳ: không xóa cache cả kỳ; bulk/sync vẫn xóa.
+  - seed_leave_types: 1 SELECT nếu đã đủ 14 mã (không 14 db.get mỗi PATCH).
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_attendance_patch_perf.py tests/test_timesheet.py tests/test_attendance_day_grid_37.py -q
+  cd apps/web && npm test -- clientCache keepAlive
 

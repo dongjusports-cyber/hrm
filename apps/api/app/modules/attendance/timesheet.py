@@ -113,25 +113,29 @@ def _adj_penalty_views(adj_rows: list[TimesheetAdjustment]) -> list[LeaveAdjustm
 
 
 def seed_leave_types(db: Session) -> None:
+    needed = {row[0] for row in LEAVE_SEED}
+    existing = {code for (code,) in db.query(LeaveType.code).all()}
+    if needed <= existing:
+        return
     added = False
     for code, name, pct, si, bonus, worked, doc, max_days in LEAVE_SEED:
-        row = db.get(LeaveType, code)
-        if row is None:
-            db.add(
-                LeaveType(
-                    code=code,
-                    name=name,
-                    paid_by_company=bool(pct) and pct > 0,
-                    counts_as_unauthorized=bonus,
-                    pay_ratio_percent=pct,
-                    paid_by_si=si,
-                    affects_attendance_bonus=bonus,
-                    counts_as_worked_day=worked,
-                    requires_document=doc,
-                    max_days_per_year=max_days,
-                )
+        if code in existing:
+            continue
+        db.add(
+            LeaveType(
+                code=code,
+                name=name,
+                paid_by_company=bool(pct) and pct > 0,
+                counts_as_unauthorized=bonus,
+                pay_ratio_percent=pct,
+                paid_by_si=si,
+                affects_attendance_bonus=bonus,
+                counts_as_worked_day=worked,
+                requires_document=doc,
+                max_days_per_year=max_days,
             )
-            added = True
+        )
+        added = True
     if added:
         db.commit()
 
@@ -514,17 +518,22 @@ def rebuild_timesheets(
     )
 
 
-def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
+def list_timesheets(
+    db: Session,
+    period: str,
+    employee_code: str | None = None,
+) -> list[TimesheetMonthOut]:
     pay = get_pay_period(db, period)
     if pay is None:
         return []
-    rows = (
+    q = (
         db.query(TimesheetMonth, Employee)
         .join(Employee, Employee.id == TimesheetMonth.employee_id)
         .filter(TimesheetMonth.pay_period_id == pay.id)
-        .order_by(Employee.employee_code)
-        .all()
     )
+    if employee_code:
+        q = q.filter(Employee.employee_code == employee_code.strip())
+    rows = q.order_by(Employee.employee_code).all()
     out: list[TimesheetMonthOut] = []
     for ts, emp in rows:
         if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):

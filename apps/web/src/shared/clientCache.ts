@@ -26,6 +26,20 @@ export function cacheInvalidate(prefix: string): void {
   void idbDeletePrefix(prefix);
 }
 
+/** Cập nhật 1 phần tử trong list đã cache. Không tạo cache 1 dòng (tránh GET sau đó tưởng đủ cả nhà máy). */
+export function cacheUpsertListItem<T>(
+  key: string,
+  item: T,
+  match: (existing: T) => boolean,
+): void {
+  const current = cachePeek<T[]>(key);
+  if (!Array.isArray(current)) return;
+  const idx = current.findIndex(match);
+  const next =
+    idx >= 0 ? current.map((row, i) => (i === idx ? item : row)) : [...current, item];
+  cacheSet(key, next);
+}
+
 export function cacheClearAll(): void {
   ram.clear();
   void idbClear();

@@ -85,6 +85,11 @@ export function useKeepAliveState(): State {
   );
 }
 
+/** true khi pane keep-alive này đang hiện.
+
+Không dùng làm điều kiện refetch lưới khi quay lại tab — refetch đó làm giật
+(GET cả nhà máy + AG Grid setRows). Tải lại khi kỳ/bộ lọc đổi (`reload` đổi identity)
+hoặc khi user bấm Làm mới. */
 export function useKeepAlivePaneActive(): boolean {
   const pane = useKeepAlivePaneId();
   const { current } = useKeepAliveState();

@@ -45,6 +45,9 @@ Chi tiết trong LOI-DA-SUA.txt:
             Giờ Vào/Ra JSON thiếu +07:00 (17:00 thành 00:00)
             Ingest công 0 dòng vì cache Settings giữa các test
 
+  [ATT-P002] Vào lại tab Nhân Sự/Chấm Công/Lương bị giật (refetch keep-alive)
+            Sửa ô công / gán nghỉ: GET timesheet cả nhà máy sau mỗi ô
+
 --------------------------------------------------------------------------------
 NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
 --------------------------------------------------------------------------------

@@ -248,3 +248,37 @@ def test_ingest_rebuilds_only_employees_with_punches(client, db):
     assert sheets.status_code == 200, sheets.text
     codes = {r["employee_code"] for r in sheets.json()}
     assert codes == {"5290"}
+
+
+def test_list_timesheets_filter_employee_code(client):
+    """Sau sửa 1 NV, UI chỉ GET timesheet NV đó — không kéo cả nhà máy."""
+    client.post(
+        "/api/integrations/mitapro/push",
+        headers=_agent_headers(),
+        json={
+            "punches": [
+                {"employee_code": "5290", "punch_time": "2025-10-01T08:01:00+07:00"},
+                {"employee_code": "5290", "punch_time": "2025-10-01T17:05:00+07:00"},
+                {"employee_code": "1514", "punch_time": "2025-10-01T08:00:00+07:00"},
+                {"employee_code": "1514", "punch_time": "2025-10-01T17:00:00+07:00"},
+            ]
+        },
+    )
+    headers = _hr_headers(client)
+    client.post("/api/attendance/timesheets/rebuild", headers=headers, params={"period": "2025-10"})
+    all_rows = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10"},
+    )
+    assert all_rows.status_code == 200
+    assert len(all_rows.json()) >= 2
+    one = client.get(
+        "/api/attendance/timesheets",
+        headers=headers,
+        params={"period": "2025-10", "employee_code": "5290"},
+    )
+    assert one.status_code == 200, one.text
+    body = one.json()
+    assert len(body) == 1
+    assert body[0]["employee_code"] == "5290"
