@@ -1,12 +1,10 @@
 ---
-description: Keep-alive lưới RAM — đã GitHub, chưa deploy VPS.
+description: Keep-alive lưới RAM — đã GitHub + VPS 19/08.
 alwaysApply: true
 ---
 
-# Keep-alive (GitHub, chưa VPS)
+# Keep-alive (đã GitHub + VPS)
 
-**18/08/2026** commit trên `main` (máy .123 → GitHub). Portal VPS **chưa** deploy — user bảo chưa deploy.
+**19/08/2026** Portal tím nhạt + Module Menu V1.0 đã push `30cca26` và deploy VPS.
 
-Khi user nói **deploy VPS**: `python ops/deploy_vps_from_git.py` (không commit thêm nếu working tree bẩn).
-
-Không gộp chế độ đặc biệt (`HrHomePage.tsx`, `mdm/service.py`, `employment_status.py`) vào lần deploy này trừ khi user yêu cầu.
+Khi user nói **deploy VPS**: `python -X utf8 ops/deploy_vps_from_git.py` (không commit thêm nếu working tree bẩn).

@@ -630,18 +630,99 @@ a {
   text-decoration: none;
   font-weight: 600;
   font-size: 0.92rem;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
   transition:
     background-color 0.15s ease,
-    transform 0.1s ease;
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .btn-back:hover {
   background: #c5ebe0;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
 }
 
 .btn-back:active {
   background: #b0e0d4;
-  transform: translateY(1px);
+  transform: translateY(0);
+}
+
+/* Tầng điều hướng HR — nút dài nổi, mỗi tầng 1 nút */
+.hr-layer-header {
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.hr-layer-left,
+.hr-layer-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hr-layer-right {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.hr-layer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.hr-layer-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(91, 33, 182, 0.16);
+  background: #ffffff;
+  color: #3b0764;
+  font-weight: 650;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  text-decoration: none;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+a.hr-layer-btn:hover {
+  transform: translateY(-4px);
+  background: #ffffff;
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.14);
+  color: #3b0764;
+}
+
+a.hr-layer-btn:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+}
+
+.hr-layer-btn.is-current {
+  background: #f3e8ff;
+  border-color: rgba(91, 33, 182, 0.28);
+  cursor: default;
+}
+
+.hr-layer-name {
+  font-size: 1.05rem;
+}
+
+.hr-layer-count {
+  font-weight: 500;
+  color: #6b5b8c;
+  font-size: 0.88rem;
 }
 
 .breadcrumb {
@@ -2624,7 +2705,7 @@ a {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 14px 20px 16px;
+  padding: 8px 16px 10px;
   overflow: hidden;
   max-width: none;
   width: 100%;
@@ -2637,6 +2718,28 @@ a {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.hr-page-list {
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hr-page-list .banner-warn,
+.hr-page-list .banner-ok,
+.hr-page-list .field-hint {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.hr-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .hr-hub {
@@ -2720,7 +2823,6 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -3206,9 +3308,16 @@ a {
 .hr-grid-list {
   flex: 1 1 0;
   min-height: 240px;
+  position: relative;
 }
 
-.hr-grid-list.ag-theme-quartz .ag-root-wrapper,
+.hr-grid-list.ag-theme-quartz .ag-root-wrapper {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 240px;
+}
+
 .hr-grid-wrap.ag-theme-quartz .ag-root-wrapper {
   height: 100%;
 }
@@ -7066,7 +7175,7 @@ body.worker-surface {
   }
 
   .hr-shell-body {
-    padding: 12px 20px 14px;
+    padding: 8px 20px 10px;
   }
 }
 
@@ -7989,7 +8098,7 @@ html.app-fullscreen .module-page {
   z-index: 0;
   visibility: hidden;
   pointer-events: none;
-  overflow: auto;
+  overflow: hidden;
 }
 .keep-alive-pane.is-active {
   z-index: 4;

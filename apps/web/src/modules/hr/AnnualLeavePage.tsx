@@ -200,11 +200,14 @@ export function AnnualLeavePage() {
   return (
     <div className="hr-page">
       <div className="users-head hr-list-head">
-        <div className="hr-list-title-row">
-          <h1>Phép năm</h1>
-          <span className="field-hint">
-            {matchCount} NV · <Link to="/m/hr">← Nhân Sự</Link>
+        <div className="hr-layer-bar">
+          <span className="hr-layer-btn is-current">
+            <span className="hr-layer-name">Phép năm</span>
+            <span className="hr-layer-count">{matchCount} NV</span>
           </span>
+          <Link to="/m/hr" className="hr-layer-btn">
+            ← Nhân Sự
+          </Link>
         </div>
         <p className="field-hint">
           {grid?.source_label ?? "Đang tải…"}

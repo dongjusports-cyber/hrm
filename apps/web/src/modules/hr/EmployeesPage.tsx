@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { CellClickedEvent, ColDef, GridApi, GridReadyEvent, ICellRendererParams, RowDoubleClickedEvent } from "ag-grid-community";
@@ -31,6 +31,7 @@ import {
 import { employeeMatchesQuery } from "../../shared/employeeSearch";
 import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { useAgGridExternalFilter } from "../../shared/useAgGridExternalFilter";
+import { useHrHeaderRight } from "./HrLayout";
 import { TransferTeamModal } from "./TransferTeamModal";
 import { EmployeeProfileSheet } from "./EmployeeProfileSheet";
 import { RehireSheet } from "./RehireSheet";
@@ -325,6 +326,22 @@ export function EmployeesPage() {
     if (!liveQ.trim()) return rows.length;
     return rows.filter((r) => employeeMatchesQuery(r, liveQ)).length;
   }, [rows, liveQ]);
+
+  const headerRight = useMemo(
+    (): ReactNode => (
+      <>
+        <span className="hr-layer-btn is-current">
+          <span className="hr-layer-name">{meta.title}</span>
+          <span className="hr-layer-count">{visibleCount} NV</span>
+        </span>
+        <Link to="/admin/qr-code" className="hr-layer-btn">
+          QR công nhân
+        </Link>
+      </>
+    ),
+    [meta.title, visibleCount],
+  );
+  useHrHeaderRight(paneActive ? headerRight : null);
 
   const columnDefs = useMemo<ColDef<Employee>[]>(() => {
     if (specialGrid) {
@@ -649,18 +666,7 @@ export function EmployeesPage() {
   }
 
   return (
-    <div className="hr-page">
-      <div className="users-head hr-list-head">
-        <div className="hr-list-title-row">
-          <h1>{meta.title}</h1>
-          <span className="field-hint">
-            {visibleCount} NV · <Link to="/m/hr">← Nhân Sự</Link>
-            {" · "}
-            <Link to="/admin/qr-code">QR công nhân</Link>
-          </span>
-        </div>
-      </div>
-
+    <div className="hr-page hr-page-list">
       {error && <p className="banner-warn">{error}</p>}
       {searchCrossTabHint && <p className="field-hint">{searchCrossTabHint}</p>}
       {ok && <p className="banner-ok">{ok}</p>}
@@ -777,39 +783,37 @@ export function EmployeesPage() {
             />
           </label>
         </ToolbarMoreMenu>
-      </div>
-
-      <div className="hr-status-bar" aria-live="polite">
-        <span className="hr-status-count">
-          {visibleCount} nhân viên
-          {selectedRows.length > 0 ? ` · đã chọn ${selectedRows.length}` : ""}
-        </span>
-        <div className="hr-status-actions">
+        <div className="hr-toolbar-end">
+          {selectedRows.length > 0 ? (
+            <span className="hr-status-count" aria-live="polite">
+              Đã chọn {selectedRows.length}
+            </span>
+          ) : null}
           {!specialGrid ? (
-            <>
-          <button
-            type="button"
-            className="btn-secondary btn-compact"
-            disabled={selectedRows.length === 0}
-            title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
-            onClick={() => setShowTransferModal(true)}
-          >
-            Chuyển tổ{selectedRows.length ? ` (${selectedRows.length})` : ""}
-          </button>
-          <button
-            type="button"
-            className="btn-secondary btn-compact"
-            disabled={selectedRows.length === 0}
-            title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
-            onClick={() =>
-              navigate("/m/hr/salary-raise", {
-                state: { employeeIds: selectedRows.map((r) => r.id) },
-              })
-            }
-          >
-            Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
-          </button>
-            </>
+            <div className="hr-status-actions">
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                disabled={selectedRows.length === 0}
+                title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
+                onClick={() => setShowTransferModal(true)}
+              >
+                Chuyển tổ{selectedRows.length ? ` (${selectedRows.length})` : ""}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                disabled={selectedRows.length === 0}
+                title={disabledTitle(selectedRows.length === 0, "Chọn ít nhất một dòng trên lưới")}
+                onClick={() =>
+                  navigate("/m/hr/salary-raise", {
+                    state: { employeeIds: selectedRows.map((r) => r.id) },
+                  })
+                }
+              >
+                Tăng lương{selectedRows.length ? ` (${selectedRows.length})` : ""}
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
