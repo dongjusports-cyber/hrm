@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
 from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.ops_query import OPS_DIRECT_KINDS, resolve_ops_query
 from app.modules.ai.provider import ProviderResult
 from app.modules.ai.vi_labels import (
     label_ai_mode,
@@ -150,6 +151,11 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
             context_block = emp_ctx
             if emp_codes:
                 kind = "employee_lookup"
+        else:
+            ops_kind, ops_ctx = resolve_ops_query(db, user, message)
+            if ops_ctx:
+                context_block = ops_ctx
+                kind = ops_kind
 
     if not message:
         raise HTTPException(
@@ -164,7 +170,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
     )
 
     direct = False
-    if kind == "employee_lookup" and context_block and not wants_llm_analysis(message):
+    if kind in OPS_DIRECT_KINDS and context_block and not wants_llm_analysis(message):
         result = ProviderResult(
             text=format_employee_lookup_answer(context_block),
             model_name="direct",
@@ -174,7 +180,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
     else:
         api_key = resolve_api_key(cfg.api_key_encrypted)
         max_tokens = cfg.max_output_tokens
-        if kind == "employee_lookup":
+        if kind in OPS_DIRECT_KINDS:
             max_tokens = min(max_tokens, 384)
         try:
             result = generate_text(

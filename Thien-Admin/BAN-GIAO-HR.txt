@@ -48,6 +48,14 @@ Chi tiết trong LOI-DA-SUA.txt:
   [ATT-P002] Vào lại tab Nhân Sự/Chấm Công/Lương bị giật (refetch keep-alive)
             Sửa ô công / gán nghỉ: GET timesheet cả nhà máy sau mỗi ô
 
+  [AI-G001] Trợ Lý AI (nút AI góc màn):
+            - Việc cần làm: chấm lẻ (thiếu vào/ra), đơn phép chờ, HĐ 60 ngày,
+              chế độ T−3, phiếu chưa XN, khiếu nại, BHXH, nguy cơ chuyên cần
+            - Tổng Quan cũng hiện các thẻ đó (bấm được)
+            - Hỏi AI (admin): «Ai chấm lẻ tháng này», «Đơn phép chờ duyệt»,
+              «Thông tin MSNV 5290» — đọc CSDL, không bịa giờ
+            - hr.demo thấy nhắc việc, không có tab Hỏi AI (thiếu quyền ai_query)
+
 --------------------------------------------------------------------------------
 NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
 --------------------------------------------------------------------------------
@@ -84,9 +92,11 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - Phép năm trả 100% qua dòng ALE, KHÔNG cộng vào WD
    - BHXH trừ cả tháng nếu NV đang đóng (dù ít ngày công → có thể âm)
 
-5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan
+5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan / Trợ Lý AI
    - Tổng Quan chọn kỳ tháng — chưa Tính lương vẫn mở được (todo, KPI 0 công)
    - Khiếu nại: danh sách đơn công nhân
+   - Nút AI: Việc cần làm (0 token). Thiếu chấm vào/ra → gọi NV lập biên bản,
+     rồi chấm tay đủ cặp trên Kiểm theo ngày — không bịa giờ.
 
 --------------------------------------------------------------------------------
 MSNV KIỂM TRA SẴN TRÊN CLOUD

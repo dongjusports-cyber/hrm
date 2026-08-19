@@ -1,8 +1,9 @@
 """Bước F — AI nhắc chế độ về sớm T−3 (22§22.14)."""
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 
+from app.modules.attendance.engine import VN_TZ
 from app.modules.mdm.models import Employee, EmployeeWtRegime
 
 
@@ -13,8 +14,12 @@ def _hr_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _add_regime(db, emp: Employee, *, date_to: date, regime_type: str = "CHILD") -> EmployeeWtRegime:
-    today = date.today()
+def _vn_today():
+    return datetime.now(tz=VN_TZ).date()
+
+
+def _add_regime(db, emp: Employee, *, date_to, regime_type: str = "CHILD") -> EmployeeWtRegime:
+    today = _vn_today()
     r = EmployeeWtRegime(
         id=uuid4(),
         employee_id=emp.id,
@@ -36,7 +41,7 @@ def _wt_alerts(payload: dict) -> list[dict]:
 def test_wt_regime_alert_on_t_minus_3(client, db):
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    target = date.today() + timedelta(days=3)
+    target = _vn_today() + timedelta(days=3)
     _add_regime(db, emp, date_to=target)
 
     res = client.get("/api/ai/alerts/mine", headers=headers)
@@ -51,7 +56,7 @@ def test_wt_regime_alert_on_t_minus_3(client, db):
 def test_wt_regime_no_alert_t_minus_4_or_2(client, db):
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    today = date.today()
+    today = _vn_today()
     _add_regime(db, emp, date_to=today + timedelta(days=4))
     _add_regime(
         db,
@@ -67,7 +72,7 @@ def test_wt_regime_no_alert_t_minus_4_or_2(client, db):
 def test_wt_regime_alert_idempotent(client, db):
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    target = date.today() + timedelta(days=3)
+    target = _vn_today() + timedelta(days=3)
     regime = _add_regime(db, emp, date_to=target, regime_type="PREGNANT")
 
     first = client.get("/api/ai/alerts/mine", headers=headers).json()

@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.modules.attendance.models import PayPeriod
+from app.modules.attendance.engine import VN_TZ
+from app.modules.attendance.models import PayPeriod, TimesheetMonth
+from app.modules.attendance.review import list_odd_punches
+from app.modules.attendance.timesheet import get_pay_period
+from app.modules.attendance.annual_leave_ledger import annual_leave_snapshot
 from app.modules.core.models import User
 from app.modules.ai.vi_labels import label_emp_status, label_pay_channel, label_payslip_status
-from app.modules.mdm.models import Department, Employee, Team
+from app.modules.mdm.models import Department, Employee, EmployeeWtRegime, Team
 from app.modules.payroll.models import Payslip
 
 _MSNV_PREFIX = re.compile(
@@ -86,6 +91,66 @@ def _employee_lines(
     return "\n".join(lines)
 
 
+_WT_LABEL = {
+    "PREGNANT": "Đang mang thai",
+    "MATERNITY": "Nghỉ thai sản",
+    "CHILD": "Nuôi con nhỏ",
+}
+
+
+def _hrm_ops_lines(db: Session, emp: Employee, *, include_payroll: bool) -> list[str]:
+    """Phép năm, chế độ về sớm, bảng công tháng, chấm lẻ — Luật 01/05/07."""
+    today = datetime.now(tz=VN_TZ).date()
+    extra: list[str] = []
+    snap = annual_leave_snapshot(db, emp.id, today)
+    extra.append(
+        f"Phép năm {today.year}: được hưởng={snap.entitled}, hiện tại={snap.current}, "
+        f"đã dùng={snap.used}, còn lại={snap.remaining}"
+    )
+    regime = (
+        db.query(EmployeeWtRegime)
+        .filter(
+            EmployeeWtRegime.employee_id == emp.id,
+            EmployeeWtRegime.ended_at.is_(None),
+            EmployeeWtRegime.date_from <= today,
+            EmployeeWtRegime.date_to >= today,
+        )
+        .first()
+    )
+    if regime:
+        extra.append(
+            f"Chế độ về sớm: {_WT_LABEL.get(regime.regime_type, regime.regime_type)} "
+            f"{regime.hours_early}h, {regime.date_from.isoformat()} → {regime.date_to.isoformat()}"
+        )
+    period = f"{today.year:04d}-{today.month:02d}"
+    pay = get_pay_period(db, period)
+    if include_payroll and pay is not None:
+        ts = (
+            db.query(TimesheetMonth)
+            .filter(
+                TimesheetMonth.pay_period_id == pay.id,
+                TimesheetMonth.employee_id == emp.id,
+            )
+            .one_or_none()
+        )
+        if ts:
+            extra.append(
+                f"Bảng công {period}: ngày công={ts.worked_days}, phép năm={ts.al_days}, "
+                f"trễ={ts.late_count}, sớm={ts.early_count}"
+            )
+    month_start = today.replace(day=1)
+    odd = list_odd_punches(db, month_start, today, employee_id=emp.id, limit=12)
+    if odd:
+        dates = ", ".join(day.work_date.isoformat() for day, _ in odd)
+        extra.append(
+            f"Chấm lẻ (thiếu vào hoặc ra) từ {month_start.isoformat()} đến hôm nay: {dates}. "
+            "HR gọi lập biên bản rồi chấm tay đủ cặp — không bịa giờ."
+        )
+    else:
+        extra.append("Chấm lẻ kỳ này (đến hôm nay): không có.")
+    return extra
+
+
 def _fetch_org_maps(
     db: Session, team_ids: set[UUID]
 ) -> tuple[dict[UUID, Team], dict[UUID, Department]]:
@@ -149,14 +214,38 @@ def build_employee_context(db: Session, user: User, message: str) -> tuple[list[
         team = teams_by_id.get(emp.team_id) if emp.team_id else None
         dept = depts_by_id.get(team.department_id) if team and team.department_id else None
         slip = slips_by_emp.get(emp.id)
-        blocks.append(
-            _employee_lines(
-                emp,
-                team=team,
-                dept=dept,
-                slip=slip,
-                include_payroll=include_payroll,
-            )
+        block = _employee_lines(
+            emp,
+            team=team,
+            dept=dept,
+            slip=slip,
+            include_payroll=include_payroll,
         )
+        extra = _hrm_ops_lines(db, emp, include_payroll=include_payroll)
+        if extra:
+            block = block + "\n" + "\n".join(extra)
+        blocks.append(block)
 
     return codes, f"{_CONTEXT_HEADER}\n" + "\n\n".join(blocks)
+
+
+def build_punch_context(db: Session, *, limit: int = 20) -> str:
+    """Danh sách chấm lẻ kỳ hiện tại — Luật 01, 0 token."""
+    today = datetime.now(tz=VN_TZ).date()
+    month_start = today.replace(day=1)
+    rows = list_odd_punches(db, month_start, today, limit=limit)
+    n = len(rows)
+    lines = [
+        "### Chấm lẻ (thiếu vào hoặc ra) — đọc từ CSDL",
+        f"Khoảng: {month_start.isoformat()} → {today.isoformat()}.",
+        "Luật: ghi nhận mốc có, không bịa mốc còn lại, chưa tính công. HR gọi lập biên bản rồi chấm tay đủ cặp.",
+    ]
+    if n == 0:
+        lines.append("Không có dòng chấm lẻ.")
+        return "\n".join(lines)
+    lines.append(f"Số dòng (tối đa {limit} hiện): {n}")
+    for day, emp in rows:
+        inn = "có vào" if day.first_in else "thiếu vào"
+        out = "có ra" if day.last_out else "thiếu ra"
+        lines.append(f"- {emp.employee_code} {emp.full_name} {day.work_date.isoformat()} ({inn}, {out})")
+    return "\n".join(lines)

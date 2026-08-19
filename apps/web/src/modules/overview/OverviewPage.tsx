@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchOverview, type OverviewData } from "../../shared/api";
+import { fetchOverview, type OverviewData, type TodoCard } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
@@ -118,6 +118,29 @@ export function OverviewPage() {
               </ul>
               {data.by_department.length === 0 && (
                 <p className="field-hint">Chưa có dữ liệu bộ phận kỳ này.</p>
+              )}
+            </section>
+
+            <section className="kpi-section todo-cards">
+              <div className="module-toolbar">
+                <h2>Việc cần làm (Trợ Lý AI)</h2>
+              </div>
+              {(data.todo_cards ?? []).length === 0 ? (
+                <p className="field-hint">Không có việc cần làm.</p>
+              ) : (
+                <ul className="alert-mini-list">
+                  {(data.todo_cards ?? []).map((c: TodoCard) => (
+                    <li key={c.key}>
+                      <Link to={c.href}>
+                        <strong>
+                          {c.title}
+                          {c.count > 0 ? ` (${c.count})` : ""}
+                        </strong>
+                        <span>{c.body}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
 

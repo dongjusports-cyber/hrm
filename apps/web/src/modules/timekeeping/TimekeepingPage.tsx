@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
 import {
@@ -57,6 +58,12 @@ import { disabledTitle } from "../../shared/disabledHint";
 import { cacheInvalidate } from "../../shared/clientCache";
 
 type MainView = "daily" | "monthly" | "leave";
+
+function viewFromSearch(search: string): MainView | null {
+  const v = new URLSearchParams(search).get("view");
+  if (v === "daily" || v === "monthly" || v === "leave") return v;
+  return null;
+}
 
 const MAIN_VIEW_HINT: Record<MainView, string> = {
   daily: "Kiểm công một ngày: Công · trễ/sớm · tăng ca sổ/ngoài · OT CN/lễ. CN đi làm hiện OT CN, không cộng Công.",
@@ -203,6 +210,8 @@ function buildCalendar(
 }
 
 export function TimekeepingPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [period, setPeriod] = useState(defaultPeriod);
   const [q, setQ] = useState("");
   const typedQRef = useRef("");
@@ -235,7 +244,14 @@ export function TimekeepingPage() {
     return today.slice(0, 7) === p ? today : payPeriodStartDate(p);
   });
   const [dailyGridRefresh, setDailyGridRefresh] = useState(0);
-  const [mainView, setMainView] = useState<MainView>("daily");
+  const [mainView, setMainView] = useState<MainView>(
+    () => viewFromSearch(typeof window !== "undefined" ? window.location.search : "") ?? "daily",
+  );
+  useEffect(() => {
+    if (!location.pathname.startsWith("/m/timekeeping")) return;
+    const next = viewFromSearch(location.search);
+    if (next) setMainView(next);
+  }, [location.pathname, location.search]);
   const [otExternalOpen, setOtExternalOpen] = useState(false);
   const [cycleListOpen, setCycleListOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -1229,7 +1245,18 @@ export function TimekeepingPage() {
                 role="tab"
                 title={MAIN_VIEW_HINT[view]}
                 className={mainView === view ? "is-on" : ""}
-                onClick={() => setMainView(view)}
+                onClick={() => {
+                  setMainView(view);
+                  if (location.pathname.startsWith("/m/timekeeping")) {
+                    const params = new URLSearchParams(location.search);
+                    if (params.get("view") === view) return;
+                    params.set("view", view);
+                    navigate(
+                      { pathname: location.pathname, search: `?${params.toString()}` },
+                      { replace: true },
+                    );
+                  }
+                }}
               >
                 {label}
               </button>

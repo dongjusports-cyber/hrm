@@ -3033,6 +3033,7 @@ export type OverviewData = {
     is_read: boolean;
   }[];
   by_department: DeptKpiRow[];
+  todo_cards?: TodoCard[];
 };
 
 export async function fetchKpi(period: string): Promise<KpiPeriod> {

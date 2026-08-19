@@ -144,9 +144,26 @@ export function AiFab() {
     navigate(href);
   }
 
-  function openModule(moduleKey: string) {
-    setOpen(false);
-    navigate(`/m/${moduleKey}`);
+  function alertHref(a: AiAlert): string {
+    switch (a.rule_key) {
+      case "punch_odd":
+        return "/m/timekeeping?view=daily";
+      case "wt_regime_expiring":
+        return "/m/hr/lists/special_regime";
+      case "payslip_unconfirmed":
+      case "period_lock_overdue":
+        return "/m/payroll";
+      case "dispute_new":
+      case "dispute_stale":
+        return "/m/dispute";
+      case "kpi_attendance_low":
+      case "kpi_ot_high":
+      case "kpi_turnover_high":
+      case "kpi_ot_dept_high":
+        return "/m/report";
+      default:
+        return `/m/${a.target_module || "timekeeping"}`;
+    }
   }
 
   async function onAsk(e: FormEvent) {
@@ -318,7 +335,7 @@ export function AiFab() {
                           className="ai-fab-item"
                           onClick={() => {
                             void onRead(a.id);
-                            openModule(a.target_module || "timekeeping");
+                            openHref(alertHref(a));
                           }}
                         >
                           <strong>{a.title}</strong>
@@ -339,7 +356,7 @@ export function AiFab() {
                   onChange={(e) => setChatInput(e.target.value)}
                   rows={2}
                   maxLength={4000}
-                  placeholder="Ví dụ: Thông tin MSNV 1519 · Rà soát khiếu nại OT…"
+                  placeholder="Ví dụ: Thông tin MSNV 1519 · Ai chấm lẻ tháng này · Đơn phép chờ duyệt · HĐ sắp hết hạn…"
                   disabled={asking}
                 />
                 <button type="submit" className="btn-primary" disabled={asking || !chatInput.trim()}>

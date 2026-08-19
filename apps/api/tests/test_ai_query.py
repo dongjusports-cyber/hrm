@@ -113,6 +113,38 @@ def test_ai_query_employee_lookup_stub(client, db):
     assert "Kết quả tra cứu từ hệ thống" in body["answer"]
 
 
+def test_ai_query_leave_review_direct(client):
+    from tests.worker_auth import default_login_password, worker_auth_headers, worker_login_json
+
+    token = client.post(
+        "/api/worker/login",
+        json=worker_login_json("5290", default_login_password("5290")),
+    ).json()["access_token"]
+    created = client.post(
+        "/api/worker/leave-requests",
+        headers=worker_auth_headers(token, "5290"),
+        json={
+            "leave_type_code": "OFF",
+            "from_date": "2025-11-01",
+            "to_date": "2025-11-01",
+            "reason": "Nghỉ bù test AI",
+            "submit": True,
+        },
+    )
+    assert created.status_code == 200, created.text
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Đơn phép chờ duyệt"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "leave_review"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+    assert "Kết quả đơn phép" in body["answer"]
+
+
 def test_ai_query_employee_lookup_analysis_uses_stub(client, db):
     res = client.post(
         "/api/ai/query",

@@ -5,7 +5,10 @@ LOI DA SUA — DJ-HRM
   [QA-H001] pytest không chạy, phép CN, GET danh mục nghỉ, ESC sheet công
   [QA-H002] dashboard KPI/overview 404 khi chưa tính lương, giờ công JSON thiếu +07
   [ESC-K002] ESC nuốt: AG Grid editor/menu, bảng lệnh, ô tìm MSNV trong ⋮ Thêm
-  [ATT-P002] giật khi vào tab keep-alive + sửa ô công GET timesheet cả nhà máy
+  [ATT-P002] Giật tab keep-alive + sửa ô công chậm (GET cả nhà máy)
+
+Đợt Trợ Lý AI nghiệp vụ 19/08/2026:
+  [AI-G001] Chấm lẻ (Luật 01) + todo phép/chuyên cần + Hỏi AI đọc CSDL
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1054,4 +1057,24 @@ Cách xử lý:
 Test:
   cd apps/api && .venv/bin/pytest tests/test_attendance_patch_perf.py tests/test_timesheet.py tests/test_attendance_day_grid_37.py -q
   cd apps/web && npm test -- clientCache keepAlive
+
+[AI-G001] Trợ Lý AI nghiệp vụ HRM (Luật 01/04/05/06/07) — 2026-08-19
+--------------------------------------------------------------------
+Triệu chứng / thiếu:
+  Luật 01 bắt AI cảnh báo khi thiếu vào hoặc ra — chưa có rule Lớp A / thẻ todo /
+  câu Hỏi AI. Tổng Quan có `todo_cards` API nhưng không hiện. Tra cứu MSNV chỉ
+  hồ sơ + phiếu, không phép năm / chế độ / chấm lẻ. Tab Chấm Công từ todo không
+  mở đúng «Kiểm theo ngày» / «Duyệt phép».
+
+Cách xử lý:
+  Lớp A (0 token): `evaluate_punch_reminders` — một alert `punch_odd` / ngày
+  (source_ref punch_odd:{kỳ}:{hôm nay VN}); gọi từ list_mine + sau ingest.
+  Todo: chấm lẻ, đơn phép submitted, chuyên cần trễ/sớm ≥ 2 (Luật 04, không
+  gọi ensure_pay_period). Lớp B: tra cứu MSNV thêm phép/chế độ/công/chấm lẻ;
+  câu nhà máy (chấm lẻ, phép, HĐ, BHXH, lương, khiếu nại, chế độ, chuyên cần)
+  trả lời trực tiếp từ CSDL trừ khi hỏi phân tích. Ngày luật dùng giờ VN.
+  Web: Tổng Quan «Việc cần làm», FAB deep-link, `?view=daily|monthly|leave`.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_punch_reminders.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_todos_57.py tests/test_ai_payroll_reminders.py -q
 

@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.modules.attendance.day_enrich import (
@@ -178,6 +179,69 @@ def _listed_day(db: Session, emp: Employee, row: AttendanceDay) -> AttendanceDay
         is_workday=row.is_workday,
         cycle_leave=bool(row.cycle_leave),
         note=row.note,
+    )
+
+
+ACTIVE_EMP = ("active", "probation")
+
+
+def _odd_punch_clause():
+    """Thiếu vào hoặc ra (Luật 01) — có một mốc, không bịa mốc còn lại."""
+    return or_(
+        and_(AttendanceDay.first_in.isnot(None), AttendanceDay.last_out.is_(None)),
+        and_(AttendanceDay.first_in.is_(None), AttendanceDay.last_out.isnot(None)),
+        AttendanceDay.punch_count == 1,
+    )
+
+
+def odd_punch_query(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    *,
+    employee_id: UUID | None = None,
+):
+    q = (
+        db.query(AttendanceDay, Employee)
+        .join(Employee, Employee.id == AttendanceDay.employee_id)
+        .filter(
+            AttendanceDay.work_date >= date_from,
+            AttendanceDay.work_date <= date_to,
+            AttendanceDay.is_locked.is_(False),
+            Employee.deleted_at.is_(None),
+            Employee.status.in_(ACTIVE_EMP),
+            _odd_punch_clause(),
+        )
+    )
+    if employee_id is not None:
+        q = q.filter(AttendanceDay.employee_id == employee_id)
+    return q
+
+
+def count_odd_punches(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    *,
+    employee_id: UUID | None = None,
+) -> int:
+    q = odd_punch_query(db, date_from, date_to, employee_id=employee_id)
+    return int(q.with_entities(func.count(AttendanceDay.id)).scalar() or 0)
+
+
+def list_odd_punches(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    *,
+    employee_id: UUID | None = None,
+    limit: int = 40,
+) -> list[tuple[AttendanceDay, Employee]]:
+    return (
+        odd_punch_query(db, date_from, date_to, employee_id=employee_id)
+        .order_by(AttendanceDay.work_date.desc(), Employee.employee_code)
+        .limit(limit)
+        .all()
     )
 
 

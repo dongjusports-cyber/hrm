@@ -7832,6 +7832,18 @@ html.app-fullscreen .module-page {
   color: var(--ink-muted);
 }
 
+.alert-mini-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.alert-mini-list a:hover strong {
+  text-decoration: underline;
+}
+
 /* ——— Account status + unlock (HR) ——— */
 .acct-badge {
   display: inline-flex;

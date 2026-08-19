@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -134,6 +134,10 @@ def _visible_to(user: User, alert: AiAlert) -> bool:
         if user.role == "admin":
             return True
         return user.has_module("hr")
+    if alert.rule_key == "punch_odd":
+        if user.role == "admin":
+            return True
+        return user.has_module("timekeeping") or user.has_module("hr")
     if alert.rule_key.startswith("kpi_"):
         if user.role == "admin":
             return True
@@ -152,7 +156,9 @@ def evaluate_payroll_reminders(db: Session) -> None:
     from app.modules.attendance.models import PayPeriod
     from app.modules.payroll.models import Payslip
 
-    today = date.today()
+    from app.modules.attendance.engine import VN_TZ
+
+    today = datetime.now(tz=VN_TZ).date()
 
     overdue_slips = (
         db.query(Payslip)
@@ -232,7 +238,9 @@ def evaluate_wt_regime_reminders(db: Session) -> None:
     """22§22.14 / Bước F — nhắc HR khi chế độ về sớm còn 3 ngày (date_to = today+3)."""
     from app.modules.mdm.models import Employee, EmployeeWtRegime
 
-    today = date.today()
+    from app.modules.attendance.engine import VN_TZ
+
+    today = datetime.now(tz=VN_TZ).date()
     target = today + timedelta(days=3)
     rows = (
         db.query(EmployeeWtRegime, Employee)
@@ -265,6 +273,39 @@ def evaluate_wt_regime_reminders(db: Session) -> None:
         )
 
 
+def evaluate_punch_reminders(db: Session) -> None:
+    """Luật 01 — thiếu vào hoặc ra: AI cảnh báo HR, không bịa giờ."""
+    from app.modules.attendance.engine import VN_TZ
+    from app.modules.attendance.review import count_odd_punches, list_odd_punches
+
+    today = datetime.now(tz=VN_TZ).date()
+    date_from = today.replace(day=1)
+    n = count_odd_punches(db, date_from, today)
+    if n <= 0:
+        return
+    rows = list_odd_punches(db, date_from, today, limit=8)
+    sample = ", ".join(
+        f"{emp.employee_code} {day.work_date.strftime('%d/%m')}" for day, emp in rows
+    )
+    more = "" if n <= 8 else f" … (+{n - 8})"
+    period = f"{today.year:04d}-{today.month:02d}"
+    create_alert(
+        db,
+        AiAlertCreate(
+            rule_key="punch_odd",
+            title=f"Trợ Lý AI: {n} dòng chấm lẻ kỳ {period} (thiếu vào hoặc ra)",
+            body=(
+                f"Có {n} ngày công chỉ có một mốc — không tự bịa giờ, chưa tính công/trễ/sớm. "
+                f"HR gọi NV lập biên bản rồi chấm tay đủ cặp. "
+                f"Ví dụ: {sample}{more}."
+            ),
+            target_module="timekeeping",
+            user_id=None,
+            source_ref=f"punch_odd:{period}:{today.isoformat()}",
+        ),
+    )
+
+
 def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> None:
     """04§4.6 / 02§2.4 — cảnh báo khi KPI kỳ vượt ngưỡng policy."""
     from app.modules.attendance.models import PayPeriod
@@ -277,7 +318,9 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
         y_s, m_s = period.split("-", 1)
         y, m = int(y_s), int(m_s)
     else:
-        today = date.today()
+        from app.modules.attendance.engine import VN_TZ
+
+        today = datetime.now(tz=VN_TZ).date()
         y, m = today.year, today.month
         if m == 1:
             y, m = y - 1, 12
@@ -392,6 +435,7 @@ def list_mine(db: Session, user: User, *, unread_only: bool = False, limit: int 
     try:
         evaluate_payroll_reminders(db)
         evaluate_wt_regime_reminders(db)
+        evaluate_punch_reminders(db)
         evaluate_kpi_threshold_alerts(db)
     except Exception:  # noqa: BLE001 — không chặn badge nếu rule lỗi
         pass
