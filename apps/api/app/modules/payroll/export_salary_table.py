@@ -223,15 +223,23 @@ LAST_COL = 38
 
 NUMERIC_DATA_COLS = frozenset(range(1, 8)) | frozenset(range(10, 38))  # 1-based
 
-FILL_HEADER = PatternFill(fill_type="solid", start_color="969696", end_color="969696")
-FILL_NUM = PatternFill(fill_type="solid", start_color="C0C0C0", end_color="C0C0C0")
-FILL_FOOTER = PatternFill(fill_type="solid", start_color="969696", end_color="969696")
+NAVY = "0A4D8C"
+LIGHT_BLUE = "BDD7EE"
+PALE_BLUE = "D6EAF8"
+FOOTER_BLUE = "5B9BD5"
+WHITE = "FFFFFF"
 
-FONT_COMPANY = Font(name="Arial", bold=True, size=14)
-FONT_TITLE = Font(name="Arial", bold=True, size=15)
-FONT_HDR = Font(name="Arial", bold=True, size=10, color="000000")
-FONT_NUM = Font(name="Arial", size=10)
-FONT_FOOTER = Font(name="Arial", bold=True, size=10)
+FILL_COMPANY = PatternFill(fill_type="solid", start_color=NAVY, end_color=NAVY)
+FILL_HEADER = PatternFill(fill_type="solid", start_color=LIGHT_BLUE, end_color=LIGHT_BLUE)
+FILL_NUM = PatternFill(fill_type="solid", start_color=PALE_BLUE, end_color=PALE_BLUE)
+FILL_FOOTER = PatternFill(fill_type="solid", start_color=FOOTER_BLUE, end_color=FOOTER_BLUE)
+
+FONT_COMPANY = Font(name="Arial", bold=True, size=14, color=WHITE)
+FONT_COMPANY_META = Font(name="Arial", size=10, color=WHITE)
+FONT_TITLE = Font(name="Arial", bold=True, size=15, color=NAVY)
+FONT_HDR = Font(name="Arial", bold=True, size=10, color="1A365D")
+FONT_NUM = Font(name="Arial", bold=True, size=9, color="1A365D")
+FONT_FOOTER = Font(name="Arial", bold=True, size=10, color=WHITE)
 FONT_DATA = Font(name="Arial", size=10)
 
 ALIGN_CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
@@ -355,21 +363,28 @@ def _paint_header_grid(ws) -> None:
 
 
 def _write_company_block(ws) -> None:
-    ws.merge_cells(start_row=ROW_COMPANY, start_column=1, end_row=ROW_COMPANY, end_column=LAST_COL)
+    for row in (ROW_COMPANY, ROW_COMPANY + 1, ROW_COMPANY + 2):
+        for col in range(1, LAST_COL + 1):
+            cell = ws.cell(row=row, column=col)
+            cell.fill = FILL_COMPANY
+            cell.alignment = ALIGN_CENTER
+            cell.font = FONT_COMPANY_META
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=LAST_COL)
+
     c1 = ws.cell(row=ROW_COMPANY, column=1, value=COMPANY["name_vi"])
     c1.font = FONT_COMPANY
+    c1.fill = FILL_COMPANY
     c1.alignment = ALIGN_CENTER
+    ws.row_dimensions[ROW_COMPANY].height = 24
 
-    ws.merge_cells(
-        start_row=ROW_COMPANY + 1, start_column=1, end_row=ROW_COMPANY + 1, end_column=LAST_COL
-    )
     c2 = ws.cell(row=ROW_COMPANY + 1, column=1, value=COMPANY["address_vi"])
+    c2.font = FONT_COMPANY_META
+    c2.fill = FILL_COMPANY
     c2.alignment = ALIGN_CENTER
 
-    ws.merge_cells(
-        start_row=ROW_COMPANY + 2, start_column=1, end_row=ROW_COMPANY + 2, end_column=LAST_COL
-    )
     c3 = ws.cell(row=ROW_COMPANY + 2, column=1, value=f"Tel: {COMPANY['phone']}")
+    c3.font = FONT_COMPANY_META
+    c3.fill = FILL_COMPANY
     c3.alignment = ALIGN_CENTER
 
 

@@ -78,10 +78,12 @@ def test_export_atm_cash_and_audit(client, db):
     assert sheet.cell(row=1, column=1).value == "CÔNG TY TNHH DONGJU SPORTS VIỆT NAM"
     assert sheet.cell(row=10, column=1).value == "No"
     assert sheet.cell(row=12, column=3).value == "MSNV"
-    assert sheet.cell(row=12, column=36).value == "Thực lãnh"
+    assert sheet.cell(row=12, column=37).value == "Thực lãnh"
     assert sheet.cell(row=13, column=10).value == 10
     hdr = sheet.cell(row=12, column=1)
-    assert hdr.fill.start_color.rgb in ("00969696", "969696")
+    assert hdr.fill.start_color.rgb in ("00BDD7EE", "BDD7EE")
+    company = sheet.cell(row=1, column=1)
+    assert company.fill.start_color.rgb in ("000A4D8C", "0A4D8C")
     assert sheet.max_row >= 14
 
     cash = client.get(
