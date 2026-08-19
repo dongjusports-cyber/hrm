@@ -27,6 +27,15 @@ describe("isEditableFormField", () => {
     input.type = "checkbox";
     expect(isEditableFormField(input)).toBe(false);
   });
+
+  it("rejects native month/date pickers (ESC must not swallow page-back)", () => {
+    const month = document.createElement("input");
+    month.type = "month";
+    expect(isEditableFormField(month)).toBe(false);
+    const date = document.createElement("input");
+    date.type = "date";
+    expect(isEditableFormField(date)).toBe(false);
+  });
 });
 
 describe("tryRevertActiveFieldEsc", () => {
@@ -101,6 +110,22 @@ describe("tryRevertActiveFieldEsc", () => {
     expect(document.activeElement).not.toBe(input);
 
     document.body.removeChild(pane);
+    clearActiveFieldEsc();
+  });
+
+  it("empty toolbar search does not count as editing (page-back can run)", () => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.setAttribute("data-hotkey-search", "");
+    input.value = "";
+    document.body.appendChild(input);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    expect(tryRevertActiveFieldEsc()).toBe(false);
+    expect(document.activeElement).not.toBe(input);
+
+    document.body.removeChild(input);
     clearActiveFieldEsc();
   });
 });
@@ -238,6 +263,27 @@ describe("escStack priority", () => {
 
     unreg();
     document.body.removeChild(pane);
+    clearActiveFieldEsc();
+  });
+
+  it("Escape on empty toolbar search falls through to page back in one press", () => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.setAttribute("data-hotkey-search", "");
+    input.value = "";
+    document.body.appendChild(input);
+    input.focus();
+    registerActiveFieldEsc(input);
+
+    const fallback = vi.fn();
+    setEscFallback(fallback);
+    const unreg = registerEscHandler(() => false);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+
+    expect(fallback).toHaveBeenCalledTimes(1);
+
+    unreg();
+    document.body.removeChild(input);
     clearActiveFieldEsc();
   });
 

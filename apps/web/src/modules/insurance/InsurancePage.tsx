@@ -11,6 +11,7 @@ import {
 } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { InsuranceDeclarationsSection } from "./InsuranceDeclarationsSection";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
@@ -62,6 +63,7 @@ function SiEnrolledCheckbox(p: ICellRendererParams<InsuranceRow>) {
 
 /** Bảo Hiểm — kỳ lương + báo tăng BHXH. Ẩn TNCN / NPT (kế toán làm riêng). */
 export function InsurancePage() {
+  useHrSubpageEsc({ backTo: "/" });
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
   const [period, setPeriod] = useState(currentPayPeriod);

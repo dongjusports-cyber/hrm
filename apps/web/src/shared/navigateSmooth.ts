@@ -6,9 +6,13 @@ export function navigateSmooth(navigate: NavigateFunction, to: string) {
   const doc = document as Document & {
     startViewTransition?: (cb: () => void) => void;
   };
-  if (typeof doc.startViewTransition === "function") {
-    doc.startViewTransition(go);
+  if (typeof doc.startViewTransition !== "function") {
+    go();
     return;
   }
-  go();
+  try {
+    doc.startViewTransition(go);
+  } catch {
+    go();
+  }
 }

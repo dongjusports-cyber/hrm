@@ -31,6 +31,7 @@ import { PayrollPayslipSection } from "./PayrollPayslipSection";
 import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
@@ -142,6 +143,7 @@ export function PayrollPage() {
     return "cả công ty";
   }, [exportEmpCode, exportDeptId, exportDepartmentOptions, rows]);
 
+  useHrSubpageEsc({ backTo: "/" });
   useEscLayer(adjOpen, () => setAdjOpen(false));
 
   const reload = useCallback(async () => {

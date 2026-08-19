@@ -10,7 +10,23 @@ export function isEditableFormField(
   if (!(target instanceof HTMLElement)) return false;
   if (target instanceof HTMLInputElement) {
     const type = (target.type || "text").toLowerCase();
-    if (["button", "submit", "reset", "checkbox", "radio", "file", "hidden", "image"].includes(type)) {
+    if (
+      [
+        "button",
+        "submit",
+        "reset",
+        "checkbox",
+        "radio",
+        "file",
+        "hidden",
+        "image",
+        "date",
+        "month",
+        "week",
+        "datetime-local",
+        "color",
+      ].includes(type)
+    ) {
       return false;
     }
     return !target.readOnly && !target.disabled;
@@ -84,11 +100,19 @@ export function clearActiveFieldEsc(el?: HTMLElement) {
   if (!el || activeFieldEsc.el === el) activeFieldEsc = null;
 }
 
-/** Ô trên pane keep-alive ẩn / aria-hidden — không được coi là đang sửa (nuốt ESC, kẹt trang). */
+/** Ô trên pane keep-alive ẩn / aria-hidden / inert — không được coi là đang sửa (nuốt ESC, kẹt trang). */
 function isHiddenEscSurface(el: HTMLElement): boolean {
+  if (el.closest("[inert]")) return true;
   if (el.closest('[aria-hidden="true"]')) return true;
   const pane = el.closest(".keep-alive-pane");
   return !!pane && !pane.classList.contains("is-active");
+}
+
+/** Ô tìm toolbar — rỗng thì ESC quay trang, không nuốt như ô nhập dữ liệu. */
+function isEmptyToolbarSearch(el: HTMLElement): boolean {
+  if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return false;
+  if (!el.hasAttribute("data-hotkey-search") && !el.closest("[data-hotkey-search]")) return false;
+  return getFieldValue(el).trim() === "";
 }
 
 /** Gọi từ escStack — hoàn tác ô đang focus (Excel-like).
@@ -97,7 +121,7 @@ export function tryRevertActiveFieldEsc(): boolean {
   if (!activeFieldEsc) return false;
   const { el, value } = activeFieldEsc;
   if (document.activeElement !== el) return false;
-  if (isHiddenEscSurface(el)) {
+  if (isHiddenEscSurface(el) || isEmptyToolbarSearch(el)) {
     el.blur();
     activeFieldEsc = null;
     return false;

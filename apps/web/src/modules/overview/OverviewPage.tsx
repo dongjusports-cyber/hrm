@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { fetchOverview, type OverviewData } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 
 function fmtPct(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -16,6 +17,7 @@ function fmtVnd(v: string | number | null | undefined): string {
 
 /** Tổng Quan — card KPI + HC/OT theo bộ phận (02§2.4). */
 export function OverviewPage() {
+  useHrSubpageEsc({ backTo: "/" });
   const [period, setPeriod] = useState(currentPayPeriod);
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState<string | null>(null);

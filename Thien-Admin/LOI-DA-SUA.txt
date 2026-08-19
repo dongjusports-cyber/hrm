@@ -843,3 +843,37 @@ Cách xử lý:
 Test:
   pytest tests/test_leave_requests_36.py tests/test_calendar_divisor.py -q
 
+[ESC-K001] ESC kẹt — không quay trang trước — 2026-08-19
+------------------------------------------------------
+Triệu chứng:
+  Bấm ESC không thoát về trang trước (Portal / hub Nhân Sự). Giống lần kẹt
+  ô tìm keep-alive, nhưng lần này còn xảy ra khi đang đứng trên trang hiện tại
+  (ô tìm rỗng, ô kỳ tháng/ngày, hoặc View Transition).
+
+Nguyên nhân (cộng dồn):
+  1) Ô tìm toolbar (`data-hotkey-search`) rỗng vẫn bị `tryRevertActiveFieldEsc`
+     coi là «đang sửa ô» → blur + nuốt ESC, không chạy quay trang. Bấm mãi
+     cũng chỉ blur (focus có thể nhảy lại ô tìm / ô tháng).
+  2) `<input type="month|date">` trên Chấm công bị coi là ô Excel → nuốt ESC.
+  3) `useHrSubpageEsc` gọi `navigateSmooth` → `document.startViewTransition`.
+     Transition đang chạy hoặc throw → `navigate()` không chạy → kẹt chết.
+  4) Chấm công / Lương / Tổng Quan… không đăng ký tầng ESC trang, chỉ dựa
+     fallback; một tầng im lặng phía trên là mất quay trang.
+
+Cách xử lý (không gộp file ESC, không listener Escape mới):
+  - Ô tìm rỗng: blur rồi `return false` → cùng một lần ESC đi tiếp stack / quay trang.
+  - type date/month/week/datetime-local/color: không phải ô Excel.
+  - `useHrSubpageEsc`: `navigate()` thẳng; đã đứng đúng `backTo` thì `return false`
+    (hub Nhân Sự / Cấu Hình → Portal).
+  - `navigateSmooth`: try/catch, fail thì vẫn `navigate`.
+  - Gắn `useHrSubpageEsc` Chấm công/Lương (dưới lớp bỏ chọn NV / đóng điều chỉnh),
+    HrLayout, ConfigLayout, Tổng Quan, Báo cáo, BH, Khiếu nại.
+
+Nhớ (AI):
+  Cấm startViewTransition trên đường ESC. Cấm `if (focus) return` nuốt khi không
+  làm gì. Overlay không xử lý phải `return false`. Test: `cd apps/web && npm test -- escKeyboard`.
+  Rule: `.cursor/rules/esc-keyboard.mdc`. LOI này.
+
+Test:
+  cd apps/web && npm test -- escKeyboard
+

@@ -9,6 +9,7 @@ import {
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../shared/authStore";
 import { showDenied } from "../../shared/deniedStore";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 
 const SetHrHeaderRight = createContext<((node: ReactNode | null) => void) | null>(null);
 
@@ -31,6 +32,8 @@ export function HrLayout({ children }: { children?: ReactNode }) {
   const navigate = useNavigate();
   const [headerRight, setHeaderRight] = useState<ReactNode | null>(null);
   const allowed = user?.role === "admin" || (user?.modules.includes("hr") ?? false);
+
+  useHrSubpageEsc({ backTo: "/m/hr" });
 
   useEffect(() => {
     if (user && !allowed) {

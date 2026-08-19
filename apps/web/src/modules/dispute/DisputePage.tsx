@@ -10,6 +10,7 @@ import {
 import { formatDateTimeDDMMYYYY } from "../../shared/formatDate";
 import { useAuth } from "../../shared/authStore";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 
 const STATUS_VI: Record<string, string> = {
   open: "Mở",
@@ -29,6 +30,7 @@ type Filter = "open" | "all" | "closed";
 
 /** P4.4 inbox + P4.5 rà soát AI (ai_query). */
 export function DisputePage() {
+  useHrSubpageEsc({ backTo: "/" });
   const { user } = useAuth();
   const canQuery = Boolean(user?.permissions?.includes("ai_query") || user?.role === "admin");
   const [filter, setFilter] = useState<Filter>("open");

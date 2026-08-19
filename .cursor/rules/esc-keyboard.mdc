@@ -9,6 +9,8 @@ alwaysApply: true
 > **Khóa hồi quy:** Sau mỗi thay đổi liên quan ESC, chạy `cd apps/web && npm test -- escKeyboard`.
 > Không refactor / gộp file ESC nếu không có yêu cầu rõ ràng. Giữ nguyên thứ tự ưu tiên bên dưới.
 > **Cấm** thêm `window.addEventListener('keydown', Escape)` hoặc `if (focus) return` nuốt ESC.
+> **Cấm** `navigateSmooth` / `startViewTransition` trên đường ESC — View Transition đang chạy thì `navigate` không chạy, kẹt trang. Dùng `navigate()` thẳng (`useHrSubpageEsc`, `GlobalEscBack`).
+> Ô tìm toolbar (`data-hotkey-search`) **rỗng**: ESC quay trang (không nuốt). Ô `type=date|month`: không coi là ô Excel.
 
 ## Hành vi (không được mất dù đang focus ô / vừa thao tác)
 

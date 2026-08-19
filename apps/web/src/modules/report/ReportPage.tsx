@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { downloadKpiExport, fetchKpi, type KpiPeriod } from "../../shared/api";
 import { currentPayPeriod } from "../../shared/formatDate";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 
 function fmtPct(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -21,6 +22,7 @@ const CAT_VI: Record<string, string> = {
 
 /** Báo Cáo / KPI — Attendance, OT, Turnover (04§4.6). */
 export function ReportPage() {
+  useHrSubpageEsc({ backTo: "/" });
   const [period, setPeriod] = useState(currentPayPeriod);
   const [kpi, setKpi] = useState<KpiPeriod | null>(null);
   const [error, setError] = useState<string | null>(null);

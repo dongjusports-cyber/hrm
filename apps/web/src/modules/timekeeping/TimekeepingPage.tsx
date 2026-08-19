@@ -28,6 +28,7 @@ import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { useEscLayer } from "../../shared/useEscLayer";
+import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { formatOtHours } from "../../shared/formatOtHours";
@@ -374,6 +375,7 @@ export function TimekeepingPage() {
   }, []);
 
   // ESC: lưới tháng còn banner NV đã chọn → bỏ chọn. Lưới ngày không hiện banner — không nuốt ESC (kẹt trang).
+  useHrSubpageEsc({ backTo: "/" });
   useEscLayer(
     !!selected && mainView === "monthly" && !detailOpen && !otExternalOpen && !cycleListOpen && !syncOpen,
     () => {
