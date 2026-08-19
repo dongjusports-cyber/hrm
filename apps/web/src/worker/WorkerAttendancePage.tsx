@@ -29,7 +29,7 @@ function fmtHm(iso: string | null): string {
 }
 
 function fmtDay(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
+  const [, m, d] = isoDate.split("-");
   return d && m ? `${d}/${m}` : isoDate;
 }
 
