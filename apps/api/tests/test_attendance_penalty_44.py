@@ -1,8 +1,9 @@
 """4.4 — F_CAL_INDUS_AMT: miễn trừ trễ/sớm + vắng theo 22§22.3."""
 
-from datetime import date, datetime, timezone, timedelta
+from datetime import date, datetime, time, timezone, timedelta
 from decimal import Decimal
 
+from app.modules.attendance.engine import Schedule, calculate_day
 from app.modules.payroll.attendance_penalty import (
     AttendanceDayPenaltyView,
     LeaveAdjustmentView,
@@ -167,3 +168,93 @@ def test_three_lates_still_halves_without_exempt():
     )
     assert r.attend_keep_percent == 50
     assert r.lines[0].amount == Decimal("311538")
+
+
+def _sched() -> Schedule:
+    return Schedule(
+        work_weekdays=[1, 2, 3, 4, 5, 6],
+        morning_start=time(8, 0),
+        morning_end=time(12, 0),
+        afternoon_start=time(13, 0),
+        afternoon_end=time(17, 0),
+        grace_late_minutes=0,
+        holiday_dates=set(),
+    )
+
+
+def _view_from_calc(d: date, r) -> AttendanceDayPenaltyView:
+    return AttendanceDayPenaltyView(
+        work_date=d,
+        is_workday=r.is_workday,
+        leave_code=None,
+        late_minutes=r.late_minutes,
+        early_minutes=r.early_minutes,
+        punch_count=r.punch_count,
+        first_in=r.first_in,
+        last_out=r.last_out,
+        worked_hours=r.worked_hours,
+    )
+
+
+def test_odd_punch_not_counted_until_hr_fills_pair():
+    """Thiếu ra: ghi nhận vào, chưa đếm lần trễ. HR chấm tay đủ cặp → đếm trễ."""
+    d = date(2025, 10, 6)
+    odd = calculate_day([datetime(2025, 10, 6, 8, 15, tzinfo=VN)], d, _sched())
+    assert odd.last_out is None
+    assert odd.late_minutes == 0
+    summary_odd = summarize_attendance_penalties(
+        [_view_from_calc(d, odd)],
+        [],
+        contract_signed_at=date(2020, 1, 1),
+        penalties=PEN,
+    )
+    assert summary_odd.late_count == 0
+
+    filled = calculate_day(
+        [datetime(2025, 10, 6, 8, 15, tzinfo=VN), datetime(2025, 10, 6, 17, 0, tzinfo=VN)],
+        d,
+        _sched(),
+        explicit_pair=True,
+    )
+    assert filled.late_minutes == 15
+    assert filled.early_minutes == 0
+    summary = summarize_attendance_penalties(
+        [_view_from_calc(d, filled)],
+        [],
+        contract_signed_at=date(2020, 1, 1),
+        penalties=PEN,
+    )
+    assert summary.late_count == 1
+
+
+def test_two_hr_late_days_halve_attendance_bonus():
+    """Hai ngày HR xác nhận đi trễ (≥ 2) → chuyên cần còn 50%."""
+    days = []
+    for day_n in (6, 7):
+        d = date(2025, 10, day_n)
+        r = calculate_day(
+            [datetime(2025, 10, day_n, 8, 15, tzinfo=VN), datetime(2025, 10, day_n, 17, 0, tzinfo=VN)],
+            d,
+            _sched(),
+            explicit_pair=True,
+        )
+        assert r.late_minutes == 15
+        days.append(_view_from_calc(d, r))
+    summary = summarize_attendance_penalties(days, [], contract_signed_at=date(2020, 1, 1), penalties=PEN)
+    assert summary.late_count == 2
+    types = [AllowanceTypeView("ATTEND", "Chuyên cần", "attend_penalty", False, True, Decimal("600000"))]
+    r = compute_allowances(
+        AllowanceInput(
+            salary_divisor=Decimal("26"),
+            worked_days=Decimal("26"),
+            late_count=summary.late_count,
+            early_count=summary.early_count,
+            penalty_absent_days=Decimal("0"),
+            join_date=None,
+            as_of=date(2025, 10, 31),
+            policy=default_payload(),
+            monthly_by_code={},
+            types=types,
+        )
+    )
+    assert r.attend_keep_percent == 50

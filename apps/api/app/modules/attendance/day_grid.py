@@ -112,9 +112,10 @@ def _needs_action(day: AttendanceDay | None, work_date: date, schedule) -> bool:
         return is_company_workday(work_date, schedule)
     if day.is_locked:
         return False
+    incomplete = bool(day.first_in) ^ bool(day.last_out)
     if day.late_minutes > 0 or day.early_minutes > 0:
         return True
-    if day.punch_count > 0 and day.punch_count % 2 == 1:
+    if incomplete or (day.punch_count > 0 and day.punch_count % 2 == 1):
         return True
     if day.is_workday and day.punch_count == 0 and not day.leave_code:
         return True
@@ -132,7 +133,8 @@ def _row_flag(day: AttendanceDay | None, work_date: date, schedule) -> str:
         return "late"
     if day.early_minutes > 0:
         return "early"
-    if day.punch_count > 0 and day.punch_count % 2 == 1:
+    incomplete = bool(day.first_in) ^ bool(day.last_out)
+    if incomplete or (day.punch_count > 0 and day.punch_count % 2 == 1):
         return "odd"
     if day.is_workday and day.punch_count == 0 and not day.leave_code:
         return "missing"
@@ -327,6 +329,7 @@ def patch_day_cell(
             timing.schedule,
             ot_split=load_ot_split_policy(db),
             wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+            explicit_pair=True,
             **engine_ot_kwargs(timing),
         )
         apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
@@ -448,6 +451,7 @@ def bulk_patch_days(
                     timing.schedule,
                     ot_split=load_ot_split_policy(db),
                     wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+                    explicit_pair=True,
                     **engine_ot_kwargs(timing),
                 )
                 apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)

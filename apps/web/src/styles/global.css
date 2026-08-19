@@ -3940,6 +3940,48 @@ a.hr-layer-btn:active {
   min-width: 0;
 }
 
+.tk-manual-bar .tk-time-input24 {
+  background: #fff;
+  border-color: #cbd5e1;
+  max-width: 5.2rem;
+}
+
+.tk-manual-hours-field {
+  min-width: 9.5rem;
+}
+
+.tk-manual-hours-quick {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.tk-manual-hours-quick input {
+  width: 4.2rem;
+  flex: 1 1 4.2rem;
+}
+
+.tk-hours-chip {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 6px;
+  padding: 4px 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.tk-hours-chip:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.tk-hours-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .tk-manual-bar-note {
   flex: 1 1 140px;
   min-width: 120px;

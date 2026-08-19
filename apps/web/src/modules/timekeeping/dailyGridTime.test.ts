@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
+import {
+  buildDayTimePatch,
+  formatWorkedHours,
+  outTimeAfterWorkedHours,
+  parseGridTimeInput,
+  parseWorkedHoursInput,
+  previewShiftWorkedHours,
+  toIsoTime,
+} from "./dailyGridTime";
 
 describe("parseGridTimeInput", () => {
   it("keeps HH:mm", () => {
     expect(parseGridTimeInput("08:00")).toBe("08:00");
   });
 
-  it("normalizes 800 and 735", () => {
-    expect(parseGridTimeInput("800")).toBe("08:00");
-    expect(parseGridTimeInput("735")).toBe("07:35");
+  it("normalizes 9:10 and 910", () => {
+    expect(parseGridTimeInput("9:10")).toBe("09:10");
+    expect(parseGridTimeInput("910")).toBe("09:10");
+    expect(parseGridTimeInput("7:44")).toBe("07:44");
   });
 
   it("rejects garbage", () => {
@@ -87,5 +96,24 @@ describe("buildDayTimePatch", () => {
       existingOutHHmm: "17:10",
     });
     expect(r).toEqual({ ok: true, clear_times: true });
+  });
+});
+
+describe("previewShiftWorkedHours / outTimeAfterWorkedHours", () => {
+  it("clamps 07:44–09:10 to 1.1667 hours (08:00–09:10)", () => {
+    expect(previewShiftWorkedHours("07:44", "09:10")).toBeCloseTo(70 / 60, 5);
+    expect(formatWorkedHours(70 / 60)).toBe("1.1667");
+  });
+
+  it("full day 08:00–17:00 is 8h after lunch", () => {
+    expect(previewShiftWorkedHours("08:00", "17:00")).toBe(8);
+    expect(outTimeAfterWorkedHours("07:44", 8)).toBe("17:00");
+    expect(outTimeAfterWorkedHours("08:00", 4)).toBe("12:00");
+  });
+
+  it("hours input 1,17 fills 09:10 from morning in", () => {
+    expect(parseWorkedHoursInput("1,17")).toBeCloseTo(1.17, 5);
+    expect(outTimeAfterWorkedHours("07:44", 1.1667)).toBe("09:10");
+    expect(toIsoTime("2026-08-19", "9:10")).toBe("2026-08-19T09:10:00+07:00");
   });
 });

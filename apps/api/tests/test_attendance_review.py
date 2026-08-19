@@ -31,7 +31,10 @@ def test_review_flags_odd_punch_and_manual_fix(client):
     body = rev.json()
     assert body["odd_punch"] >= 1
     assert any(
-        i["issue_type"] == "odd_punch" and i["employee_code"] == "5290" and i["work_date"] == "2025-10-01"
+        i["issue_type"] == "odd_punch"
+        and i["employee_code"] == "5290"
+        and i["work_date"] == "2025-10-01"
+        and "biên bản" in i["message"]
         for i in body["issues"]
     )
 

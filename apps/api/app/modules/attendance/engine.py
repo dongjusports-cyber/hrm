@@ -96,9 +96,9 @@ def _assign_single_punch(
     work_date: date,
 ) -> tuple[datetime | None, datetime | None]:
     """
-    Một lần bấm sau dedupe — gán vào cột vào hoặc ra (HR/AI thấy, không bỏ trống cả hai).
+    Một lần bấm sau dedupe — ghi nhận vào cột vào hoặc ra để HR/AI thấy.
 
-    Từ 13:00 trở đi coi là giờ ra; sáng coi là giờ vào.
+    Không tự bịa mốc còn lại, không tính công. Từ 13:00 trở đi đặt cột ra; sáng đặt cột vào.
     """
     split = combine_vn(work_date, schedule.afternoon_start)
     if punch >= split:
@@ -108,42 +108,20 @@ def _assign_single_punch(
 
 def _resolve_in_out_from_times(
     times: list[datetime],
-    schedule: Schedule,
-    work_date: date,
+    _schedule: Schedule,
+    _work_date: date,
 ) -> tuple[datetime | None, datetime | None]:
     """
-    Gán giờ vào / ra sau dedupe.
+    Luật vân tay (file 01): lần đầu ngày = vào, lần cuối ngày = ra, bỏ hết ở giữa.
 
-    - Trước giờ vào ca: mọi lần bấm = thử vào (giữ sớm nhất).
-    - Từ giờ vào ca đến trước nghỉ trưa (morning_end): vẫn coi là vào, không coi mốc sau là ra.
-    - Từ nghỉ trưa trở đi: mốc muộn nhất = ra (nhiều lần bấm chiều gom một).
-    - Không có giờ vào buổi sáng nhưng có ≥2 mốc sau nghỉ trưa, cách nhau ≥60 phút
-      (vd. 12:30 + 17:07): mốc sớm = vào, mốc muộn = ra — công buổi chiều, ghi nhận đi trễ.
+    Ngoại lệ bấm trùng: 07:54 / 07:55 / 07:56 (một chuỗi ≤ 60 giây) → chỉ 07:54,
+    không lấy 07:56 làm ra. Xin về 07:44 rồi 09:10 = hai lần, vào + ra.
     """
-    shift_start = combine_vn(work_date, schedule.morning_start)
-    depart_after = combine_vn(work_date, schedule.morning_end)
-
-    pre_shift = [t for t in times if t < shift_start]
-    rest = [t for t in times if t >= shift_start]
-
-    first_in = min(pre_shift) if pre_shift else None
-
-    arrivals = [t for t in rest if t < depart_after]
-    departures = [t for t in rest if t >= depart_after]
-
-    if arrivals:
-        first_in = min(arrivals) if first_in is None else min(first_in, min(arrivals))
-
-    if not departures:
-        return first_in, None
-
-    last_out = max(departures)
-    # Nghỉ sáng / vào muộn sau 12:00: đừng nuốt mốc sớm thành «chỉ có giờ ra».
-    if first_in is None and len(departures) >= 2:
-        earliest = min(departures)
-        if (last_out - earliest).total_seconds() >= 60 * 60:
-            first_in = earliest
-    return first_in, last_out
+    if not times:
+        return None, None
+    if len(times) == 1:
+        return times[0], None
+    return min(times), max(times)
 
 
 def _calc_partial_workday(
@@ -157,48 +135,9 @@ def _calc_partial_workday(
     morning_ot_from: time | None = None,
     morning_ot_qualify_before: time | None = None,
 ) -> tuple[int, int, int, int, int, Decimal, str | None, dict]:
-    """Late / early / OT / worked khi thiếu vào hoặc thiếu ra."""
-    shift_start = combine_vn(work_date, schedule.morning_start) + timedelta(
-        seconds=schedule.grace_late_seconds,
-        minutes=schedule.grace_late_minutes,
-    )
-    shift_end = combine_vn(work_date, schedule.afternoon_end)
-    early_deadline = shift_end - timedelta(seconds=schedule.grace_early_seconds)
-
-    late = 0
-    early = 0
-    ot_on_books = 0
-    ot_external = 0
-    ot_type: str | None = None
+    """Thiếu vào hoặc thiếu ra: ghi nhận mốc có, không tính trễ/sớm/OT/công — HR lập biên bản."""
     rates = empty_channel_map()
-
-    if first_in is not None and last_out is None:
-        if first_in > shift_start:
-            late = _seconds_to_minutes_up((first_in - shift_start).total_seconds())
-        worked = Decimal("0")
-    elif last_out is not None and first_in is None:
-        if last_out < early_deadline:
-            early = _seconds_to_minutes_up((early_deadline - last_out).total_seconds())
-        rates = _allocate_workday_ot(
-            first_in=None,
-            last_out=last_out,
-            work_date=work_date,
-            schedule=schedule,
-            split_policy=split_policy,
-            ot_start=ot_start,
-            morning_ot_from=morning_ot_from,
-            morning_ot_qualify_before=morning_ot_qualify_before,
-        )
-        ot_on_books = _sum_rate_map(rates["on_books"])
-        ot_external = _sum_rate_map(rates["external"])
-        ot = ot_on_books + ot_external
-        ot_type = "weekday" if ot > 0 else None
-        worked = Decimal("0")
-    else:
-        worked = Decimal("0")
-
-    ot = ot_on_books + ot_external
-    return late, early, ot, ot_on_books, ot_external, worked, ot_type, rates
+    return 0, 0, 0, 0, 0, Decimal("0"), None, rates
 
 
 def _apply_wt_regime(
@@ -401,6 +340,7 @@ def calculate_day(
     standard_hours: Decimal | None = None,
     morning_ot_from: time | None = None,
     morning_ot_qualify_before: time | None = None,
+    explicit_pair: bool = False,
 ) -> DayCalcResult:
     split_policy = ot_split or default_ot_split_policy()
     times = dedupe_punch_times(punches, window_seconds=punch_dedupe_window_seconds)
@@ -463,7 +403,11 @@ def calculate_day(
             ot_rate_minutes=rates,
         )
 
-    first_in, last_out = _resolve_in_out_from_times(times, schedule, work_date)
+    if explicit_pair and len(times) >= 2:
+        # HR gõ đủ vào + ra: giữ sớm nhất / muộn nhất, kể cả cả hai trước 12:00.
+        first_in, last_out = min(times), max(times)
+    else:
+        first_in, last_out = _resolve_in_out_from_times(times, schedule, work_date)
     workday = is_company_workday(work_date, schedule)
     late = 0
     early = 0

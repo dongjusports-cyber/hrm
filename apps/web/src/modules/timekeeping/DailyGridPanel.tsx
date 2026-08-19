@@ -48,11 +48,13 @@ function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): Atten
   if (late > 0 && early > 0) row_flag = "both";
   else if (late > 0) row_flag = "late";
   else if (early > 0) row_flag = "early";
-  else if (punches > 0 && punches % 2 === 1) row_flag = "odd";
+  else if ((Boolean(day.first_in) !== Boolean(day.last_out)) || (punches > 0 && punches % 2 === 1))
+    row_flag = "odd";
   else if (day.is_workday && punches === 0 && !leaveCode) row_flag = "missing";
   const needs_action =
     late > 0 ||
     early > 0 ||
+    Boolean(day.first_in) !== Boolean(day.last_out) ||
     (punches > 0 && punches % 2 === 1) ||
     Boolean(day.is_workday && punches === 0 && !leaveCode);
   const merged: RowWithEdit = {

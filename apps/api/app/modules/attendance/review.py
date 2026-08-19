@@ -137,6 +137,7 @@ def _recalc_manual_times(
         timing.schedule,
         ot_split=load_ot_split_policy(db),
         wt_hours_early=wt_hours_early_on(db, emp.id, work_date),
+        explicit_pair=True,
         **engine_ot_kwargs(timing),
     )
     apply_calc_to_day_row(row, calc=calc, employee=emp, work_shift_id=shift_id)
@@ -268,7 +269,13 @@ def build_review(db: Session, period: str) -> ReviewSummary:
                         punch_count=1,
                         message=(
                             f"Chấm lẻ ngày {wd.isoformat()} — "
-                            f"{'chỉ có giờ vào' if row.first_in and not row.last_out else 'chỉ có giờ ra' if row.last_out and not row.first_in else 'thiếu vào hoặc ra'}."
+                            + (
+                                "chỉ có giờ vào (quên bấm ra hoặc về sớm). Ghi nhận mốc có; HR gọi NV lập biên bản."
+                                if row.first_in and not row.last_out
+                                else "chỉ có giờ ra (quên bấm vào hoặc đi trễ). Ghi nhận mốc có; HR gọi NV lập biên bản."
+                                if row.last_out and not row.first_in
+                                else "thiếu vào hoặc ra. HR gọi NV lập biên bản."
+                            )
                         ),
                     )
                 )

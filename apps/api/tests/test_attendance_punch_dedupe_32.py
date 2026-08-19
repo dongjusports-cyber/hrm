@@ -1,6 +1,7 @@
 """3.2 — lọc chấm vân tay liên tục 60 giây."""
 
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 
 from app.core.config import get_settings
 from app.modules.attendance.engine import Schedule, calculate_day
@@ -69,6 +70,34 @@ def test_punches_61_seconds_apart_not_merged():
     t2 = t1 + timedelta(seconds=61)
     deduped = dedupe_punch_times([t1, t2], window_seconds=60)
     assert deduped == [t1, t2]
+
+
+def test_754_755_756_is_one_check_in_not_out():
+    """07:54 / 07:55 / 07:56 — bấm trùng lúc vào, không lấy 07:56 làm giờ ra."""
+    t1 = datetime(2026, 8, 19, 7, 54, 0, tzinfo=VN)
+    t2 = datetime(2026, 8, 19, 7, 55, 0, tzinfo=VN)
+    t3 = datetime(2026, 8, 19, 7, 56, 0, tzinfo=VN)
+    deduped = dedupe_punch_times([t1, t2, t3], window_seconds=60)
+    assert deduped == [t1]
+    r = calculate_day([t1, t2, t3], date(2026, 8, 19), _sched())
+    assert r.first_in == t1
+    assert r.last_out is None
+    assert r.punch_count == 1
+    assert r.worked_hours == Decimal("0")
+
+
+def test_first_and_last_drop_middle_lunch_tap():
+    """07:50, bấm nhầm 12:05, 17:00 → vào 07:50 ra 17:00, bỏ lần giữa."""
+    inn = datetime(2026, 8, 19, 7, 50, 0, tzinfo=VN)
+    lunch = datetime(2026, 8, 19, 12, 5, 0, tzinfo=VN)
+    out = datetime(2026, 8, 19, 17, 0, 0, tzinfo=VN)
+    deduped = dedupe_punch_times([inn, lunch, out], window_seconds=60)
+    assert deduped == [inn, out]
+    r = calculate_day([inn, lunch, out], date(2026, 8, 19), _sched())
+    assert r.first_in == inn
+    assert r.last_out == out
+    assert r.punch_count == 2
+    assert r.worked_hours == Decimal("8.0000")
 
 
 def test_recalculate_applies_dedupe(client):

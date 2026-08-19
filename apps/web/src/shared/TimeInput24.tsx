@@ -20,6 +20,11 @@ export function isValidTimeHHMM(v: string): boolean {
 export function normalizeTimeHHMM(raw: string): string {
   const s = raw.trim();
   if (TIME_RE.test(s)) return s;
+  const colon = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (colon) {
+    const out = `${colon[1].padStart(2, "0")}:${colon[2]}`;
+    return TIME_RE.test(out) ? out : s;
+  }
   const digits = s.replace(/\D/g, "");
   if (digits.length === 3) {
     const out = `${digits.slice(0, 1).padStart(2, "0")}:${digits.slice(1)}`;

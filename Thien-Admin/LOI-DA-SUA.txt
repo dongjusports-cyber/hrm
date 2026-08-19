@@ -877,3 +877,26 @@ Nhớ (AI):
 Test:
   cd apps/web && npm test -- escKeyboard
 
+[ATT-M001] HR sửa tay ra buổi sáng (9:10) không nhận — 2026-08-19
+-----------------------------------------------------------------
+Triệu chứng:
+  MSNV 1519 ngày 19/08/2026: vào 07:44, ra việc nhà 09:10. HR gõ `9:10` rồi Lưu
+  — hệ thống không giữ giờ ra, cột Giờ trống. Muốn ô nhập nhanh số giờ công.
+
+Nguyên nhân:
+  1) Form tháng dùng `<input type="time">` — trình duyệt từ chối `9:10` (cần `09:10`).
+  2) Engine `_resolve_in_out_from_times`: mọi mốc trước 12:00 đều là VÀO → nuốt
+     09:10 kể cả khi ISO hợp lệ. `apply_calc` ghi last_out = None.
+
+Cách xử lý:
+  - Lần bấm đầu tiên = vào, lần cuối = ra, bỏ hết ở giữa.
+  - Cả ngày một chuỗi ≤ 60 giây (07:54–07:56) → chỉ 07:54, không lấy 07:56 làm ra.
+  - Thiếu vào hoặc thiếu ra: ghi nhận mốc có, không bịa giờ / không tính công;
+    AI cảnh báo, HR gọi NV lập biên bản.
+  - HR chấm tay đủ vào+ra: tự tính trễ/sớm, đếm phạt chuyên cần (2 lần 50%, 5 lần 0%).
+  - Form tháng: TimeInput24 + ô Giờ công + nút 4h/8h.
+
+Test:
+  cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_engine.py tests/test_attendance_day_calc_33.py -q
+  cd apps/web && npm test -- dailyGridTime
+

@@ -15,7 +15,7 @@ Cách dùng
 
 Mục lục
 -------
-01-CHAM-CONG.md     Chấm vân tay, giờ công, trễ/sớm, ngày công
+01-CHAM-CONG.md     Chấm vân tay (đầu/cuối ngày), thiếu mốc, HR chấm tay, giờ công, trễ/sớm
 02-OT.md            Tăng ca (cổng mốc, 8 hệ số, trong sổ / ngoài ATM, Cooker)
 03-LUONG.md         Kỳ lương, mẫu số, lương ngày, thử việc, làm tròn
 04-PHU-CAP.md       Chuyên cần, đi lại, thâm niên, nền OT

@@ -33,27 +33,20 @@ def dedupe_punch_times(
     window_seconds: int = DEFAULT_DEDUPE_WINDOW_SECONDS,
 ) -> list[datetime]:
     """
-    Gom các lần bấm liên tiếp trong cửa sổ window_seconds.
+    Lần bấm đầu tiên trong ngày = vào, lần cuối cùng = ra, bỏ hết ở giữa.
 
-    - Cụm đầu ngày: giữ thời điểm sớm nhất (giờ vào, vd. 07:45:20).
-    - Cụm cuối ngày: giữ thời điểm muộn nhất (giờ ra, vd. 17:00:20).
-    - Một cụm duy nhất: một mốc sớm nhất (vd. 5 lần bấm lúc 07:50 → một giờ vào).
+    Ngoại lệ: cả ngày chỉ một chuỗi bấm trùng (mỗi lần ≤ window_seconds so với
+    lần trước, vd. 07:54 / 07:55 / 07:56) → chỉ giữ lần đầu, không lấy lần
+    cuối chuỗi làm giờ ra.
     """
-    if window_seconds <= 0 or not punches:
-        return sorted(to_vn(p) for p in punches)
-
+    if not punches:
+        return []
     times = sorted(to_vn(p) for p in punches)
+    if window_seconds <= 0:
+        if len(times) == 1:
+            return times
+        return [times[0], times[-1]]
     clusters = _cluster_punches(times, window_seconds)
     if len(clusters) == 1:
         return [clusters[0][0]]
-
-    out: list[datetime] = []
-    last_idx = len(clusters) - 1
-    for i, cluster in enumerate(clusters):
-        if i == 0:
-            out.append(cluster[0])
-        elif i == last_idx:
-            out.append(cluster[-1])
-        else:
-            out.append(cluster[0])
-    return out
+    return [times[0], times[-1]]

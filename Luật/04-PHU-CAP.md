@@ -23,6 +23,8 @@ Tháng 27 ngày, đi đủ 27: chuyên cần = 600.000 / 26 × 27 = **623.077** 
 
 Đếm **trễ** và **sớm** riêng, không gộp. Trễ 1 + sớm 1 vẫn **100%**.
 
+Nguồn đếm: ngày đã **đủ vào và ra** (máy hoặc HR chấm tay sau biên bản), `late_minutes > 0` / `early_minutes > 0`. Ngày chấm lẻ (thiếu một mốc) **không** đếm — HR chưa xác nhận.
+
 ```
 100%
 trễ ≥ 2 lần  HOẶC  sớm ≥ 2 lần                         → 50%

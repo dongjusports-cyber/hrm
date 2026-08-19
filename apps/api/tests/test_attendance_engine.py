@@ -154,14 +154,17 @@ def test_single_punch_out_only_records_last_out():
 
 
 def test_single_punch_in_only_records_first_in():
+    """Chỉ bấm vào — ghi nhận, không đoán trễ/công; HR gọi NV lập biên bản."""
     d = date(2026, 8, 8)  # Saturday workday in sched
     punches = [datetime(2026, 8, 8, 8, 5, tzinfo=VN)]
     r = calculate_day(punches, d, _sched())
     assert r.punch_count == 1
     assert r.first_in == punches[0]
     assert r.last_out is None
-    assert r.late_minutes == 5
+    assert r.late_minutes == 0
+    assert r.early_minutes == 0
     assert r.ot_minutes == 0
+    assert r.worked_hours == Decimal("0")
 
 
 def test_afternoon_only_pair_half_day_and_late():
@@ -180,15 +183,15 @@ def test_afternoon_only_pair_half_day_and_late():
     assert r.early_minutes == 0
 
 
-def test_two_close_afternoon_exits_stay_out_only():
-    """Hai lần bấm ra gần nhau — không bị biến thành vào+ra."""
+def test_two_close_afternoon_exits_first_and_last():
+    """Hai mốc cách > 60 giây: sớm = vào, muộn = ra (cả hai lúc tan ca → giờ công 0)."""
     d = date(2026, 8, 15)
     punches = [
         datetime(2026, 8, 15, 17, 7, 0, tzinfo=VN),
         datetime(2026, 8, 15, 17, 10, 0, tzinfo=VN),
     ]
     r = calculate_day(punches, d, _sched())
-    assert r.first_in is None
+    assert r.first_in == punches[0]
     assert r.last_out == punches[1]
     assert r.worked_hours == Decimal("0")
 
@@ -204,3 +207,44 @@ def test_double_tap_deduped_to_single_out():
     assert r.first_in is None
     assert r.last_out == punches[0]
     assert r.ot_minutes == 0
+
+
+def test_morning_leave_0744_0910_counts_worked_hours():
+    """Vân tay 07:44 + 09:10 = vào + ra (xin về buổi sáng)."""
+    d = date(2026, 8, 19)
+    punches = [
+        datetime(2026, 8, 19, 7, 44, tzinfo=VN),
+        datetime(2026, 8, 19, 9, 10, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out == punches[1]
+    assert r.late_minutes == 0  # kẹp 08:00
+    assert r.worked_hours == Decimal("1.1667")  # 08:00–09:10, không trừ trưa
+    assert r.early_minutes == 470  # 17:00 − 09:10
+
+
+def test_morning_leave_0830_and_0855_count_as_out():
+    """Xin về 08:30 hoặc 08:55 — mốc cuối là giờ ra, không chờ đến 12:00."""
+    d = date(2026, 8, 19)
+    inn = datetime(2026, 8, 19, 7, 44, tzinfo=VN)
+    out_830 = calculate_day([inn, datetime(2026, 8, 19, 8, 30, tzinfo=VN)], d, _sched())
+    assert out_830.last_out.hour == 8 and out_830.last_out.minute == 30
+    assert out_830.worked_hours == Decimal("0.5000")
+    out_855 = calculate_day([inn, datetime(2026, 8, 19, 8, 55, tzinfo=VN)], d, _sched())
+    assert out_855.last_out.hour == 8 and out_855.last_out.minute == 55
+    assert out_855.worked_hours == Decimal("0.9167")
+
+
+def test_burst_within_60s_stays_one_in():
+    """Bấm dồn 1–60 giây lúc vào ca = một lần vào, chưa có giờ ra."""
+    d = date(2026, 8, 19)
+    punches = [
+        datetime(2026, 8, 19, 7, 44, 0, tzinfo=VN),
+        datetime(2026, 8, 19, 7, 44, 45, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.punch_count == 1
+    assert r.first_in == punches[0]
+    assert r.last_out is None
+    assert r.worked_hours == Decimal("0")

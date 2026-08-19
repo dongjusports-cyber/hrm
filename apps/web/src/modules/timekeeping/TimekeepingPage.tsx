@@ -38,6 +38,15 @@ import { CycleLeaveListSheet } from "./CycleLeaveListSheet";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
 import { employeeMatchesQuery, findEmployeeByQuery } from "../../shared/employeeSearch";
 import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
+import { TimeInput24 } from "../../shared/TimeInput24";
+import {
+  formatWorkedHours,
+  outTimeAfterWorkedHours,
+  parseGridTimeInput,
+  parseWorkedHoursInput,
+  previewShiftWorkedHours,
+  toIsoTime,
+} from "./dailyGridTime";
 import { LeaveApprovalPanel } from "./LeaveApprovalPanel";
 import { MitaproSyncPanel } from "./MitaproSyncPanel";
 import { OtExternalPreviewSheet } from "./OtExternalPreviewSheet";
@@ -216,6 +225,8 @@ export function TimekeepingPage() {
   const [fixDate, setFixDate] = useState(`${defaultPeriod()}-01`);
   const [fixIn, setFixIn] = useState("08:00");
   const [fixOut, setFixOut] = useState("17:00");
+  const [fixHours, setFixHours] = useState("8");
+  const hoursFocusedRef = useRef(false);
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
   const [fixCycle, setFixCycle] = useState(false);
   const [gridDate, setGridDate] = useState(() => {
@@ -535,6 +546,32 @@ export function TimekeepingPage() {
     setFixCycle(row.cycleLeave);
   }
 
+  const hoursPreview = useMemo(() => previewShiftWorkedHours(fixIn, fixOut), [fixIn, fixOut]);
+
+  useEffect(() => {
+    if (hoursFocusedRef.current) return;
+    setFixHours(hoursPreview == null ? "" : formatWorkedHours(hoursPreview));
+  }, [hoursPreview]);
+
+  function applyQuickHours(raw: string) {
+    const n = parseWorkedHoursInput(raw);
+    if (n == null) return false;
+    const inn = parseGridTimeInput(fixIn) || "08:00";
+    const out = outTimeAfterWorkedHours(inn, n);
+    if (!out) return false;
+    if (!parseGridTimeInput(fixIn)) setFixIn(inn);
+    setFixOut(out);
+    setFixHours(formatWorkedHours(n));
+    return true;
+  }
+
+  function focusManualField(id: string) {
+    window.setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el instanceof HTMLInputElement) el.focus();
+    }, 0);
+  }
+
   async function onSyncNow() {
     setBusy(true);
     setError(null);
@@ -596,12 +633,22 @@ export function TimekeepingPage() {
     const code = (fixEmp || selected?.employee_code || "").trim();
     const inT = fixIn.trim();
     const outT = fixOut.trim();
+    if (inT && !parseGridTimeInput(inT)) {
+      setError("Giờ vào phải dạng 07:44 (gõ 744 hoặc 7:44).");
+      return;
+    }
+    if (outT && !parseGridTimeInput(outT)) {
+      setError("Giờ ra phải dạng 09:10 (gõ 910 hoặc 9:10).");
+      return;
+    }
+    const inIso = inT ? toIsoTime(fixDate, inT) : null;
+    const outIso = outT ? toIsoTime(fixDate, outT) : null;
     setBusy(true);
     setError(null);
     setOk(null);
     try {
       let day: AttendanceDay;
-      if (!inT && !outT) {
+      if (!inIso && !outIso) {
         day = await patchAttendanceDayCell({
           employee_code: code,
           work_date: fixDate,
@@ -609,14 +656,14 @@ export function TimekeepingPage() {
           note: fixNote,
         });
         setOk(`Đã xóa giờ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
-      } else if (!inT || !outT) {
+      } else if (!inIso || !outIso) {
         day = await patchAttendanceDayCell({
           employee_code: code,
           work_date: fixDate,
-          first_in: inT ? `${fixDate}T${inT}:00+07:00` : undefined,
-          last_out: outT ? `${fixDate}T${outT}:00+07:00` : undefined,
-          clear_first_in: !inT,
-          clear_last_out: !outT,
+          first_in: inIso ?? undefined,
+          last_out: outIso ?? undefined,
+          clear_first_in: !inIso,
+          clear_last_out: !outIso,
           note: fixNote,
         });
         setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
@@ -624,8 +671,8 @@ export function TimekeepingPage() {
         day = await patchAttendanceDayManual({
           employee_code: code,
           work_date: fixDate,
-          first_in: `${fixDate}T${inT}:00+07:00`,
-          last_out: `${fixDate}T${outT}:00+07:00`,
+          first_in: inIso,
+          last_out: outIso,
           note: fixNote,
           cycle_leave: fixCycle,
         });
@@ -661,6 +708,7 @@ export function TimekeepingPage() {
       });
       setFixIn("");
       setFixOut("");
+      setFixHours("");
       setOk(`Đã xóa giờ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
       await refreshAfterManualDay(day);
     } catch (err) {
@@ -739,9 +787,38 @@ export function TimekeepingPage() {
                       <span className="tk-day-date">{formatDateDDMMYYYY(row.work_date)}</span>
                       <span className="tk-day-wd">{row.weekday}</span>
                     </td>
-                    <td className={!row.firstIn ? "tk-cell-empty" : ""}>{row.firstIn}</td>
-                    <td className={!row.lastOut ? "tk-cell-empty" : ""}>{row.lastOut}</td>
-                    <td className={!row.hours ? "tk-cell-empty" : ""}>{row.hours}</td>
+                    <td
+                      className={!row.firstIn ? "tk-cell-empty" : ""}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        pickDay(row);
+                        focusManualField("tk-manual-in");
+                      }}
+                    >
+                      {row.firstIn}
+                    </td>
+                    <td
+                      className={!row.lastOut ? "tk-cell-empty" : ""}
+                      title={!row.lastOut ? "Bấm để nhập giờ ra" : undefined}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        pickDay(row);
+                        focusManualField("tk-manual-out");
+                      }}
+                    >
+                      {row.lastOut}
+                    </td>
+                    <td
+                      className={!row.hours ? "tk-cell-empty" : ""}
+                      title="Bấm để nhập nhanh số giờ công"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        pickDay(row);
+                        focusManualField("tk-manual-hours");
+                      }}
+                    >
+                      {row.hours}
+                    </td>
                     <td className={row.late > 0 ? "tk-num-warn" : !row.late ? "tk-cell-empty" : ""}>
                       {cellMinutes(row.late)}
                     </td>
@@ -766,11 +843,14 @@ export function TimekeepingPage() {
                           CK
                         </span>
                       ) : row.oddPunch ? (
-                        <span className="tk-odd-hint" title="Chấm lẻ / bấm đúp — cần HR sửa tay">
+                        <span
+                          className="tk-odd-hint"
+                          title="Thiếu vào hoặc thiếu ra — hệ thống đã ghi nhận mốc có. HR gọi NV lập biên bản (quên bấm / về sớm / đi trễ)."
+                        >
                           Lẻ
                         </span>
                       ) : row.missingPunch ? (
-                        <span className="tk-miss-hint" title="Chưa chấm công — cần kiểm tra">
+                        <span className="tk-miss-hint" title="Chưa chấm công — HR gọi NV kiểm tra, lập biên bản nếu cần">
                           Thiếu
                         </span>
                       ) : null}
@@ -812,19 +892,74 @@ export function TimekeepingPage() {
             </label>
             <label className="field">
               <span>Vào</span>
-              <input
-                type="time"
+              <TimeInput24
+                id="tk-manual-in"
                 value={fixIn}
-                onChange={(e) => setFixIn(e.target.value)}
+                onChange={setFixIn}
+                placeholder="07:44"
+                aria-label="Giờ vào"
               />
             </label>
             <label className="field">
               <span>Ra</span>
-              <input
-                type="time"
+              <TimeInput24
+                id="tk-manual-out"
                 value={fixOut}
-                onChange={(e) => setFixOut(e.target.value)}
+                onChange={setFixOut}
+                placeholder="09:10"
+                aria-label="Giờ ra"
               />
+            </label>
+            <label className="field tk-manual-hours-field">
+              <span>Giờ công</span>
+              <span className="tk-manual-hours-quick">
+                <input
+                  id="tk-manual-hours"
+                  type="text"
+                  inputMode="decimal"
+                  value={fixHours}
+                  placeholder="1,17"
+                  aria-label="Nhập nhanh số giờ công"
+                  title="Gõ số giờ (vd. 1,17 hoặc 8) rồi Enter — hệ thống điền giờ ra theo ca 08:00–17:00 trừ trưa"
+                  onFocus={() => {
+                    hoursFocusedRef.current = true;
+                  }}
+                  onChange={(e) => setFixHours(e.target.value)}
+                  onBlur={(e) => {
+                    hoursFocusedRef.current = false;
+                    const raw = e.currentTarget.value;
+                    if (!applyQuickHours(raw) && hoursPreview != null) {
+                      setFixHours(formatWorkedHours(hoursPreview));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyQuickHours(e.currentTarget.value);
+                      hoursFocusedRef.current = false;
+                      e.currentTarget.blur();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="tk-hours-chip"
+                  disabled={busy}
+                  onClick={() => applyQuickHours("4")}
+                  title="4 giờ công (sáng 08:00–12:00)"
+                >
+                  4h
+                </button>
+                <button
+                  type="button"
+                  className="tk-hours-chip"
+                  disabled={busy}
+                  onClick={() => applyQuickHours("8")}
+                  title="Đủ 8 giờ công (08:00–17:00 trừ trưa)"
+                >
+                  8h
+                </button>
+              </span>
             </label>
             <label className="field tk-manual-bar-note">
               <span>Ghi chú</span>

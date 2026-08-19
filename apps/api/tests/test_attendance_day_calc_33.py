@@ -82,8 +82,8 @@ def test_early_one_second_before_shift_end():
     assert r.early_minutes == 1
 
 
-def test_two_pre_shift_taps_not_checkout():
-    """Hai lần bấm trước 08:00 — chỉ giữ giờ vào sớm nhất, không coi lần sau là ra."""
+def test_two_pre_shift_taps_first_in_last_out():
+    """Hai mốc trước 08:00, cách nhau > 60 giây: sớm = vào, muộn = ra (giờ công 0 vì ra trước ca)."""
     d = date(2026, 8, 13)
     punches = [
         datetime(2026, 8, 13, 6, 58, 45, tzinfo=VN),
@@ -91,13 +91,13 @@ def test_two_pre_shift_taps_not_checkout():
     ]
     r = calculate_day(punches, d, _sched())
     assert r.first_in == punches[0]
-    assert r.last_out is None
+    assert r.last_out == punches[1]
     assert r.worked_hours == Decimal("0")
     assert r.punch_count == 2
 
 
-def test_pre_shift_plus_shift_start_not_checkout():
-    """07:54 + 08:00 — cả hai là vào, không ghi 08:00 là ra."""
+def test_pre_shift_and_shift_start_are_in_and_out():
+    """07:54 + 08:00 (ngoài cửa sổ 60 giây) = vào + ra, không nuốt mốc sau."""
     d = date(2026, 8, 13)
     punches = [
         datetime(2026, 8, 13, 7, 54, 56, tzinfo=VN),
@@ -105,7 +105,22 @@ def test_pre_shift_plus_shift_start_not_checkout():
     ]
     r = calculate_day(punches, d, _sched())
     assert r.first_in == punches[0]
-    assert r.last_out is None
+    assert r.last_out == punches[1]
+    assert r.worked_hours == Decimal("0")
+
+
+def test_hr_manual_morning_out_before_lunch():
+    """07:44 / 09:10 — vân tay và HR cùng quy tắc: bấm đầu = vào, bấm cuối = ra."""
+    d = date(2026, 8, 19)
+    punches = [
+        datetime(2026, 8, 19, 7, 44, 0, tzinfo=VN),
+        datetime(2026, 8, 19, 9, 10, 0, tzinfo=VN),
+    ]
+    r = calculate_day(punches, d, _sched())
+    assert r.first_in == punches[0]
+    assert r.last_out == punches[1]
+    assert r.worked_hours == Decimal("1.1667")
+    assert r.late_minutes == 0
 
 
 def test_morning_in_and_early_leave_after_noon_break():
