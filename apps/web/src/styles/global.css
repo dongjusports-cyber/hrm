@@ -7798,6 +7798,23 @@ html.app-fullscreen .module-page {
   background: #f8fafc;
 }
 
+.kpi-table-wrap {
+  overflow-x: auto;
+}
+
+.kpi-table-click tbody tr {
+  cursor: pointer;
+}
+
+.kpi-table-click tbody tr:hover {
+  background: #eff6ff;
+}
+
+.kpi-table td.kpi-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
 .alert-mini-list {
   list-style: none;
   margin: 0;

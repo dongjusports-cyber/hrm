@@ -3046,6 +3046,165 @@ export async function downloadKpiExport(period: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+export type KpiTeamDayRow = {
+  team_id: string;
+  team_code: string;
+  team_name: string;
+  department_code: string;
+  department_name: string;
+  category: string;
+  category_label: string;
+  headcount: number;
+  present: number;
+  absent: number;
+  missing_punch: number;
+  late_people: number;
+  ot_people: number;
+  ot_hours: string | number;
+  ot_on_books_hours: string | number;
+  ot_external_hours: string | number;
+  ot_hours_per_person: string | number;
+};
+
+export type KpiDayData = {
+  work_date: string;
+  is_workday: boolean;
+  formula_note: string;
+  headcount: number;
+  present: number;
+  absent: number;
+  teams_with_ot: number;
+  ot_people: number;
+  ot_hours: string | number;
+  missing_punch: number;
+  late_people: number;
+  teams: KpiTeamDayRow[];
+};
+
+export type KpiDayPerson = {
+  employee_code: string;
+  full_name: string;
+  team_id: string;
+  team_code: string;
+  team_name: string;
+  department_code: string;
+  department_name: string;
+  present: boolean;
+  punch_count: number;
+  first_in: string | null;
+  last_out: string | null;
+  worked_hours: string | number;
+  late_minutes: number;
+  early_minutes: number;
+  leave_code: string | null;
+  ot_hours: string | number;
+  ot_on_books_hours: string | number;
+  ot_external_hours: string | number;
+};
+
+export type KpiTeamMonthRow = {
+  team_id: string;
+  team_code: string;
+  team_name: string;
+  department_code: string;
+  department_name: string;
+  category_label: string;
+  headcount: number;
+  begin_hc: number;
+  recruit: number;
+  resign: number;
+  end_hc: number;
+  attendants: string | number;
+  attendance_rate_pct: string | number | null;
+  ot_hours: string | number;
+  ot_people: number;
+  ot_share_pct: string | number | null;
+  ot_capacity_pct: string | number | null;
+  turnover_rate_pct: string | number | null;
+};
+
+export type KpiMonthTeamsData = {
+  period: string;
+  official_work_days: string | number;
+  param_b3: string | number;
+  headcount: number;
+  attendants: string | number;
+  attendance_rate_pct: string | number | null;
+  ot_hours: string | number;
+  ot_people: number;
+  ot_share_pct: string | number | null;
+  ot_capacity_pct: string | number | null;
+  recruit: number;
+  resign: number;
+  turnover_rate_pct: string | number | null;
+  formula_note: string;
+  teams: KpiTeamMonthRow[];
+};
+
+export type KpiMonthPerson = {
+  employee_code: string;
+  full_name: string;
+  team_name: string;
+  department_name: string;
+  present_days: number;
+  late_days: number;
+  ot_hours: string | number;
+};
+
+async function downloadNamedXlsx(path: string, fallback: string): Promise<void> {
+  const res = await apiFetch(path);
+  if (!res.ok) throw new Error(await readError(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+)"?/.exec(cd);
+  a.download = match ? match[1] : fallback;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function fetchKpiDay(workDate: string): Promise<KpiDayData> {
+  const res = await apiFetch(`/api/reports/kpi/day?work_date=${encodeURIComponent(workDate)}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function fetchKpiDayPeople(workDate: string, teamId: string): Promise<KpiDayPerson[]> {
+  const qs = new URLSearchParams({ work_date: workDate, team_id: teamId });
+  const res = await apiFetch(`/api/reports/kpi/day/people?${qs}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function fetchKpiMonthTeams(period: string): Promise<KpiMonthTeamsData> {
+  const res = await apiFetch(`/api/reports/kpi/month-teams?period=${encodeURIComponent(period)}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function fetchKpiMonthPeople(period: string, teamId: string): Promise<KpiMonthPerson[]> {
+  const qs = new URLSearchParams({ period, team_id: teamId });
+  const res = await apiFetch(`/api/reports/kpi/month-teams/people?${qs}`);
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function downloadKpiDayExport(workDate: string): Promise<void> {
+  await downloadNamedXlsx(
+    `/api/reports/kpi/export-day?work_date=${encodeURIComponent(workDate)}`,
+    `KPI_ngay_${workDate}.xlsx`,
+  );
+}
+
+export async function downloadKpiMonthExport(period: string): Promise<void> {
+  await downloadNamedXlsx(
+    `/api/reports/kpi/export-month?period=${encodeURIComponent(period)}`,
+    `KPI_thang_${period}.xlsx`,
+  );
+}
+
 export type BlackBox = {
   actions: {
     id: string;

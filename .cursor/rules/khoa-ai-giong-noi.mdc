@@ -1,0 +1,30 @@
+---
+description: Khóa deploy tính năng AI nhận lệnh giọng nói — chỉ deploy khi user ra lệnh rõ ràng
+alwaysApply: true
+---
+
+# Khóa deploy — AI nhận lệnh giọng nói
+
+**Trạng thái:** Đã đóng gói, khóa lại — **KHÔNG** đưa lên VPS.
+
+## Quy tắc (user Thiên-Admin — 20/08/2026)
+
+1. **Cấm deploy** mọi code liên quan «AI nhận lệnh giọng nói» lên VPS (production).
+2. **Cấm** merge/push/commit kích hoạt tính năng này trừ khi user **nói rõ** về giọng nói / voice command.
+3. Deploy VPS bình thường (`ops/deploy_vps_from_git.py`, `02-DONG-BO-SANG.bat`) **không** được kèm phần giọng nói.
+4. Nếu có nhánh / file / flag voice — **bỏ qua** khi deploy; không cherry-pick, không bật env.
+
+## Phạm vi (khi có trong repo)
+
+- Web: `SpeechRecognition`, `webkitSpeechRecognition`, `MediaRecorder`, mic, nút «Nói» / voice FAB
+- API: endpoint transcribe / voice command / audio → Gemini
+- Env: `VOICE_*`, `AI_VOICE_*`, feature flag voice
+
+## Ngoại lệ duy nhất
+
+User viết **chính xác** yêu cầu deploy **AI nhận lệnh giọng nói** (hoặc «deploy voice» / «bật giọng nói lên VPS»).
+
+## Ghi nhớ AI
+
+- «deploy VPS» mặc định = **không** voice.
+- Trợ Lý AI hiện có (AiFab chat chữ, Gemini text) **khác** tính năng giọng nói — vẫn deploy bình thường.
