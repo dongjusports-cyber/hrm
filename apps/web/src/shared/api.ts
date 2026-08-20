@@ -2143,6 +2143,8 @@ export type AttendanceDay = {
   cycle_leave?: boolean;
   leave_code?: string | null;
   note?: string;
+  /** machine | manual | import — lưới làm đẹp chỉ khi machine. */
+  source?: string;
 };
 
 export async function fetchAttendanceDays(params: {

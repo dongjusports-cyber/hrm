@@ -16,15 +16,16 @@ import {
   type AttendanceDayGridRow,
   type LeaveType,
 } from "../../shared/api";
-import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridVi";
+import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI, compareViAz } from "../../shared/agGridVi";
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
-import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
+import { TK_DAILY_GRID_COLS, TK_DAILY_GRID_SHOW_MACHINE } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
 import { leaveTypesForPicker } from "../../shared/formatLeave";
 import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import { buildDayTimePatch, parseGridTimeInput, planQuickHours, toIsoTime } from "./dailyGridTime";
+import { prettyPunchDisplay } from "./prettyPunchDisplay";
 import { employeeMatchesQuery } from "../../shared/employeeSearch";
 import { applyDailyGridSort, isNeedsFirstSortActive } from "./dailyGridSort";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
@@ -32,12 +33,26 @@ import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 type RowWithEdit = AttendanceDayGridRow & {
   _edit_in?: string;
   _edit_out?: string;
-  _disp_in?: string;
-  _disp_out?: string;
 };
 
 function hhmm(iso: string | null | undefined): string {
   return formatTimeHHMM(iso, "");
+}
+
+function readShowMachine(): boolean {
+  try {
+    return localStorage.getItem(TK_DAILY_GRID_SHOW_MACHINE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistShowMachine(on: boolean) {
+  try {
+    localStorage.setItem(TK_DAILY_GRID_SHOW_MACHINE, on ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
 }
 
 function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): AttendanceDayGridRow {
@@ -66,17 +81,7 @@ function applyDayToGridRow(row: AttendanceDayGridRow, day: AttendanceDay): Atten
   };
   delete merged._edit_in;
   delete merged._edit_out;
-  merged._disp_in = hhmm(merged.first_in);
-  merged._disp_out = hhmm(merged.last_out);
   return merged;
-}
-
-function withDisplayTimes(row: AttendanceDayGridRow): RowWithEdit {
-  return {
-    ...row,
-    _disp_in: hhmm(row.first_in),
-    _disp_out: hhmm(row.last_out),
-  };
 }
 
 export type DailyGridSummary = {
@@ -111,6 +116,7 @@ function DailyGridPanelInner({
 }: Props) {
   const [rows, setRows] = useState<AttendanceDayGridRow[]>([]);
   const [needsOnly, setNeedsOnly] = useState(false);
+  const [showMachine, setShowMachine] = useState(readShowMachine);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +150,7 @@ function DailyGridPanelInner({
         needs_action_only: needsOnly,
         department_id: departmentId || undefined,
       });
-      setRows(list.map(withDisplayTimes));
+      setRows(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải lưới ngày công.");
     } finally {
@@ -174,6 +180,10 @@ function DailyGridPanelInner({
   useEffect(() => {
     gridApi?.onFilterChanged();
   }, [searchQuery, gridApi]);
+
+  useEffect(() => {
+    gridApi?.refreshCells({ columns: ["first_in", "last_out"], force: true });
+  }, [showMachine, gridApi]);
 
   const initialLoading = loading && rows.length === 0;
   const refreshing = loading && rows.length > 0;
@@ -256,9 +266,18 @@ function DailyGridPanelInner({
         editable: !periodLocked,
         sort: "asc",
         sortIndex: 0,
-        headerTooltip: "A→Z theo giờ — ô trống xuống cuối",
+        headerTooltip:
+          "Hiển thị làm đẹp 07:45–08:00 khi đúng giờ (vân tay). Sửa ô = giờ máy. Bật «Hiện giờ máy» để đối chiếu.",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
+        comparator: (_a, _b, nodeA, nodeB, isDescending) =>
+          compareViAz(
+            prettyPunchDisplay(nodeA?.data ?? {}, { showMachine }).inn,
+            prettyPunchDisplay(nodeB?.data ?? {}, { showMachine }).inn,
+            nodeA,
+            nodeB,
+            isDescending,
+          ),
         valueGetter: (p) => {
           const d = p.data as RowWithEdit | undefined;
           if (d?._edit_in != null) {
@@ -266,7 +285,13 @@ function DailyGridPanelInner({
             if (raw === "") return "";
             return parseGridTimeInput(raw) ?? raw;
           }
-          return d?._disp_in ?? hhmm(d?.first_in);
+          return hhmm(d?.first_in);
+        },
+        valueFormatter: (p) => {
+          const d = p.data as RowWithEdit | undefined;
+          if (!d) return String(p.value ?? "");
+          if (d._edit_in != null) return String(p.value ?? "");
+          return prettyPunchDisplay(d, { showMachine }).inn;
         },
         valueSetter: (p) => {
           if (!p.data) return false;
@@ -280,9 +305,18 @@ function DailyGridPanelInner({
         headerName: "Ra",
         width: 76,
         editable: !periodLocked,
-        headerTooltip: "A→Z theo giờ — ô trống xuống cuối",
+        headerTooltip:
+          "Hiển thị làm đẹp 17:00–17:15 khi không về sớm (kể cả OT). Sửa ô = giờ máy.",
         cellClass: "tk-cell-time-center",
         headerClass: "tk-header-time-center",
+        comparator: (_a, _b, nodeA, nodeB, isDescending) =>
+          compareViAz(
+            prettyPunchDisplay(nodeA?.data ?? {}, { showMachine }).out,
+            prettyPunchDisplay(nodeB?.data ?? {}, { showMachine }).out,
+            nodeA,
+            nodeB,
+            isDescending,
+          ),
         valueGetter: (p) => {
           const d = p.data as RowWithEdit | undefined;
           if (d?._edit_out != null) {
@@ -290,7 +324,13 @@ function DailyGridPanelInner({
             if (raw === "") return "";
             return parseGridTimeInput(raw) ?? raw;
           }
-          return d?._disp_out ?? hhmm(d?.last_out);
+          return hhmm(d?.last_out);
+        },
+        valueFormatter: (p) => {
+          const d = p.data as RowWithEdit | undefined;
+          if (!d) return String(p.value ?? "");
+          if (d._edit_out != null) return String(p.value ?? "");
+          return prettyPunchDisplay(d, { showMachine }).out;
         },
         valueSetter: (p) => {
           if (!p.data) return false;
@@ -395,7 +435,7 @@ function DailyGridPanelInner({
         editable: !periodLocked,
       },
     ],
-    [periodLocked, onPickEmployee, pickerLeaves],
+    [periodLocked, onPickEmployee, pickerLeaves, showMachine],
   );
 
   function sortNeedsFirst() {
@@ -579,6 +619,21 @@ function DailyGridPanelInner({
           />
           Chỉ người cần xử lý
         </label>
+        <label
+          className="tk-chip-toggle"
+          title="Đối chiếu vân tay gốc. Công / trễ / OT không đổi — chỉ cột Vào/Ra."
+        >
+          <input
+            type="checkbox"
+            checked={showMachine}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setShowMachine(on);
+              persistShowMachine(on);
+            }}
+          />
+          Hiện giờ máy
+        </label>
         <button
           type="button"
           className={`btn-ghost-dark btn-sm${needsFirstOn ? " is-on" : ""}`}
@@ -721,11 +776,11 @@ function DailyGridPanelInner({
             const col = e.colDef.colId;
             if (col !== "first_in" && col !== "last_out") return;
             if (!e.data) return;
+            const row = e.data as RowWithEdit;
+            const pending = col === "first_in" ? row._edit_in : row._edit_out;
+            if (col === "first_in") delete row._edit_in;
+            else delete row._edit_out;
             if (e.valueChanged === false) return;
-            const pending =
-              col === "first_in"
-                ? (e.data as RowWithEdit)._edit_in
-                : (e.data as RowWithEdit)._edit_out;
             const typed = String(pending ?? e.newValue ?? "").trim();
             void saveTimeCell(e.data, col, typed);
           }}
