@@ -30,6 +30,7 @@ def test_format_employee_lookup_answer():
 def test_wants_punch_review():
     assert wants_punch_review("Ai chấm lẻ tháng này") is True
     assert wants_punch_review("thiếu vào thiếu ra") is True
+    assert wants_punch_review("lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công") is True
     assert wants_punch_review("thông tin MSNV 1519") is False
 
 
@@ -45,6 +46,7 @@ def test_detect_ops_kind():
     assert detect_ops_kind("nhân viên thử việc") == "probation_list"
     assert detect_ops_kind("thôi việc tháng này") == "resign_list"
     assert detect_ops_kind("mở bảng công") == "timesheet_open"
+    assert detect_ops_kind("lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công") == "punch_review"
     assert detect_ops_kind("nhà máy có bao nhiêu module") == ""
 
 

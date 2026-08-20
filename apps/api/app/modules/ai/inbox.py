@@ -42,6 +42,10 @@ def followups_for_kind(kind: str) -> list[AiSuggestion]:
     mapping: dict[str, list[AiSuggestion]] = {
         "punch_review": [
             AiSuggestion(label="Mở lưới ngày", href="/m/timekeeping?view=daily"),
+            AiSuggestion(
+                label="Lẻ hôm qua",
+                message="Lọc và mở ds nhân viên lẻ hôm qua",
+            ),
         ],
         "leave_review": [
             AiSuggestion(label="Duyệt phép", href="/m/timekeeping?view=leave"),

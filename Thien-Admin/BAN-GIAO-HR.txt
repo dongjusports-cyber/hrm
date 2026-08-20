@@ -63,6 +63,7 @@ Chi tiết trong LOI-DA-SUA.txt:
   [AI-P002] Đếm chấm lẻ đủ số thật (~400 NV); HR hỏi theo tên; /assist không Gemini
   [AI-V001] HR ĐT: Portal /login → nút AI → mic nói lệnh (Chrome/HTTPS). Không tự sửa CSDL.
   [AI-T001] Nói/gõ «mở bảng công» (CTY / bộ phận / MSNV) hoặc «in bảng công» → mở Chấm Công + Excel.
+  [AI-P003] «Lọc và mở ds nhân viên lẻ hôm qua» → lưới ngày hôm qua, chỉ chấm lẻ. AI không tự điền giờ.
 
 --------------------------------------------------------------------------------
 NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
@@ -110,6 +111,8 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
      Tab Hỏi AI → nút mic → nói tiếng Việt (vd. «ai chấm lẻ tháng này»).
      «Mở bảng công cả công ty», «in bảng công bộ phận May 1», «mở bảng công 5290»
      → mở tổng hợp tháng (lọc đúng) và tải Excel nếu nói in/xuất.
+     «Lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công» → lưới ngày hôm qua,
+     chỉ dòng thiếu vào/ra. AI không tự điền giờ — HR sửa trên lưới.
      Cần Chrome/Edge Android hoặc Safari iOS mới + cho phép micro + HTTPS.
      Giọng nói = hỏi CSDL, không tự duyệt phép / sửa công / tính lương.
 

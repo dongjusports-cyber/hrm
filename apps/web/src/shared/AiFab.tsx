@@ -42,6 +42,7 @@ const DEFAULT_CHIPS: AiSuggestion[] = [
   { label: "Tóm tắt hôm nay", message: "Tóm tắt việc cần làm hôm nay" },
   { label: "Mở bảng công", message: "Mở bảng công cả công ty" },
   { label: "In bảng công", message: "In bảng công cả công ty" },
+  { label: "Lẻ hôm qua", message: "Lọc và mở ds nhân viên lẻ hôm qua" },
   { label: "Ai chấm lẻ?", message: "Ai chấm lẻ tháng này" },
   { label: "Đơn phép?", message: "Đơn phép chờ duyệt" },
 ];
@@ -175,7 +176,7 @@ export function AiFab() {
         setChatMeta(res.message);
         setFollowups(res.suggestions ?? []);
         setThread((prev) => [...prev.slice(-2), { q, a: res.answer }]);
-        if (res.kind === "timesheet_open") {
+        if (res.kind === "timesheet_open" || res.kind === "punch_review") {
           const sugg = res.suggestions ?? [];
           const file = sugg.find((s) => isTimesheetExportHref(s.href));
           const pages = sugg.filter((s) => (s.href || "").startsWith("/m/"));
@@ -187,9 +188,16 @@ export function AiFab() {
               return;
             }
           }
-          if (pages.length === 1 && pages[0].href) {
+          const punchPage = pages.find(
+            (s) => (s.href || "").includes("date=") || (s.href || "").includes("odd="),
+          );
+          const openPage =
+            res.kind === "timesheet_open" && pages.length === 1
+              ? pages[0]
+              : punchPage;
+          if (openPage?.href) {
             setOpen(false);
-            navigate(pages[0].href);
+            navigate(openPage.href);
           }
         }
       } catch (err) {

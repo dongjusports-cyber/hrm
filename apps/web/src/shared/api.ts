@@ -2406,10 +2406,12 @@ export type AttendanceDayGridRow = AttendanceDay & {
 export async function fetchAttendanceDaysGrid(params: {
   date: string;
   needs_action_only?: boolean;
+  odd_only?: boolean;
   department_id?: string;
 }): Promise<AttendanceDayGridRow[]> {
   const qs = new URLSearchParams({ date: params.date });
   if (params.needs_action_only) qs.set("needs_action_only", "true");
+  if (params.odd_only) qs.set("odd_only", "true");
   if (params.department_id) qs.set("department_id", params.department_id);
   const res = await apiFetch(`/api/attendance/days/grid?${qs}`);
   if (!res.ok) throw new Error(await readError(res));

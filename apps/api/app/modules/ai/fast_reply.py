@@ -16,7 +16,9 @@ _ANALYSIS_RE = re.compile(
 _PUNCH_REVIEW_RE = re.compile(
     r"chấm\s*lẻ|thiếu\s*(?:punch|vân\s*tay|chấm|công)|quên\s*bấm|"
     r"thiếu\s*vào|thiếu\s*ra|không\s*bấm\s*ra|không\s*bấm\s*vào|"
-    r"ai\s+quên\s+chấm|danh\s*sách\s*thiếu\s*công",
+    r"ai\s+quên\s+chấm|danh\s*sách\s*thiếu\s*công|"
+    r"nhân\s*viên\s*lẻ|nv\s*lẻ|ds\s*lẻ|danh\s*sách\s*lẻ|công\s*lẻ|"
+    r"lọc.{0,40}lẻ",
     re.IGNORECASE,
 )
 _LEAVE_REVIEW_RE = re.compile(

@@ -10,6 +10,8 @@ export type TimesheetUrlState = {
   q: string | null;
   date: string | null;
   print: boolean;
+  needs: boolean;
+  odd: boolean;
 };
 
 const PERIOD_RE = /^\d{4}-\d{2}$/;
@@ -30,6 +32,8 @@ export function parseTimesheetSearch(search: string): TimesheetUrlState {
     q: q || null,
     date: DATE_RE.test(date) ? date : null,
     print: sp.get("print") === "1",
+    needs: sp.get("needs") === "1" || sp.get("needs") === "true",
+    odd: sp.get("odd") === "1" || sp.get("odd") === "true",
   };
 }
 

@@ -13,6 +13,7 @@ LOI DA SUA — DJ-HRM
   [AI-P002] HR hỏi CSDL không Gemini; đếm chấm lẻ đủ 400 NV; tra cứu theo tên
   [AI-V001] HR điện thoại nói lệnh cho AI (mic → CSDL, không tự ghi)
   [AI-T001] AI mở / in bảng công CTY · bộ phận · MSNV (Excel, không tự sửa công)
+  [AI-P003] AI lọc + mở DS nhân viên chấm lẻ hôm qua (HR chấm tay trên lưới)
 
 Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
 Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
@@ -1152,5 +1153,21 @@ Cách xử lý:
 
 Test:
   cd apps/api && .venv/bin/pytest tests/test_ai_timesheet_open.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_timesheet.py tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py -q
+  cd apps/web && npm test -- timesheetUrl && npx tsc --noEmit
+
+[AI-P003] AI lọc + mở DS chấm lẻ hôm qua — 2026-08-20
+-------------------------------------------------------
+Triệu chứng:
+  HR nói «lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công» — AI chỉ liệt kê
+  chấm lẻ cả tháng, không mở lưới ngày hôm qua, không bật lọc lẻ.
+
+Cách xử lý:
+  - kind `punch_review` nhận «nhân viên lẻ / ds lẻ / hôm qua / hôm nay».
+  - Deep-link `/m/timekeeping?view=daily&date=YYYY-MM-DD&odd=1`. FAB tự mở khi có date.
+  - GET `/api/attendance/days/grid?odd_only=true` — chỉ dòng thiếu vào hoặc ra.
+  - AI không tự điền giờ (Luật 01). HR sửa Vào/Ra trên lưới.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_punch_open.py tests/test_ai_fast_reply.py tests/test_ai_punch_reminders.py tests/test_attendance_day_grid_37.py -q
   cd apps/web && npm test -- timesheetUrl && npx tsc --noEmit
 

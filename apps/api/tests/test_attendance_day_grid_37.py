@@ -59,6 +59,14 @@ def test_days_grid_needs_action_filter(client):
     row5290 = next(r for r in filtered if r["employee_code"] == "5290")
     assert row5290["needs_action"] is True
     assert row5290["row_flag"] in ("odd", "missing", "late", "early", "both")
+    odd_only = client.get(
+        "/api/attendance/days/grid",
+        headers=headers,
+        params={"date": "2025-10-02", "odd_only": "true"},
+    ).json()
+    assert all(r["row_flag"] == "odd" for r in odd_only)
+    assert any(r["employee_code"] == "5290" for r in odd_only)
+    assert len(odd_only) <= len(filtered)
 
 
 def test_patch_day_cell_times(client):
@@ -350,10 +358,16 @@ def test_days_grid_second_get_does_not_write(client, db):
             headers=headers,
             params={"date": "2025-10-01"},
         )
+        odd = client.get(
+            "/api/attendance/days/grid",
+            headers=headers,
+            params={"date": "2025-10-01", "odd_only": "true"},
+        )
     finally:
         event.remove(bind, "before_cursor_execute", _record)
 
     assert res.status_code == 200, res.text
+    assert odd.status_code == 200, odd.text
     writes = [s for s in statements if s in ("INSERT", "UPDATE", "DELETE")]
     assert writes == [], f"GET /attendance/days/grid ghi DB: {writes} / {statements}"
 

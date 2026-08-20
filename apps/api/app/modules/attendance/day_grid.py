@@ -146,6 +146,7 @@ def list_days_grid(
     work_date: date,
     *,
     needs_action_only: bool = False,
+    odd_only: bool = False,
     department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
     schedule = _load_schedule(db)
@@ -171,7 +172,10 @@ def list_days_grid(
             continue
         day = by_emp.get(emp.id)
         needs = _needs_action(day, work_date, schedule)
-        if needs_action_only and not needs:
+        flag = _row_flag(day, work_date, schedule)
+        if odd_only and flag != "odd":
+            continue
+        if needs_action_only and not odd_only and not needs:
             continue
         if day is None:
             out.append(

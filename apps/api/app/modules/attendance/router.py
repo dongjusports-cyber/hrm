@@ -293,12 +293,14 @@ def attendance_days_grid(
     db: DbSession,
     work_date: Annotated[date, Query(alias="date")],
     needs_action_only: bool = False,
+    odd_only: bool = False,
     department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
     return list_days_grid(
         db,
         work_date,
         needs_action_only=needs_action_only,
+        odd_only=odd_only,
         department_id=department_id,
     )
 

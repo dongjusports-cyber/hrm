@@ -104,7 +104,7 @@ _ASSIST_MODULES = ("hr", "timekeeping", "payroll")
 _ASSIST_NEED_GEMINI = (
     "Câu này cần quyền hỏi Gemini (`ai_query`). "
     "HR tra cứu CSDL được: tóm tắt hôm nay, thông tin NV (MSNV hoặc họ tên), "
-    "mở/in bảng công (CTY · bộ phận · MSNV), "
+    "mở/in bảng công (CTY · bộ phận · MSNV), lọc chấm lẻ hôm qua, "
     "chấm lẻ, đơn phép, hợp đồng hết hạn, thử việc, thôi việc tháng này, "
     "BHXH, phiếu lương, khiếu nại, chế độ về sớm, chuyên cần."
 )
@@ -188,7 +188,7 @@ def run_ai_query(
     emp_codes: list[str] = []
     extra_suggestions: list[AiSuggestion] = []
     if not context_block and message:
-        if detect_ops_kind(message) == "timesheet_open":
+        if detect_ops_kind(message) in ("timesheet_open", "punch_review"):
             ops_kind, ops_ctx, extra_suggestions = resolve_ops_query(db, user, message)
             if ops_ctx:
                 context_block = ops_ctx

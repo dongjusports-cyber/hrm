@@ -7,8 +7,9 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.modules.ai.employee_context import build_punch_context, cap_note
+from app.modules.ai.employee_context import cap_note
 from app.modules.ai.fast_reply import detect_ops_kind
+from app.modules.ai.punch_open import build_punch_open
 from app.modules.ai.schemas import AiSuggestion
 from app.modules.ai.timesheet_open import build_timesheet_open
 from app.modules.ai.vi_labels import label_dispute_status, label_emp_status, label_period_status
@@ -478,9 +479,11 @@ def resolve_ops_query(db: Session, user: User, message: str) -> tuple[str, str, 
     if kind == "timesheet_open":
         ctx, sugg = build_timesheet_open(db, message)
         return kind, ctx, sugg
+    if kind == "punch_review":
+        ctx, sugg = build_punch_open(db, message)
+        return kind, ctx, sugg
 
     builders = {
-        "punch_review": lambda: build_punch_context(db),
         "leave_review": lambda: build_leave_context(db),
         "contract_review": lambda: build_contract_context(db),
         "insurance_review": lambda: build_insurance_context(db),

@@ -208,7 +208,12 @@ function buildCalendar(
 export function TimekeepingPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [period, setPeriod] = useState(defaultPeriod);
+  const [period, setPeriod] = useState(() => {
+    const parsed = parseTimesheetSearch(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    return parsed.period || (parsed.date ? parsed.date.slice(0, 7) : defaultPeriod());
+  });
   const [q, setQ] = useState("");
   const typedQRef = useRef("");
   const [searchReset, setSearchReset] = useState(0);
@@ -235,7 +240,11 @@ export function TimekeepingPage() {
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
   const [fixCycle, setFixCycle] = useState(false);
   const [gridDate, setGridDate] = useState(() => {
-    const p = defaultPeriod();
+    const parsed = parseTimesheetSearch(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    if (parsed.date) return parsed.date;
+    const p = parsed.period || defaultPeriod();
     const today = todayIsoDateVN();
     return today.slice(0, 7) === p ? today : payPeriodStartDate(p);
   });
@@ -254,7 +263,10 @@ export function TimekeepingPage() {
         setGridDate(today.slice(0, 7) === parsed.period ? today : `${parsed.period}-01`);
       }
     }
-    if (parsed.date) setGridDate(parsed.date);
+    if (parsed.date) {
+      setGridDate(parsed.date);
+      if (!parsed.period) setPeriod(parsed.date.slice(0, 7));
+    }
     if (parsed.q) {
       typedQRef.current = parsed.q;
       setQ(parsed.q);
@@ -1375,12 +1387,14 @@ export function TimekeepingPage() {
         {mainView === "daily" ? (
           <div className="tk-stack tk-stack-panel">
             <DailyGridPanel
-              workDate={gridDate}
+              workDate={parseTimesheetSearch(location.search).date || gridDate}
               periodLocked={pay?.status === "locked"}
               leaves={leaves}
               searchQuery={q}
               departmentId={departmentId}
               refreshToken={dailyGridRefresh}
+              needsFilter={parseTimesheetSearch(location.search).needs}
+              oddFilter={parseTimesheetSearch(location.search).odd}
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
               onTimesChanged={(code) => {

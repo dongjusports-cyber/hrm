@@ -11,6 +11,8 @@ describe("parseTimesheetSearch", () => {
     expect(s.deptCode).toBe("SW1");
     expect(s.q).toBe("5290");
     expect(s.print).toBe(false);
+    expect(s.odd).toBe(false);
+    expect(s.needs).toBe(false);
   });
 
   it("nhận emp= như q= và print=1", () => {
@@ -19,6 +21,14 @@ describe("parseTimesheetSearch", () => {
     expect(s.q).toBe("1514");
     expect(s.print).toBe(true);
     expect(s.date).toBe("2026-08-19");
+  });
+
+  it("đọc odd=1 needs=1 lưới ngày", () => {
+    const s = parseTimesheetSearch("?view=daily&date=2026-08-19&odd=1");
+    expect(s.view).toBe("daily");
+    expect(s.date).toBe("2026-08-19");
+    expect(s.odd).toBe(true);
+    expect(s.needs).toBe(false);
   });
 
   it("bỏ period/date sai dạng", () => {
