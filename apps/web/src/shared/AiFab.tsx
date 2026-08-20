@@ -533,9 +533,17 @@ export function AiFab() {
                   <div className="ai-fab-chips" role="group" aria-label="Gợi ý hỏi">
                     {(followups.length > 0
                       ? followups
-                      : suggestions.length > 0
-                        ? suggestions
-                        : DEFAULT_CHIPS
+                      : [
+                          ...DEFAULT_CHIPS,
+                          ...suggestions.filter(
+                            (s) =>
+                              !DEFAULT_CHIPS.some(
+                                (d) =>
+                                  d.label === s.label &&
+                                  (d.message || "") === (s.message || ""),
+                              ),
+                          ),
+                        ]
                     ).map((s) => (
                       <button
                         key={`${s.label}-${s.message ?? ""}-${s.href ?? ""}`}
