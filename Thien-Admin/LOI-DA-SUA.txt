@@ -12,6 +12,7 @@ LOI DA SUA — DJ-HRM
   [AI-P001] FAB poll 60s chạy compute_kpi; inbox light + tóm tắt hôm nay
   [AI-P002] HR hỏi CSDL không Gemini; đếm chấm lẻ đủ 400 NV; tra cứu theo tên
   [AI-V001] HR điện thoại nói lệnh cho AI (mic → CSDL, không tự ghi)
+            ★ GIỮ LẠI trên GitHub — chưa cần bổ sung
   [AI-T001] AI mở / in bảng công CTY · bộ phận · MSNV (Excel, không tự sửa công)
   [AI-P003] AI lọc + mở DS nhân viên chấm lẻ hôm qua (HR chấm tay trên lưới)
 
@@ -1123,11 +1124,14 @@ Test:
 
 [AI-V001] HR nói lệnh AI trên điện thoại — 2026-08-19
 -----------------------------------------------------
+★ GIỮ LẠI trên GitHub (commit 63f10d0). CHƯA CẦN BỔ SUNG.
+  Đóng gói: Thien-Admin/13-DONG-GOI-GITHUB.txt — không viết thêm mic / giọng nói.
+
 Triệu chứng:
   HR muốn đăng nhập bằng ĐT rồi nói «ai chấm lẻ / tóm tắt hôm nay».
   Chưa có mic. Cổng công nhân không có Hỏi AI. Chrome cần HTTPS + micro=(self).
 
-Cách xử lý:
+Cách xử lý (đã xong, giữ nguyên):
   - Nút mic trên tab Hỏi AI: Web Speech API vi-VN, nói xong gửi cùng đường /assist hoặc /query.
   - Không tự duyệt phép / sửa giờ / tính lương — chỉ hỏi CSDL như gõ chữ.
   - Permissions-Policy: microphone/camera/geolocation=(self) (API + nginx HTML).

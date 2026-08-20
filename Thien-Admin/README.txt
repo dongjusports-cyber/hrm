@@ -22,6 +22,7 @@ Agent .122 đã chạy nền — không gói USB mỗi ngày.
 | 06-CLOUD-AGENT.txt | Setup Cloud Agent tối (đã làm thì thôi) |
 | PROMPT-TOI-CLOUD.txt | Prompt dán Cloud |
 | QUY-TRINH-HANG-NGAY.txt | Tối / sáng |
+| 13-DONG-GOI-GITHUB.txt | Đóng gói 20/08: đã đẩy GitHub; **giữ lại AI giọng nói** (không bổ sung) |
 | BAN-GIAO-HR.txt | Việc HR làm hàng ngày + kết quả QA 19/08 |
 | LOI-DA-SUA.txt | Lỗi đã sửa — đầu file có mục đợt 19/08 |
 | NO-KY-THUAT.txt | Nợ chưa sửa ([HR-OT8] [HR-STK]) |

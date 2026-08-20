@@ -1,5 +1,8 @@
-BAN GIAO HR — DJ-HRM (cập nhật QA 19/08/2026)
+BAN GIAO HR — DJ-HRM (cập nhật QA 20/08/2026)
 ============================================
+
+Đóng gói GitHub 20/08: Thien-Admin/13-DONG-GOI-GITHUB.txt
+[AI-V001] AI giọng nói — GIỮ LẠI trên GitHub, chưa cần bổ sung.
 
 Portal: http://127.0.0.1:5173  (máy .123 / VPS: https://hrm.dongju-v.com)
 Tài khoản HR:  hr.demo
@@ -62,6 +65,7 @@ Chi tiết trong LOI-DA-SUA.txt:
   [AI-P001] Nút AI không còn kéo KPI cả nhà máy mỗi 60 giây (poll inbox nhẹ)
   [AI-P002] Đếm chấm lẻ đủ số thật (~400 NV); HR hỏi theo tên; /assist không Gemini
   [AI-V001] HR ĐT: Portal /login → nút AI → mic nói lệnh (Chrome/HTTPS). Không tự sửa CSDL.
+            ★ GIỮ LẠI trên GitHub — chưa cần bổ sung mic / giọng nói.
   [AI-T001] Nói/gõ «mở bảng công» (CTY / bộ phận / MSNV) hoặc «in bảng công» → mở Chấm Công + Excel.
   [AI-P003] «Lọc và mở ds nhân viên lẻ hôm qua» → lưới ngày hôm qua, chỉ chấm lẻ. AI không tự điền giờ.
 

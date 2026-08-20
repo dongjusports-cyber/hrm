@@ -1,0 +1,43 @@
+================================================================================
+  ĐÓNG GÓI GITHUB — 20/08/2026
+  Repo: https://github.com/dongjusports-cyber/hrm
+================================================================================
+
+Đã đẩy TẤT CẢ code đợt bàn giao HR + Trợ Lý AI lên GitHub.
+Không gói USB .122 (AI Portal, không phải Agent nhà máy).
+
+--------------------------------------------------------------------------------
+  GIỮ LẠI TRÊN GITHUB — KHÔNG BỔ SUNG
+--------------------------------------------------------------------------------
+
+  [AI-V001] AI GIỌNG NÓI
+
+  Đã có sẵn trên GitHub (commit 63f10d0, nhánh cursor/hr-handover-qa-3138).
+  HR ĐT: https://hrm.dongju-v.com/login → nút AI → Hỏi AI → mic → nói tiếng Việt.
+  Giọng nói = hỏi CSDL như gõ chữ. Không tự duyệt phép / sửa công / tính lương.
+
+  CHƯA CẦN BỔ SUNG thêm tính năng mic / giọng nói / cổng công nhân.
+  Giữ nguyên bản GitHub. Cloud tối không viết thêm giọng nói.
+
+--------------------------------------------------------------------------------
+  ĐÃ ĐẨY (cùng gói — dùng được)
+--------------------------------------------------------------------------------
+
+  [QA-H001] [QA-H002] [ESC-K002] [ATT-P002]
+  [AI-G001] Trợ Lý AI việc cần làm + Hỏi AI đọc CSDL
+  [AI-P001] Inbox nhẹ (không kéo KPI 60 giây)
+  [AI-P002] Đếm chấm lẻ đủ số; HR hỏi theo tên
+  [AI-T001] Mở / in bảng công CTY · bộ phận · MSNV
+  [AI-P003] Lọc + mở DS nhân viên lẻ hôm qua (HR chấm tay trên lưới)
+
+  Chi tiết: BAN-GIAO-HR.txt · LOI-DA-SUA.txt
+
+--------------------------------------------------------------------------------
+  CHƯA LÀM (không phải giọng nói)
+--------------------------------------------------------------------------------
+
+  [HR-OT8] [HR-STK] — NO-KY-THUAT.txt
+  Chưa deploy VPS trong gói này. Sáng muốn lên production:
+    gộp vào main rồi double-click 02-DONG-BO-SANG.bat
+
+================================================================================
