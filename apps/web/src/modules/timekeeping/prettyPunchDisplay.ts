@@ -1,20 +1,18 @@
-import { formatTimeHHMM } from "../../shared/formatDate";
-
 /** Chỉ hiển thị lưới chấm công — không ghi DB, không đụng engine công/OT. */
 
 const IN_START_MIN = 7 * 60 + 45;
 const IN_SPAN_MIN = 15; // 07:45 … 08:00
 const OUT_START_MIN = 17 * 60;
 const OUT_SPAN_MIN = 15; // 17:00 … 17:15
+const SHIFT_START = "08:00";
+const SHIFT_END = "17:00";
+const VN_MS = 7 * 60 * 60 * 1000;
 
 export type PrettyPunchRow = {
   employee_code?: string;
   work_date?: string;
   first_in?: string | null;
   last_out?: string | null;
-  late_minutes?: number | null;
-  early_minutes?: number | null;
-  source?: string | null;
 };
 
 /** FNV-1a 32-bit — cùng MSNV + ngày luôn ra cùng mốc. */
@@ -33,6 +31,17 @@ function minToHhmm(totalMin: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** HH:mm VN từ ISO — không dùng toLocaleTimeString (chậm trên lưới). */
+export function isoToHhmm(iso: string | null | undefined): string {
+  if (iso == null || iso === "") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const vn = new Date(d.getTime() + VN_MS);
+  const hh = String(vn.getUTCHours()).padStart(2, "0");
+  const mm = String(vn.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 /** Mốc đẹp cố định theo MSNV + ngày + vào/ra. */
 export function prettySlotHhmm(employeeCode: string, workDate: string, slot: "in" | "out"): string {
   const start = slot === "in" ? IN_START_MIN : OUT_START_MIN;
@@ -41,30 +50,23 @@ export function prettySlotHhmm(employeeCode: string, workDate: string, slot: "in
   return minToHhmm(start + (n % (span + 1)));
 }
 
-function isManualSource(source: string | null | undefined): boolean {
-  const s = String(source ?? "").trim().toLowerCase();
-  return s === "manual" || s === "import";
-}
-
 /**
- * Giờ Vào/Ra trên lưới. Công / trễ / sớm / OT lấy từ dữ liệu gốc, không dùng kết quả này.
+ * Giờ Vào/Ra trên lưới. Công / trễ / sớm / OT lấy từ dữ liệu gốc.
  *
- * Làm đẹp khi: nguồn máy, đủ vào+ra, không trễ (cột Vào) / không về sớm (cột Ra).
- * OT vẫn làm đẹp cột Ra. HR sửa tay (`source=manual`) và thiếu mốc → giờ gốc.
+ * Vào ≤ 08:00 → 07:45–08:00. Ra ≥ 17:00 (kể cả OT) → 17:00–17:15.
+ * Mỗi cột độc lập (thiếu mốc kia vẫn làm đẹp mốc có). Trễ / về sớm giữ giờ máy.
  */
 export function prettyPunchDisplay(
   row: PrettyPunchRow,
   opts: { showMachine?: boolean } = {},
 ): { inn: string; out: string } {
-  const inn = formatTimeHHMM(row.first_in, "");
-  const out = formatTimeHHMM(row.last_out, "");
-  if (opts.showMachine || isManualSource(row.source) || !inn || !out) {
-    return { inn, out };
-  }
+  const inn = isoToHhmm(row.first_in);
+  const out = isoToHhmm(row.last_out);
+  if (opts.showMachine) return { inn, out };
   const code = String(row.employee_code ?? "").trim();
   const date = String(row.work_date ?? "").trim();
   return {
-    inn: (row.late_minutes ?? 0) > 0 ? inn : prettySlotHhmm(code, date, "in"),
-    out: (row.early_minutes ?? 0) > 0 ? out : prettySlotHhmm(code, date, "out"),
+    inn: inn && inn <= SHIFT_START ? prettySlotHhmm(code, date, "in") : inn,
+    out: out && out >= SHIFT_END ? prettySlotHhmm(code, date, "out") : out,
   };
 }

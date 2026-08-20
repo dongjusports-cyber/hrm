@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prettyPunchDisplay, prettySlotHhmm, stableHash } from "./prettyPunchDisplay";
+import { isoToHhmm, prettyPunchDisplay, prettySlotHhmm, stableHash } from "./prettyPunchDisplay";
 
 function hhmmInRange(hhmm: string, start: string, end: string) {
   expect(hhmm >= start && hhmm <= end).toBe(true);
@@ -10,10 +10,15 @@ const onTime = {
   work_date: "2026-08-20",
   first_in: "2026-08-20T07:02:00+07:00",
   last_out: "2026-08-20T17:03:00+07:00",
-  late_minutes: 0,
-  early_minutes: 0,
-  source: "machine",
 };
+
+describe("isoToHhmm", () => {
+  it("ISO +07 và UTC → giờ VN", () => {
+    expect(isoToHhmm("2026-08-20T07:02:00+07:00")).toBe("07:02");
+    expect(isoToHhmm("2026-08-20T00:02:00Z")).toBe("07:02");
+    expect(isoToHhmm(null)).toBe("");
+  });
+});
 
 describe("prettySlotHhmm", () => {
   it("cùng MSNV + ngày → cùng mốc", () => {
@@ -57,7 +62,11 @@ describe("prettyPunchDisplay", () => {
     expect(a.out).not.toBe("17:03");
   });
 
-  it("OT vẫn làm đẹp Ra; Trễ/Sớm giữ giờ máy", () => {
+  it("chỉ có Vào vẫn làm đẹp; OT làm đẹp Ra; trễ/sớm giữ máy", () => {
+    const onlyIn = prettyPunchDisplay({ ...onTime, last_out: null });
+    hhmmInRange(onlyIn.inn, "07:45", "08:00");
+    expect(onlyIn.out).toBe("");
+
     const ot = prettyPunchDisplay({
       ...onTime,
       last_out: "2026-08-20T20:00:00+07:00",
@@ -67,7 +76,6 @@ describe("prettyPunchDisplay", () => {
     const late = prettyPunchDisplay({
       ...onTime,
       first_in: "2026-08-20T08:15:00+07:00",
-      late_minutes: 15,
     });
     expect(late.inn).toBe("08:15");
     hhmmInRange(late.out, "17:00", "17:15");
@@ -75,32 +83,22 @@ describe("prettyPunchDisplay", () => {
     const early = prettyPunchDisplay({
       ...onTime,
       last_out: "2026-08-20T16:30:00+07:00",
-      early_minutes: 30,
     });
     hhmmInRange(early.inn, "07:45", "08:00");
     expect(early.out).toBe("16:30");
   });
 
-  it("thiếu mốc / HR sửa tay / Hiện giờ máy → giờ gốc", () => {
-    expect(
-      prettyPunchDisplay({
-        ...onTime,
-        last_out: null,
-      }),
-    ).toEqual({ inn: "07:02", out: "" });
-
-    expect(prettyPunchDisplay({ ...onTime, source: "manual" })).toEqual({
-      inn: "07:02",
-      out: "17:03",
-    });
-
+  it("Hiện giờ máy → giờ gốc; source không chặn làm đẹp", () => {
     expect(prettyPunchDisplay(onTime, { showMachine: true })).toEqual({
       inn: "07:02",
       out: "17:03",
     });
+    const hashed = prettyPunchDisplay(onTime);
+    hhmmInRange(hashed.inn, "07:45", "08:00");
+    hhmmInRange(hashed.out, "17:00", "17:15");
   });
 
-  it("ca đặc biệt (Cooker 06:00) vẫn làm đẹp khi không trễ/sớm", () => {
+  it("ca đặc biệt (Cooker 06:00) vẫn làm đẹp Vào", () => {
     const cooker = prettyPunchDisplay({
       ...onTime,
       first_in: "2026-08-20T06:00:00+07:00",
