@@ -1,5 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { KpiMonthTeamsData } from "../../shared/api";
+import { useEscLayer } from "../../shared/useEscLayer";
 import {
   categoryBars,
   companyDays,
@@ -33,12 +35,36 @@ function ellipsize(s: string, n: number): string {
   return t.length <= n ? t : `${t.slice(0, n - 1)}…`;
 }
 
-/** Bốn biểu đồ KPI tháng — SVG, in A4 được. */
+type ChartKey = "present" | "otDay" | "otTeam" | "category";
+
+const CHART_TITLE: Record<ChartKey, string> = {
+  present: "Có mặt / HC từng ngày",
+  otDay: "Giờ OT từng ngày",
+  otTeam: "OT theo tổ",
+  category: "Trực tiếp / gián tiếp",
+};
+
+/** Bốn biểu đồ KPI tháng — SVG, in A4 được. Bấm hình để phóng to. */
 export function KpiCharts({ data }: { data: KpiMonthTeamsData }) {
   const days = useMemo(() => companyDays(data), [data]);
   const teams = useMemo(() => teamOtBars(data), [data]);
   const cats = useMemo(() => categoryBars(data), [data]);
   const periodVi = monthLabel(data.period);
+  const [open, setOpen] = useState<ChartKey | null>(null);
+  useEscLayer(open != null, () => setOpen(null));
+
+  function chartBody(key: ChartKey) {
+    if (key === "present") return <PresentHcChart days={days} />;
+    if (key === "otDay") return <OtDayChart days={days} />;
+    if (key === "otTeam") {
+      return teams.length === 0 ? (
+        <p className="kpi-chart-empty">Không có OT tháng này.</p>
+      ) : (
+        <OtTeamChart rows={teams} />
+      );
+    }
+    return <CategoryChart rows={cats} />;
+  }
 
   return (
     <div className="kpi-charts">
@@ -47,28 +73,57 @@ export function KpiCharts({ data }: { data: KpiMonthTeamsData }) {
         <span>Tháng {periodVi} · nguồn vân tay · OT sổ + ngoài + CN + lễ</span>
       </div>
       <div className="kpi-chart-grid">
-        <article className="kpi-chart-card">
-          <h2>Có mặt / HC từng ngày</h2>
-          <PresentHcChart days={days} />
-        </article>
-        <article className="kpi-chart-card">
-          <h2>Giờ OT từng ngày</h2>
-          <OtDayChart days={days} />
-        </article>
-        <article className="kpi-chart-card">
-          <h2>OT theo tổ</h2>
-          {teams.length === 0 ? (
-            <p className="kpi-chart-empty">Không có OT tháng này.</p>
-          ) : (
-            <OtTeamChart rows={teams} />
-          )}
-        </article>
-        <article className="kpi-chart-card">
-          <h2>Trực tiếp / gián tiếp</h2>
-          <CategoryChart rows={cats} />
-        </article>
+        {(Object.keys(CHART_TITLE) as ChartKey[]).map((key) => (
+          <ChartCard key={key} title={CHART_TITLE[key]} onOpen={() => setOpen(key)}>
+            {chartBody(key)}
+          </ChartCard>
+        ))}
       </div>
+      {open &&
+        createPortal(
+          <div
+            className="modal-backdrop kpi-chart-lightbox"
+            role="presentation"
+            onClick={() => setOpen(null)}
+          >
+            <div
+              className="kpi-chart-lightbox-panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="kpi-chart-lightbox-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="kpi-chart-lightbox-head">
+                <h2 id="kpi-chart-lightbox-title">{CHART_TITLE[open]}</h2>
+                <button type="button" className="btn-ghost-dark btn-sm" onClick={() => setOpen(null)}>
+                  Đóng
+                </button>
+              </div>
+              <div className="kpi-chart-lightbox-body">{chartBody(open)}</div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
+  );
+}
+
+function ChartCard({
+  title,
+  onOpen,
+  children,
+}: {
+  title: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <article className="kpi-chart-card">
+      <button type="button" className="kpi-chart-card-hit" onClick={onOpen} title="Bấm để phóng to">
+        <h2>{title}</h2>
+        {children}
+      </button>
+    </article>
   );
 }
 
