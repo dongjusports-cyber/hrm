@@ -40,6 +40,8 @@ export function normalizeTimeHHMM(raw: string): string {
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> & {
   value: string;
   onChange: (value: string) => void;
+  /** Sau Enter / blur (không phải ESC) — giá trị đã chuẩn hoá HH:mm. */
+  onCommit?: (value: string) => void;
   /** ESC trong ô — báo parent không lưu khi blur. */
   onEditCancel?: () => void;
 };
@@ -54,13 +56,17 @@ export function TimeInput24({
   onKeyDown,
   onClick,
   onEditCancel,
+  onCommit,
   placeholder = "HH:mm",
   ...rest
 }: Props) {
   const [, setEditing] = useState(false);
   const snapshotRef = useRef(value);
+  const cancelledRef = useRef(false);
   const onEditCancelRef = useRef(onEditCancel);
   onEditCancelRef.current = onEditCancel;
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
 
   const selectAll = useCallback((el: HTMLInputElement) => {
     requestAnimationFrame(() => el.select());
@@ -69,8 +75,10 @@ export function TimeInput24({
   const handleFocus = useCallback(
     (e: FocusEvent<HTMLInputElement>) => {
       snapshotRef.current = value;
+      cancelledRef.current = false;
       setEditing(true);
       registerActiveFieldEsc(e.currentTarget, () => {
+        cancelledRef.current = true;
         onEditCancelRef.current?.();
         setEditing(false);
       });
@@ -84,8 +92,14 @@ export function TimeInput24({
     (e: FocusEvent<HTMLInputElement>) => {
       setEditing(false);
       clearActiveFieldEsc(e.currentTarget);
+      if (cancelledRef.current) {
+        cancelledRef.current = false;
+        onBlur?.(e);
+        return;
+      }
       const n = normalizeTimeHHMM(e.target.value);
       if (n !== value) onChange(n);
+      if (n !== snapshotRef.current) onCommitRef.current?.(n);
       onBlur?.(e);
     },
     [onBlur, onChange, value],

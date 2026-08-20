@@ -5,6 +5,7 @@ import {
   outTimeAfterWorkedHours,
   parseGridTimeInput,
   parseWorkedHoursInput,
+  planQuickHours,
   previewShiftWorkedHours,
   toIsoTime,
 } from "./dailyGridTime";
@@ -115,5 +116,21 @@ describe("previewShiftWorkedHours / outTimeAfterWorkedHours", () => {
     expect(parseWorkedHoursInput("1,17")).toBeCloseTo(1.17, 5);
     expect(outTimeAfterWorkedHours("07:44", 1.1667)).toBe("09:10");
     expect(toIsoTime("2026-08-19", "9:10")).toBe("2026-08-19T09:10:00+07:00");
+  });
+});
+
+describe("planQuickHours", () => {
+  it("8h từ sáng → 08:00–17:00", () => {
+    expect(planQuickHours("8", "")).toEqual({ inn: "08:00", out: "17:00", hoursLabel: "8" });
+    expect(planQuickHours("8", "07:55")).toEqual({ inn: "07:55", out: "17:00", hoursLabel: "8" });
+  });
+
+  it("4h → 08:00–12:00", () => {
+    expect(planQuickHours("4", "")).toEqual({ inn: "08:00", out: "12:00", hoursLabel: "4" });
+  });
+
+  it("ô trống hoặc >8 → không gán", () => {
+    expect(planQuickHours("", "08:00")).toBeNull();
+    expect(planQuickHours("9", "08:00")).toBeNull();
   });
 });

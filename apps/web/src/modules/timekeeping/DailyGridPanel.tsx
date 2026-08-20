@@ -5,6 +5,7 @@ import type {
   CellValueChangedEvent,
   ColDef,
   GridApi,
+  ICellRendererParams,
   IRowNode,
 } from "ag-grid-community";
 import {
@@ -19,11 +20,11 @@ import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridV
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { TK_DAILY_GRID_COLS } from "./gridColumnKeys";
 import { formatTimeHHMM } from "../../shared/formatDate";
-import { formatLeaveLabel, leaveTypesForPicker } from "../../shared/formatLeave";
+import { leaveTypesForPicker } from "../../shared/formatLeave";
 import { formatOrgName } from "../../shared/formatOrg";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { TimeInput24 } from "../../shared/TimeInput24";
-import { buildDayTimePatch, parseGridTimeInput, toIsoTime } from "./dailyGridTime";
+import { buildDayTimePatch, parseGridTimeInput, planQuickHours, toIsoTime } from "./dailyGridTime";
 import { employeeMatchesQuery } from "../../shared/employeeSearch";
 import { applyDailyGridSort, isNeedsFirstSortActive } from "./dailyGridSort";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
@@ -123,6 +124,8 @@ function DailyGridPanelInner({
   const [bulkLeave, setBulkLeave] = useState("ALE");
   const [bulkIn, setBulkIn] = useState("08:00");
   const [bulkOut, setBulkOut] = useState("17:00");
+  const [bulkHours, setBulkHours] = useState("8");
+  const patchLeaveRef = useRef<(row: AttendanceDayGridRow, leaveCode: string) => void>(() => {});
   const [skipped, setSkipped] = useState<{ employee_code: string | null; reason: string }[]>([]);
 
   const pickerLeaves = useMemo(() => leaveTypesForPicker(leaves), [leaves]);
@@ -359,9 +362,30 @@ function DailyGridPanelInner({
       {
         field: "leave_code",
         headerName: "Nghỉ",
-        width: 120,
-        editable: !periodLocked,
-        valueFormatter: (p) => formatLeaveLabel(p.value as string | null, leaves),
+        width: 148,
+        editable: false,
+        cellClass: "tk-leave-cell",
+        cellRenderer: (p: ICellRendererParams<AttendanceDayGridRow, string | null>) => (
+          <select
+            className="tk-leave-select"
+            value={String(p.value ?? "").toUpperCase()}
+            disabled={periodLocked}
+            aria-label="Loại nghỉ"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (!p.data) return;
+              patchLeaveRef.current(p.data, e.target.value);
+            }}
+          >
+            <option value="">—</option>
+            {pickerLeaves.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        ),
       },
       {
         field: "note",
@@ -371,7 +395,7 @@ function DailyGridPanelInner({
         editable: !periodLocked,
       },
     ],
-    [periodLocked, onPickEmployee, leaves],
+    [periodLocked, onPickEmployee, pickerLeaves],
   );
 
   function sortNeedsFirst() {
@@ -391,6 +415,16 @@ function DailyGridPanelInner({
     setToast(`Đã lưu ${code}`);
     onTimesChanged?.();
   }
+
+  patchLeaveRef.current = (row, leaveCode) => {
+    void applyCellPatch(row, {
+      employee_code: row.employee_code,
+      work_date: workDate,
+      leave_code: leaveCode,
+    }).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : "Không ghi loại nghỉ được.");
+    });
+  };
 
   async function saveTimeCell(row: AttendanceDayGridRow, col: "first_in" | "last_out", editedRaw: string) {
     if (periodLocked) return;
@@ -454,10 +488,14 @@ function DailyGridPanelInner({
     return (gridApi?.getSelectedRows() ?? []).map((r) => r.employee_code);
   }
 
-  async function runBulk(action: "set_leave" | "set_times" | "clear_note", preview: boolean) {
+  async function runBulk(
+    action: "set_leave" | "set_times" | "clear_note",
+    preview: boolean,
+    extra?: { times?: { in: string; out: string }; leave?: string },
+  ) {
     const codes = selectedCodes();
     if (!codes.length) {
-      setError("Chọn ít nhất một dòng.");
+      setError("Chọn ít nhất một dòng (cột tick đầu bảng).");
       return;
     }
     setBusy(true);
@@ -471,10 +509,10 @@ function DailyGridPanelInner({
         action,
         preview,
       };
-      if (action === "set_leave") body.leave_code = bulkLeave;
+      if (action === "set_leave") body.leave_code = extra?.leave ?? bulkLeave;
       if (action === "set_times") {
-        body.first_in_time = bulkIn;
-        body.last_out_time = bulkOut;
+        body.first_in_time = extra?.times?.in ?? bulkIn;
+        body.last_out_time = extra?.times?.out ?? bulkOut;
       }
       const res = await bulkPatchAttendanceDays(body);
       setToast(res.message);
@@ -554,7 +592,16 @@ function DailyGridPanelInner({
 
       {!periodLocked && (
         <div className="tk-bulk-bar">
-          <select value={bulkLeave} onChange={(e) => setBulkLeave(e.target.value)}>
+          <select
+            value={bulkLeave}
+            title="Tick dòng rồi chọn loại — lưu ngay"
+            onChange={(e) => {
+              const v = e.target.value;
+              setBulkLeave(v);
+              if (selectedCodes().length) void runBulk("set_leave", false, { leave: v });
+              else setError("Tick dòng (cột đầu bảng) rồi chọn loại nghỉ — sẽ lưu ngay.");
+            }}
+          >
             {pickerLeaves.map((l) => (
               <option key={l.code} value={l.code}>
                 {l.name}
@@ -568,6 +615,46 @@ function DailyGridPanelInner({
           <TimeInput24 value={bulkOut} onChange={setBulkOut} aria-label="Giờ ra hàng loạt" />
           <button type="button" disabled={busy} onClick={() => void runBulk("set_times", false)}>
             Đặt giờ đã chọn
+          </button>
+          <input
+            className="tk-bulk-hours"
+            value={bulkHours}
+            inputMode="decimal"
+            placeholder="8"
+            aria-label="Giờ công hàng loạt"
+            title="Tick dòng, gõ 8 rồi Enter — lưu giờ công hàng loạt"
+            onChange={(e) => setBulkHours(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              const raw = e.currentTarget.value;
+              const planned = planQuickHours(raw, bulkIn);
+              if (!planned) {
+                setError("Giờ công phải từ trên 0 đến 8 (vd. 8 hoặc 4).");
+                return;
+              }
+              setBulkHours(planned.hoursLabel);
+              setBulkIn(planned.inn);
+              setBulkOut(planned.out);
+              void runBulk("set_times", false, { times: { in: planned.inn, out: planned.out } });
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            title="Đặt giờ công (ô bên trái) cho dòng đã tick"
+            onClick={() => {
+              const planned = planQuickHours(bulkHours, bulkIn);
+              if (!planned) {
+                setError("Giờ công phải từ trên 0 đến 8 (vd. 8 hoặc 4).");
+                return;
+              }
+              setBulkIn(planned.inn);
+              setBulkOut(planned.out);
+              void runBulk("set_times", false, { times: { in: planned.inn, out: planned.out } });
+            }}
+          >
+            Đặt giờ công
           </button>
           <button type="button" disabled={busy} onClick={() => void runBulk("clear_note", false)}>
             Xóa ghi chú

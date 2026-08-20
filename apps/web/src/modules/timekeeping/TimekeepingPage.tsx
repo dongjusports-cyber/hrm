@@ -40,10 +40,9 @@ import { ToolbarSearchInput } from "../../shared/ToolbarSearchInput";
 import { TimeInput24 } from "../../shared/TimeInput24";
 import {
   formatWorkedHours,
-  outTimeAfterWorkedHours,
   parseGridTimeInput,
-  parseWorkedHoursInput,
   previewShiftWorkedHours,
+  planQuickHours,
   toIsoTime,
 } from "./dailyGridTime";
 import { LeaveApprovalPanel } from "./LeaveApprovalPanel";
@@ -122,6 +121,11 @@ export function TimekeepingPage() {
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
   const [fixCycle, setFixCycle] = useState(false);
   const [fixLeave, setFixLeave] = useState("");
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
+  const fixInRef = useRef(fixIn);
+  const fixOutRef = useRef(fixOut);
+  fixInRef.current = fixIn;
+  fixOutRef.current = fixOut;
   const [gridDate, setGridDate] = useState(() => {
     const p = defaultPeriod();
     const today = todayIsoDateVN();
@@ -259,6 +263,7 @@ export function TimekeepingPage() {
     setDetailOpen(true);
     setOk(null);
     setError(null);
+    setSelectedDates(new Set());
   }, []);
 
   const pickFromDaily = useCallback(
@@ -291,6 +296,7 @@ export function TimekeepingPage() {
     setEmpDays([]);
     setOk(null);
     setFixCycle(false);
+    setSelectedDates(new Set());
   }, []);
 
   const closeDetail = useCallback(() => {
@@ -449,6 +455,26 @@ export function TimekeepingPage() {
     if (e.data) pickEmployee(e.data);
   }
 
+  function datesToPatch(): string[] {
+    if (selectedDates.size > 0) return [...selectedDates].sort();
+    return fixDate ? [fixDate] : [];
+  }
+
+  function toggleDate(workDate: string, on?: boolean) {
+    setSelectedDates((prev) => {
+      const next = new Set(prev);
+      const should = on ?? !next.has(workDate);
+      if (should) next.add(workDate);
+      else next.delete(workDate);
+      return next;
+    });
+  }
+
+  const workDates = useMemo(
+    () => calendar.filter((r) => r.flag !== "off").map((r) => r.work_date),
+    [calendar],
+  );
+
   function pickDay(row: CalendarRow) {
     setFixEmp(selected?.employee_code ?? fixEmp);
     setFixDate(row.work_date);
@@ -459,29 +485,109 @@ export function TimekeepingPage() {
     setFixCycle(row.cycleLeave);
   }
 
-  async function onLeaveChange(next: string) {
+  async function patchTimesOneDay(
+    code: string,
+    workDate: string,
+    inT: string,
+    outT: string,
+  ): Promise<AttendanceDay> {
+    const inIso = inT ? toIsoTime(workDate, inT) : null;
+    const outIso = outT ? toIsoTime(workDate, outT) : null;
+    if (!inIso && !outIso) {
+      return patchAttendanceDayCell({
+        employee_code: code,
+        work_date: workDate,
+        clear_times: true,
+        note: fixNote,
+      });
+    }
+    if (!inIso || !outIso) {
+      return patchAttendanceDayCell({
+        employee_code: code,
+        work_date: workDate,
+        first_in: inIso ?? undefined,
+        last_out: outIso ?? undefined,
+        clear_first_in: !inIso,
+        clear_last_out: !outIso,
+        note: fixNote,
+      });
+    }
+    return patchAttendanceDayManual({
+      employee_code: code,
+      work_date: workDate,
+      first_in: inIso,
+      last_out: outIso,
+      note: fixNote,
+      cycle_leave: fixCycle,
+    });
+  }
+
+  async function saveManualTimes(inRaw?: string, outRaw?: string) {
     const code = (fixEmp || selected?.employee_code || "").trim();
-    if (!code || !fixDate) {
-      setFixLeave(next);
+    const dates = datesToPatch();
+    if (!code || !dates.length) return;
+    const inT = (inRaw ?? fixInRef.current).trim();
+    const outT = (outRaw ?? fixOutRef.current).trim();
+    if (inT && !parseGridTimeInput(inT)) {
+      setError("Giờ vào phải dạng 07:44 (gõ 744 hoặc 7:44).");
       return;
     }
-    setFixLeave(next);
+    if (outT && !parseGridTimeInput(outT)) {
+      setError("Giờ ra phải dạng 09:10 (gõ 910 hoặc 9:10).");
+      return;
+    }
+    const inNorm = inT ? parseGridTimeInput(inT) || inT : "";
+    const outNorm = outT ? parseGridTimeInput(outT) || outT : "";
     setBusy(true);
     setError(null);
     setOk(null);
     try {
-      const day = await patchAttendanceDayCell({
-        employee_code: code,
-        work_date: fixDate,
-        leave_code: next,
-      });
-      setFixLeave((day.leave_code || "").toUpperCase());
+      let last: AttendanceDay | null = null;
+      for (const workDate of dates) {
+        last = await patchTimesOneDay(code, workDate, inNorm, outNorm);
+      }
+      if (!last) return;
       setOk(
-        day.leave_code
-          ? `Đã ghi nghỉ ${formatLeaveLabel(day.leave_code, leaves) || day.leave_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`
-          : `Đã xóa mã nghỉ ngày ${formatDateDDMMYYYY(day.work_date)}.`,
+        dates.length > 1
+          ? `Đã lưu giờ ${dates.length} ngày (${formatDateDDMMYYYY(dates[0])}–${formatDateDDMMYYYY(dates[dates.length - 1])}).`
+          : `Đã sửa tay ${last.employee_code} ngày ${formatDateDDMMYYYY(last.work_date)}.`,
       );
-      await refreshAfterManualDay(day);
+      await refreshAfterManualDay(last);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không sửa tay được.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onLeaveChange(next: string) {
+    const code = (fixEmp || selected?.employee_code || "").trim();
+    const dates = datesToPatch();
+    setFixLeave(next);
+    if (!code || !dates.length) return;
+    setBusy(true);
+    setError(null);
+    setOk(null);
+    try {
+      let last: AttendanceDay | null = null;
+      for (const workDate of dates) {
+        last = await patchAttendanceDayCell({
+          employee_code: code,
+          work_date: workDate,
+          leave_code: next,
+        });
+      }
+      if (!last) return;
+      const label = formatLeaveLabel(last.leave_code, leaves) || last.leave_code;
+      setFixLeave((last.leave_code || "").toUpperCase());
+      setOk(
+        last.leave_code
+          ? dates.length > 1
+            ? `Đã ghi ${label} cho ${dates.length} ngày.`
+            : `Đã ghi nghỉ ${label} ngày ${formatDateDDMMYYYY(last.work_date)}.`
+          : `Đã xóa mã nghỉ.`,
+      );
+      await refreshAfterManualDay(last);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không ghi loại nghỉ được.");
     } finally {
@@ -496,16 +602,15 @@ export function TimekeepingPage() {
     setFixHours(hoursPreview == null ? "" : formatWorkedHours(hoursPreview));
   }, [hoursPreview]);
 
-  function applyQuickHours(raw: string) {
-    const n = parseWorkedHoursInput(raw);
-    if (n == null) return false;
-    const inn = parseGridTimeInput(fixIn) || "08:00";
-    const out = outTimeAfterWorkedHours(inn, n);
-    if (!out) return false;
-    if (!parseGridTimeInput(fixIn)) setFixIn(inn);
-    setFixOut(out);
-    setFixHours(formatWorkedHours(n));
-    return true;
+  function applyQuickHours(raw: string): { inn: string; out: string } | null {
+    const planned = planQuickHours(raw, fixInRef.current);
+    if (!planned) return null;
+    setFixIn(planned.inn);
+    setFixOut(planned.out);
+    setFixHours(planned.hoursLabel);
+    fixInRef.current = planned.inn;
+    fixOutRef.current = planned.out;
+    return { inn: planned.inn, out: planned.out };
   }
 
   function focusManualField(id: string) {
@@ -571,60 +676,7 @@ export function TimekeepingPage() {
 
   async function onManualDay(e: FormEvent) {
     e.preventDefault();
-    const code = (fixEmp || selected?.employee_code || "").trim();
-    const inT = fixIn.trim();
-    const outT = fixOut.trim();
-    if (inT && !parseGridTimeInput(inT)) {
-      setError("Giờ vào phải dạng 07:44 (gõ 744 hoặc 7:44).");
-      return;
-    }
-    if (outT && !parseGridTimeInput(outT)) {
-      setError("Giờ ra phải dạng 09:10 (gõ 910 hoặc 9:10).");
-      return;
-    }
-    const inIso = inT ? toIsoTime(fixDate, inT) : null;
-    const outIso = outT ? toIsoTime(fixDate, outT) : null;
-    setBusy(true);
-    setError(null);
-    setOk(null);
-    try {
-      let day: AttendanceDay;
-      if (!inIso && !outIso) {
-        day = await patchAttendanceDayCell({
-          employee_code: code,
-          work_date: fixDate,
-          clear_times: true,
-          note: fixNote,
-        });
-        setOk(`Đã xóa giờ ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
-      } else if (!inIso || !outIso) {
-        day = await patchAttendanceDayCell({
-          employee_code: code,
-          work_date: fixDate,
-          first_in: inIso ?? undefined,
-          last_out: outIso ?? undefined,
-          clear_first_in: !inIso,
-          clear_last_out: !outIso,
-          note: fixNote,
-        });
-        setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
-      } else {
-        day = await patchAttendanceDayManual({
-          employee_code: code,
-          work_date: fixDate,
-          first_in: inIso,
-          last_out: outIso,
-          note: fixNote,
-          cycle_leave: fixCycle,
-        });
-        setOk(`Đã sửa tay ${day.employee_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`);
-      }
-      await refreshAfterManualDay(day);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Không sửa tay được.");
-    } finally {
-      setBusy(false);
-    }
+    await saveManualTimes();
   }
 
   async function onClearDayTimes() {
@@ -701,6 +753,16 @@ export function TimekeepingPage() {
             <table className="tk-day-table">
               <thead>
                 <tr>
+                  <th className="tk-day-check-col">
+                    <input
+                      type="checkbox"
+                      aria-label="Chọn mọi ngày công"
+                      checked={workDates.length > 0 && workDates.every((d) => selectedDates.has(d))}
+                      onChange={(e) => {
+                        setSelectedDates(e.target.checked ? new Set(workDates) : new Set());
+                      }}
+                    />
+                  </th>
                   <th>Ngày</th>
                   <th>Vào</th>
                   <th>Ra</th>
@@ -721,10 +783,19 @@ export function TimekeepingPage() {
                     key={row.work_date}
                     className={`tk-day-row flag-${row.flag}${
                       fixDate === row.work_date ? " is-pick" : ""
-                    }`}
+                    }${selectedDates.has(row.work_date) ? " is-checked" : ""}`}
                     onClick={() => pickDay(row)}
                     title="Bấm để sửa giờ ngày này"
                   >
+                    <td className="tk-day-check-col" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Chọn ${row.work_date}`}
+                        checked={selectedDates.has(row.work_date)}
+                        disabled={row.flag === "off"}
+                        onChange={(e) => toggleDate(row.work_date, e.target.checked)}
+                      />
+                    </td>
                     <td>
                       <span className="tk-day-date">{formatDateDDMMYYYY(row.work_date)}</span>
                       <span className="tk-day-wd">{row.weekday}</span>
@@ -806,7 +877,7 @@ export function TimekeepingPage() {
             </table>
             {!daysLoading && dayStats.punched === 0 && (
               <p className="field-hint tk-day-empty-hint">
-                Chưa có chấm từng ngày. Bấm một dòng → nhập Vào/Ra ở thanh dưới → Lưu giờ.
+                Chưa có chấm từng ngày. Tick nhiều ngày → chọn nghỉ hoặc gõ giờ rồi Enter để lưu hết.
               </p>
             )}
           </div>
@@ -816,6 +887,7 @@ export function TimekeepingPage() {
               <span className="tk-manual-bar-stats" title="Tóm tắt tháng đang xem">
                 {dayStats.punched}/{dayStats.total} có chấm · trễ {dayStats.lateDays} · sớm{" "}
                 {dayStats.earlyDays}
+                {selectedDates.size > 0 ? ` · đã chọn ${selectedDates.size} ngày` : ""}
                 {daysLoading ? " · …" : ""}
               </span>
               <div className="tk-manual-bar-status" role="status" aria-live="polite">
@@ -840,7 +912,14 @@ export function TimekeepingPage() {
               <TimeInput24
                 id="tk-manual-in"
                 value={fixIn}
-                onChange={setFixIn}
+                onChange={(v) => {
+                  setFixIn(v);
+                  fixInRef.current = v;
+                }}
+                onCommit={(v) => {
+                  fixInRef.current = v;
+                  void saveManualTimes(v, fixOutRef.current);
+                }}
                 placeholder="07:44"
                 aria-label="Giờ vào"
               />
@@ -850,7 +929,14 @@ export function TimekeepingPage() {
               <TimeInput24
                 id="tk-manual-out"
                 value={fixOut}
-                onChange={setFixOut}
+                onChange={(v) => {
+                  setFixOut(v);
+                  fixOutRef.current = v;
+                }}
+                onCommit={(v) => {
+                  fixOutRef.current = v;
+                  void saveManualTimes(fixInRef.current, v);
+                }}
                 placeholder="09:10"
                 aria-label="Giờ ra"
               />
@@ -865,7 +951,7 @@ export function TimekeepingPage() {
                   value={fixHours}
                   placeholder="1,17"
                   aria-label="Nhập nhanh số giờ công"
-                  title="Gõ số giờ (vd. 1,17 hoặc 8) rồi Enter — hệ thống điền giờ ra theo ca 08:00–17:00 trừ trưa"
+                  title="Gõ số giờ (vd. 8 hoặc 1,17) rồi Enter — tự điền vào/ra và lưu ngay"
                   onFocus={() => {
                     hoursFocusedRef.current = true;
                   }}
@@ -873,25 +959,30 @@ export function TimekeepingPage() {
                   onBlur={(e) => {
                     hoursFocusedRef.current = false;
                     const raw = e.currentTarget.value;
-                    if (!applyQuickHours(raw) && hoursPreview != null) {
+                    const planned = applyQuickHours(raw);
+                    if (!planned && hoursPreview != null) {
                       setFixHours(formatWorkedHours(hoursPreview));
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyQuickHours(e.currentTarget.value);
-                      hoursFocusedRef.current = false;
-                      e.currentTarget.blur();
-                    }
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    hoursFocusedRef.current = false;
+                    const planned = applyQuickHours(e.currentTarget.value);
+                    e.currentTarget.blur();
+                    if (planned) void saveManualTimes(planned.inn, planned.out);
+                    else void saveManualTimes();
                   }}
                 />
                 <button
                   type="button"
                   className="tk-hours-chip"
                   disabled={busy}
-                  onClick={() => applyQuickHours("4")}
-                  title="4 giờ công (sáng 08:00–12:00)"
+                  onClick={() => {
+                    const planned = applyQuickHours("4");
+                    if (planned) void saveManualTimes(planned.inn, planned.out);
+                  }}
+                  title="4 giờ công (sáng 08:00–12:00) — lưu ngay"
                 >
                   4h
                 </button>
@@ -899,8 +990,11 @@ export function TimekeepingPage() {
                   type="button"
                   className="tk-hours-chip"
                   disabled={busy}
-                  onClick={() => applyQuickHours("8")}
-                  title="Đủ 8 giờ công (08:00–17:00 trừ trưa)"
+                  onClick={() => {
+                    const planned = applyQuickHours("8");
+                    if (planned) void saveManualTimes(planned.inn, planned.out);
+                  }}
+                  title="Đủ 8 giờ công (08:00–17:00 trừ trưa) — lưu ngay"
                 >
                   8h
                 </button>
@@ -912,6 +1006,7 @@ export function TimekeepingPage() {
                 value={fixLeave}
                 disabled={busy || pay?.status === "locked"}
                 aria-label="Loại ngày nghỉ"
+                title="Chọn là lưu ngay. Tick nhiều ngày rồi chọn — gán hết các ngày đã chọn."
                 onChange={(e) => void onLeaveChange(e.target.value)}
               >
                 <option value="">—</option>

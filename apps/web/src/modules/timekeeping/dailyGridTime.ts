@@ -120,3 +120,16 @@ export function outTimeAfterWorkedHours(inRaw: string, hours: number): string | 
   }
   return minToHhmm(t);
 }
+
+/** Gõ 8 / 4 / 1,17 → giờ vào–ra ca 08:00–17:00 trừ trưa. */
+export function planQuickHours(
+  rawHours: string,
+  existingIn: string,
+): { inn: string; out: string; hoursLabel: string } | null {
+  const n = parseWorkedHoursInput(rawHours);
+  if (n == null) return null;
+  const inn = parseGridTimeInput(existingIn) || "08:00";
+  const out = outTimeAfterWorkedHours(inn, n);
+  if (!out) return null;
+  return { inn, out, hoursLabel: formatWorkedHours(n) };
+}
