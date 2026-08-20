@@ -17,6 +17,7 @@ Agent .122 đã chạy nền — không gói USB mỗi ngày.
 | 10-NAP-CHE-DO-THAI-SAN.bat | Nạp thai sản / nuôi con từ Excel |
 | 11-TAI-DB-VPS-VE-MAY-NHA.bat | Máy nhà: kéo DB VPS xuống Docker local |
 | 12-NAP-NV-LOCAL.bat | Docker local: nạp lại hồ sơ NV từ trich_xuat |
+| 13-NAP-ANH-NV-VPS.bat | Nạp ảnh chân dung {MSNV}.jpg lên VPS |
 | 01-KIEM-TRA-DEPLOY-KEY.bat | VPS còn kéo GitHub được không |
 | 01-THEM-DEPLOY-KEY.bat | Chỉ khi làm lại Deploy Key |
 | 06-CLOUD-AGENT.txt | Setup Cloud Agent tối (đã làm thì thôi) |

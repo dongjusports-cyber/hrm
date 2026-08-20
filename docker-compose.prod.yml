@@ -52,6 +52,7 @@ services:
       LOG_DIR: /var/log/djhrm
     volumes:
       - api_logs:/var/log/djhrm
+      - api_uploads:/app/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,3 +89,4 @@ volumes:
   pgdata:
   redisdata:
   api_logs:
+  api_uploads:
