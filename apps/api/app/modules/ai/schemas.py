@@ -43,20 +43,6 @@ class AiQueryRequest(BaseModel):
     dispute_id: UUID | None = None
 
 
-class AiQueryResponse(BaseModel):
-    answer: str
-    kind: str
-    job_id: UUID
-    dispute_id: UUID | None = None
-    dispute_code: str | None = None
-    model_name: str
-    tokens_in: int
-    tokens_out: int
-    stub: bool
-    remaining_today: int
-    message: str
-
-
 class AiSettingsOut(BaseModel):
     enabled: bool
     model_name: str
@@ -84,8 +70,42 @@ class TodoCardOut(BaseModel):
     target_module: str
     href: str
     priority: int = 100
+    ask_message: str | None = None
 
 
 class TodosOut(BaseModel):
     cards: list[TodoCardOut]
     total: int
+
+
+class AiSuggestion(BaseModel):
+    label: str
+    message: str = ""
+    href: str | None = None
+
+
+class AiInboxOut(BaseModel):
+    """Gộp badge + việc cần làm + gợi ý hỏi — 1 GET thay vì alerts+todos."""
+
+    unread_count: int
+    todo_total: int
+    light: bool = False
+    alerts: list[AiAlertOut] = []
+    cards: list[TodoCardOut] = []
+    suggestions: list[AiSuggestion] = []
+    message: str = ""
+
+
+class AiQueryResponse(BaseModel):
+    answer: str
+    kind: str
+    job_id: UUID
+    dispute_id: UUID | None = None
+    dispute_code: str | None = None
+    model_name: str
+    tokens_in: int
+    tokens_out: int
+    stub: bool
+    remaining_today: int
+    message: str
+    suggestions: list[AiSuggestion] = []

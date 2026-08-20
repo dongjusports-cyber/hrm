@@ -1,7 +1,8 @@
 """05§5.3 — nhắc phiếu quá hạn XN + kỳ chưa khóa sau ngày trả lương."""
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
+from app.modules.attendance.engine import VN_TZ
 from app.modules.attendance.timesheet import ensure_pay_period
 from app.modules.mdm.models import Employee
 from app.modules.payroll.models import Payslip
@@ -21,7 +22,7 @@ def test_payslip_unconfirmed_alert(client, db):
 
     slip = db.query(Payslip).join(Employee).filter(Employee.employee_code == "5290").first()
     assert slip is not None
-    slip.confirm_deadline = date.today() - timedelta(days=1)
+    slip.confirm_deadline = datetime.now(tz=VN_TZ).date() - timedelta(days=1)
     db.commit()
 
     alerts = client.get("/api/ai/alerts/mine", headers=_admin_headers(client))

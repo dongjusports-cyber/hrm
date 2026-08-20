@@ -44,7 +44,7 @@ else
   FAIL=$((FAIL+1))
 fi
 check "disputes" GET /api/disputes 200
-check "insurance" GET "/api/insurance/declarations?month=2025-10" 200
+check "insurance" GET "/api/insurance/declarations?effective_month=2025-10" 200
 check "kpi" GET "/api/reports/kpi?period=2025-10" 200
 check "ai todos" GET /api/ai/todos 200
 check "ai alerts" GET /api/ai/alerts/mine 200

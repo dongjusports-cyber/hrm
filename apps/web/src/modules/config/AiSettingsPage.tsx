@@ -85,8 +85,8 @@ export function AiSettingsPage() {
       </p>
       <h1>AI Gemini (Trợ Lý AI)</h1>
       <p className="field-hint">
-        Lớp A nhắc việc = 0 token. Lớp B hỏi đáp chỉ khi người dùng có quyền hỏi AI và bấm Gửi.
-        Không hiện trên Worker Portal.
+        Lớp A nhắc việc = 0 token (chấm lẻ, phép, HĐ, chế độ, lương, BHXH, KPI).
+        Lớp B hỏi đáp chỉ khi người dùng có quyền hỏi AI và bấm Gửi. Không hiện trên Worker Portal.
       </p>
       {error && <p className="banner-warn">{error}</p>}
       {ok && <p className="banner-ok">{ok}</p>}

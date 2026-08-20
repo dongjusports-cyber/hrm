@@ -1,6 +1,25 @@
 LOI DA SUA — DJ-HRM
 ====================
 
+Đợt bàn giao HR 19/08/2026 (cuối file):
+  [QA-H001] pytest không chạy, phép CN, GET danh mục nghỉ, ESC sheet công
+  [QA-H002] dashboard KPI/overview 404 khi chưa tính lương, giờ công JSON thiếu +07
+  [ESC-K002] ESC nuốt: AG Grid editor/menu, bảng lệnh, ô tìm MSNV trong ⋮ Thêm
+  [ATT-P002] Giật tab keep-alive + sửa ô công chậm (GET cả nhà máy)
+
+Đợt Trợ Lý AI nghiệp vụ 19/08/2026:
+  [AI-G001] Chấm lẻ (Luật 01) + todo phép/chuyên cần + Hỏi AI đọc CSDL
+  [AI-P001] FAB poll 60s chạy compute_kpi; inbox light + tóm tắt hôm nay
+  [AI-P002] HR hỏi CSDL không Gemini; đếm chấm lẻ đủ 400 NV; tra cứu theo tên
+  [AI-V001] HR điện thoại nói lệnh cho AI (mic → CSDL, không tự ghi)
+            ★ GIỮ LẠI trên GitHub — chưa cần bổ sung
+  [AI-T001] AI mở / in bảng công CTY · bộ phận · MSNV (Excel, không tự sửa công)
+  [AI-P003] AI lọc + mở DS nhân viên chấm lẻ hôm qua (HR chấm tay trên lưới)
+
+Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt  →  [HR-OT8] [HR-STK]
+Hướng dẫn HR: Thien-Admin/BAN-GIAO-HR.txt
+
+
 [POL-A001] Ngưỡng chuyên cần mới (Bước A) — 2026-08-15
 ------------------------------------------------------
 Triệu chứng:
@@ -960,4 +979,199 @@ Test:
   cd apps/api && .venv/Scripts/python.exe -m pytest tests/test_attendance_get_readonly.py tests/test_timesheet.py tests/test_leave_requests_36.py tests/test_attendance_day_grid_37.py tests/test_attendance_review.py tests/test_cycle_leave.py tests/test_payroll_period_get_readonly.py tests/test_ot_external_pay.py -q
   cd apps/web && npm test -- formatDate
   cd apps/web && npx tsc -b --pretty false
+
+[QA-H001] Bàn giao HR — pytest không chạy, phép CN, GET danh mục nghỉ — 2026-08-19
+--------------------------------------------------------------------------------
+Triệu chứng:
+  `pytest` dừng ngay lúc collect vì `DEFAULT_WORKER_PASSWORD` không còn.
+  Công nhân xin phép không thấy số dư. GET `/api/attendance/leave-types`
+  gọi `seed_leave_types` + commit (ghi-on-read). Sheet chi tiết ngày công
+  vừa `closeOnEsc` vừa có ô nhập giờ.
+
+Cách xử lý:
+  - GET `/api/worker/leave-balance` (chỉ SELECT) + hiện số dư trên trang xin phép
+  - GET leave-types không seed; seed lúc `python -m app.scripts.seed`
+  - Sheet chi tiết ngày: `useSheetKeyboard` + `closeOnEsc={false}`
+  - UAT bảo hiểm: `effective_month` (không còn `?month=` bị bỏ qua)
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_worker_self_service.py tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py tests/test_leave_requests_36.py -q
+  cd apps/web && npm test -- --run
+  cd apps/web && npm test -- escKeyboard
+
+[QA-H002] Bàn giao HR — dashboard KPI 404, giờ công JSON thiếu +07 — 2026-08-19
+-------------------------------------------------------------------------------
+Triệu chứng:
+  GET `/api/reports/kpi` và `/overview` 404 khi chưa Tính lương (require_pay_period).
+  HR mở Tổng quan tháng hiện tại bị chặn. Giờ vào/ra JSON naive/Z → UI/test
+  hiểu UTC, 17:00 VN thành 00:00. Test Excel chế độ fail khi không có file.
+  `SYNC_RECALC_INLINE=0` còn trong lru_cache → ingest sau đó không rebuild công.
+
+Cách xử lý:
+  - GET KPI/overview: get_pay_period; chưa có kỳ thì lịch tháng + compute_divisor
+    (không INSERT). Cảnh báo ngưỡng KPI vẫn chỉ khi đã có kỳ.
+  - JSON giờ công: isoformat_vn (+07:00) trên AttendanceDayOut / worker / chu kỳ.
+  - Pytest: skip Excel chế độ nếu thiếu file; reset Settings mỗi test.
+  - Lọc NV ingest theo ngày tường VN (to_vn), không so sánh punch_time SQL lệch TZ.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py tests/test_kpi_thresholds.py tests/test_todos_57.py tests/test_cycle_leave.py tests/test_worker_self_service.py tests/test_timesheet.py tests/test_import_wt_regimes.py tests/test_sync_perf_claimed_job.py -q
+
+[ESC-K002] ESC nuốt — grid editor/menu, bảng lệnh, ô tìm MSNV — 2026-08-19
+-------------------------------------------------------------------------
+Triệu chứng:
+  Sửa ô lưới ngày công: ESC không hủy edit (nuốt), lần sau mới quay trang.
+  Menu cột / ô lọc AG Grid: ESC không đóng popup.
+  Ctrl+K (ô tìm autofocus rỗng): ESC chỉ blur, không đóng bảng lệnh.
+  ⋮ Thêm → tìm MSNV: ESC không đóng menu khi ô rỗng.
+  TimeInput24 `stopPropagation` mọi phím kể cả ESC.
+
+Nguyên nhân:
+  escStack hoàn tác ô nhập TRƯỚC khi nhường AG Grid → ô editor bị coi Excel,
+  preventDefault, grid không nhận ESC. Menu/lọc `.ag-menu` / `.ag-filter`
+  không nằm trong pass-through. Bảng lệnh / EmployeeCodePicker thiếu
+  `data-hotkey-search` (ô rỗng phải fallthrough overlay).
+
+Cách xử lý:
+  - Grid editor/menu/filter/popup: không chặn (nhường grid), kiểm tra TRƯỚC ô nhập.
+  - CommandPalette + EmployeeCodePicker: `data-hotkey-search` — ô rỗng 1 ESC đóng.
+  - TimeInput24: không stopPropagation khi Escape.
+  - Dialog cài PWA iOS: useEscLayer đóng hướng dẫn.
+
+Test:
+  cd apps/web && npm test -- escKeyboard
+
+[ATT-P002] Giật tab keep-alive + sửa ô công chậm (GET cả nhà máy) — 2026-08-19
+------------------------------------------------------------------------------
+Triệu chứng:
+  Vào lại Nhân Sự / Chấm Công / Tính Lương bị giật (lưới tải lại).
+  Nhập giờ tay, sửa ô Vào/Ra, gán loại nghỉ: sau mỗi ô chờ GET bảng công
+  cả nhà máy (~359 NV) dù backend đã rebuild 1 NV (ATT-P001).
+
+Nguyên nhân:
+  1) Keep-alive giữ DOM nhưng useEffect([reload, paneActive]) refetch
+     khi quay lại tab → setRows AG Grid.
+  2) Sau PATCH ô: cacheInvalidate("timesheets:") + fetchTimesheets(period)
+     không lọc MSNV. DailyGrid vừa setRows vừa applyTransaction.
+
+Cách xử lý:
+  - Keep-alive: chỉ reload khi kỳ/bộ lọc đổi, không vì paneActive.
+  - GET /api/attendance/timesheets?employee_code= — UI merge 1 dòng cache.
+  - PATCH ô / Lưu giờ / chu kỳ: không xóa cache cả kỳ; bulk/sync vẫn xóa.
+  - seed_leave_types: 1 SELECT nếu đã đủ 14 mã (không 14 db.get mỗi PATCH).
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_attendance_patch_perf.py tests/test_timesheet.py tests/test_attendance_day_grid_37.py -q
+  cd apps/web && npm test -- clientCache keepAlive
+
+[AI-G001] Trợ Lý AI nghiệp vụ HRM (Luật 01/04/05/06/07) — 2026-08-19
+--------------------------------------------------------------------
+Triệu chứng / thiếu:
+  Luật 01 bắt AI cảnh báo khi thiếu vào hoặc ra — chưa có rule Lớp A / thẻ todo /
+  câu Hỏi AI. Tổng Quan có `todo_cards` API nhưng không hiện. Tra cứu MSNV chỉ
+  hồ sơ + phiếu, không phép năm / chế độ / chấm lẻ. Tab Chấm Công từ todo không
+  mở đúng «Kiểm theo ngày» / «Duyệt phép».
+
+Cách xử lý:
+  Lớp A (0 token): `evaluate_punch_reminders` — một alert `punch_odd` / ngày
+  (source_ref punch_odd:{kỳ}:{hôm nay VN}); gọi từ list_mine + sau ingest.
+  Todo: chấm lẻ, đơn phép submitted, chuyên cần trễ/sớm ≥ 2 (Luật 04, không
+  gọi ensure_pay_period). Lớp B: tra cứu MSNV thêm phép/chế độ/công/chấm lẻ;
+  câu nhà máy (chấm lẻ, phép, HĐ, BHXH, lương, khiếu nại, chế độ, chuyên cần)
+  trả lời trực tiếp từ CSDL trừ khi hỏi phân tích. Ngày luật dùng giờ VN.
+  Web: Tổng Quan «Việc cần làm», FAB deep-link, `?view=daily|monthly|leave`.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_punch_reminders.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_todos_57.py tests/test_ai_payroll_reminders.py -q
+
+[AI-P001] Hiệu năng Trợ Lý AI + hỗ trợ HR — 2026-08-19
+-----------------------------------------------------
+Triệu chứng:
+  Nút AI poll mỗi 60s: GET /api/ai/alerts/mine (evaluate payroll/wt/punch + compute_kpi
+  cả nhà máy, 2 lần SELECT 200/500 alert) VÀ GET /api/ai/todos. Cùng pattern HR-H002:
+  GET định kỳ làm việc nặng. Hỏi AI không có tóm tắt ngày / chip gợi ý.
+
+Cách xử lý:
+  - GET /api/ai/inbox?light=true — badge 0 ghi, không KPI. FAB poll chỉ endpoint này.
+  - Mở panel: inbox đầy đủ (evaluate rule rẻ; KPI tối đa 15 phút/lần).
+  - list_mine: một SELECT 200 dòng; KPI throttle; phiếu quá hạn GROUP BY kỳ (không N+1).
+  - Lớp B: «Tóm tắt việc cần làm hôm nay»; chip gợi ý + nút Hỏi AI trên thẻ todo.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_perf.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_todos_57.py tests/test_hr_uat_matrix.py -q
+  cd apps/web && npx tsc --noEmit
+
+[AI-P002] AI 400 NV + HR hỏi theo yêu cầu — 2026-08-19
+-----------------------------------------------------
+Triệu chứng:
+  1) «Ai chấm lẻ» hiện tối đa 20 dòng và ghi «số dòng = 20» dù nhà máy có 87+ ngày lẻ.
+  2) HR gõ «Thông tin Lê Văn C» không tra CSDL (chỉ nhận MSNV số).
+  3) hr.demo thấy việc cần làm nhưng không hỏi được (thiếu `ai_query` / Gemini).
+  4) Tra cứu 1 NV còn N+1 (phép/chế độ/công/chấm lẻ từng người) + SELECT thừa sau commit.
+
+Cách xử lý:
+  - COUNT chấm lẻ/phép/HĐ… rồi hiện mẫu; câu trả lời «Tổng N, hiện 20».
+  - Parse họ tên sau thông tin/hồ sơ/tra cứu; ILIKE full_name, tối đa 5.
+  - POST /api/ai/assist: HR/chấm công/lương hỏi CSDL (direct). Chat tự do / phân tích / khiếu nại Gemini → 403, vẫn giữ POST /query 403 với hr.demo.
+  - FAB: tab Hỏi AI cho HR; hint «không gọi Gemini».
+  - Snapshot phép năm theo lô; hoist kỳ lương; không refresh AiJob sau commit.
+  - Thêm câu direct: thử việc, thôi việc tháng này.
+
+Ranh giới (Luật): AI không tự duyệt phép, không bịa giờ, không ghi lương/công.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_perf.py tests/test_ai_employee_context.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_hr_uat_matrix.py -q
+
+[AI-V001] HR nói lệnh AI trên điện thoại — 2026-08-19
+-----------------------------------------------------
+★ GIỮ LẠI trên GitHub (commit 63f10d0). CHƯA CẦN BỔ SUNG.
+  Đóng gói: Thien-Admin/13-DONG-GOI-GITHUB.txt — không viết thêm mic / giọng nói.
+
+Triệu chứng:
+  HR muốn đăng nhập bằng ĐT rồi nói «ai chấm lẻ / tóm tắt hôm nay».
+  Chưa có mic. Cổng công nhân không có Hỏi AI. Chrome cần HTTPS + micro=(self).
+
+Cách xử lý (đã xong, giữ nguyên):
+  - Nút mic trên tab Hỏi AI: Web Speech API vi-VN, nói xong gửi cùng đường /assist hoặc /query.
+  - Không tự duyệt phép / sửa giờ / tính lương — chỉ hỏi CSDL như gõ chữ.
+  - Permissions-Policy: microphone/camera/geolocation=(self) (API + nginx HTML).
+  - HTTP LAN không nghe mic được → mở https://hrm.dongju-v.com/login (không /worker).
+
+Test:
+  cd apps/web && npm test -- speechToText && npx tsc --noEmit
+  cd apps/api && .venv/bin/pytest tests/test_hardening.py -q
+
+[AI-T001] AI mở / in bảng công theo lệnh HR — 2026-08-19
+-------------------------------------------------------
+Triệu chứng:
+  HR gõ/nói «mở bảng công CTY / bộ phận SW1 / MSNV 5290» hoặc «in ra» — AI chỉ trả
+  lời chat, không mở trang Chấm Công, không có Excel bảng công tháng.
+
+Cách xử lý:
+  - Lớp B kind `timesheet_open`: parse CTY · bộ phận · MSNV · kỳ · in/xuất Excel.
+  - Deep-link `/m/timekeeping?view=monthly|daily&period=&dept=&q=`.
+  - GET `/api/attendance/timesheets/{period}/export` — Excel chỉ SELECT, 0 ghi
+    (không ensure kỳ, không rebuild). FAB tải file khi lệnh in + mở trang khi 1 href.
+  - Toolbar Chấm Công → ⋮ → Xuất Excel bảng công. Lọc bộ phận trên tổng hợp tháng.
+  - AI không tự sửa giờ / không tự tổng hợp / không window.print lưới AG Grid.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_timesheet_open.py tests/test_ai_fast_reply.py tests/test_ai_query.py tests/test_timesheet.py tests/test_attendance_get_readonly.py tests/test_hr_uat_matrix.py -q
+  cd apps/web && npm test -- timesheetUrl && npx tsc --noEmit
+
+[AI-P003] AI lọc + mở DS chấm lẻ hôm qua — 2026-08-20
+-------------------------------------------------------
+Triệu chứng:
+  HR nói «lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công» — AI chỉ liệt kê
+  chấm lẻ cả tháng, không mở lưới ngày hôm qua, không bật lọc lẻ.
+
+Cách xử lý:
+  - kind `punch_review` nhận «nhân viên lẻ / ds lẻ / hôm qua / hôm nay».
+  - Deep-link `/m/timekeeping?view=daily&date=YYYY-MM-DD&odd=1`. FAB tự mở khi có date.
+  - GET `/api/attendance/days/grid?odd_only=true` — chỉ dòng thiếu vào hoặc ra.
+  - AI không tự điền giờ (Luật 01). HR sửa Vào/Ra trên lưới.
+
+Test:
+  cd apps/api && .venv/bin/pytest tests/test_ai_punch_open.py tests/test_ai_fast_reply.py tests/test_ai_punch_reminders.py tests/test_attendance_day_grid_37.py -q
+  cd apps/web && npm test -- timesheetUrl && npx tsc --noEmit
 

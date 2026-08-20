@@ -102,6 +102,10 @@ export function TimeInput24({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") {
+        onKeyDown?.(e);
+        return;
+      }
       e.stopPropagation();
       if (e.key === ":" && value.includes(":")) e.preventDefault();
       if (e.key === "Enter") {

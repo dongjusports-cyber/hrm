@@ -113,6 +113,38 @@ def test_ai_query_employee_lookup_stub(client, db):
     assert "Kết quả tra cứu từ hệ thống" in body["answer"]
 
 
+def test_ai_query_leave_review_direct(client):
+    from tests.worker_auth import default_login_password, worker_auth_headers, worker_login_json
+
+    token = client.post(
+        "/api/worker/login",
+        json=worker_login_json("5290", default_login_password("5290")),
+    ).json()["access_token"]
+    created = client.post(
+        "/api/worker/leave-requests",
+        headers=worker_auth_headers(token, "5290"),
+        json={
+            "leave_type_code": "OFF",
+            "from_date": "2025-11-01",
+            "to_date": "2025-11-01",
+            "reason": "Nghỉ bù test AI",
+            "submit": True,
+        },
+    )
+    assert created.status_code == 200, created.text
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Đơn phép chờ duyệt"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "leave_review"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+    assert "Kết quả đơn phép" in body["answer"]
+
+
 def test_ai_query_employee_lookup_analysis_uses_stub(client, db):
     res = client.post(
         "/api/ai/query",
@@ -186,3 +218,121 @@ def test_ai_settings_admin(client):
 
     denied = client.get("/api/ai/settings", headers=_hr_headers(client))
     assert denied.status_code == 403
+
+
+def test_ai_query_employee_lookup_by_name(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.full_name = "Lê Văn C"
+    db.commit()
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Thông tin Lê Văn C"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "employee_lookup"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+    assert "Lê Văn C" in body["answer"]
+
+
+def test_ai_query_probation_list_direct(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.status = "probation"
+    db.commit()
+    res = client.post(
+        "/api/ai/query",
+        headers=_admin_headers(client),
+        json={"message": "Nhân viên thử việc"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "probation_list"
+    assert body["model_name"] == "direct"
+    assert "5290" in body["answer"]
+
+
+def test_ai_assist_hr_briefing(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Tóm tắt việc cần làm hôm nay"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "daily_briefing"
+    assert body["model_name"] == "direct"
+
+
+def test_ai_assist_hr_rejects_free_chat(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Nhà máy có bao nhiêu module Portal?"},
+    )
+    assert res.status_code == 403
+    assert "ai_query" in res.json()["detail"]
+
+
+def test_ai_assist_hr_name_lookup(client, db):
+    emp = db.query(Employee).filter(Employee.employee_code == "5290").one()
+    emp.full_name = "Lê Văn C"
+    db.commit()
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Thông tin Lê Văn C"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "employee_lookup"
+    assert "5290" in body["answer"]
+
+
+def _hrefs(body: dict) -> list[str]:
+    return [s.get("href") or "" for s in body.get("suggestions") or []]
+
+
+def test_ai_assist_open_timesheet_company(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "Mở bảng công cả công ty"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    assert body["model_name"] == "direct"
+    assert "bảng công" in body["answer"].lower()
+    hrefs = _hrefs(body)
+    assert any("/m/timekeeping" in h and "view=monthly" in h for h in hrefs)
+
+
+def test_ai_assist_print_timesheet_department(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "In bảng công bộ phận SW1 tháng 2026-08"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    hrefs = _hrefs(body)
+    assert any("dept=SW1" in h and "/m/timekeeping" in h for h in hrefs)
+    assert any("/export" in h and "department_code=SW1" in h for h in hrefs)
+
+
+def test_ai_assist_timesheet_msnv_not_profile(client):
+    res = client.post(
+        "/api/ai/assist",
+        headers=_hr_headers(client),
+        json={"message": "mở bảng công 5290"},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["kind"] == "timesheet_open"
+    assert "5290" in body["answer"]
+    hrefs = _hrefs(body)
+    assert any("q=5290" in h for h in hrefs)
+

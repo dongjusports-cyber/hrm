@@ -6,7 +6,7 @@ import {
   type AuthUser,
 } from "./authStore";
 import { getApiBase } from "./apiBase";
-import { cacheInvalidate, cachedFetch, employeesCacheKey } from "./clientCache";
+import { cacheInvalidate, cacheUpsertListItem, cachedFetch, employeesCacheKey } from "./clientCache";
 import { companyExcelFilename, filenameFromContentDisposition } from "./excelFilename";
 
 export type PortalTab = {
@@ -913,10 +913,34 @@ export type TodoCard = {
   target_module: string;
   href: string;
   priority: number;
+  ask_message?: string | null;
+};
+
+export type AiSuggestion = {
+  label: string;
+  message?: string;
+  href?: string | null;
+};
+
+export type AiInbox = {
+  unread_count: number;
+  todo_total: number;
+  light: boolean;
+  alerts: AiAlert[];
+  cards: TodoCard[];
+  suggestions: AiSuggestion[];
+  message: string;
 };
 
 export async function fetchTodos(): Promise<{ cards: TodoCard[]; total: number }> {
   const res = await apiFetch("/api/ai/todos");
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function fetchAiInbox(light = false): Promise<AiInbox> {
+  const qs = light ? "?light=true" : "";
+  const res = await apiFetch(`/api/ai/inbox${qs}`);
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
 }
@@ -2090,6 +2114,9 @@ export type TimesheetMonth = {
   ot_hours_external?: string | number;
   ot_hours_weekend: string | number;
   ot_hours_holiday: string | number;
+  department_id?: string | null;
+  department_code?: string | null;
+  department_name?: string | null;
 };
 
 export type LeaveType = {
@@ -2168,7 +2195,26 @@ export async function fetchPayPeriod(period: string): Promise<PayPeriod | null> 
   return res.json();
 }
 
-export async function fetchTimesheets(period: string): Promise<TimesheetMonth[]> {
+export async function fetchTimesheets(
+  period: string,
+  employeeCode?: string,
+): Promise<TimesheetMonth[]> {
+  const code = employeeCode?.trim();
+  if (code) {
+    const qs = new URLSearchParams({ period, employee_code: code });
+    const res = await apiFetch(`/api/attendance/timesheets?${qs}`);
+    if (!res.ok) throw new Error(await readError(res));
+    const rows = (await res.json()) as TimesheetMonth[];
+    const row = rows[0];
+    if (row) {
+      cacheUpsertListItem(
+        `timesheets:${period}`,
+        row,
+        (x) => x.id === row.id || x.employee_code === row.employee_code,
+      );
+    }
+    return rows;
+  }
   return cachedFetch(`timesheets:${period}`, async () => {
     const res = await apiFetch(`/api/attendance/timesheets?period=${encodeURIComponent(period)}`);
     if (!res.ok) throw new Error(await readError(res));
@@ -2193,6 +2239,39 @@ export async function rebuildTimesheets(period: string): Promise<{
   };
   cacheInvalidate("timesheets:");
   return data;
+}
+
+export async function exportTimesheetsExcel(opts: {
+  period: string;
+  departmentId?: string;
+  departmentCode?: string;
+  employeeCode?: string;
+}): Promise<void> {
+  const qs = new URLSearchParams();
+  if (opts.departmentId) qs.set("department_id", opts.departmentId);
+  if (opts.departmentCode) qs.set("department_code", opts.departmentCode);
+  if (opts.employeeCode) qs.set("employee_code", opts.employeeCode);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  await downloadApiHref(
+    `/api/attendance/timesheets/${encodeURIComponent(opts.period)}/export${suffix}`,
+  );
+}
+
+/** Tải file từ đường /api/... (Excel bảng công do AI hoặc toolbar). */
+export async function downloadApiHref(href: string): Promise<void> {
+  const path = href.startsWith("http") ? new URL(href).pathname + new URL(href).search : href;
+  const res = await apiFetch(path.startsWith("/api") ? path : `/api${path}`);
+  if (!res.ok) throw new Error(await readError(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filenameFromContentDisposition(
+    res.headers.get("Content-Disposition"),
+    companyExcelFilename("Bảng công"),
+  );
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Xuất Excel OT ngoài (ATM riêng) — tách khỏi bảng lương audit. */
@@ -2327,10 +2406,12 @@ export type AttendanceDayGridRow = AttendanceDay & {
 export async function fetchAttendanceDaysGrid(params: {
   date: string;
   needs_action_only?: boolean;
+  odd_only?: boolean;
   department_id?: string;
 }): Promise<AttendanceDayGridRow[]> {
   const qs = new URLSearchParams({ date: params.date });
   if (params.needs_action_only) qs.set("needs_action_only", "true");
+  if (params.odd_only) qs.set("odd_only", "true");
   if (params.department_id) qs.set("department_id", params.department_id);
   const res = await apiFetch(`/api/attendance/days/grid?${qs}`);
   if (!res.ok) throw new Error(await readError(res));
@@ -2354,7 +2435,6 @@ export async function patchAttendanceDayCell(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2471,7 +2551,6 @@ export async function patchAttendanceDayManual(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2485,7 +2564,6 @@ export async function patchAttendanceDayCycle(body: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await readError(res));
-  cacheInvalidate("timesheets:");
   return res.json();
 }
 
@@ -2606,6 +2684,7 @@ export type AiQueryResult = {
   stub: boolean;
   remaining_today: number;
   message: string;
+  suggestions?: AiSuggestion[];
 };
 
 export async function askAi(message: string, disputeId?: string): Promise<AiQueryResult> {
@@ -2615,6 +2694,15 @@ export async function askAi(message: string, disputeId?: string): Promise<AiQuer
       message,
       dispute_id: disputeId ?? null,
     }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+  return res.json();
+}
+
+export async function askAiAssist(message: string): Promise<AiQueryResult> {
+  const res = await apiFetch("/api/ai/assist", {
+    method: "POST",
+    body: JSON.stringify({ message, dispute_id: null }),
   });
   if (!res.ok) throw new Error(await readError(res));
   return res.json();
@@ -3017,6 +3105,7 @@ export type OverviewData = {
     is_read: boolean;
   }[];
   by_department: DeptKpiRow[];
+  todo_cards?: TodoCard[];
 };
 
 export async function fetchKpi(period: string): Promise<KpiPeriod> {

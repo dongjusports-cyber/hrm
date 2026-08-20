@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -134,6 +136,10 @@ def _visible_to(user: User, alert: AiAlert) -> bool:
         if user.role == "admin":
             return True
         return user.has_module("hr")
+    if alert.rule_key == "punch_odd":
+        if user.role == "admin":
+            return True
+        return user.has_module("timekeeping") or user.has_module("hr")
     if alert.rule_key.startswith("kpi_"):
         if user.role == "admin":
             return True
@@ -152,42 +158,38 @@ def evaluate_payroll_reminders(db: Session) -> None:
     from app.modules.attendance.models import PayPeriod
     from app.modules.payroll.models import Payslip
 
-    today = date.today()
+    from app.modules.attendance.engine import VN_TZ
 
-    overdue_slips = (
-        db.query(Payslip)
+    today = datetime.now(tz=VN_TZ).date()
+
+    overdue_rows = (
+        db.query(PayPeriod.year, PayPeriod.month, func.count(Payslip.id))
+        .select_from(Payslip)
+        .join(PayPeriod, PayPeriod.id == Payslip.pay_period_id)
         .filter(
             Payslip.status == "published",
             Payslip.confirm_deadline.isnot(None),
             Payslip.confirm_deadline < today,
         )
-        .limit(200)
+        .group_by(PayPeriod.year, PayPeriod.month)
         .all()
     )
-    if overdue_slips:
-        # Gom theo kỳ
-        by_period: dict[str, int] = {}
-        for s in overdue_slips:
-            pay = db.get(PayPeriod, s.pay_period_id)
-            if pay is None:
-                continue
-            key = f"{pay.year:04d}-{pay.month:02d}"
-            by_period[key] = by_period.get(key, 0) + 1
-        for period, n in by_period.items():
-            create_alert(
-                db,
-                AiAlertCreate(
-                    rule_key="payslip_unconfirmed",
-                    title=f"Trợ Lý AI: {n} phiếu kỳ {period} quá hạn xác nhận",
-                    body=(
-                        f"Có {n} phiếu đã phát hành nhưng công nhân chưa xác nhận "
-                        f"sau hạn. Vào Tính Lương / Khiếu Nại để theo dõi."
-                    ),
-                    target_module="payroll",
-                    user_id=None,
-                    source_ref=f"payslip_unconfirmed:{period}:{today.isoformat()}",
+    for year, month, n in overdue_rows:
+        period = f"{year:04d}-{month:02d}"
+        create_alert(
+            db,
+            AiAlertCreate(
+                rule_key="payslip_unconfirmed",
+                title=f"Trợ Lý AI: {n} phiếu kỳ {period} quá hạn xác nhận",
+                body=(
+                    f"Có {n} phiếu đã phát hành nhưng công nhân chưa xác nhận "
+                    f"sau hạn. Vào Tính Lương / Khiếu Nại để theo dõi."
                 ),
-            )
+                target_module="payroll",
+                user_id=None,
+                source_ref=f"payslip_unconfirmed:{period}:{today.isoformat()}",
+            ),
+        )
 
     # Kỳ chưa khóa sau ngày trả lương 08 tháng sau (10.3#1)
     periods = (
@@ -232,7 +234,9 @@ def evaluate_wt_regime_reminders(db: Session) -> None:
     """22§22.14 / Bước F — nhắc HR khi chế độ về sớm còn 3 ngày (date_to = today+3)."""
     from app.modules.mdm.models import Employee, EmployeeWtRegime
 
-    today = date.today()
+    from app.modules.attendance.engine import VN_TZ
+
+    today = datetime.now(tz=VN_TZ).date()
     target = today + timedelta(days=3)
     rows = (
         db.query(EmployeeWtRegime, Employee)
@@ -265,6 +269,39 @@ def evaluate_wt_regime_reminders(db: Session) -> None:
         )
 
 
+def evaluate_punch_reminders(db: Session) -> None:
+    """Luật 01 — thiếu vào hoặc ra: AI cảnh báo HR, không bịa giờ."""
+    from app.modules.attendance.engine import VN_TZ
+    from app.modules.attendance.review import count_odd_punches, list_odd_punches
+
+    today = datetime.now(tz=VN_TZ).date()
+    date_from = today.replace(day=1)
+    n = count_odd_punches(db, date_from, today)
+    if n <= 0:
+        return
+    rows = list_odd_punches(db, date_from, today, limit=8)
+    sample = ", ".join(
+        f"{emp.employee_code} {day.work_date.strftime('%d/%m')}" for day, emp in rows
+    )
+    more = "" if n <= 8 else f" … (+{n - 8})"
+    period = f"{today.year:04d}-{today.month:02d}"
+    create_alert(
+        db,
+        AiAlertCreate(
+            rule_key="punch_odd",
+            title=f"Trợ Lý AI: {n} dòng chấm lẻ kỳ {period} (thiếu vào hoặc ra)",
+            body=(
+                f"Có {n} ngày công chỉ có một mốc — không tự bịa giờ, chưa tính công/trễ/sớm. "
+                f"HR gọi NV lập biên bản rồi chấm tay đủ cặp. "
+                f"Ví dụ: {sample}{more}."
+            ),
+            target_module="timekeeping",
+            user_id=None,
+            source_ref=f"punch_odd:{period}:{today.isoformat()}",
+        ),
+    )
+
+
 def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> None:
     """04§4.6 / 02§2.4 — cảnh báo khi KPI kỳ vượt ngưỡng policy."""
     from app.modules.attendance.models import PayPeriod
@@ -277,7 +314,9 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
         y_s, m_s = period.split("-", 1)
         y, m = int(y_s), int(m_s)
     else:
-        today = date.today()
+        from app.modules.attendance.engine import VN_TZ
+
+        today = datetime.now(tz=VN_TZ).date()
         y, m = today.year, today.month
         if m == 1:
             y, m = y - 1, 12
@@ -387,23 +426,63 @@ def evaluate_kpi_threshold_alerts(db: Session, *, period: str | None = None) -> 
         )
 
 
-def list_mine(db: Session, user: User, *, unread_only: bool = False, limit: int = 50) -> AiAlertsMineOut:
-    # Lazy rule engine (0 token) — 05§5.3
-    try:
-        evaluate_payroll_reminders(db)
-        evaluate_wt_regime_reminders(db)
-        evaluate_kpi_threshold_alerts(db)
-    except Exception:  # noqa: BLE001 — không chặn badge nếu rule lỗi
-        pass
-    q = db.query(AiAlert).order_by(AiAlert.created_at.desc()).limit(200)
-    rows = [r for r in q.all() if _visible_to(user, r)]
+_KPI_EVAL_MONO = 0.0
+KPI_EVAL_EVERY_SEC = 900.0
+
+
+def reset_kpi_eval_throttle_for_tests() -> None:
+    global _KPI_EVAL_MONO
+    _KPI_EVAL_MONO = 0.0
+
+
+def evaluate_kpi_threshold_alerts_throttled(
+    db: Session, *, period: str | None = None, min_interval_sec: float = KPI_EVAL_EVERY_SEC
+) -> None:
+    """KPI quét cả nhà máy — không chạy mỗi lần FAB poll 60s."""
+    global _KPI_EVAL_MONO
+    now = time.monotonic()
+    if min_interval_sec > 0 and now - _KPI_EVAL_MONO < min_interval_sec:
+        return
+    evaluate_kpi_threshold_alerts(db, period=period)
+    _KPI_EVAL_MONO = now
+
+
+def count_unread_visible(db: Session, user: User, *, scan_limit: int = 200) -> int:
+    """Đếm unread trong cửa sổ gần nhất — một SELECT, không evaluate rule."""
+    rows = (
+        db.query(AiAlert)
+        .filter(AiAlert.is_read.is_(False))
+        .order_by(AiAlert.created_at.desc())
+        .limit(scan_limit)
+        .all()
+    )
+    return sum(1 for r in rows if _visible_to(user, r))
+
+
+def list_mine(
+    db: Session,
+    user: User,
+    *,
+    unread_only: bool = False,
+    limit: int = 50,
+    evaluate: bool = True,
+) -> AiAlertsMineOut:
+    # Lazy rule engine (0 token) — 05§5.3. KPI throttled (compute_kpi nặng).
+    if evaluate:
+        try:
+            evaluate_payroll_reminders(db)
+            evaluate_wt_regime_reminders(db)
+            evaluate_punch_reminders(db)
+            evaluate_kpi_threshold_alerts_throttled(db)
+        except Exception:  # noqa: BLE001 — không chặn badge nếu rule lỗi
+            pass
+    fetched = db.query(AiAlert).order_by(AiAlert.created_at.desc()).limit(200).all()
+    visible = [r for r in fetched if _visible_to(user, r)]
+    unread_total = sum(1 for r in visible if not r.is_read)
+    rows = visible
     if unread_only:
         rows = [r for r in rows if not r.is_read]
     rows = rows[:limit]
-    unread = sum(1 for r in rows if not r.is_read)
-    # unread_count phải đếm toàn bộ visible unread, không chỉ trong page
-    all_visible = [r for r in db.query(AiAlert).order_by(AiAlert.created_at.desc()).limit(500).all() if _visible_to(user, r)]
-    unread_total = sum(1 for r in all_visible if not r.is_read)
     return AiAlertsMineOut(unread_count=unread_total, alerts=[_to_out(r) for r in rows])
 
 

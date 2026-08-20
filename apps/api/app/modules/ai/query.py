@@ -10,8 +10,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.modules.ai.employee_context import build_employee_context
-from app.modules.ai.fast_reply import format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.fast_reply import detect_ops_kind, format_employee_lookup_answer, wants_llm_analysis
+from app.modules.ai.inbox import followups_for_kind
+from app.modules.ai.ops_query import OPS_DIRECT_KINDS, resolve_ops_query
 from app.modules.ai.provider import ProviderResult
+from app.modules.ai.schemas import AiSuggestion, AiQueryRequest, AiQueryResponse
 from app.modules.ai.vi_labels import (
     label_ai_mode,
     label_dispute_status,
@@ -20,7 +23,6 @@ from app.modules.ai.vi_labels import (
 )
 from app.modules.ai.models import AiJob
 from app.modules.ai.provider import SYSTEM_PROMPT_BASE, generate_text, resolve_api_key
-from app.modules.ai.schemas import AiQueryRequest, AiQueryResponse
 from app.modules.ai.settings_svc import ensure_settings
 from app.modules.attendance.models import PayPeriod, TimesheetMonth
 from app.modules.core.models import User
@@ -98,8 +100,48 @@ def _dispute_context(db: Session, dispute_id: UUID) -> tuple[Dispute, str]:
     return d, "\n".join(lines)
 
 
-def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryResponse:
-    if not user.has_permission("ai_query"):
+_ASSIST_MODULES = ("hr", "timekeeping", "payroll")
+_ASSIST_NEED_GEMINI = (
+    "Câu này cần quyền hỏi Gemini (`ai_query`). "
+    "HR tra cứu CSDL được: tóm tắt hôm nay, thông tin NV (MSNV hoặc họ tên), "
+    "mở/in bảng công (CTY · bộ phận · MSNV), lọc chấm lẻ hôm qua, "
+    "chấm lẻ, đơn phép, hợp đồng hết hạn, thử việc, thôi việc tháng này, "
+    "BHXH, phiếu lương, khiếu nại, chế độ về sớm, chuyên cần."
+)
+
+
+def user_can_hr_assist(user: User) -> bool:
+    """HR/chấm công/lương được hỏi CSDL — không cần Gemini."""
+    if user.role == "admin":
+        return True
+    return any(user.has_module(m) for m in _ASSIST_MODULES)
+
+
+def run_ai_query(
+    db: Session,
+    user: User,
+    body: AiQueryRequest,
+    *,
+    direct_only: bool = False,
+) -> AiQueryResponse:
+    if direct_only:
+        if not user_can_hr_assist(user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trợ Lý AI xin chào {user.full_name}, bạn không có quyền tra cứu CSDL. "
+                    "Cần module Nhân sự, Chấm công hoặc Lương."
+                ),
+            )
+        if body.dispute_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Trợ Lý AI xin chào {user.full_name}, "
+                    "rà soát khiếu nại bằng Gemini cần quyền `ai_query`."
+                ),
+            )
+    elif not user.has_permission("ai_query"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -109,7 +151,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         )
 
     cfg = ensure_settings(db)
-    if not cfg.enabled:
+    if not direct_only and not cfg.enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Trợ Lý AI: Admin đã tắt Gemini. Bật lại tại Cấu Hình → AI Gemini.",
@@ -144,12 +186,24 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
             message = f"Rà soát khiếu nại {dispute.code}: phân tích lệch công/OT/phụ cấp và đề xuất bước tiếp theo cho HR."
 
     emp_codes: list[str] = []
+    extra_suggestions: list[AiSuggestion] = []
     if not context_block and message:
-        emp_codes, emp_ctx = build_employee_context(db, user, message)
-        if emp_ctx:
-            context_block = emp_ctx
-            if emp_codes:
-                kind = "employee_lookup"
+        if detect_ops_kind(message) in ("timesheet_open", "punch_review"):
+            ops_kind, ops_ctx, extra_suggestions = resolve_ops_query(db, user, message)
+            if ops_ctx:
+                context_block = ops_ctx
+                kind = ops_kind
+        if not context_block:
+            emp_codes, emp_ctx = build_employee_context(db, user, message)
+            if emp_ctx:
+                context_block = emp_ctx
+                if emp_codes:
+                    kind = "employee_lookup"
+            else:
+                ops_kind, ops_ctx, extra_suggestions = resolve_ops_query(db, user, message)
+                if ops_ctx:
+                    context_block = ops_ctx
+                    kind = ops_kind
 
     if not message:
         raise HTTPException(
@@ -163,8 +217,15 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         + f"### Câu hỏi\n{message}"
     )
 
+    if direct_only:
+        if wants_llm_analysis(message) or kind not in OPS_DIRECT_KINDS or not context_block:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Trợ Lý AI xin chào {user.full_name}. {_ASSIST_NEED_GEMINI}",
+            )
+
     direct = False
-    if kind == "employee_lookup" and context_block and not wants_llm_analysis(message):
+    if kind in OPS_DIRECT_KINDS and context_block and not wants_llm_analysis(message):
         result = ProviderResult(
             text=format_employee_lookup_answer(context_block),
             model_name="direct",
@@ -174,7 +235,7 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
     else:
         api_key = resolve_api_key(cfg.api_key_encrypted)
         max_tokens = cfg.max_output_tokens
-        if kind == "employee_lookup":
+        if kind in OPS_DIRECT_KINDS:
             max_tokens = min(max_tokens, 384)
         try:
             result = generate_text(
@@ -207,16 +268,19 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
         if dispute.status == "open":
             dispute.status = "ai_reviewed"
 
+    db.flush()
+    job_id = job.id
+    dispute_id = dispute.id if dispute else None
+    dispute_code = dispute.code if dispute else None
     db.commit()
-    db.refresh(job)
 
     remaining = max(0, cfg.max_queries_per_day - used - 1)
     return AiQueryResponse(
         answer=result.text,
         kind=kind,
-        job_id=job.id,
-        dispute_id=dispute.id if dispute else None,
-        dispute_code=dispute.code if dispute else None,
+        job_id=job_id,
+        dispute_id=dispute_id,
+        dispute_code=dispute_code,
         model_name=result.model_name,
         tokens_in=result.tokens_in,
         tokens_out=result.tokens_out,
@@ -226,4 +290,5 @@ def run_ai_query(db: Session, user: User, body: AiQueryRequest) -> AiQueryRespon
             f"Trợ Lý AI xin chào {user.full_name}, đã trả lời "
             f"({label_ai_mode(stub=result.stub, direct=direct)}). Còn {remaining} câu hôm nay."
         ),
+        suggestions=extra_suggestions or followups_for_kind(kind),
     )

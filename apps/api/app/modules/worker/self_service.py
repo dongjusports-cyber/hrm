@@ -11,9 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.attendance.annual_leave_ledger import (
     annual_leave_remaining,
-    entitled_days_for,
+    annual_leave_snapshot,
     pending_submitted_days,
-    sync_accrual,
 )
 from app.modules.attendance.engine import VN_TZ, to_vn
 from app.modules.attendance.models import AttendanceDay, TimesheetMonth
@@ -38,17 +37,17 @@ def _require_employee(db: Session, worker: User) -> Employee:
 
 
 def get_leave_balance(db: Session, worker: User, as_of: date | None = None) -> WorkerLeaveBalanceOut:
+    """GET số dư phép — chỉ SELECT, không ghi sổ (HR-H002)."""
     emp = _require_employee(db, worker)
     as_of = as_of or date.today()
-    ledger = sync_accrual(db, emp, as_of)
+    snap = annual_leave_snapshot(db, emp.id, as_of)
     pending = pending_submitted_days(db, emp.id, as_of.year)
     remaining = annual_leave_remaining(db, emp.id, as_of)
-    days_per_year = entitled_days_for(db, emp, as_of)
     return WorkerLeaveBalanceOut(
         year=as_of.year,
-        days_per_year=days_per_year,
-        accrued=ledger.accrued,
-        used=ledger.used,
+        days_per_year=snap.entitled,
+        accrued=snap.current,
+        used=snap.used,
         pending_submitted=pending,
         remaining=remaining,
     )
@@ -130,8 +129,8 @@ def get_attendance_month(
             day_out.append(
                 WorkerAttendanceDayOut(
                     work_date=d.work_date,
-                    first_in=d.first_in,
-                    last_out=d.last_out,
+                    first_in=to_vn(d.first_in) if d.first_in else None,
+                    last_out=to_vn(d.last_out) if d.last_out else None,
                     worked_hours=d.worked_hours,
                     late_minutes=d.late_minutes,
                     early_minutes=d.early_minutes,

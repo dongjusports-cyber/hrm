@@ -57,6 +57,12 @@ def test_kpi_threshold_alerts(client, db):
     headers = _admin_headers(client)
     assert client.get("/api/reports/kpi?period=2025-10", headers=headers).status_code == 200
 
+    # GET không tạo kỳ; cảnh báo KPI cần kỳ đã có (POST tính lương / tổng hợp công).
+    from app.modules.attendance.timesheet import ensure_pay_period
+
+    ensure_pay_period(db, "2025-10")
+    db.commit()
+
     evaluate_kpi_threshold_alerts(db, period="2025-10")
     alerts = client.get("/api/ai/alerts/mine", headers=headers)
     assert alerts.status_code == 200

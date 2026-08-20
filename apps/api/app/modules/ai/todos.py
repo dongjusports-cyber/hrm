@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.modules.ai.schemas import TodoCardOut, TodosOut
+from app.modules.attendance.engine import VN_TZ
+from app.modules.attendance.models import LeaveRequest, TimesheetMonth
+from app.modules.attendance.review import count_odd_punches
+from app.modules.attendance.timesheet import get_pay_period
 from app.modules.core.models import User
 from app.modules.dispute.models import Dispute
 from app.modules.dispute.service import OPEN_STATUSES
@@ -22,8 +27,66 @@ def _can_see(user: User, module: str) -> bool:
 
 
 def compute_todo_cards(db: Session, user: User) -> TodosOut:
-    today = date.today()
+    today = datetime.now(tz=VN_TZ).date()
     cards: list[TodoCardOut] = []
+
+    if _can_see(user, "timekeeping") or _can_see(user, "hr"):
+        month_start = today.replace(day=1)
+        odd_n = count_odd_punches(db, month_start, today)
+        if odd_n > 0:
+            cards.append(
+                TodoCardOut(
+                    key="punch_odd_current",
+                    title=f"{odd_n} ngày công chấm lẻ (thiếu vào hoặc ra)",
+                    body="Không tự bịa giờ. Gọi NV lập biên bản, rồi chấm tay đủ cặp trên lưới ngày.",
+                    count=odd_n,
+                    target_module="timekeeping",
+                    href="/m/timekeeping?view=daily",
+                    ask_message="Ai chấm lẻ tháng này",
+                    priority=8,
+                )
+            )
+        pending_leave = (
+            db.query(LeaveRequest).filter(LeaveRequest.status == "submitted").count()
+        )
+        if pending_leave > 0:
+            cards.append(
+                TodoCardOut(
+                    key="leave_requests_pending",
+                    title=f"{pending_leave} đơn phép chờ duyệt",
+                    body="Công nhân gửi từ điện thoại — duyệt hoặc từ chối trên Chấm Công.",
+                    count=pending_leave,
+                    target_module="timekeeping",
+                    href="/m/timekeeping?view=leave",
+                    ask_message="Đơn phép chờ duyệt",
+                    priority=9,
+                )
+            )
+
+        period = f"{today.year:04d}-{today.month:02d}"
+        pay = get_pay_period(db, period)
+        if pay is not None:
+            risk_n = (
+                db.query(TimesheetMonth)
+                .filter(
+                    TimesheetMonth.pay_period_id == pay.id,
+                    or_(TimesheetMonth.late_count >= 2, TimesheetMonth.early_count >= 2),
+                )
+                .count()
+            )
+            if risk_n > 0:
+                cards.append(
+                    TodoCardOut(
+                        key="attendance_penalty_risk",
+                        title=f"{risk_n} NV sắp phạt chuyên cần (trễ/sớm ≥ 2)",
+                        body="Luật 04: trễ ≥ 2 hoặc sớm ≥ 2 còn 50%; ≥ 5 lần hoặc có vắng = 0%. Ngày chấm lẻ không đếm.",
+                        count=risk_n,
+                        target_module="timekeeping",
+                        href="/m/timekeeping?view=monthly",
+                        ask_message="Sắp mất chuyên cần",
+                        priority=11,
+                    )
+                )
 
     if _can_see(user, "hr"):
         deadline = today + timedelta(days=60)
@@ -47,6 +110,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=expiring,
                     target_module="hr",
                     href="/m/hr/contracts",
+                    ask_message="Hợp đồng sắp hết hạn",
                     priority=10,
                 )
             )
@@ -71,6 +135,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=expiring_wt,
                     target_module="hr",
                     href="/m/hr/lists/special_regime",
+                    ask_message="Chế độ sắp hết hạn",
                     priority=12,
                 )
             )
@@ -93,6 +158,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=unconfirmed,
                     target_module="payroll",
                     href="/m/payroll",
+                    ask_message="Phiếu lương chưa xác nhận",
                     priority=20,
                 )
             )
@@ -108,6 +174,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=open_disputes,
                     target_module="dispute",
                     href="/m/dispute",
+                    ask_message="Danh sách khiếu nại đang mở",
                     priority=30,
                 )
             )
@@ -131,6 +198,7 @@ def compute_todo_cards(db: Session, user: User) -> TodosOut:
                     count=pending_bhxh,
                     target_module="insurance",
                     href="/m/insurance",
+                    ask_message="Báo BHXH tháng này chưa nộp",
                     priority=15,
                 )
             )

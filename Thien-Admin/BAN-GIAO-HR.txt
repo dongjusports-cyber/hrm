@@ -1,5 +1,8 @@
-BAN GIAO HR — DJ-HRM (Cloud test 17/08/2026)
+BAN GIAO HR — DJ-HRM (cập nhật QA 20/08/2026)
 ============================================
+
+Đóng gói GitHub 20/08: Thien-Admin/13-DONG-GOI-GITHUB.txt
+[AI-V001] AI giọng nói — GIỮ LẠI trên GitHub, chưa cần bổ sung.
 
 Portal: http://127.0.0.1:5173  (máy .123 / VPS: https://hrm.dongju-v.com)
 Tài khoản HR:  hr.demo
@@ -9,20 +12,69 @@ Công nhân mẫu: MSNV 5290 (lần đầu bắt buộc đổi mật khẩu mớ
 Đọc mật khẩu: ops/THONG_TIN_VPS.txt hoặc Thien-Admin/DOC_BAT_DAU.txt (máy .123).
 Không gửi mật khẩu qua chat/zalo.
 
---------------------------------------------------------------------------------
-KẾT QUẢ TEST BÀN GIAO
---------------------------------------------------------------------------------
-API pytest:     472 passed, 1 skipped
-Web vitest:     61 passed (gồm ESC)
-UAT hr.demo:    ma trận GET 7 module + 403 Cấu Hình — passed
-Quy trình kín:  tạo NV / thôi việc / phép / thai sản / chấm công / tính lương /
-                phiếu / phát hành — passed (MSNV 9415)
+Lỗi ĐÃ SỬA: Thien-Admin/LOI-DA-SUA.txt
+Nợ CHƯA sửa: Thien-Admin/NO-KY-THUAT.txt
 
-Live Cloud (hr.demo):
-  362 NV, kỳ 2026-08 ĐÃ PHÁT HÀNH
-  Tổng Quan ?period=2026-08 → 200
-  Chấm công lưới ngày / tổng hợp tháng → 200
+--------------------------------------------------------------------------------
+KẾT QUẢ TEST BÀN GIAO (19/08/2026)
+--------------------------------------------------------------------------------
+API pytest:     607 passed, 2 skipped
+Web vitest:     112 passed (gồm 19 ESC)
+tsc web:        sạch
+UAT hr.demo:    16/16 live + ma trận GET 7 module + 403 Cấu Hình
+
+Live Cloud (hr.demo) 19/08:
+  Tổng Quan / KPI kỳ 2026-08 → 200 (kể cả khi chưa có kỳ lương)
+  GET kỳ lương 2099-01 → 404 (không tự tạo kỳ)
+  Danh mục nghỉ sau seed → 14 loại (ALE, FLE, …)
+
+Đợt 17/08 (còn đúng, không làm lại):
+  Quy trình kín tạo NV / thôi việc / phép / thai sản / chấm công / tính lương /
+  phiếu / phát hành — passed (MSNV 9415)
   Phiếu 9415: Công 3 · AL 1 · WD 600.000 · ALE 200.000 · thực lãnh 425.285
+
+--------------------------------------------------------------------------------
+LỖI TÌM ĐƯỢC KHI RÀ SOÁT 19/08 — ĐÃ SỬA
+--------------------------------------------------------------------------------
+Chi tiết trong LOI-DA-SUA.txt:
+
+  [QA-H001] pytest không collect (mật khẩu CN cũ)
+            Công nhân xin phép không thấy số dư phép năm
+            GET danh mục nghỉ tự ghi DB
+            ESC sheet chi tiết ngày đóng khi đang nhập giờ
+            UAT BHXH sai query ?month=
+
+  [QA-H002] Tổng Quan / KPI 404 khi chưa bấm Tính lương
+            Giờ Vào/Ra JSON thiếu +07:00 (17:00 thành 00:00)
+            Ingest công 0 dòng vì cache Settings giữa các test
+
+  [ATT-P002] Vào lại tab Nhân Sự/Chấm Công/Lương bị giật (refetch keep-alive)
+            Sửa ô công / gán nghỉ: GET timesheet cả nhà máy sau mỗi ô
+
+  [AI-G001] Trợ Lý AI (nút AI góc màn):
+            - Việc cần làm: chấm lẻ (thiếu vào/ra), đơn phép chờ, HĐ 60 ngày,
+              chế độ T−3, phiếu chưa XN, khiếu nại, BHXH, nguy cơ chuyên cần
+            - Tổng Quan cũng hiện các thẻ đó (bấm được)
+            - Hỏi AI: «Tóm tắt việc cần làm hôm nay», «Ai chấm lẻ»,
+              «Thông tin MSNV 5290» / «Thông tin Lê Văn C», thử việc, thôi việc tháng này
+              — đọc CSDL, không bịa giờ, không tự sửa phép/lương
+            - Chip gợi ý + nút Hỏi AI trên thẻ việc
+            - hr.demo: tab Hỏi AI tra cứu CSDL (không Gemini). Chat phân tích cần Admin cấp `ai_query`.
+            - POST /api/ai/query vẫn 403 với hr.demo (Gemini)
+
+  [AI-P001] Nút AI không còn kéo KPI cả nhà máy mỗi 60 giây (poll inbox nhẹ)
+  [AI-P002] Đếm chấm lẻ đủ số thật (~400 NV); HR hỏi theo tên; /assist không Gemini
+  [AI-V001] HR ĐT: Portal /login → nút AI → mic nói lệnh (Chrome/HTTPS). Không tự sửa CSDL.
+            ★ GIỮ LẠI trên GitHub — chưa cần bổ sung mic / giọng nói.
+  [AI-T001] Nói/gõ «mở bảng công» (CTY / bộ phận / MSNV) hoặc «in bảng công» → mở Chấm Công + Excel.
+  [AI-P003] «Lọc và mở ds nhân viên lẻ hôm qua» → lưới ngày hôm qua, chỉ chấm lẻ. AI không tự điền giờ.
+
+--------------------------------------------------------------------------------
+NỢ CHƯA SỬA (không phải bug code — chờ thao tác VPS)
+--------------------------------------------------------------------------------
+  [HR-OT8]  Sau deploy: Chấm công → kỳ đang dùng → tính lại ngày /
+            tổng hợp bảng công → mới xuất Excel (luật OT cổng 17:30 / Cooker)
+  [HR-STK]  Script nạp STK / lương HĐ từ Excel — chưa --apply trên VPS
 
 --------------------------------------------------------------------------------
 HR LÀM GÌ HÀNG NGÀY (thứ tự)
@@ -42,7 +94,8 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - Kiểm theo ngày: sửa Vào/Ra, gán phép năm (ALE)
    - Tổng hợp tháng: cột Công / Phép năm
    - Tab Duyệt phép: đơn công nhân gửi từ điện thoại
-   - ESC trong ô giờ = hoàn tác + thoát ô, không đóng trang
+   - ESC trong ô giờ = hoàn tác + thoát ô, không đóng sheet/trang
+   - Công nhân (điện thoại): trang xin phép hiện số dư phép năm
 
 4. Tính Lương (kỳ YYYY-MM)
    - Tính lương (Admin mở lại kỳ nếu đã phát hành)
@@ -52,9 +105,20 @@ HR LÀM GÌ HÀNG NGÀY (thứ tự)
    - Phép năm trả 100% qua dòng ALE, KHÔNG cộng vào WD
    - BHXH trừ cả tháng nếu NV đang đóng (dù ít ngày công → có thể âm)
 
-5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan
-   - Tổng Quan chọn kỳ tháng
+5. Bảo Hiểm Thuế / Khiếu nại / Tổng Quan / Trợ Lý AI
+   - Tổng Quan chọn kỳ tháng — chưa Tính lương vẫn mở được (todo, KPI 0 công)
    - Khiếu nại: danh sách đơn công nhân
+   - Nút AI: Việc cần làm (0 token). HR hỏi «Tóm tắt hôm nay», «Ai chấm lẻ»,
+     «Thông tin [họ tên/MSNV]» từ CSDL (không Gemini). Thiếu chấm vào/ra
+     → gọi NV lập biên bản, rồi chấm tay đủ cặp — không bịa giờ.
+   - Điện thoại HR: mở https://hrm.dongju-v.com/login (không cổng /worker).
+     Tab Hỏi AI → nút mic → nói tiếng Việt (vd. «ai chấm lẻ tháng này»).
+     «Mở bảng công cả công ty», «in bảng công bộ phận May 1», «mở bảng công 5290»
+     → mở tổng hợp tháng (lọc đúng) và tải Excel nếu nói in/xuất.
+     «Lọc và mở ds nhân viên lẻ hôm qua để tôi chấm công» → lưới ngày hôm qua,
+     chỉ dòng thiếu vào/ra. AI không tự điền giờ — HR sửa trên lưới.
+     Cần Chrome/Edge Android hoặc Safari iOS mới + cho phép micro + HTTPS.
+     Giọng nói = hỏi CSDL, không tự duyệt phép / sửa công / tính lương.
 
 --------------------------------------------------------------------------------
 MSNV KIỂM TRA SẴN TRÊN CLOUD
@@ -87,7 +151,10 @@ BIẾT TRƯỚC (không phải lỗi phần mềm)
 NẾU LỖI
 --------------------------------------------------------------------------------
 Portal khóa pass 3 lần: Thien-Admin\03-MO-KHOA-PORTAL.bat
-Tổng Quan trắng: gọi GET /api/reports/overview?period=YYYY-MM (cần query period)
-ESC: rule khóa — không tự gắn listener Escape mới.
+Danh mục nghỉ trống (không có ALE): chạy seed — python -m app.scripts.seed
+  (GET không tự tạo danh mục; Cloud start.sh đã seed)
+Tổng Quan: luôn truyền ?period=YYYY-MM; chưa tính lương vẫn 200 (QA-H002)
+ESC: ô giờ = hoàn tác+blur; ô tìm rỗng / Ctrl+K rỗng = đóng hoặc quay trang 1 lần.
+  Menu/lọc lưới AG Grid: ESC đóng popup (không quay trang). Không tự gắn listener Escape.
 
 Sáng đồng bộ VPS: Thien-Admin\02-DONG-BO-SANG.bat

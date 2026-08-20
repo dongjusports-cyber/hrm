@@ -10,10 +10,12 @@ from app.modules.ai import query as query_svc
 from app.modules.ai import service
 from app.modules.ai import settings_svc
 from app.modules.ai import todos as todos_svc
+from app.modules.ai import inbox as inbox_svc
 from app.modules.ai.schemas import (
     AiAlertCreate,
     AiAlertOut,
     AiAlertsMineOut,
+    AiInboxOut,
     AiQueryRequest,
     AiQueryResponse,
     AiSettingsOut,
@@ -38,6 +40,16 @@ def alerts_mine(
 def todos_mine(user: CurrentUser, db: DbSession) -> TodosOut:
     """Thẻ việc cần làm theo vai trò (5.7)."""
     return todos_svc.compute_todo_cards(db, user)
+
+
+@router.get("/inbox", response_model=AiInboxOut)
+def ai_inbox(
+    user: CurrentUser,
+    db: DbSession,
+    light: Annotated[bool, Query()] = False,
+) -> AiInboxOut:
+    """Một GET: badge (light) hoặc việc cần làm + gợi ý hỏi (đầy đủ)."""
+    return inbox_svc.build_inbox(db, user, light=light, evaluate=not light)
 
 
 @router.post("/alerts/{alert_id}/read", response_model=AiAlertOut)
@@ -68,6 +80,16 @@ def ai_query(
 ) -> AiQueryResponse:
     """Lớp B — Gemini on-demand. Chỉ user có ai_query; không trên Worker."""
     return query_svc.run_ai_query(db, user, body)
+
+
+@router.post("/assist", response_model=AiQueryResponse)
+def ai_assist(
+    body: AiQueryRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> AiQueryResponse:
+    """HR tra cứu CSDL (không Gemini). Câu phân tích / chat tự do cần `ai_query`."""
+    return query_svc.run_ai_query(db, user, body, direct_only=True)
 
 
 @router.get("/settings", response_model=AiSettingsOut)

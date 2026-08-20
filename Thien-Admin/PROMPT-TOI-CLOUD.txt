@@ -19,3 +19,5 @@ Git:
 - Nếu all tests pass và không đổi gì: báo "All tests passed, no changes" — không mở PR rỗng
 
 Cấm: force push, xóa file hàng loạt, migration production không có test.
+Cấm: bổ sung tính năng AI giọng nói / mic — [AI-V001] đã GIỮ LẠI trên GitHub
+     (Thien-Admin/13-DONG-GOI-GITHUB.txt). Không viết thêm.

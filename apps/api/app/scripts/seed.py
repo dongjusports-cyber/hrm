@@ -11,6 +11,8 @@ from app.modules.calendar import models as calendar_models  # noqa: F401
 from app.modules.calendar.service import seed_calendar
 from app.modules.mdm import models as mdm_models  # noqa: F401
 from app.modules.mdm.service import seed_mdm
+from app.modules.attendance.seed_shifts import assign_default_shift_to_teams, seed_work_shifts
+from app.modules.attendance.timesheet import seed_leave_types
 from app.modules.worker.service import default_password_from_cccd, seed_worker_accounts
 from app.modules.dispute import models as dispute_models  # noqa: F401
 from app.modules.payroll import models as payroll_models  # noqa: F401
@@ -34,6 +36,9 @@ def main() -> None:
         pkg = seed_default_package(db)
         seed_calendar(db)
         mdm = seed_mdm(db)
+        seed_leave_types(db)
+        seed_work_shifts(db)
+        assign_default_shift_to_teams(db)
         workers = seed_worker_accounts(db)
         print("Seed xong:", result, "policy=", pkg.name, "mdm=", mdm, "workers=", workers)
         print("Admin đăng nhập bằng ADMIN_USERNAME / ADMIN_PASSWORD trong .env")

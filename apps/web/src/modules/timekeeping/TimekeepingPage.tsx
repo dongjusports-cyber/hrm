@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef, GridApi, IRowNode, RowClickedEvent } from "ag-grid-community";
 import {
@@ -10,6 +11,7 @@ import {
   fetchLeaveTypes,
   fetchPayPeriod,
   fetchTimesheets,
+  exportTimesheetsExcel,
   patchAttendanceDayCell,
   patchAttendanceDayCycle,
   patchAttendanceDayManual,
@@ -27,9 +29,9 @@ import { AG_GRID_DEFAULT_COL_DEF, AG_GRID_LOCALE_VI } from "../../shared/agGridV
 import { createAgGridColumnPrefs } from "../../shared/agGridColumnPrefs";
 import { formatDateDDMMYYYY, formatTimeHHMM, currentPayPeriod, payPeriodStartDate, payPeriodDateBounds, todayIsoDateVN } from "../../shared/formatDate";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
+import { useSheetKeyboard } from "../../shared/formFieldEsc";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
-import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { formatOtHours } from "../../shared/formatOtHours";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
@@ -55,6 +57,7 @@ import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 import { cacheInvalidate } from "../../shared/clientCache";
+import { parseTimesheetSearch } from "../../shared/timesheetUrl";
 
 type MainView = "daily" | "monthly" | "leave";
 
@@ -203,8 +206,14 @@ function buildCalendar(
 }
 
 export function TimekeepingPage() {
-  const paneActive = useKeepAlivePaneActive();
-  const [period, setPeriod] = useState(defaultPeriod);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [period, setPeriod] = useState(() => {
+    const parsed = parseTimesheetSearch(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    return parsed.period || (parsed.date ? parsed.date.slice(0, 7) : defaultPeriod());
+  });
   const [q, setQ] = useState("");
   const typedQRef = useRef("");
   const [searchReset, setSearchReset] = useState(0);
@@ -231,12 +240,38 @@ export function TimekeepingPage() {
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
   const [fixCycle, setFixCycle] = useState(false);
   const [gridDate, setGridDate] = useState(() => {
-    const p = defaultPeriod();
+    const parsed = parseTimesheetSearch(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    if (parsed.date) return parsed.date;
+    const p = parsed.period || defaultPeriod();
     const today = todayIsoDateVN();
     return today.slice(0, 7) === p ? today : payPeriodStartDate(p);
   });
   const [dailyGridRefresh, setDailyGridRefresh] = useState(0);
-  const [mainView, setMainView] = useState<MainView>("daily");
+  const [mainView, setMainView] = useState<MainView>(
+    () => parseTimesheetSearch(typeof window !== "undefined" ? window.location.search : "").view ?? "daily",
+  );
+  useEffect(() => {
+    if (!location.pathname.startsWith("/m/timekeeping")) return;
+    const parsed = parseTimesheetSearch(location.search);
+    if (parsed.view) setMainView(parsed.view);
+    if (parsed.period) {
+      setPeriod(parsed.period);
+      if (!parsed.date) {
+        const today = todayIsoDateVN();
+        setGridDate(today.slice(0, 7) === parsed.period ? today : `${parsed.period}-01`);
+      }
+    }
+    if (parsed.date) {
+      setGridDate(parsed.date);
+      if (!parsed.period) setPeriod(parsed.date.slice(0, 7));
+    }
+    if (parsed.q) {
+      typedQRef.current = parsed.q;
+      setQ(parsed.q);
+    }
+  }, [location.pathname, location.search]);
   const [otExternalOpen, setOtExternalOpen] = useState(false);
   const [cycleListOpen, setCycleListOpen] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -244,6 +279,7 @@ export function TimekeepingPage() {
   const [leavePending, setLeavePending] = useState(0);
   const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
   const monthlyGridApiRef = useRef<GridApi<TimesheetMonth> | null>(null);
+  const detailSheetRef = useRef<HTMLDivElement>(null);
   const monthlyColPrefs = useMemo(() => createAgGridColumnPrefs(TK_MONTHLY_GRID_COLS), []);
   const timesheetRowsRef = useRef(rows);
   timesheetRowsRef.current = rows;
@@ -329,9 +365,9 @@ export function TimekeepingPage() {
   }, [period]);
 
   useEffect(() => {
-    if (!paneActive) return;
+    // Kỳ đổi thì tải lại. Quay lại tab keep-alive không GET timesheet cả nhà máy.
     void reload();
-  }, [reload, paneActive]);
+  }, [reload]);
 
   useEffect(() => {
     if (!selected) {
@@ -341,7 +377,29 @@ export function TimekeepingPage() {
     void loadEmpDays(selected.employee_code, periodBounds.date_from, periodBounds.date_to);
   }, [selected?.employee_code, periodBounds.date_from, periodBounds.date_to, loadEmpDays]);
 
-  async function refreshTimesheetsQuiet() {
+  async function refreshTimesheetsQuiet(employeeCode?: string) {
+    const code = employeeCode?.trim();
+    if (code) {
+      const one = await fetchTimesheets(period, code);
+      const next = one[0];
+      if (!next) return;
+      setRows((prev) => {
+        const i = prev.findIndex(
+          (s) => s.id === next.id || s.employee_code === next.employee_code,
+        );
+        if (i < 0) return [...prev, next];
+        const copy = prev.slice();
+        copy[i] = next;
+        return copy;
+      });
+      setSelected((prev) => {
+        if (!prev) return null;
+        if (prev.id === next.id || prev.employee_code === next.employee_code) return next;
+        return prev;
+      });
+      return;
+    }
+    cacheInvalidate(`timesheets:${period}`);
     const sheets = await fetchTimesheets(period);
     setRows(sheets);
     setSelected((prev) => {
@@ -356,9 +414,14 @@ export function TimekeepingPage() {
     return () => window.clearTimeout(timer);
   }, [ok]);
 
+  const monthlyRows = useMemo(() => {
+    if (!departmentId) return rows;
+    return rows.filter((r) => r.department_id === departmentId);
+  }, [rows, departmentId]);
+
   const filtered = useMemo(
-    () => rows.filter((r) => employeeMatchesQuery(r, q)),
-    [rows, q],
+    () => monthlyRows.filter((r) => employeeMatchesQuery(r, q)),
+    [monthlyRows, q],
   );
 
   const pickEmployee = useCallback((row: TimesheetMonth) => {
@@ -405,6 +468,12 @@ export function TimekeepingPage() {
     setDetailOpen(false);
   }, []);
 
+  useSheetKeyboard({
+    open: detailOpen && !!selected,
+    containerRef: detailSheetRef,
+    onClose: closeDetail,
+  });
+
   // ESC: lưới tháng còn banner NV đã chọn → bỏ chọn. Lưới ngày không hiện banner — không nuốt ESC (kẹt trang).
   useHrSubpageEsc({ backTo: "/" });
   useEscLayer(
@@ -429,7 +498,7 @@ export function TimekeepingPage() {
   const applySearchSelect = useCallback(
     (needle: string, opts?: { exactOnly?: boolean }) => {
       if (!needle.trim()) return false;
-      const match = findEmployeeByQuery(rows, needle, opts);
+      const match = findEmployeeByQuery(monthlyRows, needle, opts);
       if (!match) {
         setError(`Không tìm thấy MSNV / tên khớp «${needle}».`);
         return false;
@@ -445,8 +514,77 @@ export function TimekeepingPage() {
       }
       return true;
     },
-    [rows, pickEmployee],
+    [monthlyRows, pickEmployee],
   );
+
+  useEffect(() => {
+    if (!departments.length) return;
+    const parsed = parseTimesheetSearch(location.search);
+    if (parsed.departmentId && departments.some((d) => d.id === parsed.departmentId)) {
+      setDepartmentId(parsed.departmentId);
+      return;
+    }
+    if (parsed.deptCode) {
+      const match = departments.find((d) => d.code.toLowerCase() === parsed.deptCode!.toLowerCase());
+      if (match) setDepartmentId(match.id);
+      return;
+    }
+    setDepartmentId("");
+  }, [departments, location.search]);
+
+  const urlPickKeyRef = useRef("");
+  useEffect(() => {
+    if (mainView !== "monthly" || !monthlyRows.length) return;
+    const parsed = parseTimesheetSearch(location.search);
+    if (!parsed.q) return;
+    const key = `${parsed.q}|${period}|${monthlyRows.length}|${departmentId}`;
+    if (urlPickKeyRef.current === key) return;
+    urlPickKeyRef.current = key;
+    applySearchSelect(parsed.q);
+  }, [mainView, monthlyRows, location.search, period, departmentId, applySearchSelect]);
+
+  const printedRef = useRef("");
+  useEffect(() => {
+    const parsed = parseTimesheetSearch(location.search);
+    if (!parsed.print) return;
+    const key = location.search;
+    if (printedRef.current === key) return;
+    printedRef.current = key;
+    const code = parsed.q && /^\d{3,5}$/.test(parsed.q) ? parsed.q : undefined;
+    void exportTimesheetsExcel({
+      period: parsed.period || period,
+      departmentId: departmentId || undefined,
+      employeeCode: code,
+    })
+      .then(() => {
+        const sp = new URLSearchParams(
+          location.search.startsWith("?") ? location.search.slice(1) : location.search,
+        );
+        sp.delete("print");
+        const next = sp.toString();
+        navigate({ pathname: location.pathname, search: next ? `?${next}` : "" }, { replace: true });
+        setOk("Đã tải Excel bảng công.");
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Không xuất Excel bảng công.");
+      });
+  }, [location.search, location.pathname, period, departmentId, navigate]);
+
+  async function onExportTimesheet() {
+    setBusy(true);
+    setError(null);
+    try {
+      await exportTimesheetsExcel({
+        period,
+        departmentId: departmentId || undefined,
+      });
+      setOk("Đã tải Excel bảng công.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không xuất Excel bảng công.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
@@ -643,7 +781,7 @@ export function TimekeepingPage() {
 
   async function refreshAfterManualDay(day: AttendanceDay) {
     const daysP = loadEmpDays(day.employee_code, periodBounds.date_from, periodBounds.date_to);
-    await Promise.all([daysP, refreshTimesheetsQuiet()]);
+    await Promise.all([daysP, refreshTimesheetsQuiet(day.employee_code)]);
   }
 
   async function onManualDay(e: FormEvent) {
@@ -771,7 +909,7 @@ export function TimekeepingPage() {
   function renderEmployeeDaysDetail() {
     if (!selected) return null;
     return (
-      <div className="tk-emp-sheet fs-sheet-form-shell">
+      <div ref={detailSheetRef} className="tk-emp-sheet fs-sheet-form-shell">
         {/* Bảng ngày = vùng chính; form sửa tay = thanh gọn dưới (không chiếm nửa màn). */}
         <div className="tk-days-layout tk-days-layout--work">
           <div className="tk-day-scroll tk-day-scroll-full">
@@ -1041,7 +1179,7 @@ export function TimekeepingPage() {
               />
             </label>
           ) : null}
-          {mainView === "daily" ? (
+          {mainView === "daily" || mainView === "monthly" ? (
             <label className="period-picker period-picker-compact">
               Bộ phận
               <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
@@ -1112,6 +1250,14 @@ export function TimekeepingPage() {
             <button type="button" className="toolbar-more-item" onClick={() => void onRebuild()}>
               Tổng hợp công
             </button>
+            <button
+              type="button"
+              className="toolbar-more-item"
+              title="Tải Excel bảng công kỳ đang xem"
+              onClick={() => void onExportTimesheet()}
+            >
+              Xuất Excel bảng công
+            </button>
             <button type="button" className="toolbar-more-item" onClick={() => setSyncOpen(true)}>
               Nhật ký đồng bộ
             </button>
@@ -1168,7 +1314,7 @@ export function TimekeepingPage() {
                 </>
               ) : (
                 <>
-                  {filtered.length}/{rows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
+                  {filtered.length}/{monthlyRows.length} nhân viên · mẫu số {pay.salary_divisor} ·{" "}
                   <strong>{labelPeriodStatus(pay.status)}</strong>
                 </>
               )
@@ -1201,7 +1347,18 @@ export function TimekeepingPage() {
                 role="tab"
                 title={MAIN_VIEW_HINT[view]}
                 className={mainView === view ? "is-on" : ""}
-                onClick={() => setMainView(view)}
+                onClick={() => {
+                  setMainView(view);
+                  if (location.pathname.startsWith("/m/timekeeping")) {
+                    const params = new URLSearchParams(location.search);
+                    if (params.get("view") === view) return;
+                    params.set("view", view);
+                    navigate(
+                      { pathname: location.pathname, search: `?${params.toString()}` },
+                      { replace: true },
+                    );
+                  }
+                }}
               >
                 {label}
               </button>
@@ -1230,16 +1387,18 @@ export function TimekeepingPage() {
         {mainView === "daily" ? (
           <div className="tk-stack tk-stack-panel">
             <DailyGridPanel
-              workDate={gridDate}
+              workDate={parseTimesheetSearch(location.search).date || gridDate}
               periodLocked={pay?.status === "locked"}
               leaves={leaves}
               searchQuery={q}
               departmentId={departmentId}
               refreshToken={dailyGridRefresh}
+              needsFilter={parseTimesheetSearch(location.search).needs}
+              oddFilter={parseTimesheetSearch(location.search).odd}
               onSummaryChange={onDailySummaryChange}
               onPickEmployee={pickFromDaily}
-              onTimesChanged={() => {
-                void refreshTimesheetsQuiet();
+              onTimesChanged={(code) => {
+                void refreshTimesheetsQuiet(code);
               }}
             />
           </div>
@@ -1259,7 +1418,7 @@ export function TimekeepingPage() {
             <section className="tk-grid-section tk-grid-primary">
               <div className="tk-grid-wrap ag-theme-quartz">
                 <AgGridReact<TimesheetMonth>
-                  rowData={rows}
+                  rowData={monthlyRows}
                   columnDefs={columnDefs}
                   localeText={AG_GRID_LOCALE_VI}
                   getRowId={(p) => p.data.id}
@@ -1306,6 +1465,7 @@ export function TimekeepingPage() {
             : undefined
         }
         onClose={closeDetail}
+        closeOnEsc={false}
         inFrameScroll
         bodyClassName="fs-sheet-body-shell"
       >

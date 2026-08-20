@@ -20,7 +20,7 @@ from app.modules.attendance.shift_schedule import engine_ot_kwargs, timing_from_
 from app.modules.attendance.schemas import AttendanceDayGridOut, AttendanceDayOut
 from app.modules.attendance.ot_split import load_ot_split_policy
 from app.modules.attendance.service import _load_schedule, list_days
-from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets, seed_leave_types
+from app.modules.attendance.timesheet import _assert_open, ensure_pay_period, rebuild_timesheets
 from app.modules.audit.service import write_audit
 from app.modules.core.models import User
 from app.modules.integration.models import AttendancePunch
@@ -78,8 +78,8 @@ def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
         employee_code=emp.employee_code,
         full_name=emp.full_name,
         work_date=day.work_date,
-        first_in=day.first_in,
-        last_out=day.last_out,
+        first_in=to_vn(day.first_in) if day.first_in else None,
+        last_out=to_vn(day.last_out) if day.last_out else None,
         worked_hours=day.worked_hours,
         late_minutes=day.late_minutes,
         early_minutes=day.early_minutes,
@@ -101,7 +101,7 @@ def _day_to_out(day: AttendanceDay, emp: Employee) -> AttendanceDayOut:
         note=day.note,
         cycle_leave=bool(day.cycle_leave),
         edited_by_user_id=day.edited_by_user_id,
-        edited_at=day.edited_at,
+        edited_at=to_vn(day.edited_at) if day.edited_at else None,
     )
 
 
@@ -146,6 +146,7 @@ def list_days_grid(
     work_date: date,
     *,
     needs_action_only: bool = False,
+    odd_only: bool = False,
     department_id: UUID | None = None,
 ) -> list[AttendanceDayGridOut]:
     schedule = _load_schedule(db)
@@ -171,7 +172,10 @@ def list_days_grid(
             continue
         day = by_emp.get(emp.id)
         needs = _needs_action(day, work_date, schedule)
-        if needs_action_only and not needs:
+        flag = _row_flag(day, work_date, schedule)
+        if odd_only and flag != "odd":
+            continue
+        if needs_action_only and not odd_only and not needs:
             continue
         if day is None:
             out.append(
@@ -266,7 +270,6 @@ def patch_day_cell(
     clear_last_out: bool = False,
 ) -> AttendanceDayOut:
     _assert_day_editable(db, work_date)
-    seed_leave_types(db)
     emp = _get_employee(db, employee_code)
     row = _get_or_create_day(db, emp, work_date)
     schedule = _load_schedule(db)
@@ -375,7 +378,6 @@ def bulk_patch_days(
         raise HTTPException(status_code=400, detail="Trợ Lý AI: chọn ít nhất một nhân viên.")
 
     _assert_day_editable(db, work_date)
-    seed_leave_types(db)
     schedule = _load_schedule(db)
     lt_code = None
     if action == "set_leave":

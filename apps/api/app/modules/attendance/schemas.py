@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
+
+from app.modules.attendance.engine import isoformat_vn
+
+VnDateTime = Annotated[
+    datetime,
+    PlainSerializer(isoformat_vn, return_type=str, when_used="json"),
+]
 
 
 class AttendanceDayOut(BaseModel):
@@ -17,8 +25,8 @@ class AttendanceDayOut(BaseModel):
     employee_code: str
     full_name: str
     work_date: date
-    first_in: datetime | None
-    last_out: datetime | None
+    first_in: VnDateTime | None
+    last_out: VnDateTime | None
     worked_hours: Decimal
     late_minutes: int
     early_minutes: int
@@ -40,7 +48,7 @@ class AttendanceDayOut(BaseModel):
     note: str = ""
     cycle_leave: bool = False
     edited_by_user_id: UUID | None = None
-    edited_at: datetime | None = None
+    edited_at: VnDateTime | None = None
 
 
 class CycleLeavePatch(BaseModel):
@@ -53,8 +61,8 @@ class CycleLeaveRowOut(BaseModel):
     employee_code: str
     full_name: str
     work_date: date
-    first_in: datetime | None
-    last_out: datetime | None
+    first_in: VnDateTime | None
+    last_out: VnDateTime | None
     worked_hours: Decimal
     note: str = ""
 
@@ -109,6 +117,9 @@ class TimesheetMonthOut(BaseModel):
     employee_id: UUID
     employee_code: str
     full_name: str
+    department_id: UUID | None = None
+    department_code: str | None = None
+    department_name: str | None = None
     worked_days: Decimal
     al_days: Decimal
     rem_days: Decimal

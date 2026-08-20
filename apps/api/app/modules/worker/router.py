@@ -15,6 +15,7 @@ from app.modules.worker.schemas import (
     MessageOut,
     WorkerAttendanceMonthOut,
     WorkerChangePasswordRequest,
+    WorkerLeaveBalanceOut,
     WorkerLoginRequest,
     WorkerOut,
     WorkerPayslipDetailOut,
@@ -82,6 +83,14 @@ def worker_payslip_dispute(
 ) -> DisputeOut:
     """P4.3 — gửi khiếu nại → ticket + badge nhắc HR."""
     return dispute_svc.create_worker_dispute(db, worker, payslip_id, body)
+
+
+@router.get("/leave-balance", response_model=WorkerLeaveBalanceOut)
+def worker_leave_balance(worker: CurrentWorker, db: DbSession) -> WorkerLeaveBalanceOut:
+    """Số dư phép năm — chỉ xem, không ghi sổ."""
+    from app.modules.worker import self_service
+
+    return self_service.get_leave_balance(db, worker)
 
 
 @router.get("/leave-types", response_model=list[LeaveTypeOut])

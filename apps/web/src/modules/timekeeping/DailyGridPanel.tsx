@@ -91,10 +91,14 @@ type Props = {
   departmentId?: string;
   /** Tăng sau đồng bộ / làm mới từ toolbar — ép tải lại lưới ngày. */
   refreshToken?: number;
+  /** URL `needs=1` — bật «Chỉ người cần xử lý». */
+  needsFilter?: boolean;
+  /** URL `odd=1` — chỉ dòng chấm lẻ (thiếu vào hoặc ra). */
+  oddFilter?: boolean;
   onSummaryChange?: (summary: DailyGridSummary) => void;
   onPickEmployee?: (row: AttendanceDayGridRow) => void;
-  /** Sau sửa/xóa giờ — tab tổng hợp tháng lấy timesheet mới. */
-  onTimesChanged?: () => void;
+  /** Sau sửa/xóa giờ — tab tổng hợp tháng chỉ lấy timesheet NV đó (không GET cả nhà máy). */
+  onTimesChanged?: (employeeCode?: string) => void;
 };
 
 function DailyGridPanelInner({
@@ -104,12 +108,20 @@ function DailyGridPanelInner({
   searchQuery = "",
   departmentId = "",
   refreshToken = 0,
+  needsFilter = false,
+  oddFilter = false,
   onSummaryChange,
   onPickEmployee,
   onTimesChanged,
 }: Props) {
   const [rows, setRows] = useState<AttendanceDayGridRow[]>([]);
-  const [needsOnly, setNeedsOnly] = useState(false);
+  const urlFilterKey = `${workDate}|${Boolean(needsFilter)}|${Boolean(oddFilter)}`;
+  const [appliedUrlKey, setAppliedUrlKey] = useState(urlFilterKey);
+  const [needsOnly, setNeedsOnly] = useState(Boolean(needsFilter || oddFilter));
+  if (appliedUrlKey !== urlFilterKey) {
+    setAppliedUrlKey(urlFilterKey);
+    setNeedsOnly(Boolean(needsFilter || oddFilter));
+  }
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +131,7 @@ function DailyGridPanelInner({
   const didInitialSortRef = useRef(false);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
-  const filterKeyRef = useRef(`${workDate}|${needsOnly}|${departmentId}`);
+  const filterKeyRef = useRef(`${workDate}|${needsOnly}|${oddFilter}|${departmentId}`);
   const [bulkLeave, setBulkLeave] = useState("ALE");
   const [bulkIn, setBulkIn] = useState("08:00");
   const [bulkOut, setBulkOut] = useState("17:00");
@@ -129,7 +141,7 @@ function DailyGridPanelInner({
   const colPrefs = useMemo(() => createAgGridColumnPrefs(TK_DAILY_GRID_COLS), []);
 
   const load = useCallback(async () => {
-    const nextFilter = `${workDate}|${needsOnly}|${departmentId}`;
+    const nextFilter = `${workDate}|${needsOnly}|${oddFilter}|${departmentId}`;
     const filterChanged = filterKeyRef.current !== nextFilter;
     filterKeyRef.current = nextFilter;
     const isInitial = rowsRef.current.length === 0 || filterChanged;
@@ -138,7 +150,8 @@ function DailyGridPanelInner({
     try {
       const list = await fetchAttendanceDaysGrid({
         date: workDate,
-        needs_action_only: needsOnly,
+        needs_action_only: needsOnly && !oddFilter,
+        odd_only: needsOnly && oddFilter,
         department_id: departmentId || undefined,
       });
       setRows(list.map(withDisplayTimes));
@@ -147,7 +160,7 @@ function DailyGridPanelInner({
     } finally {
       setLoading(false);
     }
-  }, [workDate, needsOnly, departmentId, refreshToken]);
+  }, [workDate, needsOnly, departmentId, refreshToken, oddFilter]);
 
   useEffect(() => {
     void load();
@@ -387,9 +400,8 @@ function DailyGridPanelInner({
     const day = await patchAttendanceDayCell(patchBody);
     const merged = applyDayToGridRow(row, day);
     setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
-    gridApi?.applyTransaction({ update: [merged] });
     setToast(`Đã lưu ${code}`);
-    onTimesChanged?.();
+    onTimesChanged?.(code);
   }
 
   async function saveTimeCell(row: AttendanceDayGridRow, col: "first_in" | "last_out", editedRaw: string) {
@@ -539,7 +551,7 @@ function DailyGridPanelInner({
             checked={needsOnly}
             onChange={(e) => setNeedsOnly(e.target.checked)}
           />
-          Chỉ người cần xử lý
+          Chỉ {oddFilter ? "chấm lẻ" : "người cần xử lý"}
         </label>
         <button
           type="button"

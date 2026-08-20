@@ -80,6 +80,7 @@ export function EmployeeCodePicker({
           id={inputId}
           type="text"
           className="emp-code-picker-input"
+          data-hotkey-search
           value={open ? query : selected ? `${selected.employee_code} — ${selected.full_name}` : query}
           placeholder={placeholder}
           disabled={disabled}

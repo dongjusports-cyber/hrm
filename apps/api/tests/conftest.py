@@ -48,6 +48,16 @@ from app.modules.insurance import models as insurance_models  # noqa: F401, E402
 
 get_settings.cache_clear()
 
+
+@pytest.fixture(autouse=True)
+def _reset_settings_cache() -> Generator[None, None, None]:
+    """Mỗi test đọc Settings mới — tránh SYNC_RECALC_INLINE=0 còn trong lru_cache."""
+    os.environ["SYNC_RECALC_INLINE"] = "1"
+    get_settings.cache_clear()
+    yield
+    os.environ["SYNC_RECALC_INLINE"] = "1"
+    get_settings.cache_clear()
+
 engine = create_engine(
     "sqlite+pysqlite:///:memory:",
     connect_args={"check_same_thread": False},

@@ -6599,6 +6599,16 @@ body.worker-surface {
   line-height: 1.4;
 }
 
+.worker-leave-balance {
+  margin-bottom: 16px;
+}
+
+.worker-leave-balance p {
+  margin: 0;
+  color: #334155;
+  line-height: 1.5;
+}
+
 .worker-ok {
   color: #047857;
   margin: 0;
@@ -7550,6 +7560,55 @@ html.app-fullscreen .module-page {
   opacity: 0.72;
 }
 
+.ai-fab-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-fab-ask {
+  align-self: flex-end;
+  font-size: 0.8rem;
+}
+
+.ai-fab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-fab-chip {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ai-fab-chip:hover:not(:disabled) {
+  background: #ede9fe;
+}
+
+.ai-fab-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ai-fab-thread {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-fab-thread-q {
+  margin: 0 14px 6px;
+  font-size: 0.85rem;
+  color: var(--ink-muted, #64748b);
+}
+
 .ai-fab-item span {
   font-size: 0.82rem;
   color: var(--ink-muted);
@@ -7605,6 +7664,57 @@ html.app-fullscreen .module-page {
   resize: vertical;
   min-height: 64px;
   flex-shrink: 0;
+}
+
+.ai-fab-chat-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ai-fab-chat-row .btn-primary {
+  flex: 1;
+  min-height: 48px;
+}
+
+.ai-fab-mic {
+  appearance: none;
+  flex-shrink: 0;
+  min-width: 48px;
+  min-height: 48px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.ai-fab-mic:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.ai-fab-mic.is-listening {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: white;
+}
+
+.ai-fab-mic:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .ai-fab-panel {
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .ai-fab-chat textarea {
+    font-size: 1rem;
+    min-height: 72px;
+  }
 }
 
 .ai-fab-answer-wrap {
@@ -7820,6 +7930,18 @@ html.app-fullscreen .module-page {
 .alert-mini-list span {
   font-size: 0.85rem;
   color: var(--ink-muted);
+}
+
+.alert-mini-list a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.alert-mini-list a:hover strong {
+  text-decoration: underline;
 }
 
 /* ——— Account status + unlock (HR) ——— */

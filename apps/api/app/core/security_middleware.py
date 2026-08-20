@@ -23,7 +23,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        # self: chấm công GPS/camera cổng CN + giọng nói HR trên cùng origin.
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(self), microphone=(self), camera=(self)",
+        )
         if self.settings.is_production:
             response.headers.setdefault(
                 "Strict-Transport-Security",

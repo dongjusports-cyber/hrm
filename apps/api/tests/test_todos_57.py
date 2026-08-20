@@ -1,7 +1,8 @@
 """5.7 — todo cards on /ai/todos and overview."""
 
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
+from app.modules.attendance.engine import VN_TZ
 from app.modules.mdm.models import Employee, EmployeeWtRegime, LabourContract
 
 
@@ -12,10 +13,14 @@ def _hr_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _vn_today():
+    return datetime.now(tz=VN_TZ).date()
+
+
 def test_todos_include_expiring_contracts(client, db):
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    today = date.today()
+    today = _vn_today()
     db.add(
         LabourContract(
             employee_id=emp.id,
@@ -37,7 +42,7 @@ def test_todos_include_expiring_contracts(client, db):
 def test_todos_include_wt_regime_expiring(client, db):
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    today = date.today()
+    today = _vn_today()
     db.add(
         EmployeeWtRegime(
             employee_id=emp.id,
@@ -58,7 +63,8 @@ def test_todos_include_wt_regime_expiring(client, db):
 
 def test_overview_includes_todo_cards(client, db):
     headers = _hr_headers(client)
-    period = f"{date.today().year:04d}-{date.today().month:02d}"
+    today = _vn_today()
+    period = f"{today.year:04d}-{today.month:02d}"
     res = client.get("/api/reports/overview", headers=headers, params={"period": period})
     assert res.status_code == 200
     assert "todo_cards" in res.json()
@@ -68,7 +74,7 @@ def test_overview_ok_when_todo_cards_nonempty(client, db):
     """QA-02 / REP-OV001: HĐ sắp hết hạn → overview 200, không 500 vì TodoCardOut trùng."""
     headers = _hr_headers(client)
     emp = db.query(Employee).filter(Employee.employee_code == "1514").one()
-    today = date.today()
+    today = _vn_today()
     db.add(
         LabourContract(
             employee_id=emp.id,
@@ -86,3 +92,32 @@ def test_overview_ok_when_todo_cards_nonempty(client, db):
     cards = res.json()["todo_cards"]
     assert len(cards) >= 1
     assert any(c["key"] == "expiring_contracts_60d" for c in cards)
+
+
+def test_todos_include_pending_leave_requests(client):
+    from tests.worker_auth import default_login_password, worker_auth_headers, worker_login_json
+
+    token = client.post(
+        "/api/worker/login",
+        json=worker_login_json("5290", default_login_password("5290")),
+    ).json()["access_token"]
+    worker = worker_auth_headers(token, "5290")
+    created = client.post(
+        "/api/worker/leave-requests",
+        headers=worker,
+        json={
+            "leave_type_code": "ALE",
+            "from_date": "2025-10-20",
+            "to_date": "2025-10-20",
+            "reason": "Test todo phép",
+            "submit": True,
+        },
+    )
+    assert created.status_code == 200, created.text
+
+    res = client.get("/api/ai/todos", headers=_hr_headers(client))
+    assert res.status_code == 200
+    card = next(c for c in res.json()["cards"] if c["key"] == "leave_requests_pending")
+    assert card["count"] >= 1
+    assert card["href"] == "/m/timekeeping?view=leave"
+    assert card.get("ask_message")

@@ -32,7 +32,6 @@ import { PayrollSimulateSection } from "./PayrollSimulateSection";
 import type { PayrollViewMode } from "./payrollGridColumns";
 import { useEscLayer } from "../../shared/useEscLayer";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
-import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { EmployeeCodePicker } from "../../shared/EmployeeCodePicker";
@@ -62,7 +61,6 @@ function loadViewMode(): PayrollViewMode {
 }
 
 export function PayrollPage() {
-  const paneActive = useKeepAlivePaneActive();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [period, setPeriod] = useState(currentPayPeriod);
@@ -169,9 +167,9 @@ export function PayrollPage() {
   }, [period]);
 
   useEffect(() => {
-    if (!paneActive) return;
+    // Kỳ đổi thì tải lại. Quay lại tab keep-alive không GET phiếu cả nhà máy.
     void reload();
-  }, [reload, paneActive]);
+  }, [reload]);
 
   const onSelectSlip = useCallback((slip: Payslip) => {
     setSelected(slip);

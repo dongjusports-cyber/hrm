@@ -24,7 +24,7 @@ def run_post_ingest_recalc(
     try:
         from app.modules.attendance.service import recalculate_days
         from app.modules.attendance.timesheet import rebuild_timesheets_for_date_window
-        from app.modules.ai.service import emit_sync_job_alert
+        from app.modules.ai.service import emit_sync_job_alert, evaluate_punch_reminders
 
         recalculate_days(db, date_from=date_from, date_to=date_to)
         rebuild_timesheets_for_date_window(db, date_from, date_to)
@@ -38,6 +38,7 @@ def run_post_ingest_recalc(
         db.commit()
         db.refresh(job)
         emit_sync_job_alert(db, job)
+        evaluate_punch_reminders(db)
     except Exception:
         log.exception("post_ingest_recalc failed job_id=%s", job_id)
         try:

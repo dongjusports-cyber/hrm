@@ -188,7 +188,10 @@ export function useSheetKeyboard({ open, containerRef, onTabBack, onClose }: She
 
   useEscLayer(open, () => {
     const root = containerRef.current;
-    if (isFieldFocusedInRoot(root)) return;
+    if (isFieldFocusedInRoot(root)) {
+      // Không đóng sheet khi còn focus ô — không return false (sẽ quay trang dưới sheet).
+      return;
+    }
     if (onTabBackRef.current?.()) return;
     if (!onCloseRef.current) return false;
     onCloseRef.current();

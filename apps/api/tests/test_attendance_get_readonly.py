@@ -69,6 +69,7 @@ def test_get_timesheets_and_grid_missing_period_empty_no_insert(client, db):
         review = client.get(
             "/api/attendance/review", headers=headers, params={"period": MISSING}
         )
+        export = client.get("/api/attendance/timesheets/2099-01/export", headers=headers)
 
     assert sheets.status_code == 200, sheets.text
     assert sheets.json() == []
@@ -77,5 +78,33 @@ def test_get_timesheets_and_grid_missing_period_empty_no_insert(client, db):
     assert cycle.json() == []
     assert review.status_code == 200, review.text
     assert review.json()["period_status"] == "none"
+    assert export.status_code == 200, export.text
+    assert export.content[:2] == b"PK"
     assert _period_count(db, 2099, 1) == 0
     assert counter.writes == [], f"GET chấm công ghi DB {counter.writes}"
+
+
+def test_get_reports_missing_period_200_no_insert(client, db):
+    """Dashboard HR / KPI: chưa tính lương vẫn 200, không INSERT kỳ."""
+    headers = _hr_headers(client)
+    with _SqlCounter(db.get_bind()) as counter:
+        kpi = client.get("/api/reports/kpi", headers=headers, params={"period": MISSING})
+        overview = client.get(
+            "/api/reports/overview", headers=headers, params={"period": MISSING}
+        )
+
+    assert kpi.status_code == 200, kpi.text
+    assert overview.status_code == 200, overview.text
+    assert overview.json()["todo_cards"] is not None
+    assert _period_count(db, 2099, 1) == 0
+    assert counter.writes == [], f"GET reports ghi DB {counter.writes}"
+
+
+def test_get_leave_types_does_not_insert(client, db):
+    headers = _hr_headers(client)
+    with _SqlCounter(db.get_bind()) as counter:
+        res = client.get("/api/attendance/leave-types", headers=headers)
+    assert res.status_code == 200, res.text
+    codes = {r["code"] for r in res.json()}
+    assert "ALE" in codes
+    assert counter.writes == [], f"GET leave-types ghi DB {counter.writes}"

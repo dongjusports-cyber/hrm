@@ -38,14 +38,17 @@ def test_hr_profile_and_modules(client):
         ("GET", "/api/attendance/days?from=2025-10-01&to=2025-10-31", 200),
         ("GET", "/api/attendance/leave-types", 200),
         ("GET", "/api/attendance/leave-requests", 200),
+        ("GET", "/api/attendance/timesheets/2099-01/export", 200),
         ("GET", "/api/payroll/payslips?period=2025-10", 200),
         ("GET", "/api/payroll/allowances/types", 200),
         ("GET", "/api/disputes", 200),
-        ("GET", "/api/insurance/declarations?month=2025-10", 200),
+        ("GET", "/api/insurance/declarations?effective_month=2025-10", 200),
         ("GET", "/api/reports/kpi?period=2025-10", 200),
         ("GET", "/api/reports/overview?period=2025-10", 200),
         ("GET", "/api/ai/todos", 200),
         ("GET", "/api/ai/alerts/mine", 200),
+        ("GET", "/api/ai/inbox", 200),
+        ("GET", "/api/ai/inbox?light=true", 200),
         ("GET", "/api/config/roles", 403),
         ("GET", "/api/users", 403),
         ("GET", "/api/ai/settings", 403),
@@ -92,6 +95,21 @@ def test_hr_portal_config_not_allowed(client):
     cfg = next(t for t in body["tabs"] if t["key"] == "config")
     assert cfg["allowed"] is False
     assert all(t["allowed"] for t in body["tabs"] if t["key"] != "config")
+
+
+def test_hr_assist_csdl_without_gemini(client):
+    """hr.demo không ai_query nhưng được tra cứu CSDL qua /assist."""
+    headers = _hr_headers(client)
+    query = client.post("/api/ai/query", headers=headers, json={"message": "Tóm tắt việc cần làm hôm nay"})
+    assert query.status_code == 403
+    assist = client.post(
+        "/api/ai/assist",
+        headers=headers,
+        json={"message": "Tóm tắt việc cần làm hôm nay"},
+    )
+    assert assist.status_code == 200, assist.text
+    assert assist.json()["kind"] == "daily_briefing"
+    assert assist.json()["model_name"] == "direct"
 
 
 def test_hr_payroll_calculate_denied_or_allowed(client):

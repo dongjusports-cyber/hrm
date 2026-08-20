@@ -9,6 +9,7 @@ from typing import Collection
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,7 +39,7 @@ from app.modules.attendance.timesheet_details import (
 )
 from app.modules.calendar.service import compute_divisor
 from app.modules.core.models import User
-from app.modules.mdm.models import Employee
+from app.modules.mdm.models import Department, Employee, Team
 from app.modules.policy.models import PolicyPackage
 from app.modules.policy.seed_payload import default_payload
 from app.modules.payroll.attendance_penalty import (
@@ -113,25 +114,29 @@ def _adj_penalty_views(adj_rows: list[TimesheetAdjustment]) -> list[LeaveAdjustm
 
 
 def seed_leave_types(db: Session) -> None:
+    needed = {row[0] for row in LEAVE_SEED}
+    existing = {code for (code,) in db.query(LeaveType.code).all()}
+    if needed <= existing:
+        return
     added = False
     for code, name, pct, si, bonus, worked, doc, max_days in LEAVE_SEED:
-        row = db.get(LeaveType, code)
-        if row is None:
-            db.add(
-                LeaveType(
-                    code=code,
-                    name=name,
-                    paid_by_company=bool(pct) and pct > 0,
-                    counts_as_unauthorized=bonus,
-                    pay_ratio_percent=pct,
-                    paid_by_si=si,
-                    affects_attendance_bonus=bonus,
-                    counts_as_worked_day=worked,
-                    requires_document=doc,
-                    max_days_per_year=max_days,
-                )
+        if code in existing:
+            continue
+        db.add(
+            LeaveType(
+                code=code,
+                name=name,
+                paid_by_company=bool(pct) and pct > 0,
+                counts_as_unauthorized=bonus,
+                pay_ratio_percent=pct,
+                paid_by_si=si,
+                affects_attendance_bonus=bonus,
+                counts_as_worked_day=worked,
+                requires_document=doc,
+                max_days_per_year=max_days,
             )
-            added = True
+        )
+        added = True
     if added:
         db.commit()
 
@@ -170,26 +175,38 @@ def calendar_month_bounds(period: str) -> tuple[date, date]:
 
 
 def employee_ids_with_punches_in_range(db: Session, date_from: date, date_to: date) -> list[UUID]:
-    """NV có vân tay trong khoảng — dùng để rebuild bảng công sau ingest, không quét cả nhà máy."""
-    from datetime import datetime
+    """NV có vân tay trong khoảng — dùng để rebuild bảng công sau ingest, không quét cả nhà máy.
 
-    from app.modules.attendance.engine import VN_TZ
+    Lọc theo ngày tường VN (to_vn). SQLite so sánh timestamptz/naive dễ lệch nên không
+    tin filter SQL punch_time >= bound.
+    """
+    from app.modules.attendance.engine import to_vn
     from app.modules.integration.models import AttendancePunch
     from app.modules.mdm.models import Employee
 
-    start = datetime(date_from.year, date_from.month, date_from.day, tzinfo=VN_TZ)
-    end = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=VN_TZ)
-    codes = [
-        code
-        for (code,) in db.query(AttendancePunch.employee_code)
-        .filter(AttendancePunch.punch_time >= start, AttendancePunch.punch_time <= end)
-        .distinct()
-        .all()
-        if code
-    ]
-    if not codes:
-        return []
-    return [eid for (eid,) in db.query(Employee.id).filter(Employee.employee_code.in_(codes)).all()]
+    punches = db.query(
+        AttendancePunch.employee_id,
+        AttendancePunch.employee_code,
+        AttendancePunch.punch_time,
+    ).all()
+    ids: set[UUID] = set()
+    codes: set[str] = set()
+    for eid, code, pt in punches:
+        if pt is None:
+            continue
+        d = to_vn(pt).date()
+        if d < date_from or d > date_to:
+            continue
+        if eid is not None:
+            ids.add(eid)
+        elif code:
+            codes.add(code)
+    if codes:
+        ids.update(
+            eid
+            for (eid,) in db.query(Employee.id).filter(Employee.employee_code.in_(list(codes))).all()
+        )
+    return list(ids)
 
 
 def rebuild_timesheets_for_date_window(db: Session, date_from: date, date_to: date) -> None:
@@ -502,19 +519,40 @@ def rebuild_timesheets(
     )
 
 
-def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
+def list_timesheets(
+    db: Session,
+    period: str,
+    employee_code: str | None = None,
+    department_id: UUID | None = None,
+    department_code: str | None = None,
+) -> list[TimesheetMonthOut]:
     pay = get_pay_period(db, period)
     if pay is None:
         return []
-    rows = (
-        db.query(TimesheetMonth, Employee)
+    dept_id = department_id
+    if department_code and dept_id is None:
+        dept_row = (
+            db.query(Department)
+            .filter(func.lower(Department.code) == department_code.strip().lower())
+            .one_or_none()
+        )
+        if dept_row is None:
+            return []
+        dept_id = dept_row.id
+    q = (
+        db.query(TimesheetMonth, Employee, Team, Department)
         .join(Employee, Employee.id == TimesheetMonth.employee_id)
+        .outerjoin(Team, Team.id == Employee.team_id)
+        .outerjoin(Department, Department.id == Team.department_id)
         .filter(TimesheetMonth.pay_period_id == pay.id)
-        .order_by(Employee.employee_code)
-        .all()
     )
+    if employee_code:
+        q = q.filter(Employee.employee_code == employee_code.strip())
+    if dept_id is not None:
+        q = q.filter(Team.department_id == dept_id)
+    rows = q.order_by(Employee.employee_code).all()
     out: list[TimesheetMonthOut] = []
-    for ts, emp in rows:
+    for ts, emp, team, dept in rows:
         if not employee_on_payroll_period(emp, pay.date_from, pay.date_to):
             continue
         out.append(
@@ -525,6 +563,9 @@ def list_timesheets(db: Session, period: str) -> list[TimesheetMonthOut]:
                 employee_id=emp.id,
                 employee_code=emp.employee_code,
                 full_name=emp.full_name,
+                department_id=dept.id if dept else None,
+                department_code=dept.code if dept else None,
+                department_name=dept.name if dept else None,
                 worked_days=ts.worked_days,
                 al_days=ts.al_days,
                 rem_days=ts.rem_days,
@@ -585,7 +626,7 @@ def get_pay_period_out(db: Session, period: str) -> PayPeriodOut:
 
 
 def list_leave_types(db: Session) -> list[LeaveTypeOut]:
-    seed_leave_types(db)
+    """GET danh mục nghỉ — chỉ SELECT. Seed lúc `python -m app.scripts.seed` / POST."""
     rows = db.query(LeaveType).order_by(LeaveType.code).all()
     return [LeaveTypeOut.model_validate(r) for r in rows]
 
