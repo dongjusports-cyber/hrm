@@ -4344,6 +4344,10 @@ a.hr-layer-btn:active {
   background: #fffbeb;
 }
 
+.tk-day-row.flag-leave {
+  background: #f0fdf4;
+}
+
 .tk-cell-empty {
   color: #cbd5e1;
 }

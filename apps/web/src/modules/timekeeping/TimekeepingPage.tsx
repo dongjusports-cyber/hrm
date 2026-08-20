@@ -32,7 +32,6 @@ import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
 import { useKeepAlivePaneActive } from "../../shared/keepAlive";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { formatOtHours } from "../../shared/formatOtHours";
-import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 import { labelJobStatus, labelPeriodStatus } from "../../shared/viLabels";
 import { CycleLeaveListSheet } from "./CycleLeaveListSheet";
 import { DailyGridPanel, type DailyGridSummary } from "./DailyGridPanel";
@@ -55,6 +54,8 @@ import { TK_MONTHLY_GRID_COLS } from "./gridColumnKeys";
 import { ToolbarMoreMenu } from "../../shared/ToolbarMoreMenu";
 import { disabledTitle } from "../../shared/disabledHint";
 import { cacheInvalidate } from "../../shared/clientCache";
+import { formatLeaveLabel, leaveTypesForPicker } from "../../shared/formatLeave";
+import { buildCalendar, type CalendarRow } from "./employeeDayCalendar";
 
 type MainView = "daily" | "monthly" | "leave";
 
@@ -73,36 +74,6 @@ const TK_HEADER_TIPS = {
   otHoliday: "OT ngày lễ — thuộc OT ngoài (ATM). 8–17 ×3 · 17–22 và 6–8 ×4,5 · 22–6 ×5,1. Không cộng cột Công.",
 } as const;
 
-type CalendarRow = {
-  work_date: string;
-  weekday: string;
-  day?: AttendanceDay;
-  hasData: boolean;
-  late: number;
-  early: number;
-  ot: number;
-  otOnBooks: number;
-  otExternal: number;
-  otWeekend: number;
-  otHoliday: number;
-  punches: number;
-  firstIn: string;
-  lastOut: string;
-  hours: string;
-  cycleLeave: boolean;
-  flag: "ok" | "late" | "early" | "both" | "empty" | "off" | "odd" | "missing";
-  oddPunch: boolean;
-  missingPunch: boolean;
-};
-
-function isOddPunchDay(day: AttendanceDay | undefined, punches: number): boolean {
-  if (!day) return false;
-  if (punches === 1) return true;
-  if (punches > 0 && (!day.first_in || !day.last_out)) return true;
-  return false;
-}
-
-/** Ô trống — HR/AI nhận biết thiếu dữ liệu (không dùng dấu —). */
 function cellTime(iso: string | null | undefined): string {
   return formatTimeHHMM(iso, "");
 }
@@ -111,33 +82,8 @@ function cellMinutes(n: number): string {
   return n > 0 ? String(n) : "";
 }
 
-const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
-
 function defaultPeriod(): string {
   return currentPayPeriod();
-}
-
-function parseYmd(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function formatYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function eachDate(from: string, to: string): string[] {
-  const out: string[] = [];
-  const cur = parseYmd(from);
-  const end = parseYmd(to);
-  while (cur <= end) {
-    out.push(formatYmd(cur));
-    cur.setDate(cur.getDate() + 1);
-  }
-  return out;
 }
 
 function fmtNum(v: unknown, digits = 2): string {
@@ -145,61 +91,6 @@ function fmtNum(v: unknown, digits = 2): string {
   const n = Number(v);
   if (Number.isNaN(n)) return String(v);
   return n.toFixed(digits).replace(/\.?0+$/, "");
-}
-
-function buildCalendar(
-  dateFrom: string,
-  dateTo: string,
-  days: AttendanceDay[],
-): CalendarRow[] {
-  const byDate = new Map(days.map((d) => [d.work_date, d]));
-  return eachDate(dateFrom, dateTo).map((work_date) => {
-    const day = byDate.get(work_date);
-    const wd = WEEKDAYS[parseYmd(work_date).getDay()] ?? "";
-    const late = day?.late_minutes ?? 0;
-    const early = day?.early_minutes ?? 0;
-    const punches = day?.punch_count ?? 0;
-    const oddPunch = isOddPunchDay(day, punches);
-    const hasComplete = Boolean(day?.first_in && day?.last_out);
-    const hasPartial = Boolean(day?.first_in || day?.last_out);
-    const isOff = day ? !day.is_workday : wd === "CN";
-    const isWorkday = !isOff;
-    const missingPunch = isWorkday && !hasComplete && !hasPartial;
-    const hasData = hasComplete;
-    let flag: CalendarRow["flag"] = "empty";
-    if (oddPunch) flag = "odd";
-    else if (missingPunch) flag = "missing";
-    else if (hasComplete) {
-      if (late > 0 && early > 0) flag = "both";
-      else if (late > 0) flag = "late";
-      else if (early > 0) flag = "early";
-      else flag = "ok";
-    } else if (isOff) {
-      flag = "off";
-    }
-    return {
-      work_date,
-      weekday: wd,
-      day,
-      hasData,
-      late: missingPunch ? 0 : late,
-      early: missingPunch ? 0 : early,
-      ot: missingPunch ? 0 : (day?.ot_minutes ?? 0),
-      otOnBooks: missingPunch ? 0 : (day?.ot_on_books_minutes ?? 0),
-      otExternal: missingPunch ? 0 : (day?.ot_external_minutes ?? 0),
-      otWeekend: missingPunch ? 0 : weekendOtMinutes(day ?? {}),
-      otHoliday: missingPunch ? 0 : holidayOtMinutes(day ?? {}),
-      punches,
-      firstIn: cellTime(day?.first_in),
-      lastOut: cellTime(day?.last_out),
-      hours:
-        hasComplete && day?.worked_hours != null ? String(day.worked_hours) : "",
-      cycleLeave: Boolean(day?.cycle_leave),
-      flag,
-      oddPunch,
-      missingPunch,
-    };
-  });
 }
 
 export function TimekeepingPage() {
@@ -230,6 +121,7 @@ export function TimekeepingPage() {
   const hoursFocusedRef = useRef(false);
   const [fixNote, setFixNote] = useState("Sửa tay thiếu chấm");
   const [fixCycle, setFixCycle] = useState(false);
+  const [fixLeave, setFixLeave] = useState("");
   const [gridDate, setGridDate] = useState(() => {
     const p = defaultPeriod();
     const today = todayIsoDateVN();
@@ -562,8 +454,39 @@ export function TimekeepingPage() {
     setFixDate(row.work_date);
     setFixIn(row.firstIn || "");
     setFixOut(row.lastOut || "");
-    setFixNote(row.hasData ? "Sửa tay chỉnh công" : "Bổ sung công tay");
+    setFixLeave(row.leaveCode);
+    setFixNote(row.hasData ? "Sửa tay chỉnh công" : row.leaveCode ? "Ngày nghỉ" : "Bổ sung công tay");
     setFixCycle(row.cycleLeave);
+  }
+
+  async function onLeaveChange(next: string) {
+    const code = (fixEmp || selected?.employee_code || "").trim();
+    if (!code || !fixDate) {
+      setFixLeave(next);
+      return;
+    }
+    setFixLeave(next);
+    setBusy(true);
+    setError(null);
+    setOk(null);
+    try {
+      const day = await patchAttendanceDayCell({
+        employee_code: code,
+        work_date: fixDate,
+        leave_code: next,
+      });
+      setFixLeave((day.leave_code || "").toUpperCase());
+      setOk(
+        day.leave_code
+          ? `Đã ghi nghỉ ${formatLeaveLabel(day.leave_code, leaves) || day.leave_code} ngày ${formatDateDDMMYYYY(day.work_date)}.`
+          : `Đã xóa mã nghỉ ngày ${formatDateDDMMYYYY(day.work_date)}.`,
+      );
+      await refreshAfterManualDay(day);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không ghi loại nghỉ được.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const hoursPreview = useMemo(() => previewShiftWorkedHours(fixIn, fixOut), [fixIn, fixOut]);
@@ -788,6 +711,7 @@ export function TimekeepingPage() {
                   <th title="Tăng ca trả ATM riêng">Tăng ca ngoài</th>
                   <th title="Tăng ca Chủ nhật — không cộng Công">OT CN</th>
                   <th title="Tăng ca ngày lễ — không cộng Công">OT lễ</th>
+                  <th title="Loại ngày nghỉ (phép năm, ốm, không lương…)">Nghỉ</th>
                   <th title="Cảnh báo">!</th>
                 </tr>
               </thead>
@@ -854,6 +778,9 @@ export function TimekeepingPage() {
                     </td>
                     <td className={!row.otHoliday ? "tk-cell-empty" : ""}>
                       {formatOtHours(row.otHoliday)}
+                    </td>
+                    <td className={!row.leaveCode ? "tk-cell-empty" : ""}>
+                      {formatLeaveLabel(row.leaveCode, leaves) || row.leaveCode}
                     </td>
                     <td className="tk-day-flag-cell">
                       {row.cycleLeave ? (
@@ -978,6 +905,22 @@ export function TimekeepingPage() {
                   8h
                 </button>
               </span>
+            </label>
+            <label className="field">
+              <span>Nghỉ</span>
+              <select
+                value={fixLeave}
+                disabled={busy || pay?.status === "locked"}
+                aria-label="Loại ngày nghỉ"
+                onChange={(e) => void onLeaveChange(e.target.value)}
+              >
+                <option value="">—</option>
+                {leaveTypesForPicker(leaves).map((lt) => (
+                  <option key={lt.code} value={lt.code}>
+                    {lt.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="field tk-manual-bar-note">
               <span>Ghi chú</span>

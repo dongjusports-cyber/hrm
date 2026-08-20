@@ -17,4 +17,17 @@ Mac dinh dry-run; --apply moi ghi DB. Khong dung ngay sinh / CCCD / dia chi.
 Can Excel luong (+ --snapshots) va user bao --apply.
 
 --------------------------------------------------------------------------------
+[HR-EBH] eBH Thai Son — nut mo app + xuat file import
+--------------------------------------------------------------------------------
+Cong ty nop BHXH bang eBH Thai Son (IVAN, USB token, HR + ke toan dung chung).
+Khong nhung cua so eBH vao Portal: eBH la app Windows, USB ky so khong chay
+trong trinh duyet / iframe.
+
+No sau:
+1. Nut «Mo eBH» tren tab Bao tang BHXH — chi may da cai eBH + dang cam USB
+   (dang ky protocol Windows / file .bat mot lan tren may ke toan).
+2. Xuat dung mau Excel/XML ma eBH Thai Son import duoc (hoi Thai Son mau file).
+CSV hien tai chi luu danh sach noi bo, khong nop cong BHXH.
+
+--------------------------------------------------------------------------------
 (chen them muc no moi o day, gom dot sua sau)

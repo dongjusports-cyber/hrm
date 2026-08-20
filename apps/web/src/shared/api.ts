@@ -2141,6 +2141,7 @@ export type AttendanceDay = {
   sunday_hours?: string | number;
   holiday_hours?: string | number;
   cycle_leave?: boolean;
+  leave_code?: string | null;
   note?: string;
 };
 
