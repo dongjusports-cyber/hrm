@@ -515,7 +515,9 @@ export function TimekeepingPage() {
     if (parsed.deptCode) {
       const match = departments.find((d) => d.code.toLowerCase() === parsed.deptCode!.toLowerCase());
       if (match) setDepartmentId(match.id);
+      return;
     }
+    setDepartmentId("");
   }, [departments, location.search]);
 
   const urlPickKeyRef = useRef("");
