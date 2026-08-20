@@ -3102,12 +3102,21 @@ export type KpiDayPerson = {
   ot_external_hours: string | number;
 };
 
+export type KpiTeamDayCell = {
+  work_date: string;
+  is_workday: boolean;
+  present: number;
+  ot_hours: string | number;
+  ot_people: number;
+};
+
 export type KpiTeamMonthRow = {
   team_id: string;
   team_code: string;
   team_name: string;
   department_code: string;
   department_name: string;
+  category: string;
   category_label: string;
   headcount: number;
   begin_hc: number;
@@ -3121,6 +3130,17 @@ export type KpiTeamMonthRow = {
   ot_share_pct: string | number | null;
   ot_capacity_pct: string | number | null;
   turnover_rate_pct: string | number | null;
+  days?: KpiTeamDayCell[];
+};
+
+export type KpiMonthDayPoint = {
+  work_date: string;
+  is_workday: boolean;
+  headcount: number;
+  present: number;
+  absent: number;
+  ot_hours: string | number;
+  ot_people: number;
 };
 
 export type KpiMonthTeamsData = {
@@ -3138,6 +3158,7 @@ export type KpiMonthTeamsData = {
   resign: number;
   turnover_rate_pct: string | number | null;
   formula_note: string;
+  days?: KpiMonthDayPoint[];
   teams: KpiTeamMonthRow[];
 };
 

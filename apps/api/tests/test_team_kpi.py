@@ -1,4 +1,4 @@
-"""KPI giám đốc theo tổ — từ 8/2026, OT đủ loại, xuất Excel ngày/tháng."""
+"""KPI Dongju Sports VN theo tổ — từ 8/2026, OT đủ loại, xuất Excel ngày/tháng."""
 
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -79,6 +79,13 @@ def test_kpi_day_and_month_by_team(client, db):
     assert cell["ot_people"] == 1
     assert float(cell["ot_hours"]) == 3
     assert len(sw_m["days"]) == 31
+    company_days = m["days"]
+    assert len(company_days) == 31
+    d18 = next(c for c in company_days if c["work_date"] == "2026-08-18")
+    assert d18["present"] >= 2
+    assert d18["headcount"] >= d18["present"]
+    assert d18["ot_people"] == 1
+    assert float(d18["ot_hours"]) == 3
 
 
 def test_kpi_export_day_and_month(client, db):

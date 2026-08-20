@@ -133,6 +133,16 @@ class KpiTeamDayCell(BaseModel):
     ot_people: int
 
 
+class KpiMonthDayPoint(BaseModel):
+    work_date: str
+    is_workday: bool
+    headcount: int
+    present: int
+    absent: int
+    ot_hours: Decimal
+    ot_people: int
+
+
 class KpiTeamMonthRow(BaseModel):
     team_id: str
     team_code: str
@@ -190,6 +200,7 @@ class KpiMonthOut(BaseModel):
     turnover_rate_pct: Decimal | None
     source: str
     formula_note: str
+    days: list[KpiMonthDayPoint]
     teams: list[KpiTeamMonthRow]
 
 

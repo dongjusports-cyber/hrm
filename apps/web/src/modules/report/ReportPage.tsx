@@ -18,6 +18,8 @@ import { formatOrgName } from "../../shared/formatOrg";
 import { FullScreenSheet } from "../../shared/FullScreenSheet";
 import { ModuleLayerHeader } from "../../shared/ModuleLayerHeader";
 import { useHrSubpageEsc } from "../../shared/useHrSubpageEsc";
+import { KpiCharts } from "./KpiCharts";
+import { monthLabel } from "./kpiChartSeries";
 
 const KPI_FROM = "2026-08-01";
 
@@ -43,9 +45,9 @@ function yesterdayOrKpiFrom(): string {
   return iso < KPI_FROM ? KPI_FROM : iso;
 }
 
-type Mode = "day" | "month";
+type Mode = "day" | "month" | "charts";
 
-/** Báo cáo KPI giám đốc — theo tổ, ngày / tháng, xuất Excel lưu. */
+/** KPI Dongju Sports VN — theo tổ, ngày / tháng, xuất Excel lưu. */
 export function ReportPage() {
   useHrSubpageEsc({ backTo: "/" });
   const [mode, setMode] = useState<Mode>("day");
@@ -88,6 +90,15 @@ export function ReportPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (mode !== "charts") return;
+    const prev = document.title;
+    document.title = `KPI Dongju Sports VN ${monthLabel(period)}`;
+    return () => {
+      document.title = prev;
+    };
+  }, [mode, period]);
 
   async function onExport() {
     setExporting(true);
@@ -136,22 +147,25 @@ export function ReportPage() {
   const hint = useMemo(() => {
     if (mode === "day" && day) return day.formula_note;
     if (mode === "month" && month) return month.formula_note;
+    if (mode === "charts") {
+      return "Bốn biểu đồ tháng. In ra PDF họp. Số chi tiết vẫn nằm Excel tháng.";
+    }
     return "Nguồn vân tay từ tháng 8/2026. OT gồm sổ, ngoài, CN, lễ.";
   }, [mode, day, month]);
 
   return (
-    <div className="module-page">
+    <div className={mode === "charts" ? "module-page kpi-charts-page" : "module-page"}>
       <ModuleLayerHeader
         layers={[
           { label: "← Portal", to: "/" },
-          { label: "Báo Cáo / KPI", current: true },
+          { label: "KPI Dongju Sports VN", current: true },
         ]}
       />
       <main className="module-body">
         <div className="module-toolbar">
-          <h1>KPI giám đốc</h1>
-          <div className="toolbar-right">
-            <div className="tk-view-tabs" role="tablist" aria-label="Ngày hoặc tháng">
+          <h1>KPI Dongju Sports VN</h1>
+          <div className="toolbar-right no-print">
+            <div className="tk-view-tabs" role="tablist" aria-label="Ngày, tháng hoặc biểu đồ">
               <button
                 type="button"
                 role="tab"
@@ -169,6 +183,15 @@ export function ReportPage() {
                 onClick={() => setMode("month")}
               >
                 Tháng
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={mode === "charts" ? "is-on" : ""}
+                aria-selected={mode === "charts"}
+                onClick={() => setMode("charts")}
+              >
+                Biểu đồ
               </button>
             </div>
             {mode === "day" ? (
@@ -192,19 +215,26 @@ export function ReportPage() {
                 />
               </label>
             )}
+            {mode === "charts" ? (
+              <button type="button" className="btn-primary" onClick={() => window.print()}>
+                In
+              </button>
+            ) : null}
             <button type="button" className="btn-secondary" disabled={exporting || loading} onClick={() => void onExport()}>
               {exporting ? "Đang xuất…" : mode === "day" ? "Xuất Excel ngày" : "Xuất Excel tháng"}
             </button>
           </div>
         </div>
-        <p className="field-hint">{hint}</p>
-        {error && <p className="banner-warn">{error}</p>}
+        <p className="field-hint no-print">{hint}</p>
+        {error && <p className="banner-warn no-print">{error}</p>}
         {loading ? (
           <p className="field-hint">Đang tải…</p>
         ) : mode === "day" && day ? (
           <DayView data={day} onOpenTeam={openDayTeam} />
         ) : mode === "month" && month ? (
           <MonthView data={month} onOpenTeam={openMonthTeam} />
+        ) : mode === "charts" && month ? (
+          <KpiCharts data={month} />
         ) : (
           <p className="field-hint">Không có dữ liệu.</p>
         )}

@@ -1,4 +1,4 @@
-"""KPI giám đốc theo tổ + ngày/tháng — chỉ SELECT, không ghi DB.
+"""KPI Dongju Sports VN theo tổ + ngày/tháng — chỉ SELECT, không ghi DB.
 
 Nguồn: attendance_days (vân tay). Từ 2026-08-01. OT = ot_minutes (sổ + ngoài + CN + lễ).
 """
@@ -27,6 +27,7 @@ from app.modules.report import engine
 from app.modules.report.schemas import (
     KpiDayOut,
     KpiDayPerson,
+    KpiMonthDayPoint,
     KpiMonthOut,
     KpiMonthPerson,
     KpiTeamDayCell,
@@ -49,7 +50,7 @@ def require_kpi_from_date(d: date) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Trợ Lý AI: KPI giám đốc lấy từ DJ-HRM từ tháng 8/2026. "
+                "Trợ Lý AI: KPI Dongju Sports VN lấy từ DJ-HRM từ tháng 8/2026. "
                 "Tháng trước không có dữ liệu trên Portal."
             ),
         )
@@ -372,6 +373,7 @@ def compute_month(db: Session, period: str) -> KpiMonthOut:
                 "begin": 0,
                 "recruit": 0,
                 "resign": 0,
+                "hc_by_day": defaultdict(int),
                 "present_by_day": defaultdict(int),
                 "ot_min_by_day": defaultdict(int),
                 "ot_people_by_day": defaultdict(set),
@@ -390,6 +392,7 @@ def compute_month(db: Session, period: str) -> KpiMonthOut:
         for day in dates:
             if not _on_payroll_day(emp, day):
                 continue
+            b["hc_by_day"][day] += 1
             ad = days_by_emp[emp.id].get(day)
             if _is_present(ad):
                 b["present_by_day"][day] += 1
@@ -463,6 +466,26 @@ def compute_month(db: Session, period: str) -> KpiMonthOut:
     ranked_m.sort(key=lambda x: x[0])
     clean = [row for _k, row in ranked_m]
 
+    company_days: list[KpiMonthDayPoint] = []
+    for day in dates:
+        hc = sum(int(b["hc_by_day"][day]) for b in buckets.values())
+        present = sum(int(b["present_by_day"][day]) for b in buckets.values())
+        ot_min = sum(int(b["ot_min_by_day"][day]) for b in buckets.values())
+        ot_codes: set[str] = set()
+        for b in buckets.values():
+            ot_codes |= b["ot_people_by_day"][day]
+        company_days.append(
+            KpiMonthDayPoint(
+                work_date=day.isoformat(),
+                is_workday=day in workday_set,
+                headcount=hc,
+                present=present,
+                absent=max(0, hc - present),
+                ot_hours=_hours(ot_min),
+                ot_people=len(ot_codes),
+            )
+        )
+
     tot_hc = sum(r.headcount for r in clean)
     tot_att = sum((r.attendants for r in clean), ZERO)
     tot_ot = sum((r.ot_hours for r in clean), ZERO)
@@ -507,10 +530,11 @@ def compute_month(db: Session, period: str) -> KpiMonthOut:
         source="attendance_days",
         formula_note=(
             "Chuyên cần = tổng ngày có mặt ÷ (HC × B3). "
-            "Tỷ lệ OT (chia sẻ) = OT ÷ (OT + ngày có mặt × 8h) — công thức file giám đốc. "
+            "Tỷ lệ OT (chia sẻ) = OT ÷ (OT + ngày có mặt × 8h) — công thức file HQ. "
             "Tỷ lệ OT (công suất) = OT ÷ (HC × ngày công × 8h). "
             "OT = ot_minutes. Từ tháng 8/2026."
         ),
+        days=company_days,
         teams=clean,
     )
 

@@ -7815,6 +7815,87 @@ html.app-fullscreen .module-page {
   font-weight: 600;
 }
 
+.kpi-print-banner {
+  display: none;
+}
+
+.kpi-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin: 12px 0 24px;
+}
+
+.kpi-chart-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px 8px;
+}
+
+.kpi-chart-card h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.kpi-chart-empty {
+  margin: 12px 0;
+  color: var(--ink-muted);
+}
+
+.kpi-svg-wrap {
+  margin: 0;
+}
+
+.kpi-svg-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.kpi-svg-tick,
+.kpi-svg-label {
+  font-size: 11px;
+  fill: #64748b;
+  font-family: inherit;
+}
+
+.kpi-svg-label {
+  fill: #0f172a;
+  font-weight: 600;
+}
+
+.kpi-svg-wrap figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 6px 0 4px;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.kpi-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.kpi-swatch-navy {
+  background: #1e40af;
+}
+
+.kpi-swatch-dash {
+  background: repeating-linear-gradient(90deg, #64748b 0 6px, transparent 6px 10px);
+}
+
+.kpi-swatch-off {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+}
+
 .alert-mini-list {
   list-style: none;
   margin: 0;
@@ -8248,6 +8329,10 @@ html.app-fullscreen .module-page {
   .no-print {
     display: none !important;
   }
+  .ai-fab-root,
+  .cmdk-backdrop {
+    display: none !important;
+  }
   .module-page,
   .fs-sheet,
   .worker-page,
@@ -8259,5 +8344,33 @@ html.app-fullscreen .module-page {
     border: none;
     box-shadow: none;
     margin: 0;
+  }
+  .kpi-charts-page .module-header,
+  .kpi-charts-page .module-toolbar,
+  .kpi-charts-page .field-hint {
+    display: none !important;
+  }
+  .kpi-print-banner {
+    display: block;
+    margin: 0 0 12px;
+  }
+  .kpi-print-banner strong {
+    display: block;
+    font-size: 1.15rem;
+  }
+  .kpi-print-banner span {
+    color: #475569;
+    font-size: 0.9rem;
+  }
+  .kpi-chart-grid {
+    display: block;
+  }
+  .kpi-chart-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0;
+    box-shadow: none;
   }
 }

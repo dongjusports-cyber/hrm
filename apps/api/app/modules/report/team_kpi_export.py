@@ -1,4 +1,4 @@
-"""Xuất Excel KPI giám đốc — ngày và tháng. Cột tự cấu hình (tham khảo file HQ)."""
+"""Xuất Excel KPI Dongju Sports VN — ngày và tháng. Cột tự cấu hình (tham khảo file HQ)."""
 
 from __future__ import annotations
 
