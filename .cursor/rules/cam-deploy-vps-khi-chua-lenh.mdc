@@ -1,0 +1,28 @@
+---
+description: KHÓA deploy VPS — AI chỉ được test/sửa code local + GitHub, deploy VPS chỉ khi user ra lệnh trực tiếp
+alwaysApply: true
+---
+
+# CẤM deploy VPS khi chưa có lệnh user
+
+**Bối cảnh (22/08/2026):** Phần mềm đang **chạy nghiệm thu** — HR đang sử dụng thật trên VPS. DB production 361 NV là dữ liệu thật.
+
+## Quy tắc bắt buộc
+
+1. **Cấm** chạy `ops/deploy_vps_from_git.py`, `05-DEPLOY-VPS.bat`, hoặc bất kỳ lệnh nào ghi lên VPS khi user **chưa ra lệnh trực tiếp** trong phiên chat.
+2. Phạm vi làm việc mặc định của AI:
+   - Sửa code trên máy local (`d:\dj-hrm\dj-hrm`)
+   - Test trên Docker local / pytest / vitest (dữ liệu sandbox, đã kéo DB VPS về)
+   - Commit + push GitHub khi có việc cần lưu
+3. Push GitHub **không tự động** chạy lên VPS — deploy là bước riêng, luôn chờ lệnh.
+4. «Code xong, test pass» **không phải** lý do deploy. Không tự đề xuất deploy lặp lại.
+
+## Ngoại lệ duy nhất
+
+User viết yêu cầu rõ ràng: «deploy VPS», «đưa lên VPS», hoặc tự bấm `Thien-Admin\02-DONG-BO-SANG.bat`. Khi đó mới chạy `python ops/deploy_vps_from_git.py` (theo rule keep-alive-cho-ship).
+
+## Ghi nhớ AI
+
+- Trước mọi thao tác có chữ «VPS» → dừng hỏi lại nếu không chắc.
+- Cloud Agent buổi tối cũng bị ràng buộc rule này — chỉ sửa code + push GitHub, sáng user tự đồng bộ.
+- Lỗi gấp trên production do HR báo → báo user, chờ lệnh; **không** tự can thiệp VPS kể cả vì «fix nóng».
