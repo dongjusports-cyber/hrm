@@ -1,54 +1,53 @@
-"""Worker self-service — login tự tạo TK, công tháng, phép năm."""
+"""Worker self-service — đăng nhập, công tháng của chính mình, phép năm (service)."""
 
 from datetime import date
 
-from app.modules.worker.service import DEFAULT_WORKER_PASSWORD
+from app.modules.core.models import User
+from app.modules.worker.self_service import get_leave_balance
+from tests.worker_auth import (
+    default_login_password,
+    unlocked_worker_headers,
+    worker_auth_headers,
+    worker_login_json,
+)
 
 
-def _worker_token(client, code: str) -> str:
+def _login(client, code: str = "5290") -> tuple[str, dict]:
     res = client.post(
         "/api/worker/login",
-        json={"employee_code": code, "password": DEFAULT_WORKER_PASSWORD},
+        json=worker_login_json(code, default_login_password(code)),
     )
     assert res.status_code == 200, res.text
-    return res.json()["access_token"]
+    body = res.json()
+    return body["access_token"], body["worker"]
 
 
-def test_worker_login_auto_provision(client, db):
-    from app.modules.core.models import User
-    from app.modules.mdm.models import Employee
+def test_worker_login_seeded_account(client):
+    token, worker = _login(client, "5290")
+    assert worker["employee_code"] == "5290"
+    assert worker["must_change_password"] is True
 
-    emp = db.query(Employee).filter(Employee.employee_code == "5290").first()
-    assert emp is not None
-    db.query(User).filter(User.username == "5290", User.role == "worker").delete()
-    db.commit()
-
-    token = _worker_token(client, "5290")
-    user = db.query(User).filter(User.username == "5290", User.role == "worker").first()
-    assert user is not None
-    assert user.employee_id == emp.id
-
-    me = client.get("/api/worker/me", headers={"Authorization": f"Bearer {token}"})
-    assert me.status_code == 200
+    me = client.get("/api/worker/me", headers=worker_auth_headers(token))
+    assert me.status_code == 200, me.text
     assert me.json()["employee_code"] == "5290"
 
 
-def test_worker_leave_balance(client):
-    token = _worker_token(client, "5290")
-    res = client.get("/api/worker/leave-balance", headers={"Authorization": f"Bearer {token}"})
-    assert res.status_code == 200, res.text
-    body = res.json()
-    assert body["year"] == date.today().year
-    assert "accrued" in body and "used" in body and "remaining" in body
-    assert body["days_per_year"] >= 12
+def test_worker_leave_balance_service(client, db):
+    user = db.query(User).filter(User.username == "5290", User.role == "worker").first()
+    assert user is not None
+
+    out = get_leave_balance(db, user, as_of=date(date.today().year, 8, 1))
+    assert out.year == date.today().year
+    assert out.days_per_year >= 12
+    assert out.accrued >= 0 and out.used >= 0 and out.remaining >= 0
 
 
 def test_worker_attendance_month(client):
-    token = _worker_token(client, "5290")
+    headers = unlocked_worker_headers(client, "5290")
     res = client.get(
         "/api/worker/attendance",
         params={"period": "2026-08"},
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
     )
     assert res.status_code == 200, res.text
     body = res.json()
