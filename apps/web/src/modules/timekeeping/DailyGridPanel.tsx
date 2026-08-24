@@ -27,6 +27,7 @@ import { buildDayTimePatch, parseGridTimeInput, planQuickHours, toIsoTime } from
 import { isoToHhmm, prettyPunchDisplay } from "./prettyPunchDisplay";
 import { employeeMatchesQuery } from "../../shared/employeeSearch";
 import { applyDailyGridSort, isNeedsFirstSortActive } from "./dailyGridSort";
+import { updateDailyGridRowInPlace } from "./dailyGridRowUpdate";
 import { holidayOtMinutes, weekendOtMinutes } from "./otDisplay";
 
 type RowWithEdit = AttendanceDayGridRow & {
@@ -92,7 +93,11 @@ function applyDayToGridRow(
     needs_action,
     row_flag,
   };
-  return withDisplayTimes(merged, showMachine);
+  const shown = withDisplayTimes(merged, showMachine);
+  const live = row as RowWithEdit;
+  if (live._edit_in != null) shown._edit_in = live._edit_in;
+  if (live._edit_out != null) shown._edit_out = live._edit_out;
+  return shown;
 }
 
 export type DailyGridSummary = {
@@ -135,10 +140,11 @@ function DailyGridPanelInner({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [gridApi, setGridApi] = useState<GridApi<AttendanceDayGridRow> | null>(null);
+  const gridApiRef = useRef<GridApi<AttendanceDayGridRow> | null>(null);
   const [needsFirstOn, setNeedsFirstOn] = useState(false);
+  const [dataEpoch, setDataEpoch] = useState(0);
   const didInitialSortRef = useRef(false);
   const rowsRef = useRef(rows);
-  rowsRef.current = rows;
   const filterKeyRef = useRef(`${workDate}|${needsOnly}|${departmentId}`);
   const [bulkLeave, setBulkLeave] = useState("ALE");
   const [bulkIn, setBulkIn] = useState("08:00");
@@ -163,7 +169,11 @@ function DailyGridPanelInner({
         needs_action_only: needsOnly,
         department_id: departmentId || undefined,
       });
-      setRows(list.map((r) => withDisplayTimes({ ...r, work_date: r.work_date || workDate }, showMachineRef.current)));
+      const mapped = list.map((r) =>
+        withDisplayTimes({ ...r, work_date: r.work_date || workDate }, showMachineRef.current),
+      );
+      rowsRef.current = mapped;
+      setRows(mapped);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không tải lưới ngày công.");
     } finally {
@@ -198,12 +208,12 @@ function DailyGridPanelInner({
   const refreshing = loading && rows.length > 0;
 
   const summary = useMemo((): DailyGridSummary => {
-    const matched = rows.filter((r) => employeeMatchesQuery(r, searchQuery));
+    const matched = rowsRef.current.filter((r) => employeeMatchesQuery(r, searchQuery));
     return {
       total: matched.length,
       needsAction: matched.filter((r) => r.needs_action).length,
     };
-  }, [rows, searchQuery]);
+  }, [rows, searchQuery, dataEpoch]);
 
   useEffect(() => {
     if (!onSummaryChange) return;
@@ -430,9 +440,17 @@ function DailyGridPanelInner({
   ) {
     const code = row.employee_code;
     const day = await patchAttendanceDayCell(patchBody);
-    const merged = applyDayToGridRow(row, day, showMachineRef.current);
-    setRows((prev) => prev.map((r) => (r.employee_code === code ? merged : r)));
-    gridApi?.applyTransaction({ update: [merged] });
+    const live =
+      (gridApiRef.current?.getRowNode(code)?.data as RowWithEdit | undefined) ??
+      rowsRef.current.find((r) => r.employee_code === code) ??
+      row;
+    const merged = applyDayToGridRow(live, day, showMachineRef.current);
+    rowsRef.current = rowsRef.current.map((r) => (r.employee_code === code ? merged : r));
+    // Không setRows / applyTransaction — AG Grid sẽ sort lại theo needs_action · giờ vào.
+    if (!updateDailyGridRowInPlace(gridApiRef.current, merged)) {
+      setRows(rowsRef.current);
+    }
+    setDataEpoch((n) => n + 1);
     setToast(`Đã lưu ${code}`);
     onTimesChanged?.();
   }
@@ -614,7 +632,17 @@ function DailyGridPanelInner({
               const on = e.target.checked;
               setShowMachine(on);
               persistShowMachine(on);
-              setRows((prev) => prev.map((r) => withDisplayTimes(r, on)));
+              const next = rowsRef.current.map((r) => withDisplayTimes(r, on));
+              rowsRef.current = next;
+              const api = gridApiRef.current;
+              if (api) {
+                api.forEachNode((n) => {
+                  if (!n.data) return;
+                  n.updateData(withDisplayTimes(n.data, on));
+                });
+              } else {
+                setRows(next);
+              }
             }}
           />
           Hiện giờ máy
@@ -623,6 +651,7 @@ function DailyGridPanelInner({
           type="button"
           className={`btn-ghost-dark btn-sm${needsFirstOn ? " is-on" : ""}`}
           disabled={!gridApi}
+          title="Xếp một lần. Đang gõ giờ/phép thì dòng không nhảy chỗ — bấm lại nếu muốn xếp lại."
           onClick={sortNeedsFirst}
         >
           {needsFirstOn ? "Đang xếp: cần xử lý" : "Xếp cần xử lý lên đầu"}
@@ -738,6 +767,7 @@ function DailyGridPanelInner({
           isExternalFilterPresent={isExternalFilterPresent}
           doesExternalFilterPass={doesExternalFilterPass}
           onGridReady={(p) => {
+            gridApiRef.current = p.api;
             setGridApi(p.api);
             const restored = colPrefs.restore(p.api);
             if (!restored && !didInitialSortRef.current) {
